@@ -13,4 +13,4 @@ dependencyResolutionManagement {
     }
 }
 
-include(":elevation", ":engine")
+include(":elevation", ":engine", ":codegen")
