@@ -17,6 +17,9 @@ kotlin {
     sourceSets {
         commonMain.dependencies {
             implementation(libs.kotlinx.coroutines.core)
+            implementation(libs.kotlinx.datetime)
+            implementation(libs.xmlutil.core)
+            implementation(libs.xmlutil.serialization)
             api(project(":elevation"))
         }
         commonTest.dependencies {
