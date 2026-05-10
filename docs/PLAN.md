@@ -44,15 +44,18 @@ Le projet TypeScript `virtual-cyclist` (simulateur de cyclisme basé physique av
 | 07 | LRU cache + TileManager | ✅ | `6edbb5c` | 20 |
 | 08 | Flux + ElevationCalculator + BatchCalculator + ElevationProvider | ✅ | `409ed40` + `78a93b9` + `325add2` | 33 |
 | **— Phase 1 (module `:elevation`) terminée —** | | | | |
-| 09 | Intégration HTTP réelle (tuiles mapterhorn) | ⏳ | — | — |
+| 09 | Intégration HTTP réelle (tuiles mapterhorn, gated `INTEGRATION=1`) | ✅ | `ad2837b` | 6 (jvmTest, opt-in) |
+| ★ | **Bonus** — WASM browser demo + `@JsExport` façade `ElevationJsApi` | ✅ | `a095ff8` | — (smoke E2E Mont Blanc ≈ 4757 m) |
 | 10-15 | Engine — modèle Path + Cyclist/Bike + GPX I/O | ⏳ | — | — |
 | 16-21 | Engine — physique (providers, max speeds, virtualize) | ⏳ | — | — |
 | 22-25 | Engine — pipeline (resample, simplify, enhancer) | ⏳ | — | — |
 | 26-28 | Parité + CLI smoke + API JS/Wasm | ⏳ | — | — |
 
-**Cumul `:elevation` après Phase 1** : 19 classes de tests, **187 tests** par target (commonTest 182 + jvmTest 5) × 3 targets = **551 exécutions** vertes.
+**Cumul `:elevation` après Phase 1 + extras** : 20 classes de tests, **193 tests** (commonTest 182 + jvmTest 11 dont 6 opt-in) × 3 targets en mode standard = **557 exécutions** vertes (offline).
 
 **Critère Phase 1** : `./gradlew :elevation:allTests` vert sur JVM + JS Node + Wasm browser. ✅ Module utilisable comme dépendance via `api(project(":elevation"))` à activer en Phase 2.
+
+**Bonus hors plan** : le commit `a095ff8` ajoute un démonstrateur browser Kotlin/Wasm (Leaflet + Chart.js + GPX upload) et la façade `@JsExport` `ElevationJsApi` (top-level functions + `JsReference<ElevationProvider>` handle pattern + DTOs `external interface : JsAny` + `Promise<…>` via `GlobalScope.promise`). Cela **valide les patterns** documentés dans `kotlin-wasm-jvm-webp.md` et **réduit le scope de la tâche 28** (la recette est désormais éprouvée pour `:engine`). E2E vérifié contre `tiles.mapterhorn.com` (Mont Blanc ≈ 4757 m). À noter : pas de tests unitaires pour cette façade, et `GlobalScope.promise` requiert `@OptIn(DelicateCoroutinesApi)` — à traiter si publication npm.
 
 ---
 
