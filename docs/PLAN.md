@@ -46,7 +46,8 @@ Le projet TypeScript `virtual-cyclist` (simulateur de cyclisme basé physique av
 | **— Phase 1 (module `:elevation`) terminée —** | | | | |
 | 09 | Intégration HTTP réelle (tuiles mapterhorn, gated `INTEGRATION=1`) | ✅ | `ad2837b` | 6 (jvmTest, opt-in) |
 | ★ | **Bonus** — WASM browser demo + `@JsExport` façade `ElevationJsApi` | ✅ | `a095ff8` | — (smoke E2E Mont Blanc ≈ 4757 m) |
-| 10-15 | Engine — modèle Path + Cyclist/Bike + GPX I/O | ⏳ | — | — |
+| 10 | Engine — `PointField` + `PointFieldCategory` (36 champs / 14 catégories) | ✅ | `2d20d4a` | 16 (×3 targets = 48) |
+| 11-15 | Engine — Path codegen + Cyclist/Bike + GPX I/O | ⏳ | — | — |
 | 16-21 | Engine — physique (providers, max speeds, virtualize) | ⏳ | — | — |
 | 22-25 | Engine — pipeline (resample, simplify, enhancer) | ⏳ | — | — |
 | 26-28 | Parité + CLI smoke + API JS/Wasm | ⏳ | — | — |
@@ -221,11 +222,11 @@ Référence canonique : `/home/glandais/code/perso/vcyclist-all/elevation/src/`.
 Référence : `/home/glandais/code/perso/vcyclist-all/virtual-cyclist/src/types/path/` (fieldDefinitions, GeneratedPath, Path).
 
 ### 10-engine-field-definitions.md
-- Définir les **37 champs** du Path (single source of truth) en Kotlin : `enum class PointField(val index: Int, val unit: String, val category: String, val description: String)`.
-- Catégories : coordinates, temporal, elevation, grade, radius, power (10 sous-types), speed, hr, cadence, wind, temp.
-- Cross-check exhaustif vs `virtual-cyclist/src/types/path/fieldDefinitions.ts`.
-- **Output** : `engine/src/commonMain/kotlin/.../path/PointField.kt`.
-- Test : `PointField.values().size == 37` + index unique.
+- Définir les **36 champs** du Path (single source of truth) en Kotlin : `enum class PointField(val prop: String, val unit: String, val shortDescription: String, val category: PointFieldCategory, val notSelectable: Boolean = false, val anglesInRadians: Boolean = false)`. `index = ordinal`.
+- **14 catégories** (`enum class PointFieldCategory`) : coordinates, temporal, angles, elevation, grade, radius, aero_coef, cyclist_wind, power_physics, power_cyclist, power_post, speed, environmental, physiological.
+- Cross-check exhaustif vs `virtual-cyclist/src/types/path/fieldDefinitions.ts` (qui contient bien 36 champs malgré la mention "37" dans la doc TS).
+- **Output** : `engine/src/commonMain/kotlin/.../path/{PointField.kt, PointFieldCategory.kt}`.
+- Test : `PointField.entries.size == 36`, `PointField.COUNT == 36`, ordinaux uniques, `byProp` round-trip, comptage par catégorie.
 
 ### 11-engine-codegen-strategy.md
 - **Décision** : pas de KSP/codegen-plugin pour démarrer ; on génère **manuellement à partir de `PointField`** une classe `GeneratedPath` qui expose getters/setters typés.
