@@ -1,5 +1,5 @@
 [versions]
-kotlin = "2.1.0"
+kotlin = "2.3.21"
 coroutines = "1.10.2"
 kotlinx-browser = "0.3"
 imageio-webp = "3.12.0"
