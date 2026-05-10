@@ -273,7 +273,7 @@ Critères :
 - [x] Helper `integrationEnabled()` lit `INTEGRATION` env var et `integration` system property
 - [x] 6 cas de test : 3 altitudes ponctuelles, 1 cache HTTP, 1 attribution, 1 profile path
 - [x] `./gradlew :elevation:jvmTest` passe sans `INTEGRATION=1` (tests skippés silencieusement)
-- [ ] `INTEGRATION=1 ./gradlew :elevation:jvmTest --tests '*Integration*'` exécute et passe les 6 tests sur une connexion réseau standard (vérification manuelle à faire par l'opérateur)
+- [x] `INTEGRATION=1 ./gradlew :elevation:jvmTest --tests '*Integration*'` exécute et passe les 6 tests sur une connexion réseau standard (vérifié manuellement le 2026-05-10 : 6 tests verts en 2.48s contre `tiles.mapterhorn.com`)
 - [x] `docs/elevation-integration.md` créé avec instructions de run
 - [x] `:engine:allTests` toujours vert
 - [x] `ktlintCheck` vert
