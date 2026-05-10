@@ -471,17 +471,17 @@ Critères :
 
 ## Done when
 
-- [ ] `Flux.kt` créé (+ FluxTest avec déduplication, exception, validation maxParallel)
-- [ ] `ElevationCalculator.kt` créé avec **vraie interpolation bilinéaire** (corrige le bug TS où `dx=dy=0`)
-- [ ] `toPixelFloat` + `PixelFloat` ajoutés à `ElevationFunctions/Tiles`
-- [ ] `BatchCalculator.kt` créé (setElevations + getElevationsAlong + helpers privés)
-- [ ] `ElevationProviderConfig.kt` + `Attribution`
-- [ ] `ElevationProvider.kt` (façade publique + validations dans `init`)
-- [ ] Tests verts sur les 3 targets : `FluxTest` (≥ 4), `ElevationCalculatorTest` (≥ 5), `BatchCalculatorTest` (≥ 11), `ElevationProviderTest` (≥ 5)
-- [ ] Messages d'exception conformes : `"Path must contain at least 2 coordinates"`, `"Step is too small: ... meters"`, `"Invalid zoom level: ..."`, `"Invalid cache size: ..."`, `"Invalid tile size: ..."`
-- [ ] `ktlintCheck` vert ; `:engine:allTests` toujours vert
-- [ ] **Critère de fin Phase 1** : `:elevation:allTests` vert sur JVM + JS + Wasm, coverage ≥ 80 %, le module est utilisable comme dépendance
-- [ ] Toutes les checkboxes cochées
+- [x] `Flux.kt` créé (+ FluxTest avec déduplication, exception, validation maxParallel)
+- [x] `ElevationCalculator.kt` créé avec **vraie interpolation bilinéaire** (corrige le bug TS où `dx=dy=0`)
+- [x] `toPixelFloat` + `PixelFloat` ajoutés à `ElevationFunctions/Tiles`
+- [x] `BatchCalculator.kt` créé (setElevations + getElevationsAlong + helpers privés)
+- [x] `ElevationProviderConfig.kt` + `Attribution`
+- [x] `ElevationProvider.kt` (façade publique + validations dans `init`)
+- [x] Tests verts sur les 3 targets : `FluxTest` (≥ 4), `ElevationCalculatorTest` (≥ 5), `BatchCalculatorTest` (≥ 11), `ElevationProviderTest` (≥ 5)
+- [x] Messages d'exception conformes : `"Path must contain at least 2 coordinates"`, `"Step is too small: ... meters"`, `"Invalid zoom level: ..."`, `"Invalid cache size: ..."`, `"Invalid tile size: ..."`
+- [x] `ktlintCheck` vert ; `:engine:allTests` toujours vert
+- [x] **Critère de fin Phase 1** : `:elevation:allTests` vert sur JVM + JS + Wasm, coverage ≥ 80 %, le module est utilisable comme dépendance
+- [x] Toutes les checkboxes cochées
 
 ## Notes
 
