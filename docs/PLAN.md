@@ -49,14 +49,15 @@ Le projet TypeScript `virtual-cyclist` (simulateur de cyclisme basé physique av
 | 10 | Engine — `PointField` + `PointFieldCategory` (36 champs / 14 catégories) | ✅ | `2d20d4a` | 16 (×3 targets = 48) |
 | 11 | Engine — `GeneratedPath` codegen (sous-projet `:codegen`) + `PointFieldAccessors` | ✅ | `97ed1d9` | 9 (×3 targets = 27) |
 | 12 | Engine — Path (stats + helpers + bridge `:elevation`) | ✅ | `efc9d17` | 18 (×3 targets = 54) |
-| 13-15 | Engine — Cyclist/Bike + GPX I/O | ⏳ | — | — |
+| 13 | Engine — Cyclist/Bike/Course models + constants | ✅ | `a266111` | 40 (×3 targets = 120) |
+| 14-15 | Engine — GPX I/O | ⏳ | — | — |
 | 16-21 | Engine — physique (providers, max speeds, virtualize) | ⏳ | — | — |
 | 22-25 | Engine — pipeline (resample, simplify, enhancer) | ⏳ | — | — |
 | 26-28 | Parité + CLI smoke + API JS/Wasm | ⏳ | — | — |
 
 **Cumul `:elevation` après Phase 1 + extras** : 20 classes de tests, **193 tests** (commonTest 182 + jvmTest 11 dont 6 opt-in) × 3 targets en mode standard = **557 exécutions** vertes (offline).
 
-**Cumul `:engine` après tâches 10-12** : 3 classes de tests, **43 tests commonTest** (16 PointField + 9 GeneratedPath + 18 Path) × 3 targets = **129 exécutions** vertes.
+**Cumul `:engine` après tâches 10-13** : 8 classes de tests, **83 tests commonTest** (16 PointField + 9 GeneratedPath + 18 Path + 16 EngineConstants + 9 Cyclist + 9 Bike + 3 Course + 3 EnhanceOptions) × 3 targets = **249 exécutions** vertes.
 
 **Critère Phase 1** : `./gradlew :elevation:allTests` vert sur JVM + JS Node + Wasm browser. ✅ Module utilisable comme dépendance via `api(project(":elevation"))` à activer en Phase 2.
 
