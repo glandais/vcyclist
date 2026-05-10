@@ -1,6 +1,6 @@
 [versions]
 kotlin = "2.1.0"
-coroutines = "1.10.2"
+coroutines = "1.11.0"
 kotlinx-browser = "0.3"
 imageio-webp = "3.13.1"
 ktlint = "14.2.0"
