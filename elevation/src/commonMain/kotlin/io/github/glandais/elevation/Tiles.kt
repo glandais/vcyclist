@@ -29,3 +29,10 @@ data class RGBColor(
     val green: Int,
     val blue: Int,
 )
+
+/** A pixel position with sub-pixel resolution, used for bilinear interpolation. */
+data class PixelFloat(
+    val tile: TileCoordinates,
+    val x: Double,
+    val y: Double,
+)

@@ -95,6 +95,18 @@ object ElevationFunctions {
         return Pixel(TileCoordinates(tile.x, tile.y, z), px, py)
     }
 
+    /** Like [toPixel] but keeps the fractional pixel position needed for bilinear interpolation. */
+    fun toPixelFloat(
+        coords: Coordinates,
+        z: Int,
+        tileSize: Int,
+    ): PixelFloat {
+        val tile = toTileCoordinatesFloat(coords, z)
+        val px = (tile.xFloat - tile.x) * tileSize
+        val py = (tile.yFloat - tile.y) * tileSize
+        return PixelFloat(TileCoordinates(tile.x, tile.y, z), px, py)
+    }
+
     /** Formats integer-valued doubles like JS (`86` not `86.0`). Used for TS-compatible error messages. */
     private fun formatNumber(d: Double): String {
         val asLong = d.toLong()
