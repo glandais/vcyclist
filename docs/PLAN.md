@@ -32,21 +32,27 @@ Le projet TypeScript `virtual-cyclist` (simulateur de cyclisme basé physique av
 
 ## Avancement
 
-| # | Tâche | Statut | Commit | Tests (commonTest, par target) |
+| # | Tâche | Statut | Commit | Tests ajoutés (commonTest, par target) |
 |---|---|---|---|---|
 | 00 | Bootstrap KMP | ✅ | `536a20c` | 1 smoke / module |
 | 01 | Coordinates / Constants / Vector3D | ✅ | `f3b5897` | 32 |
 | 02 | Distance / EcefConverter | ✅ | `8ffac1a` | 33 |
 | 03 | DouglasPeucker 3D | ✅ | `edd17be` | 10 |
 | 04 | ElevationSmoother | ✅ | `b30c6a0` | 11 |
-| 05 | Tile types / ElevationFunctions / Tile (Terrarium) | 📝 spec rédigée | — | viser ≥ 36 |
-| 06 | Tile fetcher (HTTP + WebP) | ⏳ | — | — |
-| 07 | LRU cache + TileManager | ⏳ | — | — |
-| 08 | ElevationCalculator (bilinéaire) + BatchCalculator + ElevationProvider | ⏳ | — | — |
-| 09 | Intégration HTTP réelle | ⏳ | — | — |
-| 10-28 | Engine + parité + API JS/Wasm | ⏳ | — | — |
+| 05 | Tile types / ElevationFunctions / Tile (Terrarium) | ✅ | `48eb97f` | 43 |
+| 06 | Tile fetcher (HTTP + WebP, multi-target) | ✅ | `3a78987` | 5 (jvmTest) |
+| 07 | LRU cache + TileManager | ✅ | `6edbb5c` | 20 |
+| 08 | Flux + ElevationCalculator + BatchCalculator + ElevationProvider | ✅ | `409ed40` + `78a93b9` + `325add2` | 33 |
+| **— Phase 1 (module `:elevation`) terminée —** | | | | |
+| 09 | Intégration HTTP réelle (tuiles mapterhorn) | ⏳ | — | — |
+| 10-15 | Engine — modèle Path + Cyclist/Bike + GPX I/O | ⏳ | — | — |
+| 16-21 | Engine — physique (providers, max speeds, virtualize) | ⏳ | — | — |
+| 22-25 | Engine — pipeline (resample, simplify, enhancer) | ⏳ | — | — |
+| 26-28 | Parité + CLI smoke + API JS/Wasm | ⏳ | — | — |
 
-**Cumul `:elevation` aujourd'hui** : 8 classes de tests, **86 tests** par target × 3 targets (JVM + JS Node + Wasm browser) = **258 exécutions** vertes.
+**Cumul `:elevation` après Phase 1** : 19 classes de tests, **187 tests** par target (commonTest 182 + jvmTest 5) × 3 targets = **551 exécutions** vertes.
+
+**Critère Phase 1** : `./gradlew :elevation:allTests` vert sur JVM + JS Node + Wasm browser. ✅ Module utilisable comme dépendance via `api(project(":elevation"))` à activer en Phase 2.
 
 ---
 
