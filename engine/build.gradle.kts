@@ -17,7 +17,7 @@ kotlin {
     sourceSets {
         commonMain.dependencies {
             implementation(libs.kotlinx.coroutines.core)
-            // api(project(":elevation")) // activé en Phase 2
+            api(project(":elevation"))
         }
         commonTest.dependencies {
             implementation(kotlin("test"))
