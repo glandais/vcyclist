@@ -30,6 +30,26 @@ Le projet TypeScript `virtual-cyclist` (simulateur de cyclisme basé physique av
 
 ---
 
+## Avancement
+
+| # | Tâche | Statut | Commit | Tests (commonTest, par target) |
+|---|---|---|---|---|
+| 00 | Bootstrap KMP | ✅ | `536a20c` | 1 smoke / module |
+| 01 | Coordinates / Constants / Vector3D | ✅ | `f3b5897` | 32 |
+| 02 | Distance / EcefConverter | ✅ | `8ffac1a` | 33 |
+| 03 | DouglasPeucker 3D | ✅ | `edd17be` | 10 |
+| 04 | ElevationSmoother | ✅ | `b30c6a0` | 11 |
+| 05 | Tile types / ElevationFunctions / Tile (Terrarium) | 📝 spec rédigée | — | viser ≥ 36 |
+| 06 | Tile fetcher (HTTP + WebP) | ⏳ | — | — |
+| 07 | LRU cache + TileManager | ⏳ | — | — |
+| 08 | ElevationCalculator (bilinéaire) + BatchCalculator + ElevationProvider | ⏳ | — | — |
+| 09 | Intégration HTTP réelle | ⏳ | — | — |
+| 10-28 | Engine + parité + API JS/Wasm | ⏳ | — | — |
+
+**Cumul `:elevation` aujourd'hui** : 8 classes de tests, **86 tests** par target × 3 targets (JVM + JS Node + Wasm browser) = **258 exécutions** vertes.
+
+---
+
 ## Structure cible
 
 ```
@@ -148,10 +168,12 @@ Référence canonique : `/home/glandais/code/perso/vcyclist-all/elevation/src/`.
 - Tests : ports `test/utils/ElevationSmoother.test.ts` (variance reduction, no-op si `enabled=false`).
 
 ### 05-elevation-tile-types-decoding.md
-- Types : `TileCoordinates(x, y, z)`, `Pixel(tile, x, y)`, `Tile` (interface) + `RawTile` (bytes/RGB).
-- `ElevationFunctions` : conversion lat/lon ↔ tile/pixel (Web Mercator), encode/decode Terrarium RGB → mètres.
-- `ElevationCalculator` : interpolation bilinéaire à partir de 4 pixels.
-- Tests : ports `test/calculator/ElevationCalculator.test.ts`, `ElevationFunctions.test.ts` (formules lat/zoom, RGB→m).
+- Types : `TileCoordinates`, `TileCoordinatesFloat`, `Pixel`, `RGBColor`, `RawTile` (data class avec `equals`/`hashCode` corrects pour `ByteArray`).
+- `ElevationFunctions` (object) : conversion lat/lon ↔ tile/pixel (Web Mercator), validators (`isValidLatitude/Longitude/ZoomLevel`), `normalizePixel` avec clamp tuile.
+- `Tile` : classe **concrète** (vs `abstract` TS — normalisation précoce en `ByteArray` côté KMP), décodage Terrarium pixel-par-pixel avec cache `DoubleArray` (sentinel `NaN`).
+- Ajout `EarthConstants.WEB_MERCATOR_MAX_LAT_TEST = 85.0511` (borne de validation TS) à côté de `WEB_MERCATOR_MAX_LAT` (borne géodésique précise).
+- **Re-scope** : `ElevationCalculator` (interpolation bilinéaire) est déplacé en tâche 08 car il nécessite `TileManager` (tâche 07).
+- Tests : ports `test/calculator/ElevationFunctions.test.ts` (9 cas `normalizePixel`) + tests neufs pour projections, validators, décodage Terrarium, cache.
 
 ### 06-elevation-tile-fetcher.md
 - `commonMain` : `data class RawTile(val width: Int, val height: Int, val rgba: ByteArray)` + `expect suspend fun fetchAndDecodeTile(url: String): RawTile`.
@@ -169,11 +191,12 @@ Référence canonique : `/home/glandais/code/perso/vcyclist-all/elevation/src/`.
 - Tests : éviction LRU, deduplication concurrente.
 
 ### 08-elevation-provider-batch.md
-- `ElevationProviderConfig` (zoom, cacheSize, urlTemplate, attribution).
+- `ElevationCalculator` (déplacé depuis tâche 05) : interpolation bilinéaire à partir de 4 pixels voisins via `TileManager`. Suspend.
+- `ElevationProviderConfig` (zoom, cacheSize, urlTemplate, tileSize, attribution).
 - `ElevationProvider` (API publique) : `getElevation(lat, lon)`, `setElevations(coords)`, `getElevationsAlong(path, options)`.
 - `BatchCalculator` : pipeline `getElevationsAlong` (génération de waypoints intermédiaires via Haversine, lissage, filtrage Douglas-Peucker).
 - `Reactive` : limitation de concurrence (équivalent de `Reactive.ts`).
-- Tests : ports principaux de `test/ElevationProvider.test.ts` (avec `TileFetcher` mocké), `BatchCalculator.test.ts`.
+- Tests : ports `test/calculator/ElevationCalculator.test.ts` (avec `TileManager` mocké), principaux de `test/ElevationProvider.test.ts`, `BatchCalculator.test.ts`.
 
 ### 09-elevation-integration.md
 - Test d'intégration `jvmTest` qui fetche réellement quelques tuiles `tiles.mapterhorn.com` (équivalent `ElevationProvider.integration.test.ts`).

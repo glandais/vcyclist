@@ -14,6 +14,9 @@ object EarthConstants {
 
     /** Web Mercator latitude bound (north/south) in degrees */
     const val WEB_MERCATOR_MAX_LAT: Double = 85.051_128_779_806_59
+
+    /** Looser validation bound used by [ElevationFunctions.isValidLatitude] (5-decimal truncation). */
+    const val WEB_MERCATOR_MAX_LAT_TEST: Double = 85.0511
 }
 
 object MathConstants {
