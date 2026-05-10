@@ -1,0 +1,420 @@
+# Réécriture de virtual-cyclist en Kotlin Multiplatform
+
+## Contexte
+
+Le projet TypeScript `virtual-cyclist` (simulateur de cyclisme basé physique avec pipeline 5 étapes : fix elevation → max speeds → virtualize 1Hz → resample → simplify) doit être réécrit en Kotlin Multiplatform dans `/home/glandais/code/perso/vcyclist-all/vcyclist/`. La réécriture s'inspire fortement du projet Java `gpx2web` (architecture `PowerProvider`, modèle de points typés, `MaxSpeedComputer`, `VirtualizeService`) et utilise une réécriture de la lib voisine `elevation` (port complet en Kotlin du fetch de tuiles Terrarium, interpolation bilinéaire, Haversine, Douglas-Peucker 3D, lissage triangulaire).
+
+**Pourquoi ce changement** : Kotlin Multiplatform permet d'avoir un seul codebase moteur compilable en JVM (dev/tests rapides, intégration backend), Wasm (browser pour la demo), JS Node (CLI/scripts), et plus tard natif si besoin. Une demo Compose Multiplatform (Web Wasm/JS + Desktop JVM) remplacera la demo Vue actuelle.
+
+**Décisions clés validées avec l'utilisateur** :
+- Cibles engine : **JVM, Wasm, JS (Node)** — pas de natif initialement
+- Module **elevation** porté en Kotlin comme module Gradle séparé, dépendance d'engine
+- Demo Compose Multiplatform : **Web (Wasm/JS) + Desktop (JVM)**
+- Modèle Path : **DoubleArray plat + getters générés** (codegen, comme la version TS)
+- Focus initial sur le **module engine** ; demo abordée brièvement en fin de plan
+
+**Choix techniques pour interop & WebP** (cf. `kotlin-wasm-jvm-webp.md` à la racine du repo, source de vérité) :
+- **KMP avec `expect`/`actual`** pour tout ce qui touche au runtime (fetch HTTP, décodage tuile, IO fichier).
+- **Décodage WebP des tuiles Terrarium** :
+  - JVM : **TwelveMonkeys ImageIO** (`com.twelvemonkeys.imageio:imageio-webp:3.12.0`), pur Java, SPI, déploiement trivial.
+  - Wasm/browser : `kotlinx-browser:0.3` + `window.createImageBitmap(blob)` + canvas 2D + `getImageData`.
+  - JS Node : `node-fetch` + `sharp` (natif npm) — best-effort, peut être limité au PNG Terrarium si `sharp` indisponible. Cible Node pour elevation marquée **optionnelle** (engine reste utilisable sur Node avec un `ElevationProvider` plug-in fourni par l'appelant).
+- **Coroutines** : `kotlinx-coroutines-core:1.10.2` (commun à toutes cibles).
+- **API publique vers JS/Wasm** (pour la demo et un éventuel npm package) :
+  - `@JsExport` sur classes orientées consommateur + `external interface` pour les DTO littéraux JSON-like.
+  - `suspend` → wrappé en `Promise<JsAny?>` via `GlobalScope.promise { ... }` côté wasmJsMain.
+  - **Pas** d'exposition directe de `Path` (DoubleArray opaque) — passer par des DTO (`PointDto`, `PathDto`) sérialisables.
+  - `generateTypeScriptDefinitions()` activé sur la target `wasmJs` pour produire un `.d.ts` (statut expérimental, à valider).
+
+**Suivi** : Chaque tâche correspond à un fichier markdown dans `vcyclist/docs/tasks/NN-slug.md` contenant Goal / Inputs / Steps / Outputs / Validation / Done-when. Les tâches sont **séquentielles** (chaque tâche dépend des précédentes), conçues pour être exécutables dans des sessions Claude indépendantes en lisant uniquement le markdown de la tâche + les outputs des précédentes.
+
+---
+
+## Structure cible
+
+```
+/home/glandais/code/perso/vcyclist-all/vcyclist/
+├── settings.gradle.kts                # multi-module
+├── build.gradle.kts                   # root + plugins versions
+├── gradle.properties
+├── gradle/wrapper/...
+├── docs/
+│   ├── PLAN.md                        # vue d'ensemble (issue de ce plan)
+│   ├── ARCHITECTURE.md                # high-level (rempli au fur et à mesure)
+│   └── tasks/                         # un .md par tâche, état progress
+│       ├── 00-bootstrap.md
+│       ├── 01-elevation-coords-vector.md
+│       └── …
+├── elevation/                         # module Gradle KMP
+│   ├── build.gradle.kts
+│   └── src/{commonMain,jvmMain,jsMain,wasmJsMain,commonTest,jvmTest}/...
+├── engine/                            # module Gradle KMP (dépend de elevation)
+│   ├── build.gradle.kts
+│   └── src/{commonMain,jvmMain,jsMain,wasmJsMain,commonTest,jvmTest}/...
+└── demo/                              # module Gradle Compose Multiplatform
+    ├── build.gradle.kts
+    └── src/{commonMain,desktopMain,wasmJsMain}/...
+```
+
+Tests : chaque algorithme a son test unitaire en `commonTest` ; intégrations qui dépendent de l'environnement (HTTP, fichiers) sont en `jvmTest` (et `jsTest`/`wasmJsTest` quand pertinent). Sample data partagée via `commonTest/resources` ou ressource embarquée.
+
+---
+
+## Convention de tâche (modèle)
+
+Chaque `docs/tasks/NN-slug.md` suit ce format :
+
+```markdown
+# NN — <Titre>
+
+## Goal
+<1–3 phrases : ce que produit la tâche>
+
+## Depends on
+- NN-1, NN-2 (tâches préalables)
+
+## Inputs
+- fichiers/refs spec dans repos voisins (chemins absolus)
+- décisions de design héritées
+
+## Steps
+1. …
+2. …
+
+## Outputs (fichiers attendus)
+- elevation/src/commonMain/kotlin/.../X.kt
+- elevation/src/commonTest/kotlin/.../XTest.kt
+
+## Validation
+- Commande : `./gradlew :elevation:allTests` (ou `:engine:jvmTest`, etc.)
+- Critères : <ce qui doit passer/montrer>
+- Numerical parity check (si applicable) : tolérance 1e-9 vs sortie TS
+
+## Done when
+- [ ] Tests verts sur cibles JVM/JS/Wasm activées
+- [ ] Coverage du nouveau code ≥ 80 %
+- [ ] Pas de warning compilateur
+- [ ] Markdown coché
+
+## Notes
+<décisions/non-évidences à propager>
+```
+
+---
+
+## Phase 0 — Bootstrap
+
+### 00-bootstrap.md
+- Init `vcyclist/` avec Gradle 8.x + Kotlin 2.x.
+- `settings.gradle.kts` : modules `:elevation`, `:engine` (demo plus tard).
+- Plugin `org.jetbrains.kotlin.multiplatform` configuré pour `jvm()`, `js(IR) { nodejs() }`, `wasmJs { browser(); binaries.executable(); generateTypeScriptDefinitions() }`.
+- Dépendances communes par défaut : `kotlinx-coroutines-core:1.10.2`, `kotlin-test`.
+- Dépendances par target :
+  - `wasmJsMain` : `kotlinx-browser:0.3`
+  - `jvmMain` : `imageio-webp:3.12.0` (TwelveMonkeys) — seulement dans `:elevation`
+  - `jsMain` : `node-fetch` (via npm) ; `sharp` optionnel
+- Targets de test : Kotlin Test (`kotlin("test")`) + assertions communes.
+- Lint/format : `ktlint` (recommandation).
+- CI minimal : GitHub Actions ou script `make check` qui lance build + tests sur toutes cibles.
+- `docs/tasks/` créé, `PLAN.md` copié depuis ce plan, `kotlin-wasm-jvm-webp.md` recopié/lié dans `docs/`.
+- **Validation** : `./gradlew build` passe (modules vides) ; `:elevation:allTests` et `:engine:allTests` retournent UP-TO-DATE.
+
+---
+
+## Phase 1 — Module `elevation` (port de la lib TS)
+
+Référence canonique : `/home/glandais/code/perso/vcyclist-all/elevation/src/`. Pour chaque algorithme, le test Kotlin doit reproduire les cas du test TS correspondant (`/elevation/test/...`) avec les mêmes valeurs et tolérances.
+
+### 01-elevation-coords-vector.md
+- Types : `Coordinates(latitude, longitude, elevation: Double?)`, `CoordinatesElevation(latitude, longitude, elevation: Double)`.
+- Constantes : `EARTH_RADIUS_M = 6_371_000.0`, `WGS84_*`, `WEB_MERCATOR_MAX_LAT`.
+- `Vector3D` : data class + ops (add, sub, dot, cross, magnitude, normalize, distanceToSegment).
+- Tests : ports directs de `test/utils/Vector3D.test.ts`.
+- **Outputs** : `elevation/src/commonMain/kotlin/io/github/glandais/elevation/{Coordinates.kt, Constants.kt, Vector3D.kt}` + tests.
+
+### 02-elevation-distance-ecef.md
+- `Distance` : `haversineMeters(a, b)`, `euclidean3DMeters(a, b, zExaggeration)`, `pointToSegmentDistance3D(...)`.
+- `EcefConverter` : WGS84 → ECEF avec `zExaggeration` (paramètre Douglas-Peucker).
+- Tests : ports de `test/utils/Distance.test.ts` + `EcefConverter.test.ts` (paris/londres ≈ 343 km, etc.).
+- **Validation** : parité numérique 1e-9 vs TS.
+
+### 03-elevation-douglas-peucker.md
+- `DouglasPeucker` : simplification récursive 3D en ECEF, paramètres `tolerance`, `zExaggeration`.
+- Préserve toujours premier/dernier point.
+- Tests : ports de `test/utils/DouglasPeucker.test.ts` + `test/filtering.test.ts` (taux de réduction, retention endpoints).
+
+### 04-elevation-smoother.md
+- `ElevationSmoother` : noyau triangulaire avec fenêtre par distance ; O(n) via distances cumulées.
+- Tests : ports `test/utils/ElevationSmoother.test.ts` (variance reduction, no-op si `enabled=false`).
+
+### 05-elevation-tile-types-decoding.md
+- Types : `TileCoordinates(x, y, z)`, `Pixel(tile, x, y)`, `Tile` (interface) + `RawTile` (bytes/RGB).
+- `ElevationFunctions` : conversion lat/lon ↔ tile/pixel (Web Mercator), encode/decode Terrarium RGB → mètres.
+- `ElevationCalculator` : interpolation bilinéaire à partir de 4 pixels.
+- Tests : ports `test/calculator/ElevationCalculator.test.ts`, `ElevationFunctions.test.ts` (formules lat/zoom, RGB→m).
+
+### 06-elevation-tile-fetcher.md
+- `commonMain` : `data class RawTile(val width: Int, val height: Int, val rgba: ByteArray)` + `expect suspend fun fetchAndDecodeTile(url: String): RawTile`.
+- `actual` **JVM** : `java.net.http.HttpClient` (KMP-friendly, pas de dépendance Ktor obligatoire) + `ImageIO.read(...)` via TwelveMonkeys (SPI auto-enregistré). Décode ARGB → conversion vers `ByteArray` RGBA (pattern exact du `kotlin-wasm-jvm-webp.md` §6 jvmMain).
+- `actual` **Wasm/browser** : `window.fetch(url).await<Response>()` → `.blob().await<Blob>()` → `window.createImageBitmap(blob).await<ImageBitmap>()` → canvas 2D + `getImageData()` → `data.data.toByteArray()` (pattern §5 cas 2 et §6 wasmJsMain).
+- `actual` **JS (Node)** : `node-fetch` + `sharp` (`sharp(buffer).raw().toBuffer({ resolveWithObject: true })`). Si `sharp` indisponible (build/CI offline), fallback : forcer URL Terrarium PNG et décoder via `pngjs`. Cette target est marquée **optionnelle** ; commenter le bloc `jsMain` si non utilisé.
+- Tests :
+  - `commonTest` : mocker `fetchAndDecodeTile` via `expect/actual` test fixture qui lit une tuile depuis `commonTest/resources/sample-tile.webp`.
+  - `jvmTest` : test réel d'intégration avec un serveur Ktor embarqué (`io.ktor:ktor-server-test-host`, scope `testImplementation`) servant une tuile fixture, vérification que les bytes décodés correspondent à la fixture.
+  - `wasmJsTest` : exécution dans `browser { testTask {} }`, mock URL avec un blob créé en JS.
+
+### 07-elevation-tile-cache.md
+- `LruCache<K, V>` thread-safe (KMP, utilise `kotlinx.atomicfu` ou simple synchronized JVM-only en attendant — choix : LinkedHashMap+lock simple côté JVM, `kotlinx-collections-immutable` côté commun).
+- `TileManager` : pool réentrant, déduplication des fetches concurrents (`Mutex` par clé de tuile).
+- Tests : éviction LRU, deduplication concurrente.
+
+### 08-elevation-provider-batch.md
+- `ElevationProviderConfig` (zoom, cacheSize, urlTemplate, attribution).
+- `ElevationProvider` (API publique) : `getElevation(lat, lon)`, `setElevations(coords)`, `getElevationsAlong(path, options)`.
+- `BatchCalculator` : pipeline `getElevationsAlong` (génération de waypoints intermédiaires via Haversine, lissage, filtrage Douglas-Peucker).
+- `Reactive` : limitation de concurrence (équivalent de `Reactive.ts`).
+- Tests : ports principaux de `test/ElevationProvider.test.ts` (avec `TileFetcher` mocké), `BatchCalculator.test.ts`.
+
+### 09-elevation-integration.md
+- Test d'intégration `jvmTest` qui fetche réellement quelques tuiles `tiles.mapterhorn.com` (équivalent `ElevationProvider.integration.test.ts`).
+- Skippable via env var `INTEGRATION=1` pour CI offline.
+- Sanity check : altitude Mont Blanc ≈ 4800 m ± 50 m.
+
+**Critère de fin de Phase 1** : `./gradlew :elevation:allTests` vert sur `jvm`, `js`, `wasmJs`. Coverage ≥ 80 %. Le module est utilisable comme dépendance.
+
+---
+
+## Phase 2 — Module `engine` : modèle de données
+
+Référence : `/home/glandais/code/perso/vcyclist-all/virtual-cyclist/src/types/path/` (fieldDefinitions, GeneratedPath, Path).
+
+### 10-engine-field-definitions.md
+- Définir les **37 champs** du Path (single source of truth) en Kotlin : `enum class PointField(val index: Int, val unit: String, val category: String, val description: String)`.
+- Catégories : coordinates, temporal, elevation, grade, radius, power (10 sous-types), speed, hr, cadence, wind, temp.
+- Cross-check exhaustif vs `virtual-cyclist/src/types/path/fieldDefinitions.ts`.
+- **Output** : `engine/src/commonMain/kotlin/.../path/PointField.kt`.
+- Test : `PointField.values().size == 37` + index unique.
+
+### 11-engine-codegen-strategy.md
+- **Décision** : pas de KSP/codegen-plugin pour démarrer ; on génère **manuellement à partir de `PointField`** une classe `GeneratedPath` qui expose getters/setters typés.
+- Structure : `class GeneratedPath(val size: Int) { protected val data: DoubleArray = DoubleArray(size * 37); var <field>(i: Int): Double get() = data[i * 37 + index] set(v) { ... } }`.
+- Si `PointField` change → relancer un script Kotlin (`scripts/generate-path.kts` ou Gradle task) qui régénère `GeneratedPath.kt`.
+- Alternative laissée ouverte : KSP plus tard si la liste évolue beaucoup.
+- **Outputs** : `engine/src/commonMain/kotlin/.../path/GeneratedPath.kt` + `scripts/generate-path.main.kts`.
+- Tests : round-trip set/get sur chaque champ.
+
+### 12-engine-path.md
+- `class Path(size) : GeneratedPath(size)` ; ajoute stats calculées paresseusement (`totalDistance`, `elevationGain`, `elevationLoss`, `duration`, etc.).
+- API d'itération : `forEachPoint { i -> ... }`, `subPath(i, j)`, `copy()`, `extend(additionalSize)`.
+- Tests : construction d'un path court à la main, vérif stats.
+
+---
+
+## Phase 3 — Module `engine` : modèles de domaine
+
+Référence : `/home/glandais/code/perso/vcyclist-all/virtual-cyclist/src/types/models/`.
+
+### 13-engine-cyclist-bike.md
+- `data class Cyclist(massKg, powerW, cd, frontalAreaM2, maxLeanAngleDeg, maxSpeedKmH, maxBrakeG, ...)` avec defaults (80 kg, 280 W, 0.7, 0.5 m², 35°, 100 km/h).
+- `data class Bike(crr=0.004, inertiaFront=0.05, inertiaRear=0.07, wheelRadiusM=0.7, efficiency=0.976)`.
+- `data class Course(path: Path, cyclist: Cyclist, bike: Bike)`.
+- `class CoursePhysics(course, rhoProvider, aeroProvider, windProvider, powerProvider)`.
+- Tests : valeurs par défaut, conversions (km/h ↔ m/s, deg ↔ rad).
+
+---
+
+## Phase 4 — Module `engine` : I/O GPX
+
+### 14-engine-gpx-parser.md
+- Parser GPX **KMP-pur** : pas de dépendance JVM-only.
+- Option A (recommandée) : `kotlinx.serialization` n'a pas de XML stable multi-plateforme ; utiliser **`xmlutil`** (https://github.com/pdvrieze/xmlutil) qui supporte JVM/JS/Wasm.
+- Mapper waypoints + extensions Garmin (power, cadence, hr, atemp).
+- **Output** : `engine/src/commonMain/kotlin/.../gpx/GpxParser.kt`.
+- Tests : fixtures dans `engine/src/commonTest/resources/` — réutiliser `virtual-cyclist/test/fixtures/*.gpx` (Garmin, Strava, Amazfit).
+
+### 15-engine-gpx-writer.md
+- Écriture symétrique avec `xmlutil`.
+- Round-trip test : parse → write → parse, comparaison structurelle.
+
+---
+
+## Phase 5 — Module `engine` : physique
+
+Référence cœur : `/home/glandais/code/perso/vcyclist-all/virtual-cyclist/src/physics/` + `gpx2web/.../virtual/power/`. Utiliser `HOW_IT_WORKS.md` du projet TS comme spec numérique.
+
+### 16-engine-rho-wind-providers.md
+- `interface RhoProvider { fun rho(altitudeM: Double, tempC: Double): Double }`.
+- `IsaRhoProvider` : modèle ISA barométrique.
+- `interface WindProvider { fun wind(point: Path, i: Int): WindVector }` (constant, none, fromData).
+- Tests : ISA à 0 m / 1500 m, valeurs connues.
+
+### 17-engine-power-providers.md
+- `interface PowerProvider { fun powerAt(course: CoursePhysics, i: Int, speed: Double): Double }`.
+- 4 implémentations physiques :
+  - `WheelBearingsPowerProvider` : `P = -speed × (91 + 8.7 × speed) / 1000`.
+  - `RollingResistancePowerProvider` : `-cos(atan(grade)) × m × g × speed × crr`.
+  - `GravPowerProvider` : `-m × g × speed × sin(atan(grade))`.
+  - `AeroPowerProvider` (Isvan model) : `-CdA × ρ/2 × v_apparent³` avec contribution vent (formule Sheldon Brown).
+- Tests : valeurs numériques précises, parité TS (tolérance 1e-6 W).
+
+### 18-engine-cyclist-power-providers.md
+- 4 sources de puissance cycliste :
+  - `ConstantPowerProvider`
+  - `ConstantWithTiringPowerProvider`
+  - `FromDataPowerProvider` (lit le champ power du Path)
+  - `MuscularPowerProvider` (harmoniques optionnelles)
+- Tests : profils typiques.
+
+### 19-engine-power-computer.md
+- Bilan énergétique + équation cinétique :
+  ```
+  M_eq = m + (I_front + I_rear) / r²
+  v_new = sqrt(v_old² + 2 × P_net × Δt / M_eq)
+  ```
+- `PowerComputer` agrège tous les `PowerProvider`.
+- Tests : conservation d'énergie sur plat sans vent, descente libre.
+
+### 20-engine-max-speed-computer.md
+- `MaxSpeedComputer` 2 passes :
+  - Forward : pour chaque triplet (i-1, i, i+1), centre du cercle circonscrit → rayon → `v_max = √(g × radius × tan(maxLean))`. Sécurité +2 m sur radius.
+  - Backward : freinage cinématique `v0² = vf² + 2ad` avec `a = maxBrakeG × g`.
+- Tests : virage serré (R=30 m, lean 35° → ≈ 14.4 m/s ≈ 52 km/h), freinage 30→0 km/h sur 7 m.
+- Parité numérique vs TS sur sample.gpx.
+
+### 21-engine-virtualize-service.md
+- Boucle 1 Hz : à chaque pas, calcule `dt` par binary search sur `dists[]` pour avancer d'1 s à la `v` courante, applique `MaxSpeedComputer.cap(v)`, met à jour position/temps/champs.
+- Snap aux waypoints sources pour cohérence GPS.
+- Tests : sample.gpx → vérifier durée, distance, distribution des vitesses.
+
+---
+
+## Phase 6 — Module `engine` : post-traitement
+
+### 22-engine-point-per-second.md
+- Resampler uniforme à 1 Hz (interpolation linéaire entre samples virtualisés).
+- Tests : nombre de points = floor(durée), interpolation cohérente.
+
+### 23-engine-douglas-peucker-3d.md
+- Réutilise `DouglasPeucker` du module `elevation` (dépendance déjà déclarée). Fournit wrapper qui opère sur `Path` (transcrit Path → list de coords ECEF avec exagération).
+- Tests : taux de réduction sur sample.
+
+---
+
+## Phase 7 — Module `engine` : pipeline orchestrateur
+
+### 24-engine-elevation-fix-step.md
+- Step 1 du pipeline : appelle `ElevationProvider.getElevationsAlong(path, options)` pour corriger l'altitude.
+- Fallback : si `ElevationProvider` non fourni, utilise altitude GPX brute + smoother local (MA 150 pts, comme TS).
+- Tests : avec mock provider, sans provider.
+
+### 25-engine-enhancer.md
+- `Enhancer` orchestre les 5 étapes :
+  1. `fixElevation`
+  2. `computeMaxSpeeds`
+  3. `virtualize`
+  4. `resample1Hz`
+  5. `simplify` (Douglas-Peucker 3D)
+- API : `enhance(coursePhysics, options): Path` + helper `enhanceCourseDefault(path)`.
+- Tests : pipeline complet sur `sample.gpx` ; comparaison structurelle (durée, distance, profil de vitesse) avec sortie de référence générée depuis l'engine TS.
+
+---
+
+## Phase 8 — Validation end-to-end & parité
+
+### 26-engine-parity-fixtures.md
+- Générer une fois (manuellement, dans un sous-dossier `fixtures/expected/`) les sorties du virtual-cyclist TS sur 3 GPX de référence :
+  - `sample.gpx` (court, plat)
+  - un GPX de col (Ventoux du gpx2web)
+  - un GPX urbain avec virages serrés
+- Format : JSON ou CSV avec champs clés (time, lat, lon, ele, speed, power_total, grade).
+- Test Kotlin : exécute le pipeline Kotlin sur ces GPX, compare à la fixture (tolérance par champ : 0.5 % distance, 0.5 km/h vitesse, 5 W puissance — à affiner).
+
+### 27-engine-cli-smoke.md
+- Petit point d'entrée `jvmMain` (`fun main()`) : `engine-cli enhance input.gpx --cyclist-mass 80 --power 280 -o output.gpx`.
+- Test smoke : commande tourne sans erreur sur `sample.gpx`.
+
+### 28-engine-js-wasm-public-api.md
+- API consommateurs JS/Wasm (utilisée par la future demo et un éventuel npm package).
+- Définir DTO `@JsExport` dans `commonMain` (visibles par toutes cibles) **mais** annotations `@JsExport` actives uniquement quand compilées pour `wasmJs`/`js` :
+  - `external interface CyclistDto : JsAny { val massKg: Double; val powerW: Double; val cd: Double; val frontalAreaM2: Double; ... }`
+  - `external interface BikeDto : JsAny { val crr: Double; ... }`
+  - `external interface EnhanceOptionsDto : JsAny { ... }`
+  - `@JsExport class PathView` (opaque) avec accessors typés : `length: Int`, `pointAt(i: Int): JsArray<JsNumber>` ou `pointJson(i: Int): String`.
+- Façade exposée :
+  ```kotlin
+  @JsExport
+  fun parseGpx(xml: String): PathView
+  @JsExport
+  fun enhance(path: PathView, cyclist: CyclistDto, bike: BikeDto, options: EnhanceOptionsDto?): Promise<PathView>
+  @JsExport
+  fun writeGpx(path: PathView): String
+  ```
+- `suspend fun enhance(...)` interne → wrapper `Promise<JsAny?>` via `GlobalScope.promise { ... }` côté `wasmJsMain`.
+- Activation `generateTypeScriptDefinitions()` dans le bloc `wasmJs {}` du build → produit `engine.d.ts` à côté du `.mjs`.
+- Validation : fichier `.d.ts` généré et lisible ; smoke test JS dans `wasmJsTest` qui appelle parseGpx → enhance → writeGpx sur un GPX inline.
+
+**Critère de fin** : `./gradlew check` vert sur toutes cibles, parity tests passants à la tolérance définie, `.d.ts` généré.
+
+---
+
+## Phase 9 — Demo Compose Multiplatform (esquisse)
+
+Au-delà du focus engine, mais déjà cadré :
+
+- **Module `:demo`** Compose Multiplatform avec targets `desktopMain` (JVM) + `wasmJsMain` (browser).
+- Fonctionnalités cibles (alignées avec la demo Vue) :
+  - Upload GPX (file picker desktop / file input web).
+  - Tabs Cyclist / Bike / Power / Wind / Fields.
+  - Graphique elevation/speed/power : utiliser `compose-multiplatform` `Canvas` + lib comme `kandy-charts` ou implé custom (pas de Chart.js équivalent natif KMP mature ; choix à acter en début de Phase 9).
+  - Carte : `maplibre-compose-playground` ou simple Canvas + tuiles raster.
+- Tâches à créer en Phase 9 (non détaillées ici) : `28-demo-bootstrap`, `29-demo-load-gpx`, `30-demo-controls`, `31-demo-charts`, `32-demo-map`.
+
+---
+
+## Fichiers critiques de référence à lire avant exécution
+
+À consulter par l'exécutant de chaque tâche :
+
+**`elevation/` (TS)** — spec algorithmes
+- `src/ElevationProvider.ts`, `src/types.ts`
+- `src/calculator/{ElevationCalculator,BatchCalculator,ElevationFunctions}.ts`
+- `src/utils/{Distance,DouglasPeucker,ElevationSmoother,EcefConverter,Vector3D}.ts`
+- `src/tile/{TileManager,TileLoader}.ts`
+- `test/**/*.test.ts` (cas numériques à porter)
+
+**`virtual-cyclist/` (TS)** — spec engine
+- `HOW_IT_WORKS.md` (spec numérique exhaustive — **lecture obligatoire**)
+- `src/types/path/{fieldDefinitions,GeneratedPath,Path}.ts`
+- `src/types/models/{Cyclist,Bike,Course}.ts`
+- `src/physics/{VirtualizeService,MaxSpeedComputer}.ts`
+- `src/physics/power/{PowerComputer,aero/AeroPowerProvider,grav/GravPowerProvider,rolling/*}.ts`
+- `src/enhancer/Enhancer.ts`
+- `src/gpx/{GPXParser,GPXWriter}.ts`
+
+**`gpx2web/` (Java)** — inspiration architecturale
+- `gpx/.../virtual/{VirtualizeService,GPXEnhancer}.java`
+- `gpx/.../virtual/power/{PowerComputer, aero/AeroPowerProvider, rolling/*, grav/*}.java`
+- `gpx/.../virtual/maxspeed/MaxSpeedComputer.java`
+- `gpx/.../data/{Point,GPXPath,values/PropertyKeys}.java`
+
+**`kotlin-wasm-jvm-webp.md`** (racine du repo) — guide d'interop & décodage WebP
+- §1 — `@JsExport` et types autorisés
+- §3 — wrappers `suspend` → `Promise`
+- §4 — `generateTypeScriptDefinitions()` et choix DTO (`external interface` vs `@JsExport class`)
+- §5 — fetch + `createImageBitmap` + canvas pour décoder WebP côté browser
+- §6 — pattern `expect`/`actual` complet (commonMain + wasmJsMain + jvmMain TwelveMonkeys)
+- Référence à citer dans chaque tâche qui touche au fetcher de tuiles ou à l'export JS/Wasm.
+
+---
+
+## Verification end-to-end
+
+Une fois toutes les tâches du plan exécutées :
+
+1. `cd vcyclist && ./gradlew check` — toutes targets compilent et passent les tests.
+2. `./gradlew :elevation:allTests :engine:allTests` — tests verts en JVM, JS, Wasm.
+3. `./gradlew :engine:jvmRun --args="enhance ../virtual-cyclist/sample.gpx -o /tmp/out.gpx"` — smoke CLI.
+4. Comparaison fixtures de parité : `./gradlew :engine:jvmTest --tests "*ParityTest"` — vert.
+5. Couverture rapportée ≥ 80 % sur les deux modules.
+
+À ce stade, l'engine Kotlin est fonctionnellement équivalent à l'engine TS, compilable en JVM/JS/Wasm, et prêt à servir la Phase 9 (demo Compose).
