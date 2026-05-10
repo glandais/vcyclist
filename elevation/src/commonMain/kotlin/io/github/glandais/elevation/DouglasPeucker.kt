@@ -39,7 +39,8 @@ object DouglasPeucker {
 
         for (i in (firstIndex + 1) until lastIndex) {
             val d =
-                EcefConverter.toEcef(points[i], zExaggeration)
+                EcefConverter
+                    .toEcef(points[i], zExaggeration)
                     .distanceToSegment(firstEcef, lastEcef)
             if (d > maxDistance) {
                 maxDistance = d

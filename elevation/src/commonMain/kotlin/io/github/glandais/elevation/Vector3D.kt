@@ -2,7 +2,11 @@ package io.github.glandais.elevation
 
 import kotlin.math.hypot
 
-data class Vector3D(val x: Double, val y: Double, val z: Double) {
+data class Vector3D(
+    val x: Double,
+    val y: Double,
+    val z: Double,
+) {
     fun distanceTo(other: Vector3D): Double = hypot(hypot(x - other.x, y - other.y), z - other.z)
 
     operator fun minus(other: Vector3D): Vector3D = Vector3D(x - other.x, y - other.y, z - other.z)
