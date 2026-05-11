@@ -91,20 +91,31 @@ class EnhancerTest {
             simplifyPath = SimplifyPathOptions(enabled = false),
         )
 
-    // ---- 1. all steps off → only smoothElevation runs ----------------------
+    // ---- 1. all steps off → PointPerDistance still runs (always) + smoothElevation ----
 
     @Test
-    fun all_off_returns_smoothed_path_same_size() =
+    fun all_off_returns_densified_smoothed_path() =
         runTest {
             val src = samplePath()
             val out = Enhancer.enhanceCourse(Enhancer.getDefaultCourse(src), allOff)
-            // Smoother preserves size (no resampling), so output has same count as input.
-            assertEquals(src.size, out.size)
-            // Coordinates preserved (smoother only touches elevation).
-            for (i in 0 until out.size) {
-                assertEquals(src.latitude(i), out.latitude(i), 1e-12)
-                assertEquals(src.longitude(i), out.longitude(i), 1e-12)
-            }
+            // PointPerDistance (always run, non-toggleable) densifies the 5-point sparse path
+            // to ~1-2 m spacing → output has many more points than input.
+            assertTrue(out.size > 0, "empty output : ${out.size}")
+            assertTrue(out.size >= src.size, "densified path smaller than input : ${out.size} < ${src.size}")
+            // First and last waypoints preserved (PointPerDistance keeps source endpoints and
+            // densification is linear interpolation, no smoothing of lat/lon).
+            assertEquals(src.latitude(0), out.latitude(0), 1e-12)
+            assertEquals(src.longitude(0), out.longitude(0), 1e-12)
+            assertEquals(src.latitude(src.size - 1), out.latitude(out.size - 1), 1e-12)
+            assertEquals(src.longitude(src.size - 1), out.longitude(out.size - 1), 1e-12)
+            // totalDistance approximately preserved (linear interpolation is close to Haversine
+            // on < 100 m segments).
+            val srcDist = src.totalDistance
+            assertTrue(out.totalDistance > 0.0)
+            assertTrue(
+                kotlin.math.abs(out.totalDistance - srcDist) / srcDist < 0.01,
+                "totalDistance drift > 1% : src=$srcDist out=${out.totalDistance}",
+            )
         }
 
     // ---- 2. DEFAULT pipeline with mock provider → finite path, monotone time --
@@ -198,7 +209,8 @@ class EnhancerTest {
                     options,
                     elevationProvider = null,
                 )
-            assertEquals(src.size, out.size)
+            // PointPerDistance (always run) densifies → out.size != src.size, just check non-empty.
+            assertTrue(out.size > 0, "empty output : ${out.size}")
             // Virtualization writes a finite, positive time at the second-to-last point.
             assertTrue(out.time(out.size - 2).isFinite())
             assertTrue(out.time(out.size - 2) >= 0.0)
@@ -229,9 +241,15 @@ class EnhancerTest {
                     options,
                     elevationProvider = null,
                 )
-            assertEquals(src.size, out.size)
-            // Middle peak smoothed below the input spike.
-            assertTrue(out.elevation(2) < 500.0, "spike not reduced : ${out.elevation(2)}")
+            // PointPerDistance (always run) densifies → out.size != src.size, just check non-empty.
+            assertTrue(out.size > 0, "empty output : ${out.size}")
+            // The 500 m spike at the middle of the source should be smoothed away over the
+            // densified path. Check the max elevation is well below the input spike.
+            var maxEle = Double.NEGATIVE_INFINITY
+            for (i in 0 until out.size) {
+                if (out.elevation(i) > maxEle) maxEle = out.elevation(i)
+            }
+            assertTrue(maxEle < 500.0, "spike not reduced : max=$maxEle")
         }
 
     // ---- 9. complete pipeline on 5-point path → reasonable size -----------
@@ -319,9 +337,10 @@ class EnhancerTest {
                     options,
                     elevationProvider = null,
                 )
-            // Smoother runs (size preserved), then simplify : output is ≤ input.
-            assertTrue(out.size in 2..src.size, "simplified size out of bounds : ${out.size}")
-            // The first and last points should be retained by Douglas-Peucker.
+            // PointPerDistance densifies, smoother runs, then simplify : Douglas-Peucker
+            // collapses near-straight densified segments back down to a handful of points.
+            assertTrue(out.size >= 2, "simplified size below 2 : ${out.size}")
+            // The first and last source waypoints should be retained by Douglas-Peucker.
             assertEquals(src.latitude(0), out.latitude(0), 1e-12)
             assertEquals(src.latitude(src.size - 1), out.latitude(out.size - 1), 1e-12)
         }

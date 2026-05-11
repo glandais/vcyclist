@@ -37,6 +37,14 @@ package io.github.glandais.engine.parity
  * GARMIN 18 000 → 5 000 ms) because `VirtualizeService` no longer leaves `time(n - 1)`
  * at the raw source epoch — the last point is fully simulated now, so the reported
  * duration reflects only the simulated ride time instead of `simulated + epoch offset`.
+ *
+ * **Refreshed at task 31 (May 2026, Phase 2bis)** : `PointPerDistance` is now wired into
+ * `Enhancer` (pre-fix densify at 30 m max, post-fix refine at 1-2 m). On the short fixtures
+ * this densifies the 7-trkpt `SAMPLE_GPX` (~70 m mean gap → ~210 segments of ~2 m) before
+ * physics. Distance/gain/loss/duration shift slightly (denser MaxSpeedComputer + Virtualize
+ * grid), but Douglas-Peucker still collapses to 3 (SAMPLE) / 2 (GARMIN) points. SAMPLE
+ * durationMs : 52 000 → 49 000 ms ; SAMPLE gain : 0.268 → 0.219 m ; GARMIN loss : -0.0086
+ * → -0.0048 m.
  */
 data class ParityMetrics(
     val totalDistance: Double,
@@ -55,11 +63,12 @@ object ParityFixtures {
      */
     val SAMPLE =
         ParityMetrics(
-            totalDistance = 420.05059877583545,
-            totalElevationGain = 0.26831277485973715,
-            totalElevationLoss = -0.30660234137462794,
+            // updated for Phase 2bis (task 31): PointPerDistance integrated.
+            totalDistance = 420.04525064910683,
+            totalElevationGain = 0.2189461508746149,
+            totalElevationLoss = -0.3083313825632672,
             pointCount = 3,
-            durationMs = 52_000.0,
+            durationMs = 49_000.0,
         )
 
     /**
@@ -70,9 +79,10 @@ object ParityFixtures {
      */
     val GARMIN =
         ParityMetrics(
+            // updated for Phase 2bis (task 31): PointPerDistance integrated.
             totalDistance = 14.929920010888091,
             totalElevationGain = 0.0,
-            totalElevationLoss = -0.008580953441633454,
+            totalElevationLoss = -0.004834919456122577,
             pointCount = 2,
             durationMs = 5_000.0,
         )

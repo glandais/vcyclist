@@ -58,14 +58,39 @@ The 0.5 % distance/duration tolerance survives JVM ↔ JS ↔ Wasm ULP drift in 
 If a future regression breaches it for genuinely-equivalent reasons (e.g. a stdlib upgrade
 changing `atan2` rounding), widen the band to 1 % and re-document here.
 
-## Measured Kotlin pipeline values (task 26 commit)
+## Measured Kotlin pipeline values
 
 Run on JVM target (Hotspot 21), 2026-05. Cross-target stability verified on `jsTest`
 (Node) and `wasmJsTest` (Chrome headless) within the documented tolerances.
 
+### Task 26 (initial baseline)
+
 ```
 PARITY[SAMPLE] totalDistance=420.05059877583545 gain=0.26831277485973715 loss=-0.30660234137462794 size=3 durationMs=89000.0
 PARITY[GARMIN] totalDistance=14.929920010888091  gain=0.0                 loss=-0.008580953441633454 size=2 durationMs=18000.0
+```
+
+### Phase 2bis (task 29 — VirtualizeService time(n-1) fix)
+
+Durations dropped because `VirtualizeService` now simulates the last point instead of
+copying the source verbatim (no more raw 2024 epoch leaking into `time(n - 1)`).
+
+```
+PARITY[SAMPLE] totalDistance=420.05059877583545 gain=0.26831277485973715 loss=-0.30660234137462794 size=3 durationMs=52000.0
+PARITY[GARMIN] totalDistance=14.929920010888091  gain=0.0                 loss=-0.008580953441633454 size=2 durationMs=5000.0
+```
+
+### Phase 2bis (task 31 — PointPerDistance integrated, baseline values regenerated)
+
+`PointPerDistance.compute(-1.0, 30.0)` runs before `fixElevation` and
+`PointPerDistance.compute(1.0, 2.0)` runs after, matching the TS pipeline. On the short
+fixtures this densifies the trace before physics ; the 7-trkpt `SAMPLE_GPX` (~70 m mean
+gap) is densified to ~2 m spacing → `MaxSpeedComputer` and `VirtualizeService` operate
+on a finer grid. Douglas-Peucker still collapses to 3 (SAMPLE) / 2 (GARMIN) points.
+
+```
+PARITY[SAMPLE] totalDistance=420.04525064910683 gain=0.2189461508746149  loss=-0.3083313825632672  size=3 durationMs=49000.0
+PARITY[GARMIN] totalDistance=14.929920010888091  gain=0.0                 loss=-0.004834919456122577 size=2 durationMs=5000.0
 ```
 
 `SAMPLE_GPX` is a 7-trkpt excerpt of `étape du Tour 2025` spanning ~89 s.
@@ -79,16 +104,11 @@ values ; copy them into `ParityFixtures.kt` after any deliberate pipeline change
 
 ### Time-axis normalisation
 
-`VirtualizeService` rewrites `time(0..n-2)` from `t=0` but leaves `time(n-1)` at the raw
-GPX value (epoch ms). The TS reference avoids the discontinuity by tracking simulation
-time on the JS side and not preserving any input timestamp ; the Kotlin port copies the
-last point verbatim, including its epoch time. With a 2024-era epoch this creates a
-~1.7 trillion ms jump between `time(n-2)` and `time(n-1)`, which the downstream 1 Hz
-resampler (`PointPerSecond`) tries to fill — OOM.
-
-The parity test works around this by **normalising input timestamps to `time(0) = 0`**
-in `parsePathNormalized()`. This isolates the parity check from the bug. Fixing the
-underlying bug is tracked separately ; once fixed, the normalisation can be removed.
+Historically `VirtualizeService` left `time(n-1)` at the raw GPX epoch (~1.7e12 ms in
+2024). Phase 2bis task 29 fixed this — every point is now fully simulated, so the
+output time axis is dense and starts near 0. The parity test still calls
+`parsePathNormalized()` (subtract `time(0)` from every input timestamp), but this is
+now redundant and could be removed in a future cleanup.
 
 ### Tiny elevation deltas
 

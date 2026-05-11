@@ -4,6 +4,7 @@ import io.github.glandais.elevation.ElevationProvider
 import io.github.glandais.engine.path.ElevationStep
 import io.github.glandais.engine.path.Path
 import io.github.glandais.engine.path.PathSimplifier
+import io.github.glandais.engine.path.PointPerDistance
 import io.github.glandais.engine.path.PointPerSecond
 import io.github.glandais.engine.physics.AeroProviderConstant
 import io.github.glandais.engine.physics.MaxSpeedComputer
@@ -14,15 +15,22 @@ import io.github.glandais.engine.physics.WindProviderNone
 
 /**
  * Top-level enhancement pipeline : transforms a raw GPS [Path] into a physics-aware
- * virtualized ride. Ordering matches the TS `Enhancer.enhanceCourse` minus `PointPerDistance`
- * (not ported — see task 25 notes).
+ * virtualized ride. Ordering matches the TS `Enhancer.enhanceCourse`.
  *
- * Steps (each optional via [EnhanceOptions]) :
- * 1. fix elevation (Terrarium tiles via [ElevationProvider]) + 150 m smoother
- * 2. compute max speeds (cornering + braking)
- * 3. virtualize track (time-stepping simulation)
- * 4. resample to 1 Hz
- * 5. simplify with Douglas-Peucker 3D
+ * Steps (each optional via [EnhanceOptions], except `PointPerDistance` which is always run) :
+ * 1. **Pre-fix densify** : `PointPerDistance.compute(path, -1.0, 30.0)` — densifies sparse
+ *    paths to at most 30 m between points so that `fixElevation` has enough sample sites at
+ *    the DEM tile resolution (~30 m). `minDist=-1` disables the lower bound so no source
+ *    waypoint is dropped.
+ * 2. fix elevation (Terrarium tiles via [ElevationProvider]) — optional.
+ * 3. **Post-fix refine** : `PointPerDistance.compute(path, 1.0, 2.0)` — refines to 1-2 m
+ *    spacing so downstream physics (`MaxSpeedComputer`, `VirtualizeService`) operates on a
+ *    dense, regular trace.
+ * 4. smooth elevations (always runs — TS parity).
+ * 5. compute max speeds (cornering + braking).
+ * 6. virtualize track (time-stepping simulation).
+ * 7. resample to 1 Hz.
+ * 8. simplify with Douglas-Peucker 3D.
  *
  * Stateless ; safe for concurrent calls.
  */
@@ -59,10 +67,18 @@ object Enhancer {
     ): Path {
         var path = course.path
 
-        // Step 1 : elevation fix + smooth. Smoother always runs (TS parity).
+        // Step 1a : densify before fixElevation so DEM lookups have ~30 m granularity.
+        path = PointPerDistance.compute(path, minDistanceM = -1.0, maxDistanceM = 30.0)
+
+        // Step 1b : fix elevation (optional).
         if (options.fixElevation && elevationProvider != null) {
             path = ElevationStep.fixElevation(path, elevationProvider)
         }
+
+        // Step 1c : refine to 1-2 m spacing before downstream physics.
+        path = PointPerDistance.compute(path, minDistanceM = 1.0, maxDistanceM = 2.0)
+
+        // Step 1d : smooth elevations (always runs — TS parity).
         path = ElevationStep.smoothElevation(path)
 
         // Wrap the updated path into a fresh CoursePhysics carrying the new path.

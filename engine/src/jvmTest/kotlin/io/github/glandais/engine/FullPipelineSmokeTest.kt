@@ -69,5 +69,12 @@ class FullPipelineSmokeTest {
             durationMs < 24.0 * 3600.0 * 1000.0,
             "Pipeline output duration $durationMs ms is unreasonably large (epoch leak?)",
         )
+        // Phase 2bis budget : the full pipeline (incl. PointPerDistance densify to 1-2 m,
+        // which can multiply the point count ~30×) must complete in < 10 s on a modern
+        // JVM. Adjust if too tight on slow CI runners.
+        assertTrue(
+            wallMs < 10_000,
+            "Pipeline took $wallMs ms, expected < 10000 (Phase 2bis budget)",
+        )
     }
 }
