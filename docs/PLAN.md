@@ -76,7 +76,7 @@ Le projet TypeScript `virtual-cyclist` (simulateur de cyclisme basé physique av
 | 32 | Elevation — tile fetcher Node (runtime detection + `@jsquash/webp` WASM decoder + webpack externals) | ✅ | — | — (aucune nouvelle classe ; tests d'intégration en tâche 33) |
 | 33 | Elevation + Engine — tests d'intégration Node (jsNodeTest, gated `INTEGRATION=1`) + plumberie `ElevationProvider` dans `EngineJsApi` | ✅ | — | 6 tests gated (`:elevation` : 1 TileFetcher + 4 ElevationProvider ; `:engine` : 1 EnhanceWithElevation) — skip silencieusement sans INTEGRATION, passent avec INTEGRATION=1 contre tiles.mapterhorn.com |
 | **— Phase 9 : démo Vue/Vite sur Kotlin/JS —** | | | | |
-| 34 | Engine — `@JsExport` façade étendue : `enhanceWithCourse` + `getField` + `fieldDefinitions` + DTO Cyclist/Bike/Wind/Power | ☐ | | |
+| 34 | Engine — `@JsExport` façade étendue : `enhanceWithCourse` + `getField` + `fieldDefinitions` + DTO Cyclist/Bike/Wind/Power | ✅ | `c3f330d` | 4 (jsBrowserTest) |
 | 35 | Demo — bootstrap Vue/Vite + alias `@glandais/vcyclist-engine` via `file:` + shell vide | ☐ | | |
 | 36 | Demo — intégration moteur : `useGPXDemo` + `types` + persistance config | ☐ | | |
 | 37 | Demo — UI complète (16 composants Vue + Chart.js + Leaflet + 6 tabs + FieldsSidebar) | ☐ | | |
