@@ -55,7 +55,8 @@ Le projet TypeScript `virtual-cyclist` (simulateur de cyclisme basé physique av
 | 16 | Engine — RhoProvider + WindProvider (ISA + constant/none) | ✅ | `cf6b908` | 22 (×3 targets = 66) |
 | 17 | Engine — PowerProvider + 4 physics impls + AeroProvider + CoursePhysics | ✅ | `9f53121` | 38 (×3 targets = 114) |
 | 18 | Engine — CyclistPowerProvider + 4 impls + MuscularPowerProvider | ✅ | `a4bb1ec` | 28 (×3 targets = 84) |
-| 19-21 | Engine — physique (power computer, max speeds, virtualize) | ⏳ | — | — |
+| 19 | Engine — PowerComputer + energy equation (`getNewPower`/`getDx`/`getDt`/`getTotPower`/`computeCyclistPower`/`equivalentMass`) | ✅ | `dd28f9e` | 17 + 1 régression (×3 targets = 54) |
+| 20-21 | Engine — physique (max speeds, virtualize) | ⏳ | — | — |
 | 22-25 | Engine — pipeline (resample, simplify, enhancer) | ⏳ | — | — |
 | 26-28 | Parité + CLI smoke + API JS/Wasm | ⏳ | — | — |
 
