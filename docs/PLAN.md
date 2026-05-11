@@ -80,7 +80,7 @@ Le projet TypeScript `virtual-cyclist` (simulateur de cyclisme basé physique av
 | 35 | Demo — bootstrap Vue/Vite + alias `@glandais/vcyclist-engine` via `file:` + shell vide | ✅ | `03aeaf6` | — (shell vide, validation manuelle) |
 | 36 | Demo — intégration moteur : `useGPXDemo` + `types` + persistance config | ✅ | `e2fa8ac` | — (smoke Node : stelvio 259→613 pts, 10.2 min @ 250 W) |
 | 37 | Demo — UI complète (17 composants Vue + Chart.js + Leaflet + 6 tabs + FieldsSidebar) | ✅ | `bdd7c16` | — (parité TS, typecheck/lint/build verts) |
-| 38 | Demo — intégration Gradle (`:demo:assemble`) + GPX samples + README | ☐ | | |
+| 38 | Demo — intégration Gradle (`:demo:assemble`) + GPX samples + README | ✅ | `3416e9b` | — (Gradle assemble vert, 7 samples GPX, demo/dist 14 MB) |
 | 39 | Demo — déploiement GitHub Pages (optionnel, stretch) | ☐ | | |
 
 **Cumul `:elevation` après Phase 1 + extras** : 20 classes de tests, **193 tests** (commonTest 182 + jvmTest 11 dont 6 opt-in) × 3 targets en mode standard = **557 exécutions** vertes (offline).
