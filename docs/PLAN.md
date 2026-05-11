@@ -52,7 +52,8 @@ Le projet TypeScript `virtual-cyclist` (simulateur de cyclisme basé physique av
 | 13 | Engine — Cyclist/Bike/Course models + constants | ✅ | `a266111` | 40 (×3 targets = 120) |
 | 14 | Engine — GPX parser (xmlutil + Path bridge) | ✅ | `eb58cea` | 18 (×3 targets = 54) |
 | 15 | Engine — GPX writer (Path→Gpx bridge + xmlutil writer + round-trip) | ✅ | `8c409ca` | 20 (×3 targets = 60) |
-| 16-21 | Engine — physique (providers, max speeds, virtualize) | ⏳ | — | — |
+| 16 | Engine — RhoProvider + WindProvider (ISA + constant/none) | ✅ | `cf6b908` | 22 (×3 targets = 66) |
+| 17-21 | Engine — physique (aero, power, max speeds, virtualize) | ⏳ | — | — |
 | 22-25 | Engine — pipeline (resample, simplify, enhancer) | ⏳ | — | — |
 | 26-28 | Parité + CLI smoke + API JS/Wasm | ⏳ | — | — |
 
@@ -63,6 +64,8 @@ Le projet TypeScript `virtual-cyclist` (simulateur de cyclisme basé physique av
 **Cumul `:engine` après tâche 14** : 9 classes de tests, **101 tests commonTest** (83 + 18 GpxParser) × 3 targets = **303 exécutions** vertes.
 
 **Cumul `:engine` après tâche 15** : 10 classes de tests, **121 tests commonTest** (101 + 20 GpxWriter) × 3 targets = **363 exécutions** vertes.
+
+**Cumul `:engine` après tâche 16** : 12 classes de tests, **143 tests commonTest** (121 + 15 RhoProvider + 7 WindProvider) × 3 targets = **429 exécutions** vertes.
 
 **Critère Phase 1** : `./gradlew :elevation:allTests` vert sur JVM + JS Node + Wasm browser. ✅ Module utilisable comme dépendance via `api(project(":elevation"))` à activer en Phase 2.
 
