@@ -161,7 +161,10 @@
                 try {
                     // `await` on a non-Promise just resolves to the value — same shim works for
                     // both the synchronous Kotlin/JS module and the Promise-wrapped Kotlin/Wasm one.
-                    const lib = await globalThis.elevation;
+                    const mod = await globalThis.elevation;
+                    // Kotlin/JS preserves the package namespace (`mod.io.github.glandais.elevation`);
+                    // Kotlin/Wasm exposes the @JsExport top-level functions directly on `mod`.
+                    const lib = mod.io?.github?.glandais?.elevation ?? mod;
 
                     class ElevationProvider {
                         constructor(config) {
