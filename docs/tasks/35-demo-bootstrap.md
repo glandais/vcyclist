@@ -294,15 +294,15 @@ Critères :
 
 ## Done when
 
-- [ ] `demo/` créé avec arborescence complète
-- [ ] `package.json` dépend de `@glandais/vcyclist-engine` via `file:../engine/build/dist/js/productionLibrary`
-- [ ] `vite.config.ts` n'a aucun alias résiduel vers `virtual-cyclist/src/`
-- [ ] `engine-shim.ts` re-exporte les 12 symboles attendus
-- [ ] `App.vue` boot loggue le count de fields = 36
-- [ ] `npm install` + `npm run dev` + `npm run typecheck` + `npm run build` verts
-- [ ] `.gitignore` ignore `node_modules/`, `dist/`
-- [ ] `package-lock.json` commit
-- [ ] Toutes les checkboxes cochées
+- [x] `demo/` créé avec arborescence complète
+- [x] `package.json` dépend de `@glandais/vcyclist-engine` via `file:../engine/build/dist/js/productionLibrary`
+- [x] `vite.config.ts` n'a aucun alias résiduel vers `virtual-cyclist/src/`
+- [x] `engine-shim.ts` re-exporte les 12 symboles attendus
+- [x] `App.vue` boot loggue le count de fields = 36
+- [x] `npm install` + `npm run dev` + `npm run typecheck` + `npm run build` verts
+- [x] `.gitignore` ignore `node_modules/`, `dist/`
+- [x] `package-lock.json` commit
+- [x] Toutes les checkboxes cochées
 
 ## Notes
 
