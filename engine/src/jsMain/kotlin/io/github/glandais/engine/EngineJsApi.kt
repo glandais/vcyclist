@@ -5,6 +5,7 @@
 
 package io.github.glandais.engine
 
+import io.github.glandais.elevation.ElevationProvider
 import io.github.glandais.engine.gpx.GpxParser
 import io.github.glandais.engine.gpx.GpxWriter
 import io.github.glandais.engine.gpx.firstTrackAsPath
@@ -117,7 +118,12 @@ fun enhance(
 ): Promise<Path> =
     GlobalScope.promise {
         val opts = options.toEnhanceOptions()
-        Enhancer.enhanceCourseDefault(path, elevationProvider = null, options = opts)
+        // Auto-instantiate a default ElevationProvider when the caller asked for fixElevation.
+        // This makes `enhance(path, { fixElevation: true })` work end-to-end on Node (and browser
+        // when network policy allows) without requiring callers to thread a provider through the
+        // free-function façade. Skips allocation when fixElevation is off.
+        val provider = if (opts.fixElevation) ElevationProvider() else null
+        Enhancer.enhanceCourseDefault(path, elevationProvider = provider, options = opts)
     }
 
 private fun EnhanceOptionsDto?.toEnhanceOptions(): EnhanceOptions {
@@ -137,9 +143,10 @@ private fun EnhanceOptionsDto?.toEnhanceOptions(): EnhanceOptions {
 }
 
 /**
- * Safe defaults for browser/Node calls : skip elevation fetch (no provider plumbed on JS side
- * yet), skip 1 Hz resample (the 2024-stamped sample fixtures blow up `PointPerSecond` — see
- * task 27 notes) and skip simplify so smoke results stay deterministic.
+ * Safe defaults for browser/Node calls : skip elevation fetch (callers opt-in via
+ * `fixElevation: true` which triggers a default [ElevationProvider] inside [enhance]), skip 1 Hz
+ * resample (the 2024-stamped sample fixtures blow up `PointPerSecond` — see task 27 notes) and
+ * skip simplify so smoke results stay deterministic.
  */
 private fun defaultJsOptions(): EnhanceOptions =
     EnhanceOptions(
