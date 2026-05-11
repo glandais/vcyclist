@@ -205,7 +205,19 @@ output points covering ~128.6 km / ~5.3 h of simulated ride.
 - [`docs/parity.md`](docs/parity.md) — TS↔Kotlin parity approach and tolerances.
 - [`docs/kotlin-wasm-jvm-webp.md`](docs/kotlin-wasm-jvm-webp.md) — Kotlin/Wasm ↔ JS interop
   guide that underpins the `@JsExport` façades and the WebP tile decoding.
+- [`docs/publishing.md`](docs/publishing.md) — release flow (Maven Central + npm via
+  semantic-release on push to `develop`).
 - [`elevation/README.md`](elevation/README.md) — `:elevation` module details + browser demos.
+
+## Contributing
+
+`develop` is the **default and only long-lived branch** — there is no `main`. Open PRs
+against `develop` using [Conventional Commits](https://www.conventionalcommits.org/) :
+`feat:` triggers a minor release, `fix:` a patch, anything else is a no-op release-wise.
+Every push to `develop` runs the full multi-target test suite via
+`.github/workflows/release.yml` and, if green, lets semantic-release tag a new version,
+publish to Maven Central + npm, and commit the version bump back to `develop` with
+`[skip ci]`. See [`docs/publishing.md`](docs/publishing.md) for the full flow.
 
 ## License
 

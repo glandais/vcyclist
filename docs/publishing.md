@@ -22,7 +22,7 @@ mirror the workflow of the sibling projects (`elevation`, `virtual-cyclist`, `gp
 
 1. Developer commits to a feature branch using
    [Conventional Commits](https://www.conventionalcommits.org/) (`feat:`, `fix:`, …).
-2. Pull request is merged into `develop`.
+2. Pull request is merged into `develop` (the default branch).
 3. The workflow `.github/workflows/release.yml` triggers on the `develop` push.
 4. The job runs `./gradlew check` (full tests on JVM + JS Node + JS browser + Wasm browser),
    then `npx semantic-release` which :
@@ -91,8 +91,10 @@ GITHUB_TOKEN=dummy npx semantic-release --dry-run --no-ci
    the four package names (the namespace is shared with `@glandais/elevation` and
    `@glandais/virtual-cyclist`, so the org already exists).
 3. **GitHub Secrets** : configure the four secrets above on the repo settings page.
-4. **Branch protection** : protect `main`, allow only fast-forward from `develop` after
-   release.
+4. **Branch protection** : `develop` is the **default and only protected branch**. Require
+   passing CI (`./gradlew check` workflow) before merge, and require linear history so the
+   semantic-release auto-commit (the `[skip ci]` version bump back to `develop`) stays as a
+   fast-forward. There is no separate `main` branch — releases tag `develop` directly.
 5. **Initial release** : push a `feat: initial release` commit to `develop` — semantic-release
    will pick version `1.0.0` (configurable via the
    [`@semantic-release/commit-analyzer` `preset`](https://github.com/semantic-release/commit-analyzer)

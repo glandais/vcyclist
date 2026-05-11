@@ -131,6 +131,13 @@ Inputs / Steps / Outputs / Validation / Done when / Notes. The conventional flow
 
 ## Conventions
 
+### Branching
+
+`develop` is the **default and only long-lived branch** (no separate `main`). Feature work
+happens on short-lived topic branches that PR back into `develop` ; semantic-release tags
+`develop` directly on each push and commits the version bump + changelog back to `develop`
+with `[skip ci]`. See [`docs/publishing.md`](docs/publishing.md) for the release flow.
+
 ### Commit messages
 
 ```
