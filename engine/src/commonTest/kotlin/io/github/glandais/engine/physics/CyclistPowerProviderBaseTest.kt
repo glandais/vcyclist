@@ -1,5 +1,6 @@
 package io.github.glandais.engine.physics
 
+import io.github.glandais.engine.Course
 import io.github.glandais.engine.CoursePhysics
 import io.github.glandais.engine.path.Path
 import kotlin.random.Random
@@ -94,5 +95,32 @@ class CyclistPowerProviderBaseTest {
     fun harmonics_empty_when_disabled() {
         val base = TestableBase(useHarmonics = false, random = Random(123L))
         assertEquals(0, base.harmonics.size)
+    }
+
+    /**
+     * Regression for task 19 : [powerAt] now writes `pCyclistPowerNeeded(i)` via
+     * `-PowerComputer.getNewPower(course, path, i, withCyclist=false)`. At v=10 m/s on flat
+     * ground the resistive sum is strictly negative, so `powerNeeded` must be strictly positive.
+     */
+    @Test
+    fun powerAt_writes_pCyclistPowerNeeded_from_resistive_balance() {
+        val path = Path(1)
+        path.setSpeed(0, 10.0)
+        val course = Course(path)
+        val cp = CoursePhysics(course)
+        val provider = TestableBase(useHarmonics = false)
+        // Default value before invocation.
+        assertEquals(0.0, path.pCyclistPowerNeeded(0), 0.0)
+
+        provider.powerAt(cp, path, 0)
+
+        val written = path.pCyclistPowerNeeded(0)
+        assertTrue(written > 0.0, "expected positive pCyclistPowerNeeded after resistive balance, got $written")
+        // Cross-check : should equal `-getNewPower(false)` on a fresh path.
+        val fresh = Path(1)
+        fresh.setSpeed(0, 10.0)
+        val freshCp = CoursePhysics(Course(fresh))
+        val expected = -PowerComputer.getNewPower(freshCp, fresh, 0, withCyclist = false)
+        assertEquals(expected, written, 1e-12)
     }
 }

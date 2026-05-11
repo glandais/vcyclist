@@ -72,8 +72,10 @@ class PowerProviderConstantTest {
     }
 
     @Test
-    fun pCyclistPowerNeeded_slot_remains_zero_at_this_stage() {
-        // Slot is intentionally left at its init default (0.0) until task 19.
+    fun pCyclistPowerNeeded_is_zero_when_speed_is_zero() {
+        // Since task 19, the slot is written via `-PowerComputer.getNewPower(..., false)`.
+        // At speed = 0 (default Path slot), every resistive provider returns 0 → sum = 0 →
+        // powerNeeded = -0 = 0.
         val provider = PowerProviderConstant(250.0, useHarmonics = false)
         val (cp, path) = buildCp(provider)
         provider.powerAt(cp, path, 0)

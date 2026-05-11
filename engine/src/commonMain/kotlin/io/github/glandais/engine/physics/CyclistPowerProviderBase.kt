@@ -21,8 +21,10 @@ import kotlin.random.Random
  * - `pCyclistProvidedOptimalPower(i)` : raw subclass output (before harmonics).
  * - `pCyclistProvidedOptimalPowerWithHarmonics(i)` : after harmonic application.
  *
- * The `pCyclistPowerNeeded(i)` slot is **intentionally left untouched** at this stage. It
- * will be written in task 19 when `PowerComputer.getNewPower` is available.
+ * The `pCyclistPowerNeeded(i)` slot is filled by negating the total resistive power
+ * (`-getNewPower(..., withCyclist=false)`) — that's the cyclist input that would exactly
+ * balance the resistive forces. The 4 sub-providers also write their own slots as a
+ * side-effect.
  *
  * @param useHarmonics enable harmonic variations
  * @param random RNG used for harmonic generation (injectable for deterministic tests)
@@ -69,6 +71,8 @@ abstract class CyclistPowerProviderBase(
 
         // Note: speed-based adjustment (getRealOptimalPower) intentionally skipped to mirror TS.
         // Will be re-enabled in task 19 with PowerComputer access for `powerNeeded`.
+        val powerNeeded = -PowerComputer.getNewPower(course, path, pointIndex, withCyclist = false)
+        path.setPCyclistPowerNeeded(pointIndex, powerNeeded)
         return power
     }
 
