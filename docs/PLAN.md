@@ -58,7 +58,8 @@ Le projet TypeScript `virtual-cyclist` (simulateur de cyclisme basé physique av
 | 19 | Engine — PowerComputer + energy equation (`getNewPower`/`getDx`/`getDt`/`getTotPower`/`computeCyclistPower`/`equivalentMass`) | ✅ | `dd28f9e` | 17 + 1 régression (×3 targets = 54) |
 | 20 | Engine — `MaxSpeedComputer` (cornering + braking, backward pass) | ✅ | `eea84a5` | 14 (×3 targets = 42) |
 | 21 | Engine — `VirtualizeService` (time-stepping simulation) | ✅ | `1d19c04` | 12 (×3 targets = 36) |
-| 22-25 | Engine — pipeline (resample, simplify, enhancer) | ⏳ | — | — |
+| 22 | Engine — `PointPerSecond` (1 Hz resampler) | ✅ | `45a5eff` | 12 (×3 targets = 36) |
+| 23-25 | Engine — pipeline (simplify, enhancer) | ⏳ | — | — |
 | 26-28 | Parité + CLI smoke + API JS/Wasm | ⏳ | — | — |
 
 **Cumul `:elevation` après Phase 1 + extras** : 20 classes de tests, **193 tests** (commonTest 182 + jvmTest 11 dont 6 opt-in) × 3 targets en mode standard = **557 exécutions** vertes (offline).
@@ -80,6 +81,8 @@ Le projet TypeScript `virtual-cyclist` (simulateur de cyclisme basé physique av
 **Cumul `:engine` après tâche 20** : 24 classes de tests, **241 tests commonTest** (227 + 14 MaxSpeedComputer) × 3 targets = **723 exécutions** vertes.
 
 **Cumul `:engine` après tâche 21** : 25 classes de tests, **253 tests commonTest** (241 + 12 VirtualizeService) × 3 targets = **759 exécutions** vertes.
+
+**Cumul `:engine` après tâche 22** : 26 classes de tests, **265 tests commonTest** (253 + 12 PointPerSecond) × 3 targets = **795 exécutions** vertes.
 
 **Critère Phase 1** : `./gradlew :elevation:allTests` vert sur JVM + JS Node + Wasm browser. ✅ Module utilisable comme dépendance via `api(project(":elevation"))` à activer en Phase 2.
 
