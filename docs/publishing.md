@@ -98,6 +98,31 @@ GITHUB_TOKEN=dummy npx semantic-release --dry-run --no-ci
    [`@semantic-release/commit-analyzer` `preset`](https://github.com/semantic-release/commit-analyzer)
    if a `0.x` pre-release line is preferred).
 
+## Runtime dependencies declared in the npm packages
+
+The generated `package.json` for each published bundle is built from the Gradle source set
+deps (Kotlin/JS auto-propagates `npm("…", "x.y.z")` declarations) plus the `compilations
+{ packageJson { customField(…) } }` block in `*/build.gradle.kts`. After running
+`./gradlew :elevation:jsBrowserProductionLibraryDistribution
+:engine:jsBrowserProductionLibraryDistribution` you can inspect them in
+`{elevation,engine}/build/dist/{js,wasmJs}/productionLibrary/package.json`.
+
+Current runtime deps :
+
+| Package | `dependencies` | Notes |
+|---|---|---|
+| `@glandais/vcyclist-elevation` (JS) | `@jsquash/webp@1.4.0` | Used on Node.js / Bun for WebP decoding of Terrarium tiles. Loaded lazily via `eval('require')` so browser bundlers do not include it. |
+| `@glandais/vcyclist-elevation-wasm` | — | Browser-only ; tile decoding goes through `createImageBitmap` + canvas. |
+| `@glandais/vcyclist-engine` (JS) | `@js-joda/core@3.2.0` + `@jsquash/webp@1.4.0` | `@js-joda/core` from `kotlinx-datetime`. `@jsquash/webp` is transitive via the `api(project(":elevation"))` dep. |
+| `@glandais/vcyclist-engine-wasm` | `@js-joda/core@3.2.0` | Same datetime dep as the JS variant ; no Node tile decoder needed (browser-only target). |
+
+Browser consumers : the `eval('require')('@jsquash/webp/decode.js')` call is opaque to
+webpack / Rollup / Vite static analyzers, so the package is installed in `node_modules` but
+never bundled into the browser build. If you want to skip the install entirely for a
+pure-browser app, use `npm install --omit=optional` after we promote `@jsquash/webp` to
+`optionalDependencies` — currently it is a regular `dependencies` entry so Node consumers
+get it transparently.
+
 ## Troubleshooting
 
 - **`publishToMavenCentral` fails with `401 Unauthorized`** — re-issue the Central Portal

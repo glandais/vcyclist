@@ -112,15 +112,41 @@ suspend fun virtualize(xml: String): String {
 `generateTypeScriptDefinitions()` is enabled on both `js(IR)` and `wasmJs`, so you get a
 `.d.ts` next to the bundle in `build/dist/{js,wasmJs}/productionExecutable/vcyclist-engine.d.{ts,mts}`.
 
+The Kotlin/JS variant (`@glandais/vcyclist-engine`, `@glandais/vcyclist-elevation`) runs
+**in both browser and Node.js / Bun**. The Wasm variants (`*-wasm`) are browser-only.
+
+#### Browser
+
 ```js
-import { parseGpx, enhance, writeGpx, pathSize, pathTotalDistance } from './vcyclist-engine.mjs';
+import { parseGpx, enhance, writeGpx, pathSize, pathTotalDistance } from '@glandais/vcyclist-engine';
 
 const handle = parseGpx(gpxXml);
 console.log('input points:', pathSize(handle));
-const out = await enhance(handle, null);
+const out = await enhance(handle, null);                    // physics only, no HTTP
 console.log('output:', pathSize(out), pathTotalDistance(out), 'm');
 const xml = writeGpx(out);
 ```
+
+#### Node.js / Bun (with elevation correction)
+
+```js
+import { parseGpx, enhance, writeGpx } from '@glandais/vcyclist-engine';
+
+const handle = parseGpx(gpxXml);
+const out = await enhance(handle, { fixElevation: true });  // fetches DEM tiles, decodes WebP
+const xml = writeGpx(out);
+```
+
+`enhance(..., { fixElevation: true })` auto-instantiates a default `ElevationProvider`
+(mapterhorn Terrarium tiles) and runs the full pipeline (densify → fix elevation → smooth →
+max speeds → virtualize → resample → simplify).
+
+On Node.js / Bun, tile decoding uses [`@jsquash/webp`](https://www.npmjs.com/package/@jsquash/webp)
+(a pure-WASM WebP decoder, ~50 KB, listed as a runtime `dependency` of
+`@glandais/vcyclist-engine` and `@glandais/vcyclist-elevation`). It is loaded lazily via
+`eval('require')`, so browser bundlers do not pull it into the browser build. Requires
+Node ≥ 18 (`globalThis.fetch` is built-in since Node 18 / Bun) ; Node 22+ recommended for
+ESM `require()` support.
 
 ## Build & test
 
@@ -158,6 +184,12 @@ vcyclist/
   GPX I/O, full physics, simulation, post-processing, `Enhancer`, CLI, `@JsExport` façades.
 - ✅ **Phase 2bis** — pipeline fidelity fixes (tasks 29-31) : `VirtualizeService` last-point
   timestamp, `PointPerDistance` port, integration into `Enhancer`.
+- ✅ **Phase 3** — Node.js / Bun support (tasks 32-33) : runtime-detection in
+  `TileFetcher.js.kt` (browser path unchanged, Node path uses `globalThis.fetch` +
+  `@jsquash/webp` WASM decoder loaded via lazy `eval('require')`), webpack externals to keep
+  the browser bundle free of `@jsquash/webp`, `ElevationProvider` auto-instantiation in
+  `EngineJsApi.enhance` when `opts.fixElevation` is true (JS + Wasm façades), 6 jsTest classes
+  gated by `INTEGRATION=1`.
 
 Total `:engine` test coverage : 32 test classes / ~326 commonTest cases / 4 targets =
 ~1300 green executions, plus JVM-only smoke tests for the CLI and the full pipeline.

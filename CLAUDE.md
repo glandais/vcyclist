@@ -12,9 +12,12 @@ commit hashes.
 
 The port is structured as:
 
-- `:elevation` — DEM tile fetching + 3D geometry utilities (Phase 1, tasks 00-09).
+- `:elevation` — DEM tile fetching + 3D geometry utilities (Phase 1, tasks 00-09 ; Phase 3
+  task 32 added Node.js / Bun support via runtime-detection in `TileFetcher.js.kt` + the
+  `@jsquash/webp` WASM decoder).
 - `:engine` — Path model + physics + GPX I/O + `Enhancer` pipeline + CLI + JS/Wasm façades
-  (Phase 2, tasks 10-28 + Phase 2bis 29-31).
+  (Phase 2, tasks 10-28 + Phase 2bis 29-31 + Phase 3 task 33 = Node integration tests +
+  `ElevationProvider` plumbing in `EngineJsApi.enhance` for `fixElevation: true`).
 - `:codegen` — tiny JVM helper that regenerates `GeneratedPath.kt` and `PointFieldAccessors.kt`
   from `PointField` when the field list changes.
 
