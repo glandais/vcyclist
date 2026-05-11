@@ -11,11 +11,23 @@ import io.github.glandais.engine.gpx.GpxWriter
 import io.github.glandais.engine.gpx.firstTrackAsPath
 import io.github.glandais.engine.gpx.toGpxDocument
 import io.github.glandais.engine.path.Path
+import io.github.glandais.engine.path.PointField
+import io.github.glandais.engine.physics.AeroProviderConstant
+import io.github.glandais.engine.physics.CyclistPowerProvider
+import io.github.glandais.engine.physics.PowerProviderConstant
+import io.github.glandais.engine.physics.PowerProviderConstantWithTiring
+import io.github.glandais.engine.physics.PowerProviderFromData
+import io.github.glandais.engine.physics.RhoProviderEstimate
+import io.github.glandais.engine.physics.Wind
+import io.github.glandais.engine.physics.WindProvider
+import io.github.glandais.engine.physics.WindProviderConstant
+import io.github.glandais.engine.physics.WindProviderNone
 import kotlinx.coroutines.DelicateCoroutinesApi
 import kotlinx.coroutines.GlobalScope
 import kotlinx.coroutines.promise
 import kotlin.js.JsExport
 import kotlin.js.Promise
+import kotlin.math.PI
 
 /**
  * JS-facing snapshot of a single path point. Read-only ; built lazily by [pointAt]. Field units
@@ -45,6 +57,74 @@ external interface EnhanceOptionsDto {
     val simplifyEnabled: Boolean?
     val simplifyToleranceM: Double?
     val simplifyZExaggeration: Double?
+}
+
+/**
+ * JS-side mirror of [Cyclist]. All fields required when the DTO is passed (Kotlin/JS does not
+ * gracefully tolerate optional fields on `external interface` without `?`). Callers can pass
+ * `null` for the whole DTO to fall back to engine defaults (80 kg / 0.7 Cd / 0.5 m² / 35° / 100
+ * km/h / 0.6 g brake).
+ */
+external interface CyclistDto {
+    val massKg: Double
+    val cd: Double
+    val frontalAreaM2: Double
+    val maxLeanAngleDeg: Double
+    val maxBrakeG: Double
+    val maxSpeedKmH: Double
+}
+
+/**
+ * JS-side mirror of [Bike]. Pass `null` to use defaults (Crr 0.004, road-bike inertias,
+ * 0.7 m wheel radius, 0.95 drivetrain efficiency).
+ */
+external interface BikeDto {
+    val crr: Double
+    val inertiaFront: Double
+    val inertiaRear: Double
+    val wheelRadiusM: Double
+    val efficiency: Double
+}
+
+/**
+ * JS-side mirror of constant-wind input. [windDirection] is in **degrees** (meteorological
+ * convention: 0 = North, 90 = East) — the helper [toWindProvider] converts to the radians the
+ * engine internally uses.
+ */
+external interface WindDto {
+    val windSpeed: Double
+    val windDirection: Double
+}
+
+/**
+ * JS-side description of which [CyclistPowerProvider] to instantiate.
+ *
+ * - `type = "constant"` → [PowerProviderConstant] (requires [power], optional [useHarmonics]).
+ * - `type = "constant_tiring"` → [PowerProviderConstantWithTiring] (requires [power] and
+ *   [tiringDuration] in seconds, optional [useHarmonics]).
+ * - `type = "from_data"` → [PowerProviderFromData] singleton (replays `pInputPower` from the
+ *   input path).
+ */
+external interface PowerProviderDto {
+    val type: String
+    val power: Double?
+    val useHarmonics: Boolean?
+    val tiringDuration: Double?
+}
+
+/**
+ * Catalog entry for a [PointField], mirroring the TS `FIELD_DEFINITIONS` shape. Exposed to JS
+ * via [fieldDefinitions] so consumers can render generic field-pickers without hard-coding
+ * the 36-entry list.
+ */
+external interface FieldDefinitionDto {
+    val prop: String
+    val unit: String
+    val shortDescription: String
+    val categoryId: String
+    val categoryName: String
+    val notSelectable: Boolean
+    val anglesInRadians: Boolean
 }
 
 private fun pointObj(
@@ -156,3 +236,157 @@ private fun defaultJsOptions(): EnhanceOptions =
         computeOnePointPerSecond = false,
         simplifyPath = SimplifyPathOptions(enabled = false),
     )
+
+// ── Expanded JS API (task 34) ────────────────────────────────────────────────────────────────
+//
+// The `enhanceWithCourse` façade lets a JS caller build a full [CoursePhysics] (cyclist + bike
+// + wind + power provider) from JSON-like DTO inputs and run the enhancement pipeline. Mirrors
+// the TS `Enhancer.enhanceCourse` entry point. `getField` and `fieldDefinitions` expose
+// generic per-field access for the demo's UI which needs to plot any of the 36 fields.
+
+/**
+ * Convert a JS [CyclistDto] (or `null` → defaults) into a [Cyclist]. Note : the [Cyclist]
+ * data class no longer carries a power field — the power strategy is supplied separately via
+ * [PowerProviderDto] / [toCyclistPowerProvider].
+ */
+private fun CyclistDto?.toCyclist(): Cyclist {
+    if (this == null) return Cyclist()
+    return Cyclist(
+        massKg = massKg,
+        maxBrakeG = maxBrakeG,
+        cd = cd,
+        frontalAreaM2 = frontalAreaM2,
+        maxLeanAngleDeg = maxLeanAngleDeg,
+        maxSpeedKmH = maxSpeedKmH,
+    )
+}
+
+/** Convert a JS [BikeDto] (or `null` → defaults) into a [Bike]. */
+private fun BikeDto?.toBike(): Bike {
+    if (this == null) return Bike()
+    return Bike(
+        crr = crr,
+        inertiaFront = inertiaFront,
+        inertiaRear = inertiaRear,
+        wheelRadiusM = wheelRadiusM,
+        efficiency = efficiency,
+    )
+}
+
+/**
+ * Convert a JS [WindDto] into a [WindProvider]. The DTO's `windDirection` is in degrees
+ * (meteorological convention) ; we convert to the radians expected by [Wind.directionRad].
+ * `null` → [WindProviderNone].
+ */
+private fun WindDto?.toWindProvider(): WindProvider {
+    if (this == null) return WindProviderNone
+    return WindProviderConstant(Wind(speedMS = windSpeed, directionRad = windDirection * PI / 180.0))
+}
+
+/**
+ * Convert a JS [PowerProviderDto] (or `null` → 250 W constant) into a [CyclistPowerProvider].
+ *
+ * - `"constant"` → [PowerProviderConstant] (default 250 W if `power` omitted).
+ * - `"constant_tiring"` → [PowerProviderConstantWithTiring] (default 7200 s duration).
+ * - `"from_data"` → the [PowerProviderFromData] singleton.
+ */
+private fun PowerProviderDto?.toCyclistPowerProvider(): CyclistPowerProvider {
+    if (this == null) return PowerProviderConstant(250.0, useHarmonics = false)
+    return when (type) {
+        "constant" ->
+            PowerProviderConstant(
+                power = power ?: 250.0,
+                useHarmonics = useHarmonics ?: false,
+            )
+        "constant_tiring" ->
+            PowerProviderConstantWithTiring(
+                power = power ?: 250.0,
+                useHarmonics = useHarmonics ?: false,
+                durationSeconds = tiringDuration ?: 7200.0,
+            )
+        "from_data" -> PowerProviderFromData
+        else -> error("Unknown PowerProviderDto.type: $type")
+    }
+}
+
+/**
+ * Enhance [path] using a fully custom [CoursePhysics] (cyclist + bike + wind + power provider).
+ *
+ * Any DTO parameter may be `null` ; defaults are picked from the engine
+ * (see [CyclistDto], [BikeDto], [WindDto], [PowerProviderDto] KDoc for specifics).
+ *
+ * Like [enhance], when `options.fixElevation == true` a default [ElevationProvider] is
+ * auto-instantiated (Terrarium tiles via HTTP).
+ */
+@JsExport
+fun enhanceWithCourse(
+    path: Path,
+    cyclist: CyclistDto?,
+    bike: BikeDto?,
+    wind: WindDto?,
+    power: PowerProviderDto?,
+    options: EnhanceOptionsDto?,
+): Promise<Path> =
+    GlobalScope.promise {
+        val opts = options.toEnhanceOptions()
+        val provider = if (opts.fixElevation) ElevationProvider() else null
+        val course =
+            CoursePhysics(
+                course = Course(path = path, cyclist = cyclist.toCyclist(), bike = bike.toBike()),
+                rhoProvider = RhoProviderEstimate,
+                aeroProvider = AeroProviderConstant,
+                windProvider = wind.toWindProvider(),
+                cyclistPowerProvider = power.toCyclistPowerProvider(),
+            )
+        Enhancer.enhanceCourse(course, opts, elevationProvider = provider)
+    }
+
+/**
+ * Read field [fieldProp] (camelCase, e.g. `"elevation"` / `"speed"`) at point [i]. Throws if
+ * the field name is unknown.
+ */
+@JsExport
+fun getField(
+    path: Path,
+    i: Int,
+    fieldProp: String,
+): Double {
+    val field =
+        PointField.byProp(fieldProp)
+            ?: error("Unknown PointField prop: $fieldProp")
+    return path.get(i, field)
+}
+
+/**
+ * Enumerate the 36-entry [PointField] catalog as JS-friendly [FieldDefinitionDto] objects.
+ * Mirrors the TS `FIELD_DEFINITIONS` array — UIs use this to render generic field-pickers
+ * without hard-coding the list.
+ */
+@JsExport
+fun fieldDefinitions(): Array<FieldDefinitionDto> =
+    PointField.entries
+        .map { f ->
+            val o = js("({})")
+            o.prop = f.prop
+            o.unit = f.unit
+            o.shortDescription = f.shortDescription
+            o.categoryId = f.category.id
+            o.categoryName = f.category.displayName
+            o.notSelectable = f.notSelectable
+            o.anglesInRadians = f.anglesInRadians
+            o.unsafeCast<FieldDefinitionDto>()
+        }.toTypedArray()
+
+/** Latitude of point [i] in degrees (convenience wrapper around [Path.latitudeDeg]). */
+@JsExport
+fun pathLatitudeDeg(
+    path: Path,
+    i: Int,
+): Double = path.latitudeDeg(i)
+
+/** Longitude of point [i] in degrees (convenience wrapper around [Path.longitudeDeg]). */
+@JsExport
+fun pathLongitudeDeg(
+    path: Path,
+    i: Int,
+): Double = path.longitudeDeg(i)

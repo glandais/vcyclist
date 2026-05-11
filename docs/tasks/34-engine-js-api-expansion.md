@@ -250,13 +250,13 @@ Critères :
 
 ## Done when
 
-- [ ] 5 `external interface` (`CyclistDto`, `BikeDto`, `WindDto`, `PowerProviderDto`, `FieldDefinitionDto`) ajoutées
-- [ ] 3 `@JsExport fun` (`enhanceWithCourse`, `getField`, `fieldDefinitions`) ajoutées
-- [ ] Helpers de conversion DTO → modèles internes implémentés (5 fonctions privées)
-- [ ] Tests `jsBrowserTest` : custom cyclist, getField parity vs pointAt, fieldDefinitions count
-- [ ] `.d.ts` régénéré et contient les 8 nouveaux symboles
-- [ ] `enhance(path, options)` existant inchangé (compat npm/Phase 3)
-- [ ] Toutes les checkboxes cochées
+- [x] 5 `external interface` (`CyclistDto`, `BikeDto`, `WindDto`, `PowerProviderDto`, `FieldDefinitionDto`) ajoutées
+- [x] 3 `@JsExport fun` (`enhanceWithCourse`, `getField`, `fieldDefinitions`) ajoutées
+- [x] Helpers de conversion DTO → modèles internes implémentés (5 fonctions privées)
+- [x] Tests `jsBrowserTest` : custom cyclist, getField parity vs pointAt, fieldDefinitions count
+- [x] `.d.ts` régénéré et contient les 8 nouveaux symboles
+- [x] `enhance(path, options)` existant inchangé (compat npm/Phase 3)
+- [x] Toutes les checkboxes cochées
 
 ## Notes
 
