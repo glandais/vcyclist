@@ -1,5 +1,3 @@
-import com.vanniktech.maven.publish.SonatypeHost
-
 plugins {
     alias(libs.plugins.kotlin.multiplatform)
     alias(libs.plugins.vanniktech.publish)
@@ -84,7 +82,7 @@ kotlin {
 }
 
 mavenPublishing {
-    publishToMavenCentral(SonatypeHost.CENTRAL_PORTAL)
+    publishToMavenCentral()
     signAllPublications()
     coordinates(group.toString(), "vcyclist-${project.name}", version.toString())
     pom {
