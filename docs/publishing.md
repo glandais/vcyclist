@@ -27,8 +27,8 @@ mirror the workflow of the sibling projects (`elevation`, `virtual-cyclist`, `gp
 4. The job runs `./gradlew check` (full tests on JVM + JS Node + JS browser + Wasm browser),
    then `npx semantic-release` which :
    - analyses commits since the last tag,
-   - bumps the version in `gradle.properties` (the literal `0.0.0` placeholder is rewritten
-     by `semantic-release-plugin-update-version-in-files`),
+   - bumps the version in `gradle.properties` via a `sed -i` in
+     `@semantic-release/exec.prepareCmd`,
    - assembles the artefacts (`./gradlew :engine:assemble :elevation:assemble`),
    - publishes to Maven Central via `publishAndReleaseToMavenCentral` (vanniktech plugin,
      stages and immediately releases — no manual approval needed),
@@ -37,9 +37,9 @@ mirror the workflow of the sibling projects (`elevation`, `virtual-cyclist`, `gp
    - creates a Git tag + GitHub Release,
    - commits the version + changelog back to `develop` with `[skip ci]`.
 
-**The `version=0.0.0` line in `gradle.properties` is a placeholder. Never edit it manually
-between releases — semantic-release rewrites it on each run.** If you need to test a
-specific version locally, override on the CLI: `./gradlew -Pversion=1.2.3 …`.
+**`gradle.properties` always reflects the last released version. Never bump it manually
+between releases — semantic-release rewrites it on each run with `sed`.** If you need to
+test a future version locally, override on the CLI: `./gradlew -Pversion=1.2.3 …`.
 
 ## Required GitHub Secrets
 

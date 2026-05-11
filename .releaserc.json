@@ -10,22 +10,16 @@
       }
     ],
     [
-      "semantic-release-plugin-update-version-in-files",
-      {
-        "files": ["gradle.properties", "README.md"],
-        "placeholder": "0.0.0"
-      }
-    ],
-    [
       "@semantic-release/exec",
       {
+        "prepareCmd": "sed -i 's/^version=.*/version=${nextRelease.version}/' gradle.properties",
         "publishCmd": "./gradlew :engine:publishAndReleaseToMavenCentral :elevation:publishAndReleaseToMavenCentral :engine:npmPublishJs :engine:npmPublishWasm :elevation:npmPublishJs :elevation:npmPublishWasm --no-configuration-cache"
       }
     ],
     [
       "@semantic-release/git",
       {
-        "assets": ["gradle.properties", "CHANGELOG.md", "README.md"],
+        "assets": ["gradle.properties", "CHANGELOG.md"],
         "message": "chore(release): ${nextRelease.version} [skip ci]\n\n${nextRelease.notes}"
       }
     ],

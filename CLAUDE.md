@@ -147,13 +147,14 @@ bump, anything else is a no-op for semantic-release. Use `feat!:` or include `BR
 CHANGE:` in the body for a major bump. The release pipeline runs on every push to
 `develop`. See [`docs/publishing.md`](docs/publishing.md) for the full flow.
 
-### Release placeholders
+### Release versioning
 
-`gradle.properties` declares `version=0.0.0` as a **placeholder** that semantic-release
-rewrites on every release via `semantic-release-plugin-update-version-in-files`. **Never
-edit this line manually** — to test a specific version locally, use
-`./gradlew -Pversion=1.2.3 …` instead. The same convention applies to `version` markers in
-`README.md` install snippets.
+`gradle.properties` always reflects the **last released** version, and semantic-release
+rewrites it via `sed` (configured in `.releaserc.json`'s `@semantic-release/exec.prepareCmd`)
+on every release. **Do not bump it manually** — to test a future version locally, use
+`./gradlew -Pversion=1.2.3 …`. Between releases, `gradle.properties` may show a version
+that is one behind the working tree's actual content (because semantic-release commits the
+bump with `[skip ci]` and pushes it back to `develop`).
 
 ### Testing
 
