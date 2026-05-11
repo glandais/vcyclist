@@ -300,15 +300,15 @@ Critères :
 
 ## Done when
 
-- [ ] `types.ts` porté avec les noms de champs DTO (massKg, frontalAreaM2, etc.)
-- [ ] `useGPXDemo.ts` porté ; `parseGpx` + `enhanceWithCourse` invoqués
-- [ ] `useConfigPersistence.ts` porté (localStorage persistence)
-- [ ] `useHoverSync.ts` porté (utilisé en task 37)
-- [ ] `App.vue` montre Load/Enhance + stats
-- [ ] `stelvio.gpx` copié dans `public/gpx/`
-- [ ] Smoke manuel : Load + Enhance sur stelvio, durée virtualisée ~60-90 min plausible
-- [ ] `npm run typecheck` 0 erreur
-- [ ] Toutes les checkboxes cochées
+- [x] `types.ts` porté avec les noms de champs DTO (massKg, frontalAreaM2, etc.)
+- [x] `useGPXDemo.ts` porté ; `parseGpx` + `enhanceWithCourse` invoqués
+- [x] `useConfigPersistence.ts` porté (localStorage persistence)
+- [x] `useHoverSync.ts` porté (utilisé en task 37)
+- [x] `App.vue` montre Load/Enhance + stats
+- [x] `stelvio.gpx` copié dans `public/gpx/`
+- [x] Smoke manuel : Load + Enhance sur stelvio, durée virtualisée ~10 min plausible (le sample stelvio.gpx contient 259 points / 3.57 km — segment court raide, pas le col entier comme estimé initialement dans le spec)
+- [x] `npm run typecheck` 0 erreur
+- [x] Toutes les checkboxes cochées
 
 ## Notes
 
