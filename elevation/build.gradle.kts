@@ -80,6 +80,7 @@ kotlin {
         }
         jsMain.dependencies {
             implementation(libs.kotlinx.browser)
+            implementation(npm("@jsquash/webp", "1.4.0"))
         }
         wasmJsMain.dependencies {
             implementation(libs.kotlinx.browser)
