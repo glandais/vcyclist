@@ -9,7 +9,16 @@ kotlin {
     jvm()
 
     js(IR) {
-        nodejs()
+        nodejs {
+            testTask {
+                useMocha {
+                    // Default 2 s is too tight for INTEGRATION=1 tests that fetch tiles over the
+                    // network and compile the @jsquash/webp WASM module on first call. 30 s is
+                    // generous enough for slow CI runners while still failing fast on hangs.
+                    timeout = "30s"
+                }
+            }
+        }
         browser {
             commonWebpackConfig {
                 outputFileName = "elevation.js"
@@ -161,4 +170,14 @@ listOf("jsBrowserProductionWebpack", "wasmJsBrowserProductionWebpack").forEach {
     tasks.matching { it.name == name }.configureEach {
         mustRunAfter("${name.substringBefore("Browser")}ProductionLibraryCompileSync")
     }
+}
+
+// Propagate the `INTEGRATION` environment variable from the shell to KotlinJsTest tasks
+// (Gradle does NOT inherit env by default), so `process.env.INTEGRATION` is visible inside
+// the Node test runtime — mirrors the JVM-side gate in `ElevationProviderIntegrationTest`.
+tasks.withType<org.jetbrains.kotlin.gradle.targets.js.testing.KotlinJsTest>().configureEach {
+    environment(
+        "INTEGRATION",
+        providers.environmentVariable("INTEGRATION").orElse("").get(),
+    )
 }
