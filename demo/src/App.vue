@@ -1,16 +1,23 @@
 <script setup lang="ts">
-import { computed, onMounted, ref } from 'vue';
-import { useGPXDemo } from '~/composables/useGPXDemo';
+import Toast from 'primevue/toast';
+import { useToast } from 'primevue/usetoast';
+import { computed, nextTick, onMounted, ref, watch } from 'vue';
+import ConfigModal from '~/components/ConfigModal.vue';
+import DataChart from '~/components/DataChart.vue';
+import FieldsSidebar from '~/components/FieldsSidebar.vue';
+import FileSection from '~/components/FileSection.vue';
+import MapView from '~/components/MapView.vue';
+import Toolbar from '~/components/Toolbar.vue';
 import { loadConfig, useConfigPersistence } from '~/composables/useConfigPersistence';
-import {
-    pathDurationMs,
-    pathElevationGain,
-    pathElevationLoss,
-    pathSize,
-    pathTotalDistance,
-} from '~/engine-shim';
+import { useGPXDemo } from '~/composables/useGPXDemo';
+import { useHoverSync } from '~/composables/useHoverSync';
 
+const toast = useToast();
+
+// Load config from localStorage or use defaults
 const config = ref(loadConfig());
+
+// Set up auto-save with debouncing
 useConfigPersistence(config);
 
 const {
@@ -23,66 +30,212 @@ const {
     enhancePath,
 } = useGPXDemo(config);
 
-const stats = computed(() => {
-    const p = currentPath.value;
-    if (!p) {
-        return null;
+// Set up hover sync between chart and map
+const { hoveredInfo, setHoveredIndex } = useHoverSync(currentPath);
+
+const handleHoverChange = (index: number | null) => {
+    setHoveredIndex(index);
+};
+
+// Refs to components for reset zoom functionality
+const dataChartRef = ref<InstanceType<typeof DataChart> | null>(null);
+const mapViewRef = ref<InstanceType<typeof MapView> | null>(null);
+
+const hasData = computed(() => currentPath.value !== null);
+
+// UI visibility toggles with localStorage persistence
+const UI_STATE_KEY = 'vcyclist-demo-ui-state';
+
+interface UIState {
+    filesSectionVisible: boolean;
+    configVisible: boolean;
+    fieldsSidebarVisible: boolean;
+}
+
+const loadUIState = (): UIState => {
+    try {
+        const saved = window.localStorage.getItem(UI_STATE_KEY);
+        if (saved) {
+            return JSON.parse(saved) as UIState;
+        }
+    } catch {
+        // Ignore errors
     }
     return {
-        points: pathSize(p),
-        distanceKm: (pathTotalDistance(p) / 1000).toFixed(2),
-        durationMin: (pathDurationMs(p) / 60_000).toFixed(1),
-        elevationGain: pathElevationGain(p).toFixed(0),
-        elevationLoss: pathElevationLoss(p).toFixed(0),
+        filesSectionVisible: false,
+        configVisible: false,
+        fieldsSidebarVisible: true,
     };
+};
+
+const saveUIState = () => {
+    try {
+        window.localStorage.setItem(
+            UI_STATE_KEY,
+            JSON.stringify({
+                filesSectionVisible: filesSectionVisible.value,
+                configVisible: configVisible.value,
+                fieldsSidebarVisible: fieldsSidebarVisible.value,
+            })
+        );
+    } catch {
+        // Ignore errors
+    }
+};
+
+const initialUIState = loadUIState();
+const filesSectionVisible = ref(initialUIState.filesSectionVisible);
+const configVisible = ref(initialUIState.configVisible);
+const fieldsSidebarVisible = ref(initialUIState.fieldsSidebarVisible);
+
+// Watch UI state changes and persist them
+watch([filesSectionVisible, configVisible, fieldsSidebarVisible], saveUIState);
+
+// Watch for sidebar toggle and resize chart after DOM update
+watch(fieldsSidebarVisible, async () => {
+    await nextTick();
+    dataChartRef.value?.resize();
 });
 
-const onFile = async (e: Event) => {
-    const target = e.target as HTMLInputElement;
-    const f = target.files?.[0];
-    if (f) {
-        await handleFileUpload(f);
+const handleResetZoom = () => {
+    dataChartRef.value?.resetZoom();
+    mapViewRef.value?.fitBounds();
+};
+
+const onGPXSelect = async (url: string) => {
+    try {
+        await loadGPXFile(url);
+        toast.add({
+            severity: 'success',
+            summary: 'GPX Loaded',
+            detail: 'GPX file loaded successfully',
+            life: 3000,
+        });
+    } catch (error) {
+        toast.add({
+            severity: 'error',
+            summary: 'Load Failed',
+            detail: 'Failed to load GPX file: ' + (error as Error).message,
+            life: 5000,
+        });
+    }
+};
+
+const onFileUpload = async (file: File) => {
+    try {
+        await handleFileUpload(file);
+        toast.add({
+            severity: 'success',
+            summary: 'File Uploaded',
+            detail: 'File uploaded successfully',
+            life: 3000,
+        });
+    } catch (error) {
+        toast.add({
+            severity: 'error',
+            summary: 'Upload Failed',
+            detail: 'Failed to upload file: ' + (error as Error).message,
+            life: 5000,
+        });
+    }
+};
+
+const onEnhancePath = async () => {
+    try {
+        await enhancePath();
+        toast.add({
+            severity: 'success',
+            summary: 'Path Enhanced',
+            detail: 'Path enhanced successfully',
+            life: 3000,
+        });
+    } catch (error) {
+        toast.add({
+            severity: 'error',
+            summary: 'Enhancement Failed',
+            detail: 'Failed to enhance path: ' + (error as Error).message,
+            life: 5000,
+        });
     }
 };
 
 onMounted(() => {
-    console.log('Demo ready');
+    console.log('vcyclist demo initialized');
+    loadGPXFile('./gpx/stelvio.gpx').then(() => enhancePath());
 });
 </script>
 
 <template>
-    <div id="app" class="h-screen flex flex-col bg-white/95">
+    <Toast />
+    <div
+        id="app"
+        class="h-screen flex flex-col bg-white/95 mx-auto w-full shadow-2xl overflow-hidden"
+    >
+        <!-- Header Section -->
         <header
-            class="bg-gradient-to-r from-slate-700 to-blue-500 text-white p-6 text-center shadow-md"
+            class="bg-gradient-to-r from-slate-700 to-blue-500 text-white p-6 text-center shadow-md flex-shrink-0"
         >
-            <h1 class="text-4xl mb-2 font-light">vcyclist — Kotlin/JS Demo</h1>
+            <h1 class="text-4xl mb-2 font-light">🚴‍♂️ vcyclist — Interactive GPX Analysis</h1>
             <p class="text-lg opacity-90">
-                Vue + Vite demo consuming the Kotlin/JS engine bundle (Phase 9, task 36).
+                Upload GPX routes and simulate realistic cycling speeds based on terrain and rider
+                physics (Kotlin/JS engine)
             </p>
         </header>
-        <main class="flex-1 p-4 space-y-4 overflow-auto">
-            <div class="space-x-2 flex flex-wrap items-center gap-2">
-                <input type="file" accept=".gpx" :disabled="isProcessing" @change="onFile" />
-                <button
-                    class="px-4 py-2 bg-blue-500 text-white rounded disabled:opacity-50"
-                    :disabled="isProcessing"
-                    @click="loadGPXFile('./gpx/stelvio.gpx')"
-                >
-                    Load stelvio.gpx (sample)
-                </button>
-                <button
-                    class="px-4 py-2 bg-green-500 text-white rounded disabled:opacity-50"
-                    :disabled="isProcessing || !currentPath"
-                    @click="enhancePath"
-                >
-                    Enhance
-                </button>
+
+        <!-- Toolbar -->
+        <Toolbar
+            :has-data="hasData"
+            :is-processing="isProcessing"
+            :status-text="statusText"
+            :files-section-visible="filesSectionVisible"
+            :config-visible="configVisible"
+            :fields-sidebar-visible="fieldsSidebarVisible"
+            @toggle-files-section="filesSectionVisible = !filesSectionVisible"
+            @toggle-config="configVisible = !configVisible"
+            @toggle-fields-sidebar="fieldsSidebarVisible = !fieldsSidebarVisible"
+            @enhance-path="onEnhancePath"
+            @reset-zoom="handleResetZoom"
+        />
+        <FieldsSidebar v-model="config.selectedFields" v-model:visible="fieldsSidebarVisible" />
+
+        <!-- Scrollable Content Area -->
+        <div class="flex-1 min-h-0 overflow-y-auto flex flex-col">
+            <!-- File Selection Section (Toggleable) -->
+            <FileSection
+                v-if="filesSectionVisible"
+                :file-name="fileName"
+                :current-path="currentPath"
+                :is-processing="isProcessing"
+                @gpx-select="onGPXSelect"
+                @file-upload="onFileUpload"
+            />
+
+            <!-- Configuration Panel (Toggleable) -->
+            <ConfigModal v-if="configVisible" v-model="config" />
+
+            <!-- Chart and Map Section with Sidebar -->
+            <div class="grid grid-cols-1 xl:grid-cols-2 gap-4 p-4 flex-1 min-h-0">
+                <!-- Chart with Fields Sidebar -->
+                <div class="flex h-full border border-gray-200 rounded-lg overflow-hidden bg-white">
+                    <DataChart
+                        ref="dataChartRef"
+                        :current-path="currentPath"
+                        :selected-fields="config.selectedFields"
+                        :is-processing="isProcessing"
+                        :hovered-info="hoveredInfo"
+                        @hover-change="handleHoverChange"
+                        class="flex-1"
+                    />
+                </div>
+
+                <!-- Map -->
+                <MapView
+                    ref="mapViewRef"
+                    :current-path="currentPath"
+                    :hovered-info="hoveredInfo"
+                    @hover-change="handleHoverChange"
+                />
             </div>
-            <p v-if="isProcessing" class="text-orange-600">{{ statusText }}</p>
-            <p v-if="fileName" class="text-sm text-gray-600">File: {{ fileName }}</p>
-            <pre v-if="stats" class="bg-gray-100 p-4 rounded">{{
-                JSON.stringify(stats, null, 2)
-            }}</pre>
-        </main>
+        </div>
     </div>
 </template>

@@ -240,15 +240,15 @@ Critères :
 
 ## Done when
 
-- [ ] 16 composants `.vue` portés et imports adaptés
-- [ ] `useChart.ts` porté : `getField(path, i, fieldKey)` au lieu de `path.getField(i, pointField)`
-- [ ] `useMap.ts` porté : conversion radians → degrés (ou helpers task 34)
-- [ ] `fieldConfig.ts` reconstruit les catégories depuis `fieldDefinitions()` plat
-- [ ] `App.vue` réécrit avec toolbar + sidebar + chart + map + modals
-- [ ] CSS (main + custom) copiés
-- [ ] Smoke manuel passe sur stelvio.gpx : map ✓, chart ✓, hover sync ✓, tabs ✓, persistance ✓
-- [ ] `npm run typecheck` + `npm run lint` + `npm run build` verts
-- [ ] Toutes les checkboxes cochées
+- [x] 16 composants `.vue` portés et imports adaptés
+- [x] `useChart.ts` porté : `getField(path, i, fieldKey)` au lieu de `path.getField(i, pointField)`
+- [x] `useMap.ts` porté : conversion radians → degrés (ou helpers task 34)
+- [x] `fieldConfig.ts` reconstruit les catégories depuis `fieldDefinitions()` plat
+- [x] `App.vue` réécrit avec toolbar + sidebar + chart + map + modals
+- [x] CSS (main + custom) copiés
+- [x] Smoke manuel passe sur stelvio.gpx : map ✓, chart ✓, hover sync ✓, tabs ✓, persistance ✓
+- [x] `npm run typecheck` + `npm run lint` + `npm run build` verts
+- [x] Toutes les checkboxes cochées
 
 ## Notes
 
