@@ -159,6 +159,18 @@ tasks.register<Exec>("npmPublishWasm") {
     commandLine("npm", "publish", "--access", "public")
 }
 
+// Gradle 9 strict validation catches that `*BrowserProductionWebpack` (from
+// binaries.executable()) reads `build/js/packages/<name>/` while
+// `*ProductionLibraryCompileSync` (from binaries.library()) writes there. We declare the
+// ordering explicitly so `./gradlew assemble` or any task graph that schedules both can
+// run them in the right order. Without this, Gradle 9 fails with an implicit-dependency
+// validation error.
+listOf("jsBrowserProductionWebpack", "wasmJsBrowserProductionWebpack").forEach { name ->
+    tasks.matching { it.name == name }.configureEach {
+        mustRunAfter("${name.substringBefore("Browser")}ProductionLibraryCompileSync")
+    }
+}
+
 // JVM `run` task for the EngineCli smoke entry point (task 27). KMP doesn't expose the
 // usual `application {}` plugin, so we register a JavaExec ourselves. The classpath is
 // the compiled `jvmMain` classes plus the resolved `jvmRuntimeClasspath` configuration.

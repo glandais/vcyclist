@@ -19,7 +19,6 @@
     [
       "@semantic-release/exec",
       {
-        "prepareCmd": "./gradlew :engine:assemble :elevation:assemble",
         "publishCmd": "./gradlew :engine:publishAndReleaseToMavenCentral :elevation:publishAndReleaseToMavenCentral :engine:npmPublishJs :engine:npmPublishWasm :elevation:npmPublishJs :elevation:npmPublishWasm --no-configuration-cache"
       }
     ],

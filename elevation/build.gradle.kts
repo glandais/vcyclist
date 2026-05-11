@@ -156,3 +156,10 @@ tasks.register<Exec>("npmPublishWasm") {
             .asFile
     commandLine("npm", "publish", "--access", "public")
 }
+
+// See engine/build.gradle.kts for the rationale.
+listOf("jsBrowserProductionWebpack", "wasmJsBrowserProductionWebpack").forEach { name ->
+    tasks.matching { it.name == name }.configureEach {
+        mustRunAfter("${name.substringBefore("Browser")}ProductionLibraryCompileSync")
+    }
+}
