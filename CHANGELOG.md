@@ -1,3 +1,15 @@
+# [1.2.0](https://github.com/glandais/vcyclist/compare/v1.1.1...v1.2.0) (2026-05-11)
+
+
+### Features
+
+* **demo:** add GitHub Pages deploy workflow for the Vue demo (Phase 9 task 39, optional) ([8b976b1](https://github.com/glandais/vcyclist/commit/8b976b1dd8a0188b9142b162a4b64adf530380cf)), closes [#pages](https://github.com/glandais/vcyclist/issues/pages) [#pages](https://github.com/glandais/vcyclist/issues/pages)
+* **demo:** bootstrap Vue 3 + Vite shell consuming Kotlin/JS engine (Phase 9 task 35) ([03aeaf6](https://github.com/glandais/vcyclist/commit/03aeaf62463e65c86a09e0b21bd22be1cdbf50ca))
+* **demo:** integrate :demo into Gradle build with samples + docs (Phase 9 task 38) ([3416e9b](https://github.com/glandais/vcyclist/commit/3416e9b15424da65786254c403ddf9bc33ae16bf))
+* **demo:** port full UI — chart, map, tabs, sidebar (Phase 9 task 37) ([bdd7c16](https://github.com/glandais/vcyclist/commit/bdd7c16beaedcc0405dff4a92108108980cfafb0))
+* **demo:** wire engine into Vue demo with config persistence (Phase 9 task 36) ([e2fa8ac](https://github.com/glandais/vcyclist/commit/e2fa8ac0445ec51a340be14c919dbdf58b137c09))
+* **engine:** expand JS façade with course-aware enhance + generic field accessors (Phase 9 task 34) ([c3f330d](https://github.com/glandais/vcyclist/commit/c3f330d04411913e24f9d71dc34a97954f4083b0))
+
 ## [1.1.1](https://github.com/glandais/vcyclist/compare/v1.1.0...v1.1.1) (2026-05-11)
 
 
