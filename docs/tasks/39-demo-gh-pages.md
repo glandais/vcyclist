@@ -150,10 +150,10 @@ Modifiés :
 
 ## Done when
 
-- [ ] `.github/workflows/gh-pages.yml` créé et valide
-- [ ] `vite.config.ts` accepte `DEPLOY_TARGET=gh-pages` pour basculer sur `base: '/vcyclist/'`
-- [ ] `docs/publishing.md` documente le flow GitHub Pages
-- [ ] Build local avec `DEPLOY_TARGET=gh-pages` produit des assets sous `/vcyclist/...`
+- [x] `.github/workflows/gh-pages.yml` créé et valide
+- [x] `vite.config.ts` accepte `DEPLOY_TARGET=gh-pages` pour basculer sur `base: '/vcyclist/'`
+- [x] `docs/publishing.md` documente le flow GitHub Pages
+- [x] Build local avec `DEPLOY_TARGET=gh-pages` produit des assets sous `/vcyclist/...`
 - [ ] Workflow se déclenche sur push develop (vérifié post-merge)
 - [ ] La page publiée sur `https://<user>.github.io/vcyclist/` charge correctement Stelvio + Enhance fonctionne
 - [ ] Toutes les checkboxes cochées

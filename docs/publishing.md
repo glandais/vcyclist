@@ -142,6 +142,35 @@ get it transparently.
 - **Central Portal indexes new artefacts ~30 min after publication** — be patient before
   retrying ; `./gradlew publishToMavenCentral` is idempotent but the search UI lags.
 
+## GitHub Pages demo
+
+The `:demo` module (Vue 3 + Vite, consumes the Kotlin/JS engine) is published
+automatically to GitHub Pages on every push to `develop` that touches
+`demo/`, `engine/`, `elevation/`, or the Gradle build files.
+
+- **Workflow** : [`.github/workflows/gh-pages.yml`](../.github/workflows/gh-pages.yml)
+- **URL** : `https://glandais.github.io/vcyclist/`
+- **Build target** : `./gradlew :demo:assemble` with `DEPLOY_TARGET=gh-pages`,
+  which switches Vite's `base` to `/vcyclist/` so the asset paths resolve under
+  the project sub-path.
+- **One-time repo setup** : in `Settings → Pages`, set `Source: GitHub Actions`.
+  No `gh-pages` branch is created ; the artefact is published directly via
+  `actions/deploy-pages`.
+- **Manual trigger** : the workflow accepts `workflow_dispatch` so a PR's
+  feature branch can preview-deploy on demand (still uses the production
+  `/vcyclist/` base path — switch back to `./` for local serving).
+- **`[skip ci]` interaction** : `chore(release): X.Y.Z [skip ci]` commits
+  pushed by semantic-release skip the Pages workflow (and `release.yml`),
+  so there is no infinite loop.
+
+To test locally with the production base path :
+
+```bash
+DEPLOY_TARGET=gh-pages ./gradlew :demo:assemble
+grep -E '(src=|href=)' demo/dist/index.html
+# Asset paths must start with /vcyclist/ — not / or ./
+```
+
 ## See also
 
 - [`README.md`](../README.md) — install snippets for consumers.

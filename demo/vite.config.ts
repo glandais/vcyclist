@@ -34,7 +34,7 @@ export default defineConfig({
         alias: [{ find: /^~\/(.*)$/, replacement: path.resolve(__dirname, './src/$1') }],
         extensions: ['.mjs', '.js', '.ts', '.jsx', '.tsx', '.json', '.vue'],
     },
-    base: './',
+    base: process.env.DEPLOY_TARGET === 'gh-pages' ? '/vcyclist/' : './',
     build: {
         sourcemap: true,
         outDir: 'dist',
