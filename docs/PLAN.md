@@ -46,7 +46,7 @@ Le projet TypeScript `virtual-cyclist` (simulateur de cyclisme basé physique av
 | **— Phase 1 (module `:elevation`) terminée —** | | | | |
 | 09 | Intégration HTTP réelle (tuiles mapterhorn, gated `INTEGRATION=1`) | ✅ | `ad2837b` | 6 (jvmTest, opt-in) |
 | ★ | **Bonus** — WASM browser demo + `@JsExport` façade `ElevationJsApi` | ✅ | `a095ff8` | — (smoke E2E Mont Blanc ≈ 4757 m) |
-| ★ | **Bonus** — Kotlin/JS browser demo (sibling of WASM, same UI) | ✅ | `0fc4256` | — (build + Karma green ; smoke E2E à valider manuellement) |
+| ★ | **Bonus** — Kotlin/JS browser demo (sibling of WASM, same UI) | ✅ | `0fc4256` + `8fc1439` | — (smoke E2E Chrome : sample.gpx 1053 pts / 64 tuiles, Mont Blanc = 4756.57 m, parité Wasm) |
 | 10 | Engine — `PointField` + `PointFieldCategory` (36 champs / 14 catégories) | ✅ | `2d20d4a` | 16 (×3 targets = 48) |
 | 11 | Engine — `GeneratedPath` codegen (sous-projet `:codegen`) + `PointFieldAccessors` | ✅ | `97ed1d9` | 9 (×3 targets = 27) |
 | 12 | Engine — Path (stats + helpers + bridge `:elevation`) | ✅ | `efc9d17` | 18 (×3 targets = 54) |
