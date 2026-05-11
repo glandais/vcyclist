@@ -63,7 +63,8 @@ Le projet TypeScript `virtual-cyclist` (simulateur de cyclisme basé physique av
 | 24 | Engine — `ElevationStep` (fix + smooth elevation bridge to `:elevation`) | ✅ | `00c92e3` | 11 (×3 targets = 33) |
 | 25 | Engine — `Enhancer` (pipeline orchestrator) | ✅ | `fad5e96` | 12 (×3 targets = 36) |
 | 26 | Engine — parity fixtures (self-referential regression baseline) | ✅ | `c1b06c1` | 9 (×3 targets = 27) |
-| 27-28 | CLI smoke + API JS/Wasm | ⏳ | — | — |
+| 27 | Engine — `EngineCli` JVM smoke entry point + Gradle `run` task | ✅ | — | 5 (jvmTest only) |
+| 28 | CLI smoke + API JS/Wasm | ⏳ | — | — |
 
 **Cumul `:elevation` après Phase 1 + extras** : 20 classes de tests, **193 tests** (commonTest 182 + jvmTest 11 dont 6 opt-in) × 3 targets en mode standard = **557 exécutions** vertes (offline).
 
@@ -94,6 +95,8 @@ Le projet TypeScript `virtual-cyclist` (simulateur de cyclisme basé physique av
 **Cumul `:engine` après tâche 25** : 29 classes de tests, **301 tests commonTest** (289 + 12 Enhancer) × 3 targets = **903 exécutions** vertes.
 
 **Cumul `:engine` après tâche 26** : 30 classes de tests, **310 tests commonTest** (301 + 9 EnhancerParity) × 3 targets = **930 exécutions** vertes.
+
+**Cumul `:engine` après tâche 27** : 30 classes de tests commonTest = **310 tests × 3 targets = 930 exécutions** vertes, **plus** 1 classe `EngineCliSmokeTest` en `jvmTest` (5 tests, JVM-only). Total `:engine:allTests` = **935 exécutions** vertes.
 
 **Critère Phase 1** : `./gradlew :elevation:allTests` vert sur JVM + JS Node + Wasm browser. ✅ Module utilisable comme dépendance via `api(project(":elevation"))` à activer en Phase 2.
 
