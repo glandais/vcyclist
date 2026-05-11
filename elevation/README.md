@@ -11,7 +11,7 @@ path, distance-based smoothing, and Douglas-Peucker 3D simplification.
 | JVM | ✅ supported | TwelveMonkeys ImageIO (`imageio-webp`) |
 | Wasm (browser) | ✅ supported | `createImageBitmap` + canvas 2D |
 | JS (browser) | ✅ supported | `createImageBitmap` + canvas 2D (same DOM pipeline) |
-| JS (Node) | ⚠️ smoke-tested only | none built-in — caller injects an `ElevationProvider` fetcher |
+| JS (Node) | ✅ supported | `@jsquash/webp` WASM decoder (runtime dep, lazy `eval('require')`) |
 
 See `../docs/PLAN.md` and `../docs/kotlin-wasm-jvm-webp.md` for the design rationale and
 multi-target interop conventions.
