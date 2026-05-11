@@ -57,12 +57,12 @@ npm install @glandais/vcyclist-elevation-wasm  # Kotlin/Wasm bundle
 ```kotlin
 // Gradle Kotlin DSL
 dependencies {
-    implementation("io.github.glandais:vcyclist-engine:0.0.0")    // pulls -jvm / -js / -wasm-js per target
-    implementation("io.github.glandais:vcyclist-elevation:0.0.0")
+    implementation("io.github.glandais:vcyclist-engine:1.0.0")    // pulls -jvm / -js / -wasm-js per target
+    implementation("io.github.glandais:vcyclist-elevation:1.0.0")
 }
 ```
 
-Replace `0.0.0` by the latest version shown in the badges above. KMP consumers automatically
+Replace `1.0.0` by the latest version shown in the badges above. KMP consumers automatically
 get the platform-specific variant (`-jvm`, `-js`, `-wasm-js`) for their target.
 
 See [`docs/publishing.md`](docs/publishing.md) for the release process.
