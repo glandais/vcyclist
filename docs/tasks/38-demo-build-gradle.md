@@ -291,17 +291,17 @@ Critères :
 
 ## Done when
 
-- [ ] `demo/build.gradle.kts` créé avec tasks `assemble`, `check`, `clean`, dépendance sur `:engine:jsBrowserProductionLibraryDistribution`
-- [ ] `settings.gradle.kts` inclut `:demo`
-- [ ] `libs.versions.toml` + root `build.gradle.kts` déclarent le plugin node-gradle
-- [ ] 7 GPX samples copiés dans `demo/public/gpx/`
-- [ ] `demo/README.md` créé
-- [ ] README racine étendu avec section "Try the demo"
-- [ ] `docs/PLAN.md` : Phase 9 réécrite + 6 lignes ajoutées au tableau Avancement
-- [ ] `./gradlew :demo:check` vert
-- [ ] `./gradlew :demo:assemble` produit un site statique servable
-- [ ] Régression : tous tests `:elevation` + `:engine` verts
-- [ ] Toutes les checkboxes cochées
+- [x] `demo/build.gradle.kts` créé avec tasks `assemble`, `check`, `clean`, dépendance sur `:engine:jsBrowserProductionLibraryDistribution`
+- [x] `settings.gradle.kts` inclut `:demo`
+- [x] `libs.versions.toml` + root `build.gradle.kts` déclarent le plugin node-gradle
+- [x] 7 GPX samples copiés dans `demo/public/gpx/`
+- [x] `demo/README.md` créé
+- [x] README racine étendu avec section "Try the demo"
+- [x] `docs/PLAN.md` : Phase 9 réécrite + 6 lignes ajoutées au tableau Avancement
+- [x] `./gradlew :demo:check` vert
+- [x] `./gradlew :demo:assemble` produit un site statique servable
+- [x] Régression : tous tests `:elevation` + `:engine` verts
+- [x] Toutes les checkboxes cochées
 
 ## Notes
 

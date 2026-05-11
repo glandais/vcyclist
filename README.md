@@ -148,6 +148,19 @@ On Node.js / Bun, tile decoding uses [`@jsquash/webp`](https://www.npmjs.com/pac
 Node ≥ 18 (`globalThis.fetch` is built-in since Node 18 / Bun) ; Node 22+ recommended for
 ESM `require()` support.
 
+## Try the interactive demo
+
+The [`demo/`](demo/) module is a Vue 3 + Vite frontend that exercises the
+Kotlin/JS engine end-to-end in a browser (GPX upload, configurable cyclist /
+bike / wind / power, chart + map, hover sync).
+
+```bash
+./gradlew :demo:assemble
+python -m http.server -d demo/dist 8000  # or any static file server
+```
+
+See [`demo/README.md`](demo/README.md) for the dev workflow and architecture.
+
 ## Build & test
 
 ```bash

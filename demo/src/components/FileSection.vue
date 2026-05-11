@@ -22,7 +22,15 @@ const emit = defineEmits<{
     fileUpload: [file: File];
 }>();
 
-const gpxOptions = [{ label: 'Stelvio descent', value: './gpx/stelvio.gpx' }];
+const gpxOptions = [
+    { label: 'Sample Route', value: './gpx/sample.gpx' },
+    { label: 'Stelvio descent', value: './gpx/stelvio.gpx' },
+    { label: 'Amazfit Track', value: './gpx/amazfit.gpx' },
+    { label: 'Garmin Track', value: './gpx/garmin.gpx' },
+    { label: 'Movescount Track', value: './gpx/movescount.gpx' },
+    { label: 'Sports Tracker', value: './gpx/sports-tracker.gpx' },
+    { label: 'Strava Track', value: './gpx/strava.gpx' },
+];
 
 const selectedGPX = ref<string | null>(null);
 const fileInput = ref<HTMLInputElement | null>(null);

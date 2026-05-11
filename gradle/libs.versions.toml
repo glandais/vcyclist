@@ -6,6 +6,7 @@ xmlutil = "0.91.3"
 imageio-webp = "3.13.1"
 ktlint = "14.2.0"
 vanniktech-publish = "0.36.0"
+node-gradle = "7.1.0"
 
 [libraries]
 kotlinx-coroutines-core = { module = "org.jetbrains.kotlinx:kotlinx-coroutines-core", version.ref = "coroutines" }
@@ -20,3 +21,4 @@ kotlin-multiplatform = { id = "org.jetbrains.kotlin.multiplatform", version.ref 
 kotlin-jvm = { id = "org.jetbrains.kotlin.jvm", version.ref = "kotlin" }
 ktlint = { id = "org.jlleitschuh.gradle.ktlint", version.ref = "ktlint" }
 vanniktech-publish = { id = "com.vanniktech.maven.publish", version.ref = "vanniktech-publish" }
+node-gradle = { id = "com.github.node-gradle.node", version.ref = "node-gradle" }

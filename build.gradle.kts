@@ -3,10 +3,13 @@ plugins {
     alias(libs.plugins.kotlin.jvm) apply false
     alias(libs.plugins.ktlint)
     alias(libs.plugins.vanniktech.publish) apply false
+    alias(libs.plugins.node.gradle) apply false
 }
 
 allprojects {
-    apply(plugin = "org.jlleitschuh.gradle.ktlint")
+    if (name != "demo") {
+        apply(plugin = "org.jlleitschuh.gradle.ktlint")
+    }
     group = rootProject.group
     version = rootProject.version
 }
