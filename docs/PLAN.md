@@ -78,7 +78,7 @@ Le projet TypeScript `virtual-cyclist` (simulateur de cyclisme basé physique av
 | **— Phase 9 : démo Vue/Vite sur Kotlin/JS —** | | | | |
 | 34 | Engine — `@JsExport` façade étendue : `enhanceWithCourse` + `getField` + `fieldDefinitions` + DTO Cyclist/Bike/Wind/Power | ✅ | `c3f330d` | 4 (jsBrowserTest) |
 | 35 | Demo — bootstrap Vue/Vite + alias `@glandais/vcyclist-engine` via `file:` + shell vide | ✅ | `03aeaf6` | — (shell vide, validation manuelle) |
-| 36 | Demo — intégration moteur : `useGPXDemo` + `types` + persistance config | ☐ | | |
+| 36 | Demo — intégration moteur : `useGPXDemo` + `types` + persistance config | ✅ | `e2fa8ac` | — (smoke Node : stelvio 259→613 pts, 10.2 min @ 250 W) |
 | 37 | Demo — UI complète (16 composants Vue + Chart.js + Leaflet + 6 tabs + FieldsSidebar) | ☐ | | |
 | 38 | Demo — intégration Gradle (`:demo:assemble`) + GPX samples + README | ☐ | | |
 | 39 | Demo — déploiement GitHub Pages (optionnel, stretch) | ☐ | | |
