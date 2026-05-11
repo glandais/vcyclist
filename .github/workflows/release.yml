@@ -6,9 +6,11 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: write
-  issues: write
-  id-token: write   # OIDC for npm
+  contents: write          # tag + push the release commit, create the GitHub Release
+  issues: write            # comment on closed issues referenced by the release
+  pull-requests: write     # comment on merged PRs included in the release (PR scope is
+                           # distinct from `issues:` since GitHub Actions v2, 2022)
+  id-token: write          # OIDC for npm publish (no NPM_TOKEN secret needed)
 
 jobs:
   release:
