@@ -65,7 +65,8 @@ Le projet TypeScript `virtual-cyclist` (simulateur de cyclisme basé physique av
 | 25 | Engine — `Enhancer` (pipeline orchestrator) | ✅ | `fad5e96` | 12 (×3 targets = 36) |
 | 26 | Engine — parity fixtures (self-referential regression baseline) | ✅ | `c1b06c1` | 9 (×3 targets = 27) |
 | 27 | Engine — `EngineCli` JVM smoke entry point + Gradle `run` task | ✅ | — | 5 (jvmTest only) |
-| 28 | CLI smoke + API JS/Wasm | ⏳ | — | — |
+| 28 | Engine — `@JsExport` façade (JS Node + Wasm browser) + `.d.ts` | ✅ | — | 3 (jsTest + wasmJsTest + jsBrowserTest, smoke) |
+| **— Phase 2 (module `:engine`, tâches 10-28) terminée —** | | | | |
 
 **Cumul `:elevation` après Phase 1 + extras** : 20 classes de tests, **193 tests** (commonTest 182 + jvmTest 11 dont 6 opt-in) × 3 targets en mode standard = **557 exécutions** vertes (offline).
 
@@ -98,6 +99,10 @@ Le projet TypeScript `virtual-cyclist` (simulateur de cyclisme basé physique av
 **Cumul `:engine` après tâche 26** : 30 classes de tests, **310 tests commonTest** (301 + 9 EnhancerParity) × 3 targets = **930 exécutions** vertes.
 
 **Cumul `:engine` après tâche 27** : 30 classes de tests commonTest = **310 tests × 3 targets = 930 exécutions** vertes, **plus** 1 classe `EngineCliSmokeTest` en `jvmTest` (5 tests, JVM-only). Total `:engine:allTests` = **935 exécutions** vertes.
+
+**Cumul `:engine` après tâche 28** : 30 classes de tests commonTest = **310 tests × 4 targets** (JVM + JS Node + JS Browser + Wasm Browser) = **1240 exécutions** + 1 classe `EngineCliSmokeTest` jvmTest-only (5 tests) + 1 classe `EngineJsApiTest` par target JS/Wasm/JsBrowser (3 tests × 3 = 9). Total `:engine:allTests` = **1254 exécutions** vertes. Façade `@JsExport` exposée sur 2 surfaces : `engine/src/wasmJsMain/.../EngineJsApi.kt` (`JsReference<Path>` handle pattern + DTOs `external interface : JsAny` + `Promise<JsReference<Path>>`) et `engine/src/jsMain/.../EngineJsApi.kt` (classes directes + DTOs `external interface` + `Promise<Path>`). `.d.ts`/`.d.mts` générés sous `build/compileSync/{js,wasmJs}/main/productionExecutable/kotlin/vcyclist-engine.{d.ts,d.mts}` couvrant `parseGpx`, `enhance`, `writeGpx`, `pointAt`, `pathSize`, `pathTotalDistance`, `pathDurationMs`, `pathElevationGain`, `pathElevationLoss`, `PointDto`, `EnhanceOptionsDto`.
+
+**— Phase 2 (module `:engine`, tâches 10-28) terminée —** Le moteur Kotlin Multiplatform `:engine` est désormais complet : modèle de données (PointField + GeneratedPath + Path), modèles de domaine (Cyclist/Bike/Course/CoursePhysics), I/O GPX (parser + writer), physique (4 PowerProviders + AeroProvider + RhoProvider + WindProvider + PowerComputer + MaxSpeedComputer), simulation (VirtualizeService + PointPerSecond), post-traitement (PathSimplifier + ElevationStep), orchestration (Enhancer), CLI JVM smoke (EngineCli), et façades `@JsExport` pour JS Node + Wasm browser + JS browser. Prêt pour Phase 3 (demo Compose Multiplatform) ou intégration npm.
 
 **Critère Phase 1** : `./gradlew :elevation:allTests` vert sur JVM + JS Node + Wasm browser. ✅ Module utilisable comme dépendance via `api(project(":elevation"))` à activer en Phase 2.
 
