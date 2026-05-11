@@ -1,0 +1,35 @@
+{
+  "branches": ["develop"],
+  "plugins": [
+    "@semantic-release/commit-analyzer",
+    "@semantic-release/release-notes-generator",
+    [
+      "@semantic-release/changelog",
+      {
+        "changelogFile": "CHANGELOG.md"
+      }
+    ],
+    [
+      "semantic-release-plugin-update-version-in-files",
+      {
+        "files": ["gradle.properties", "README.md"],
+        "placeholder": "0.0.0"
+      }
+    ],
+    [
+      "@semantic-release/exec",
+      {
+        "prepareCmd": "./gradlew :engine:assemble :elevation:assemble",
+        "publishCmd": "./gradlew :engine:publishAndReleaseToMavenCentral :elevation:publishAndReleaseToMavenCentral :engine:npmPublishJs :engine:npmPublishWasm :elevation:npmPublishJs :elevation:npmPublishWasm --no-configuration-cache"
+      }
+    ],
+    [
+      "@semantic-release/git",
+      {
+        "assets": ["gradle.properties", "CHANGELOG.md", "README.md"],
+        "message": "chore(release): ${nextRelease.version} [skip ci]\n\n${nextRelease.notes}"
+      }
+    ],
+    "@semantic-release/github"
+  ]
+}

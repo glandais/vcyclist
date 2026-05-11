@@ -142,6 +142,19 @@ Types : `feat`, `fix`, `test`, `docs`, `chore`, `style`, `refactor`. Scopes : `e
 `elevation`, `codegen`, `plan`, `build`, `deps`. Always include the
 `Co-Authored-By` trailer.
 
+**The commit type drives the release** : `feat:` triggers a minor bump, `fix:` a patch
+bump, anything else is a no-op for semantic-release. Use `feat!:` or include `BREAKING
+CHANGE:` in the body for a major bump. The release pipeline runs on every push to
+`develop`. See [`docs/publishing.md`](docs/publishing.md) for the full flow.
+
+### Release placeholders
+
+`gradle.properties` declares `version=0.0.0` as a **placeholder** that semantic-release
+rewrites on every release via `semantic-release-plugin-update-version-in-files`. **Never
+edit this line manually** — to test a specific version locally, use
+`./gradlew -Pversion=1.2.3 …` instead. The same convention applies to `version` markers in
+`README.md` install snippets.
+
 ### Testing
 
 - Use `kotlin-test` (multiplatform). Add `kotlinx-coroutines-test` if you need `runTest`.
@@ -235,3 +248,4 @@ diagram, and run a smoke through `EngineCli` to verify the GPX output makes sens
 | Why does this fixture have these numbers ? | `engine/src/commonTest/.../parity/ParityFixtures.kt` + `docs/parity.md` |
 | Why is `time(0) = 0` ? | `VirtualizeService.kt` KDoc (relative-time simulation) |
 | How to run the CLI ? | [`README.md`](README.md) Quick start, or `./gradlew :engine:help` |
+| How to cut a release / publish to npm or Maven Central ? | [`docs/publishing.md`](docs/publishing.md) |

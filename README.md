@@ -1,5 +1,9 @@
 # vcyclist
 
+[![npm engine](https://img.shields.io/npm/v/@glandais/vcyclist-engine?label=%40glandais%2Fvcyclist-engine)](https://www.npmjs.com/package/@glandais/vcyclist-engine)
+[![npm elevation](https://img.shields.io/npm/v/@glandais/vcyclist-elevation?label=%40glandais%2Fvcyclist-elevation)](https://www.npmjs.com/package/@glandais/vcyclist-elevation)
+[![Maven Central](https://img.shields.io/maven-central/v/io.github.glandais/vcyclist-engine?label=io.github.glandais%3Avcyclist-engine)](https://central.sonatype.com/artifact/io.github.glandais/vcyclist-engine)
+
 Kotlin Multiplatform port of [`@glandais/virtual-cyclist`](https://github.com/glandais/virtual-cyclist):
 physics-based cycling simulator that turns a static GPS trace into a virtualized ride with
 realistic speeds, times and power estimates. Inspired by [gpx2web](https://github.com/glandais/gpx2web)
@@ -36,6 +40,32 @@ TypeScript library for elevation data.
 | **`:elevation`** | Terrarium tile fetch + DEM lookup + Haversine + Douglas-Peucker 3D + triangular smoother. See [`elevation/README.md`](elevation/README.md). | JVM, JS Node, JS browser, Wasm browser |
 | **`:engine`** | Path model (36 fields × `DoubleArray`), physics (4 resistive `PowerProvider`s + cyclist input + `MaxSpeedComputer` + `VirtualizeService`), GPX I/O, `Enhancer` pipeline, JVM CLI. | JVM, JS Node, JS browser, Wasm browser |
 | **`:codegen`** | Tiny build-time helper that regenerates `GeneratedPath.kt` + `PointFieldAccessors.kt` from `PointField` (run only when the field list changes). | JVM only |
+
+## Install
+
+### npm (Kotlin/JS or Kotlin/Wasm consumers)
+
+```bash
+npm install @glandais/vcyclist-engine          # Kotlin/JS bundle
+npm install @glandais/vcyclist-engine-wasm     # Kotlin/Wasm bundle
+npm install @glandais/vcyclist-elevation       # Kotlin/JS bundle
+npm install @glandais/vcyclist-elevation-wasm  # Kotlin/Wasm bundle
+```
+
+### Gradle / Maven (JVM or KMP consumers)
+
+```kotlin
+// Gradle Kotlin DSL
+dependencies {
+    implementation("io.github.glandais:vcyclist-engine:0.0.0")    // pulls -jvm / -js / -wasm-js per target
+    implementation("io.github.glandais:vcyclist-elevation:0.0.0")
+}
+```
+
+Replace `0.0.0` by the latest version shown in the badges above. KMP consumers automatically
+get the platform-specific variant (`-jvm`, `-js`, `-wasm-js`) for their target.
+
+See [`docs/publishing.md`](docs/publishing.md) for the release process.
 
 ## Quick start
 
@@ -147,5 +177,6 @@ output points covering ~128.6 km / ~5.3 h of simulated ride.
 
 ## License
 
-Same license as the upstream TypeScript / Java projects (TBD — to be aligned with
-`@glandais/virtual-cyclist` once published).
+Apache License 2.0, aligned with the upstream `gpx2web` project. See the Maven Central POM
+metadata in `engine/build.gradle.kts` and `elevation/build.gradle.kts`. A top-level `LICENSE`
+file will be added before the first public release.

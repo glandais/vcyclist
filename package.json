@@ -1,0 +1,15 @@
+{
+  "private": true,
+  "name": "vcyclist-release-tools",
+  "description": "Dev-time tooling for cutting vcyclist releases (semantic-release). Not published.",
+  "scripts": {
+    "release": "semantic-release"
+  },
+  "devDependencies": {
+    "semantic-release": "^25.0.0",
+    "@semantic-release/changelog": "^6.0.3",
+    "@semantic-release/exec": "^7.0.3",
+    "@semantic-release/git": "^10.0.1",
+    "semantic-release-plugin-update-version-in-files": "^2.0.1"
+  }
+}

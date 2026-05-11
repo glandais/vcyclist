@@ -1,0 +1,125 @@
+# Publishing vcyclist
+
+This document explains how the vcyclist artefacts ship to **Maven Central** and **npm**.
+
+## What gets published
+
+| Registry | Artefact | Coordinates / name |
+|---|---|---|
+| Maven Central | `:engine` (jvm, js, wasm-js variants) | `io.github.glandais:vcyclist-engine:<version>` |
+| Maven Central | `:elevation` (jvm, js, wasm-js variants) | `io.github.glandais:vcyclist-elevation:<version>` |
+| npm | engine — Kotlin/JS | `@glandais/vcyclist-engine` |
+| npm | engine — Kotlin/Wasm | `@glandais/vcyclist-engine-wasm` |
+| npm | elevation — Kotlin/JS | `@glandais/vcyclist-elevation` |
+| npm | elevation — Kotlin/Wasm | `@glandais/vcyclist-elevation-wasm` |
+
+`:codegen` is a build-time JVM helper and is **not** published.
+
+## The release flow
+
+Releases are fully automated via [semantic-release](https://semantic-release.gitbook.io/) and
+mirror the workflow of the sibling projects (`elevation`, `virtual-cyclist`, `gpx2web`).
+
+1. Developer commits to a feature branch using
+   [Conventional Commits](https://www.conventionalcommits.org/) (`feat:`, `fix:`, …).
+2. Pull request is merged into `develop`.
+3. The workflow `.github/workflows/release.yml` triggers on the `develop` push.
+4. The job runs `./gradlew check` (full tests on JVM + JS Node + JS browser + Wasm browser),
+   then `npx semantic-release` which :
+   - analyses commits since the last tag,
+   - bumps the version in `gradle.properties` (the literal `0.0.0` placeholder is rewritten
+     by `semantic-release-plugin-update-version-in-files`),
+   - assembles the artefacts (`./gradlew :engine:assemble :elevation:assemble`),
+   - publishes to Maven Central via `publishAndReleaseToMavenCentral` (vanniktech plugin,
+     stages and immediately releases — no manual approval needed),
+   - publishes the four npm packages via `npmPublishJs` / `npmPublishWasm`,
+   - generates/updates `CHANGELOG.md`,
+   - creates a Git tag + GitHub Release,
+   - commits the version + changelog back to `develop` with `[skip ci]`.
+
+**The `version=0.0.0` line in `gradle.properties` is a placeholder. Never edit it manually
+between releases — semantic-release rewrites it on each run.** If you need to test a
+specific version locally, override on the CLI: `./gradlew -Pversion=1.2.3 …`.
+
+## Required GitHub Secrets
+
+| Secret | Purpose |
+|---|---|
+| `CENTRAL_USERNAME` | Sonatype Central Portal — user token name |
+| `CENTRAL_TOKEN` | Sonatype Central Portal — user token password |
+| `GPG_PRIVATE_KEY` | ASCII-armored GPG private key (`gpg --armor --export-secret-keys <KEY_ID>`) |
+| `GPG_PASSPHRASE` | Passphrase of the GPG key |
+
+No `NPM_TOKEN` is required — the workflow uses npm's OIDC provenance via
+`permissions: id-token: write` and `actions/setup-node` with `registry-url`.
+
+The same GPG key as `gpx2web` can be reused if it has not expired.
+
+## Local dry-runs
+
+Before pushing to `develop`, you can rehearse the release locally :
+
+```bash
+# 1. Confirm the build artefact paths used by binaries.library().
+./gradlew :engine:jsBrowserProductionLibraryDistribution \
+          :engine:wasmJsBrowserProductionLibraryDistribution \
+          :elevation:jsBrowserProductionLibraryDistribution \
+          :elevation:wasmJsBrowserProductionLibraryDistribution
+ls engine/build/dist/js/productionLibrary/
+ls engine/build/dist/wasmJs/productionLibrary/
+# If the directory layout differs from the assumption in build.gradle.kts,
+# adjust the workingDir of the npmPublishJs / npmPublishWasm tasks.
+
+# 2. Publish to the local Maven repo to inspect the POM and signatures.
+./gradlew :engine:publishToMavenLocal :elevation:publishToMavenLocal
+find ~/.m2/repository/io/github/glandais -name 'vcyclist-*.pom'
+
+# 3. Dry-run an npm pack (no upload).
+(cd engine/build/dist/js/productionLibrary && npm pack --dry-run)
+
+# 4. Dry-run semantic-release end-to-end.
+GITHUB_TOKEN=dummy npx semantic-release --dry-run --no-ci
+```
+
+## First-time setup checklist
+
+1. **Sonatype Central Portal** : the namespace `io.github.glandais` is already claimed (it
+   is used by `gpx2web` via `io.github.glandais.gpx2web`). Adding the `vcyclist-engine` and
+   `vcyclist-elevation` artefacts under the existing namespace requires no extra claim,
+   only a valid Central Portal token (`CENTRAL_USERNAME` / `CENTRAL_TOKEN`).
+2. **npm scope** : ensure `@glandais` org access and that the user has publish rights on
+   the four package names (the namespace is shared with `@glandais/elevation` and
+   `@glandais/virtual-cyclist`, so the org already exists).
+3. **GitHub Secrets** : configure the four secrets above on the repo settings page.
+4. **Branch protection** : protect `main`, allow only fast-forward from `develop` after
+   release.
+5. **Initial release** : push a `feat: initial release` commit to `develop` — semantic-release
+   will pick version `1.0.0` (configurable via the
+   [`@semantic-release/commit-analyzer` `preset`](https://github.com/semantic-release/commit-analyzer)
+   if a `0.x` pre-release line is preferred).
+
+## Troubleshooting
+
+- **`publishToMavenCentral` fails with `401 Unauthorized`** — re-issue the Central Portal
+  user token at <https://central.sonatype.com/> and update the `CENTRAL_USERNAME` /
+  `CENTRAL_TOKEN` secrets.
+- **GPG signing fails with `secret key not available`** — the imported key has expired ;
+  regenerate it (`gpg --full-generate-key`), publish the public key to a keyserver
+  (`gpg --keyserver keyserver.ubuntu.com --send-keys <KEY_ID>`), and update both secrets.
+- **`npm publish` fails with `403 Forbidden`** — typically a name conflict or scope-access
+  issue ; verify the package name and that the GitHub Actions OIDC trust relationship is
+  set up on the npm `@glandais` org.
+- **The Wasm npm package is empty / missing the `.wasm` file** — the `binaries.library()`
+  output path for Kotlin/Wasm may differ across Kotlin minor versions ; re-list
+  `build/dist/wasmJs/productionLibrary/` and adjust the `workingDir` of `npmPublishWasm`.
+- **Central Portal indexes new artefacts ~30 min after publication** — be patient before
+  retrying ; `./gradlew publishToMavenCentral` is idempotent but the search UI lags.
+
+## See also
+
+- [`README.md`](../README.md) — install snippets for consumers.
+- [`CLAUDE.md`](../CLAUDE.md) — release-related conventions for future Claude sessions.
+- Sibling projects for reference patterns :
+  - `../elevation/` — npm-only via semantic-release.
+  - `../virtual-cyclist/` — npm-only via semantic-release.
+  - `../gpx2web/` — Maven Central via the same Sonatype Central Portal plugin family.
