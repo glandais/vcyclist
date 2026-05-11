@@ -10,6 +10,7 @@ path, distance-based smoothing, and Douglas-Peucker 3D simplification.
 |---|---|---|
 | JVM | ✅ supported | TwelveMonkeys ImageIO (`imageio-webp`) |
 | Wasm (browser) | ✅ supported | `createImageBitmap` + canvas 2D |
+| JS (browser) | ✅ supported | `createImageBitmap` + canvas 2D (same DOM pipeline) |
 | JS (Node) | ⚠️ smoke-tested only | none built-in — caller injects an `ElevationProvider` fetcher |
 
 See `../docs/PLAN.md` and `../docs/kotlin-wasm-jvm-webp.md` for the design rationale and
@@ -23,35 +24,34 @@ From the `vcyclist/` root:
 ./gradlew :elevation:allTests          # all targets
 ./gradlew :elevation:jvmTest           # JVM only
 ./gradlew :elevation:wasmJsBrowserTest # Wasm in headless Chrome (Karma)
+./gradlew :elevation:jsBrowserTest     # JS in headless Chrome (Karma)
 ./gradlew :elevation:jsNodeTest        # JS Node
 ```
 
-## Browser demo
+## Browser demos
 
-A WASM browser demo lives in `src/wasmJsMain/resources/`. It is a port of the original
-TypeScript demo at the root of the [elevation](https://github.com/glandais/elevation) repo —
-same UI (Leaflet map, Chart.js elevation profile, GPX upload, hillshade overlay), but the
-elevation calculations run inside the Kotlin/Wasm bundle.
+Two sibling browser demos are shipped — same UI, same API surface, two compile targets — for
+side-by-side comparison of Kotlin/Wasm and Kotlin/JS. Both port the original TypeScript demo at
+the root of the [elevation](https://github.com/glandais/elevation) repo: Leaflet map, Chart.js
+elevation profile, GPX upload, hillshade overlay.
 
-### Run
+| Demo | Sources | Run | Distribution |
+|---|---|---|---|
+| **Kotlin/Wasm** | `src/wasmJsMain/resources/` | `:elevation:wasmJsBrowserDevelopmentRun` | `:elevation:wasmJsBrowserDistribution` → `build/dist/wasmJs/productionExecutable/` |
+| **Kotlin/JS** | `src/jsMain/resources/` | `:elevation:jsBrowserDevelopmentRun` | `:elevation:jsBrowserDistribution` → `build/dist/js/productionExecutable/` |
+
+Each `Distribution` task produces a self-contained folder with `elevation.js` (Wasm also adds
+`*.wasm`) plus the demo HTML/CSS/JS and `sample.gpx`. Serve with any static HTTP server:
 
 ```bash
-./gradlew :elevation:wasmJsBrowserDevelopmentRun
+cd build/dist/wasmJs/productionExecutable && python3 -m http.server 8080  # or .../js/...
 ```
 
-Then open <http://localhost:8080>. Webpack-dev-server hot-reloads on Kotlin changes.
-
-### Build a static dist
+Dev server (Webpack hot-reload):
 
 ```bash
-./gradlew :elevation:wasmJsBrowserDistribution
-```
-
-Output: `build/dist/wasmJs/productionExecutable/` — `elevation.js` + `*.wasm` + the demo
-HTML/CSS/JS + `sample.gpx`. Serve with any static HTTP server:
-
-```bash
-cd build/dist/wasmJs/productionExecutable && python3 -m http.server 8080
+./gradlew :elevation:wasmJsBrowserDevelopmentRun  # Wasm demo
+./gradlew :elevation:jsBrowserDevelopmentRun      # Kotlin/JS demo
 ```
 
 ### What it shows
@@ -65,32 +65,37 @@ cd build/dist/wasmJs/productionExecutable && python3 -m http.server 8080
 
 ### How the JS bridge works
 
-The Kotlin → JS façade lives in
-[`ElevationJsApi.kt`](src/wasmJsMain/kotlin/io/github/glandais/elevation/ElevationJsApi.kt):
+Two parallel façades expose the same free-function API:
 
-- Kotlin/Wasm 2.3 currently restricts `@JsExport` to **top-level functions**, so the API is
-  shaped as free functions taking a `JsReference<ElevationProvider>` opaque handle:
-  `newElevationProvider(config?)`, `getElevation(handle, lat, lng, interpolation)`,
-  `getElevationsAlong(handle, path, options)`. All async work returns `Promise` per the
-  `kotlin-wasm-jvm-webp.md` §3 convention.
-- DTOs are declared as `external interface … : JsAny` (per §4.B) so JS callers can pass plain
-  object literals (`{ latitude, longitude }`, `{ step: 25, smoothingOptions: {...} }`).
-- Output `CoordinatesElevationDto` instances are built as plain JS objects via a `@JsFun`
-  literal helper, so consumers like Chart.js can read `.elevation` / `.latitude` directly.
+- Kotlin/Wasm — [`src/wasmJsMain/.../ElevationJsApi.kt`](src/wasmJsMain/kotlin/io/github/glandais/elevation/ElevationJsApi.kt)
+- Kotlin/JS — [`src/jsMain/.../ElevationJsApi.kt`](src/jsMain/kotlin/io/github/glandais/elevation/ElevationJsApi.kt)
 
-The demo's `index.html` loads the webpack UMD bundle as a regular `<script>`, awaits
-`globalThis.elevation` (a Promise — wasm instantiation is async), then defines a small
-`ElevationProvider` class shim that holds the handle and forwards calls to the exported
-functions. That exposes `window.Elevation.ElevationProvider`, which `demo.js` consumes with
-exactly the same call sites as the original TS library.
+Both expose `newElevationProvider(config?)`, `getElevation(handle, lat, lng, interpolation)`,
+and `getElevationsAlong(handle, path, options)`. All async work returns `Promise` (per the
+`kotlin-wasm-jvm-webp.md` §3 convention). The two backends differ on:
 
-TypeScript definitions are emitted alongside the bundle as `vcyclist-elevation.d.mts`
-(`generateTypeScriptDefinitions()` is enabled in `build.gradle.kts`).
+| | Kotlin/Wasm | Kotlin/JS |
+|---|---|---|
+| Handle type | `JsReference<ElevationProvider>` | `ElevationProvider` (passed opaquely) |
+| Array type in API | `JsArray<T>` | `Array<T>` (native JS array) |
+| Number wrapping | `JsNumber` | `Double` direct |
+| DTO base | `external interface … : JsAny` | `external interface …` |
+| `@JsExport` scope | top-level functions only (Wasm 2.3 limitation) | top-level functions and classes |
+| Module load | `globalThis.elevation` is a `Promise` (Wasm async instantiation) | `globalThis.elevation` is the module synchronously |
+
+Each demo's `index.html` loads the webpack UMD bundle as a regular `<script>` and wraps the
+free functions in an `ElevationProvider` class shim. `await globalThis.elevation` works for
+both (awaiting a non-Promise resolves to the value), so `demo.js` is byte-identical across the
+two demos and consumes `window.Elevation.ElevationProvider` exactly like the original TS lib.
+
+TypeScript definitions are emitted alongside both bundles (`generateTypeScriptDefinitions()` is
+enabled on both `js(IR)` and `wasmJs` targets).
 
 ## Status
 
 Phase 1 (port of TS algorithms) is complete — see `../docs/PLAN.md` for the full task list and
-parity numbers. The WASM browser demo is **not** part of the formal task plan; it lives here as
-a runnable smoke test of the `wasmJs` target and as the visual reference for the upcoming
-Compose Multiplatform demo (Phase 9). End-to-end check against `tiles.mapterhorn.com`: Mont
-Blanc (45.8326°N, 6.8652°E) returns ≈ 4757 m through the WASM bridge.
+parity numbers. The two browser demos are **not** part of the formal task plan; they live here
+as runnable smoke tests of the `wasmJs` / `js(IR)` targets and as the visual reference for the
+upcoming Compose Multiplatform demo (Phase 9). End-to-end check against `tiles.mapterhorn.com`:
+Mont Blanc (45.8326°N, 6.8652°E) returns ≈ 4757 m through the Wasm bridge; the Kotlin/JS demo
+shares the algorithm code path, so the same value is expected.

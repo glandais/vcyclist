@@ -46,6 +46,7 @@ Le projet TypeScript `virtual-cyclist` (simulateur de cyclisme basé physique av
 | **— Phase 1 (module `:elevation`) terminée —** | | | | |
 | 09 | Intégration HTTP réelle (tuiles mapterhorn, gated `INTEGRATION=1`) | ✅ | `ad2837b` | 6 (jvmTest, opt-in) |
 | ★ | **Bonus** — WASM browser demo + `@JsExport` façade `ElevationJsApi` | ✅ | `a095ff8` | — (smoke E2E Mont Blanc ≈ 4757 m) |
+| ★ | **Bonus** — Kotlin/JS browser demo (sibling of WASM, same UI) | ✅ | pending | — (build + Karma green ; smoke E2E à valider manuellement) |
 | 10 | Engine — `PointField` + `PointFieldCategory` (36 champs / 14 catégories) | ✅ | `2d20d4a` | 16 (×3 targets = 48) |
 | 11 | Engine — `GeneratedPath` codegen (sous-projet `:codegen`) + `PointFieldAccessors` | ✅ | `97ed1d9` | 9 (×3 targets = 27) |
 | 12 | Engine — Path (stats + helpers + bridge `:elevation`) | ✅ | `efc9d17` | 18 (×3 targets = 54) |
@@ -101,6 +102,8 @@ Le projet TypeScript `virtual-cyclist` (simulateur de cyclisme basé physique av
 **Critère Phase 1** : `./gradlew :elevation:allTests` vert sur JVM + JS Node + Wasm browser. ✅ Module utilisable comme dépendance via `api(project(":elevation"))` à activer en Phase 2.
 
 **Bonus hors plan** : le commit `a095ff8` ajoute un démonstrateur browser Kotlin/Wasm (Leaflet + Chart.js + GPX upload) et la façade `@JsExport` `ElevationJsApi` (top-level functions + `JsReference<ElevationProvider>` handle pattern + DTOs `external interface : JsAny` + `Promise<…>` via `GlobalScope.promise`). Cela **valide les patterns** documentés dans `kotlin-wasm-jvm-webp.md` et **réduit le scope de la tâche 28** (la recette est désormais éprouvée pour `:engine`). E2E vérifié contre `tiles.mapterhorn.com` (Mont Blanc ≈ 4757 m). À noter : pas de tests unitaires pour cette façade, et `GlobalScope.promise` requiert `@OptIn(DelicateCoroutinesApi)` — à traiter si publication npm.
+
+**Bonus hors plan (suite)** : un second démonstrateur browser, en **Kotlin/JS pur** (sans Wasm), est ajouté sous `elevation/src/jsMain/` (cf. `docs/tasks/bonus-elevation-js-demo.md`). Il partage l'UI complète avec la démo Wasm (`demo.css`/`demo.js`/`sample.gpx` strictement identiques) et expose une façade `@JsExport` parallèle adaptée aux conventions Kotlin/JS (pas de `JsAny`/`JsReference<T>`/`JsArray<T>` : DTOs `external interface` simples, `ElevationProvider` passé en référence directe, `Array<T>` natif). Le pipeline fetch/decode WebP utilise le même `createImageBitmap` + canvas 2D que la version Wasm. Bundle de production : ~140 KiB `elevation.js` monolithique (vs ~13 KiB loader + ~135 KiB `.wasm` côté Wasm). Tasks Gradle : `:elevation:jsBrowserDevelopmentRun` (dev server) et `:elevation:jsBrowserDistribution` (dist statique sous `build/dist/js/productionExecutable/`). `:elevation:jsBrowserTest` (Karma + Chrome headless) ajouté en complément de `:jsNodeTest`. Pas de smoke E2E HTTP automatisé — la validation manuelle se fait via `sample.gpx` chargé dans le navigateur (altitude max attendue ≈ 4757 m, même chemin algorithmique que la version Wasm).
 
 ---
 

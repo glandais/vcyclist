@@ -1,10 +1,36 @@
 package io.github.glandais.elevation
 
-// NOTE: jsMain (Node) target requires `sharp` for WebP/PNG decoding.
-// Activate when a Node consumer needs it by replacing this stub with a real implementation
-// using `fetch` (Node 18+) and `sharp` to produce raw RGBA bytes.
-actual suspend fun fetchAndDecodeTile(url: String): RawTile =
-    throw NotImplementedError(
-        "fetchAndDecodeTile is not implemented for the JS (Node) target. " +
-            "Add `sharp` as an npm dependency and implement TileFetcher.js.kt.",
-    )
+import kotlinx.browser.document
+import kotlinx.browser.window
+import kotlinx.coroutines.await
+import org.khronos.webgl.Int8Array
+import org.w3c.dom.CanvasRenderingContext2D
+import org.w3c.dom.HTMLCanvasElement
+import org.w3c.dom.ImageBitmap
+import org.w3c.fetch.RequestInit
+import org.w3c.fetch.Response
+import org.w3c.files.Blob
+
+actual suspend fun fetchAndDecodeTile(url: String): RawTile {
+    val res: Response = window.fetch(url, RequestInit()).await()
+    check(res.ok) { "Tile fetch failed for $url: HTTP ${res.status}" }
+    val blob: Blob = res.blob().await()
+
+    val bitmap: ImageBitmap = window.createImageBitmap(blob).await()
+    try {
+        val canvas = document.createElement("canvas") as HTMLCanvasElement
+        canvas.width = bitmap.width
+        canvas.height = bitmap.height
+        val ctx = canvas.getContext("2d") as CanvasRenderingContext2D
+        ctx.drawImage(bitmap, 0.0, 0.0)
+        val data = ctx.getImageData(0.0, 0.0, bitmap.width.toDouble(), bitmap.height.toDouble())
+        val src = data.data
+        // Reinterpret Uint8ClampedArray as Int8Array — ByteArray at Kotlin/JS runtime IS Int8Array,
+        // so unsafeCast is zero-copy and equivalent to the wasm path's `toByteArray()` reinterpret.
+        val int8 = Int8Array(src.buffer, src.byteOffset, src.byteLength)
+        val rgba: ByteArray = int8.unsafeCast<ByteArray>()
+        return RawTile(bitmap.width, bitmap.height, rgba)
+    } finally {
+        bitmap.close()
+    }
+}

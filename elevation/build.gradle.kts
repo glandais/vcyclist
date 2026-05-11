@@ -9,6 +9,18 @@ kotlin {
 
     js(IR) {
         nodejs()
+        browser {
+            commonWebpackConfig {
+                outputFileName = "elevation.js"
+            }
+            testTask {
+                useKarma {
+                    useChromeHeadless()
+                }
+            }
+        }
+        binaries.executable()
+        generateTypeScriptDefinitions()
     }
 
     @OptIn(org.jetbrains.kotlin.gradle.ExperimentalWasmDsl::class)
@@ -34,6 +46,9 @@ kotlin {
         }
         jvmMain.dependencies {
             implementation(libs.imageio.webp)
+        }
+        jsMain.dependencies {
+            implementation(libs.kotlinx.browser)
         }
         wasmJsMain.dependencies {
             implementation(libs.kotlinx.browser)
