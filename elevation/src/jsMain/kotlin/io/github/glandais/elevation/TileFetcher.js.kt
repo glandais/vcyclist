@@ -33,9 +33,37 @@ private fun responseArrayBuffer(res: Response): Promise<dynamic> = js("res.array
 // Load @jsquash/webp lazily so webpack does NOT resolve it at bundle time for the browser
 // target. The `require()` is hidden behind `eval()` to defeat webpack's static resolver —
 // combined with `webpack.config.d/externals.js`, the browser bundle stays jsquash-free.
-private fun decodeWebpNode(buffer: dynamic): Promise<dynamic> =
-    js("eval('require')('@jsquash/webp/decode/index.js').default(buffer)")
-        .unsafeCast<Promise<dynamic>>()
+//
+// `@jsquash/webp` is an Emscripten module whose auto-init fetches its own `.wasm` from a
+// `file://` URL, which Node's `fetch` does not support ("not implemented... yet..."). We must
+// load and compile the WASM ourselves, then call `init(module)` before the first `decode(buf)`.
+// The IIFE caches the resolved decoder so the WASM compile happens once per process.
+private val nodeWebpDecoderPromise: Promise<dynamic> by lazy {
+    js(
+        """
+        (function () {
+            var path = eval('require')('path');
+            var fs = eval('require')('fs');
+            var req = eval('require');
+            var decodeMod = req('@jsquash/webp/decode.js');
+            var wasmDir = path.dirname(req.resolve('@jsquash/webp/decode.js'));
+            var wasmPath = path.join(wasmDir, 'codec/dec/webp_dec.wasm');
+            var wasmBytes = fs.readFileSync(wasmPath);
+            return WebAssembly.compile(wasmBytes).then(function (wasmModule) {
+                return decodeMod.init(wasmModule).then(function () {
+                    return decodeMod.default;
+                });
+            });
+        })()
+        """,
+    ).unsafeCast<Promise<dynamic>>()
+}
+
+private suspend fun decodeWebpNode(buffer: dynamic): dynamic {
+    val decode: dynamic = nodeWebpDecoderPromise.await()
+    val resultPromise: Promise<dynamic> = decode(buffer).unsafeCast<Promise<dynamic>>()
+    return resultPromise.await()
+}
 
 actual suspend fun fetchAndDecodeTile(url: String): RawTile = if (isNode) decodeNode(url) else decodeBrowser(url)
 
@@ -67,7 +95,7 @@ private suspend fun decodeNode(url: String): RawTile {
     val res: Response = fetchUrlNode(url).await()
     check(res.ok) { "Tile fetch failed for $url: HTTP ${res.status}" }
     val ab: dynamic = responseArrayBuffer(res).await()
-    val image: dynamic = decodeWebpNode(ab).await()
+    val image: dynamic = decodeWebpNode(ab)
     val width: Int = (image.width as Number).toInt()
     val height: Int = (image.height as Number).toInt()
     val src: dynamic = image.data // Uint8ClampedArray
