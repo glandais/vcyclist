@@ -75,6 +75,13 @@ Le projet TypeScript `virtual-cyclist` (simulateur de cyclisme basé physique av
 | **— Phase 3 : support Node.js / Bun —** | | | | |
 | 32 | Elevation — tile fetcher Node (runtime detection + `@jsquash/webp` WASM decoder + webpack externals) | ✅ | — | — (aucune nouvelle classe ; tests d'intégration en tâche 33) |
 | 33 | Elevation + Engine — tests d'intégration Node (jsNodeTest, gated `INTEGRATION=1`) + plumberie `ElevationProvider` dans `EngineJsApi` | ✅ | — | 6 tests gated (`:elevation` : 1 TileFetcher + 4 ElevationProvider ; `:engine` : 1 EnhanceWithElevation) — skip silencieusement sans INTEGRATION, passent avec INTEGRATION=1 contre tiles.mapterhorn.com |
+| **— Phase 9 : démo Vue/Vite sur Kotlin/JS —** | | | | |
+| 34 | Engine — `@JsExport` façade étendue : `enhanceWithCourse` + `getField` + `fieldDefinitions` + DTO Cyclist/Bike/Wind/Power | ☐ | | |
+| 35 | Demo — bootstrap Vue/Vite + alias `@glandais/vcyclist-engine` via `file:` + shell vide | ☐ | | |
+| 36 | Demo — intégration moteur : `useGPXDemo` + `types` + persistance config | ☐ | | |
+| 37 | Demo — UI complète (16 composants Vue + Chart.js + Leaflet + 6 tabs + FieldsSidebar) | ☐ | | |
+| 38 | Demo — intégration Gradle (`:demo:assemble`) + GPX samples + README | ☐ | | |
+| 39 | Demo — déploiement GitHub Pages (optionnel, stretch) | ☐ | | |
 
 **Cumul `:elevation` après Phase 1 + extras** : 20 classes de tests, **193 tests** (commonTest 182 + jvmTest 11 dont 6 opt-in) × 3 targets en mode standard = **557 exécutions** vertes (offline).
 
@@ -478,17 +485,48 @@ Référence cœur : `/home/glandais/code/perso/vcyclist-all/virtual-cyclist/src/
 
 ---
 
-## Phase 9 — Demo Compose Multiplatform (esquisse)
+## Phase 9 — Démo Vue/Vite sur sortie Kotlin/JS
 
-Au-delà du focus engine, mais déjà cadré :
+**Décision (révisée)** : la démo Compose Multiplatform initialement esquissée
+est abandonnée. À la place, on **porte** la démo Vue 3 + Vite existante de
+`virtual-cyclist/demo/` dans le module `:demo` du repo vcyclist, en branchant
+le moteur **Kotlin/JS** à la place du moteur TypeScript. Avantages : réutilise
+un UX déjà mature (PrimeVue, Leaflet, Chart.js), évite l'investissement en
+chart/map natif Compose (écosystème encore jeune côté Web), livre la démo en
+quelques tâches.
 
-- **Module `:demo`** Compose Multiplatform avec targets `desktopMain` (JVM) + `wasmJsMain` (browser).
-- Fonctionnalités cibles (alignées avec la demo Vue) :
-  - Upload GPX (file picker desktop / file input web).
-  - Tabs Cyclist / Bike / Power / Wind / Fields.
-  - Graphique elevation/speed/power : utiliser `compose-multiplatform` `Canvas` + lib comme `kandy-charts` ou implé custom (pas de Chart.js équivalent natif KMP mature ; choix à acter en début de Phase 9).
-  - Carte : `maplibre-compose-playground` ou simple Canvas + tuiles raster.
-- Tâches à créer en Phase 9 (non détaillées ici) : `28-demo-bootstrap`, `29-demo-load-gpx`, `30-demo-controls`, `31-demo-charts`, `32-demo-map`.
+**Cible technique** :
+
+- **Module `:demo`** — Vue 3 + Vite + TypeScript + PrimeVue + Leaflet + Chart.js,
+  géré par Gradle via le plugin `com.github.node-gradle.node` (Node téléchargé
+  automatiquement, build reproductible).
+- **Consommation moteur** — `@glandais/vcyclist-engine` linké via
+  `file:../engine/build/dist/js/productionLibrary` (Vite + npm). La cible
+  Kotlin/JS est privilégiée pour la maturité d'interop avec Vue ; pas de
+  consommation Wasm dans cette phase.
+- **API engine étendue** (task 34) — `enhanceWithCourse(path, cyclistDto?,
+  bikeDto?, windDto?, powerProviderDto?, optionsDto?)` + `getField(path, i,
+  fieldProp: string)` + `fieldDefinitions(): Array<FieldDefinitionDto>` + 5
+  DTO `external interface` (Cyclist/Bike/Wind/Power/FieldDefinition). L'API
+  `enhance(path, options)` existante reste inchangée (compat npm Phase 3).
+- **Build & deploy** — `./gradlew :demo:assemble` produit un site statique
+  servable. Task 39 (optionnelle) ajoute la publication automatique sur
+  GitHub Pages à chaque push develop.
+
+**Tâches** (cf. `docs/tasks/34-...md` à `39-...md`) :
+
+- **34** — Engine `@JsExport` façade : expansion DTO + helpers
+- **35** — Demo bootstrap Vue/Vite (shell vide qui résout le bundle Kotlin/JS)
+- **36** — Demo intégration moteur (`useGPXDemo`, types, persistance)
+- **37** — Demo UI complète (16 composants Vue, chart, map, tabs, sidebar)
+- **38** — Demo intégration Gradle (`:demo:assemble`) + samples + docs
+- **39** — Demo déploiement GitHub Pages (optionnel)
+
+**Critère de fin de Phase 9** : `./gradlew :demo:assemble` produit un site
+statique fonctionnel ; charger Stelvio + cliquer Enhance affiche durée
+virtualisée plausible, profil elevation/speed sur le chart, track sur la carte ;
+hover sync chart ↔ map fonctionne ; les 36 champs sont sélectionnables via
+FieldsSidebar.
 
 ---
 
