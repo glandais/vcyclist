@@ -1,3 +1,10 @@
+## [1.1.1](https://github.com/glandais/vcyclist/compare/v1.1.0...v1.1.1) (2026-05-11)
+
+
+### Bug Fixes
+
+* **ci:** grant pull-requests:write to release workflow ([abc6201](https://github.com/glandais/vcyclist/commit/abc62012fd938e73ff7c4b9fc34564a626c2e472))
+
 # [1.1.0](https://github.com/glandais/vcyclist/compare/v1.0.0...v1.1.0) (2026-05-11)
 
 
