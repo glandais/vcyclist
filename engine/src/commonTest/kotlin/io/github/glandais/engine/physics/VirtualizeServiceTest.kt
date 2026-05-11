@@ -82,9 +82,9 @@ class VirtualizeServiceTest {
         assertTrue(v1 < course.cyclist.maxSpeedMS, "speed(1)=$v1 must be < maxSpeedMS=${course.cyclist.maxSpeedMS}")
     }
 
-    // 4 — time(0) == 0 ; time(i) > time(i-1) strict monotonic on the simulated range
-    //     [0, n-2]. The last point (n-1) is copied verbatim from input so its time is the
-    //     input value (0 here).
+    // 4 — time(0) == 0 ; time(i) > time(i-1) strict monotonic on the full simulated range
+    //     [0, n-1]. The last point (n-1) is now simulated too (task 29 fix), so its time is
+    //     derived from time(n-2) + dt rather than copied verbatim from the source epoch.
     @Test
     fun time_is_strictly_monotonic_from_zero() {
         val path = buildFlatPath(doubleArrayOf(0.0, 5.0, 10.0, 15.0, 20.0))
@@ -92,8 +92,8 @@ class VirtualizeServiceTest {
         val out = VirtualizeService.virtualizeTrack(course)
 
         assertEquals(0.0, out.time(0), 0.0)
-        // Simulated range : [0, n-2]. The last point (n-1) is a verbatim copy of the input.
-        for (i in 1 until out.size - 1) {
+        // Simulated range : [0, n-1]. Strict monotonicity holds for every index.
+        for (i in 1 until out.size) {
             assertTrue(
                 out.time(i) > out.time(i - 1),
                 "time($i)=${out.time(i)} must be > time(${i - 1})=${out.time(i - 1)}",
@@ -129,20 +129,22 @@ class VirtualizeServiceTest {
         )
     }
 
-    // 6 — speedMax constraint : if speedMax(i) = 1 m/s everywhere, speed(i) ≤ 1 m/s
+    // 6 — speedMax constraint : if speedMax(i) = 1 m/s everywhere, speed(i) ≤ 1 m/s.
+    //     Range extended to [1, n-1] (inclusive) — last point is simulated too (task 29 fix).
     @Test
     fun speedMax_constraint_caps_virt_speed() {
         val path = buildFlatPath(doubleArrayOf(0.0, 10.0, 20.0, 30.0, 40.0), speedMax = 1.0)
         val course = defaultCoursePhysics(path)
         val out = VirtualizeService.virtualizeTrack(course)
 
-        for (i in 1 until out.size - 1) {
+        for (i in 1 until out.size) {
             val v = out.virtSpeedCurrent(i)
             assertTrue(v <= 1.0 + tolMid, "virtSpeedCurrent($i)=$v should be ≤ 1 m/s")
         }
     }
 
-    // 7 — steep climb : 280 W cyclist cannot maintain high speed
+    // 7 — steep climb : 280 W cyclist cannot maintain high speed.
+    //     Range extended to [1, n-1] (inclusive) — last point is simulated too (task 29 fix).
     @Test
     fun steep_climb_clamps_to_low_speed() {
         // Grade 10 % on 4 waypoints, 10 m apart.
@@ -150,7 +152,7 @@ class VirtualizeServiceTest {
         val course = defaultCoursePhysics(path) // default 280 W
         val out = VirtualizeService.virtualizeTrack(course)
 
-        for (i in 1 until out.size - 1) {
+        for (i in 1 until out.size) {
             val v = out.virtSpeedCurrent(i)
             // On a 10 % grade with 80 kg and 280 W, steady-state speed is well below 20 km/h
             // (i.e. < 6 m/s). Loose upper bound : 8 m/s.
@@ -248,7 +250,8 @@ class VirtualizeServiceTest {
     }
 
     // 12 — side-effects : virtSpeedCurrent / time / elapsed written ; lat/lon/elevation
-    // copied verbatim from input.
+    // copied verbatim from input. Task 29 fix : the last point is also simulated now, so
+    // assertions extend to index n-1.
     @Test
     fun side_effects_preserve_lat_lon_elevation_and_write_time_elapsed() {
         val n = 5
@@ -270,19 +273,20 @@ class VirtualizeServiceTest {
             assertEquals(100.0 + i, out.elevation(i), tolMid, "elevation($i) preserved")
         }
 
-        // virtSpeedCurrent : not touched by computeDerivedData, so it keeps the simulation value.
-        for (i in 0 until n - 1) {
+        // virtSpeedCurrent : not touched by computeDerivedData, so it keeps the simulation value
+        // for every index (last point is simulated too now).
+        for (i in 0 until n) {
             assertTrue(out.virtSpeedCurrent(i) > 0.0, "virtSpeedCurrent($i) must be set positive")
         }
 
-        // time strictly monotonic for the simulated range [0, n-2].
-        for (i in 1 until n - 1) {
+        // time strictly monotonic on the full range [0, n-1].
+        for (i in 1 until n) {
             assertTrue(out.time(i) > out.time(i - 1), "time($i) must be > time(${i - 1})")
         }
 
         // elapsed (post-computeDerivedData) is in SECONDS, not ms : elapsed = (time - timeStart) / 1000.
         // We use a relative tolerance since elapsed values may be a few seconds.
-        for (i in 0 until n - 1) {
+        for (i in 0 until n) {
             assertEquals(out.time(i) / 1000.0, out.elapsed(i), tolMid, "elapsed($i) = time($i)/1000 (post-computeDerivedData)")
         }
     }

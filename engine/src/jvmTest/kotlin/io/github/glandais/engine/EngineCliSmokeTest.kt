@@ -92,9 +92,10 @@ class EngineCliSmokeTest {
         assertTrue(reparsed.tracks.isNotEmpty(), "Output GPX should contain at least one track")
         val produced = reparsed.tracks[0]
         assertTrue(produced.points.isNotEmpty(), "Output track should contain trackpoints")
-        // sample.gpx has 7 source points ; the pipeline (with simplify=off, 1Hz=off) preserves
-        // the source point count.
-        assertEquals(7, produced.points.size, "Expected source-point count (simplify=off, 1Hz=off)")
+        // sample.gpx has 7 source points ; with the full pipeline (1 Hz resample + Douglas-Peucker
+        // simplify, both on by default since task 29 fix made them safe), the simplifier collapses
+        // the short flat segment down to 3 points (matches `ParityFixtures.SAMPLE.pointCount`).
+        assertEquals(3, produced.points.size, "Expected simplified point count (full pipeline)")
 
         val first = produced.points[0]
         // Latitude/longitude survive the round-trip (degrees, with the small float drift

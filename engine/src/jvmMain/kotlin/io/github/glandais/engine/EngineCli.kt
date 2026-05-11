@@ -16,11 +16,9 @@ import kotlin.system.exitProcess
  * ```
  *
  * Runs [Enhancer.enhanceCourseDefault] with `fixElevation = false` (no network
- * `ElevationProvider` available in a plain JVM run) and disables the 1 Hz resample +
- * Douglas-Peucker simplify steps because the upstream sample fixtures carry absolute
- * 2024 timestamps (epoch ≈ 1.7e12 ms). [io.github.glandais.engine.physics.VirtualizeService]
- * snaps the **last** sample to the original timestamp, so a naive `PointPerSecond` would
- * allocate ~1.7 billion second slots and OOM — see task 27 spec.
+ * `ElevationProvider` available in a plain JVM run). All other pipeline steps run with
+ * their defaults (max speeds, virtualize, 1 Hz resample, Douglas-Peucker simplify). The
+ * task 29 fix made the 1 Hz resample safe on real GPX with absolute 2024 timestamps.
  *
  * Invoked from Gradle :
  *
@@ -113,19 +111,13 @@ object EngineCli {
                 "gain ${"%.1f".format(inputPath.elevationGain)} m",
         )
 
-        // fixElevation=false (no HTTP provider here).
-        // computeOnePointPerSecond=false + simplifyPath disabled : VirtualizeService snaps the
-        // last point to the original 2024 epoch timestamp, so a naive 1 Hz resample would
-        // explode. Smoke goal is to demonstrate the pipeline end-to-end ; tighter parity is
-        // covered by `EnhancerParityTest` on small inline fixtures.
-        val options =
-            EnhanceOptions.DEFAULT.copy(
-                fixElevation = false,
-                computeOnePointPerSecond = false,
-                simplifyPath = SimplifyPathOptions(enabled = false),
-            )
+        // fixElevation=false (no HTTP provider here). Other steps run with defaults : the
+        // task 29 fix makes `VirtualizeService` produce a sane `time(n-1)` so the downstream
+        // 1 Hz resample + Douglas-Peucker simplify are safe on real GPX with absolute
+        // 2024 timestamps.
+        val options = EnhanceOptions.DEFAULT.copy(fixElevation = false)
 
-        println("Running pipeline (fixElevation=false, computeOnePointPerSecond=false, simplifyPath=off)...")
+        println("Running pipeline (fixElevation=false, all other steps default)...")
         val result =
             runBlocking {
                 Enhancer.enhanceCourseDefault(
@@ -164,9 +156,7 @@ object EngineCli {
             |
             |Runs the virtual-cyclist enhancement pipeline on the input GPX file with default
             |Cyclist (80 kg / 280 W) and Bike (Crr 0.004) parameters. No elevation correction
-            |is performed (no HTTP access). 1 Hz resample and Douglas-Peucker simplification
-            |are disabled in this CLI to avoid issues with absolute-epoch timestamps in raw
-            |GPX fixtures.
+            |is performed (no HTTP access) ; every other pipeline step runs with its defaults.
             |
             |Gradle usage:
             |   ./gradlew :engine:run -Pargs="enhance input.gpx -o /tmp/out.gpx"

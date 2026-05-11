@@ -18,7 +18,10 @@ import io.github.glandais.engine.path.PointField
  *
  * Notes :
  * - The output [Path] has the same fixed size as the input. The simulation runs from
- *   `i = 1` to `i = n - 2` ; the last point (`n - 1`) is a verbatim copy of the input.
+ *   `i = 1` to `i = n - 1` (inclusive) ; the last point is simulated like all the others
+ *   so its `time` is consistent with the simulated `time(n-2)` instead of leaking the
+ *   absolute source epoch (~1.7e12 ms in 2024) which would otherwise blow up
+ *   downstream `PointPerSecond`.
  * - The trapezoidal identity `dx = (v_old + v_new) × dt / 2` gives `v_new = 2·dx/dt − v_old`.
  *   Valid when `dx, dt > 0`. In practice waypoints are distinct (`dx > 0`) and `getDt`
  *   returns a strictly positive `dt`, so no guard is needed.
@@ -45,8 +48,10 @@ object VirtualizeService {
 
         val mEq = PowerComputer.equivalentMass(course)
 
-        // Output path mirrors the input size. The simulation writes [0, n-2] and the last
-        // point is copied verbatim (no virtualization beyond the second-to-last).
+        // Output path mirrors the input size. The simulation writes every slot in [1, n-1] ;
+        // index 0 is bootstrapped below with `time = 0` and `speed = MINIMAL_SPEED`. The last
+        // point is simulated too, so its `time` is derived from the simulated `time(n-2)`
+        // (not the source epoch).
         val out = Path(n)
         copyAllFields(input, 0, out, 0)
 
@@ -60,7 +65,7 @@ object VirtualizeService {
 
         var i = 1
         var iter = 0
-        while (i < n - 1) {
+        while (i < n) {
             val dx = input.distance(i) - input.distance(i - 1)
             val pSum = PowerComputer.getNewPower(course, out, i - 1, withCyclist = true)
             var dt = PowerComputer.getDt(pSum, mEq, speed, dx)
@@ -88,11 +93,9 @@ object VirtualizeService {
             if (iter++ > MAX_ITERATIONS) break
         }
 
-        // Last point : copy verbatim (no virtualization).
-        copyAllFields(input, n - 1, out, n - 1)
-
-        // Inverse problem : back-calculate cyclist power from speed changes.
-        for (j in 0 until out.size - 1) {
+        // Inverse problem : back-calculate cyclist power from speed changes (all indices,
+        // including the last point now that it is fully simulated).
+        for (j in out.indices) {
             PowerComputer.computeCyclistPower(course, out, mEq, j)
         }
 

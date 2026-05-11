@@ -26,12 +26,11 @@ class EnhancerParityTest {
     // ---------------------------------------------------------------------- Helpers
 
     /**
-     * Parse [gpxXml] and shift the timestamps so that `time(0) == 0`. This works around an
-     * existing pipeline quirk : `VirtualizeService` rewrites `time(0..n-2)` from `t=0` but
-     * leaves `time(n-1)` at its raw GPX value (epoch ms). When the source uses real epoch
-     * times, `PointPerSecond` then tries to expand ~1.7 billion 1 Hz buckets between
-     * `time(n-2)` and `time(n-1)` → OOM. Normalising to a 0-relative axis isolates the parity
-     * check from this orthogonal bug ; see `docs/parity.md`.
+     * Parse [gpxXml] and shift the timestamps so that `time(0) == 0`. Historically this
+     * worked around a `VirtualizeService` bug where the last point kept the raw GPX epoch ;
+     * the bug was fixed in task 29 but the normalisation is kept here for parity stability
+     * (output durations now reflect only the simulated ride time, independent of the source
+     * epoch offset).
      */
     private fun parsePathNormalized(gpxXml: String): Path {
         val raw = GpxParser.parse(gpxXml).firstTrackAsPath()

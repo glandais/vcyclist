@@ -32,6 +32,11 @@ package io.github.glandais.engine.parity
  *
  * **Measured at task 26 commit (Kotlin pipeline, JVM target, May 2026).** Cross-target
  * stability is within 0.5 % per [EnhancerParityTest] tolerances.
+ *
+ * **Refreshed at task 29 (May 2026)** : durations dropped (SAMPLE 89 000 → 52 000 ms ;
+ * GARMIN 18 000 → 5 000 ms) because `VirtualizeService` no longer leaves `time(n - 1)`
+ * at the raw source epoch — the last point is fully simulated now, so the reported
+ * duration reflects only the simulated ride time instead of `simulated + epoch offset`.
  */
 data class ParityMetrics(
     val totalDistance: Double,
@@ -54,7 +59,7 @@ object ParityFixtures {
             totalElevationGain = 0.26831277485973715,
             totalElevationLoss = -0.30660234137462794,
             pointCount = 3,
-            durationMs = 89_000.0,
+            durationMs = 52_000.0,
         )
 
     /**
@@ -69,6 +74,6 @@ object ParityFixtures {
             totalElevationGain = 0.0,
             totalElevationLoss = -0.008580953441633454,
             pointCount = 2,
-            durationMs = 18_000.0,
+            durationMs = 5_000.0,
         )
 }
