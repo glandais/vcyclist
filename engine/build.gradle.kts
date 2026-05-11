@@ -5,7 +5,22 @@ plugins {
 kotlin {
     jvmToolchain(21)
     jvm()
-    js(IR) { nodejs() }
+
+    js(IR) {
+        nodejs()
+        browser {
+            commonWebpackConfig {
+                outputFileName = "engine.js"
+            }
+            testTask {
+                useKarma {
+                    useChromeHeadless()
+                }
+            }
+        }
+        binaries.executable()
+        generateTypeScriptDefinitions()
+    }
 
     @OptIn(org.jetbrains.kotlin.gradle.ExperimentalWasmDsl::class)
     wasmJs {
@@ -25,6 +40,9 @@ kotlin {
         commonTest.dependencies {
             implementation(kotlin("test"))
             implementation(libs.kotlinx.coroutines.test)
+        }
+        jsMain.dependencies {
+            implementation(libs.kotlinx.browser)
         }
         wasmJsMain.dependencies {
             implementation(libs.kotlinx.browser)

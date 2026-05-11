@@ -3,20 +3,19 @@ package io.github.glandais.elevation
 import kotlinx.browser.document
 import kotlinx.browser.window
 import kotlinx.coroutines.await
-import kotlin.js.Promise
 import org.khronos.webgl.Int8Array
 import org.w3c.dom.CanvasRenderingContext2D
 import org.w3c.dom.HTMLCanvasElement
 import org.w3c.dom.ImageBitmap
 import org.w3c.fetch.Response
 import org.w3c.files.Blob
+import kotlin.js.Promise
 
 // Bypasses the kotlinx-browser-js `fetch(input, init)` declaration which has no default for
 // `init` and would serialise an empty `RequestInit()` as `{cache: null, ...}` — Chrome rejects
 // `null` on enum-typed fields (`cache`, `mode`, …). The Wasm target has a `init = null` default
 // so this is js-target-only plumbing.
-private fun fetchUrl(url: String): Promise<Response> =
-    js("fetch(url)").unsafeCast<Promise<Response>>()
+private fun fetchUrl(url: String): Promise<Response> = js("fetch(url)").unsafeCast<Promise<Response>>()
 
 actual suspend fun fetchAndDecodeTile(url: String): RawTile {
     val res: Response = fetchUrl(url).await()

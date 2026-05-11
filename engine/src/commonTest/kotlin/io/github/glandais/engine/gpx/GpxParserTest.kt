@@ -13,8 +13,12 @@ class GpxParserTest {
 
     @Test
     fun `case 01 — malformed XML throws IllegalArgumentException`() {
+        // Use unambiguously broken markup ("<gpx ...<" with an unterminated attribute) so every
+        // xmlutil backend rejects it ; the previously tested "<gpx><trk><trkseg></trk></gpx>"
+        // (closing-tag mismatch) is silently auto-repaired by Chrome's DOMParser used under
+        // Karma/jsBrowserTest, see commit history for context.
         assertFailsWith<IllegalArgumentException> {
-            GpxParser.parse("<gpx><trk><trkseg></trk></gpx>") // closing tags mismatch
+            GpxParser.parse("<gpx version=\"1.1\"")
         }
     }
 
