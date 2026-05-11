@@ -1,3 +1,16 @@
+# [1.1.0](https://github.com/glandais/vcyclist/compare/v1.0.0...v1.1.0) (2026-05-11)
+
+
+### Bug Fixes
+
+* **elevation:** correctly init @jsquash/webp WASM in Node tile fetcher ([4871067](https://github.com/glandais/vcyclist/commit/48710677376310132e181637149a1a93c47c315b))
+
+
+### Features
+
+* **elevation:** tile fetcher Node.js / Bun (Phase 3 task 32) ([99de2cd](https://github.com/glandais/vcyclist/commit/99de2cd73cd7d760f1ae6186b3b33d124e081210))
+* **engine,elevation:** Node integration tests with elevation enabled (Phase 3 task 33) ([75ae69f](https://github.com/glandais/vcyclist/commit/75ae69ff4978dbd54d4218c9c37de50c9cac4952))
+
 # 1.0.0 (2026-05-11)
 
 
