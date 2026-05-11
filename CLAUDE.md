@@ -242,7 +242,6 @@ diagram, and run a smoke through `EngineCli` to verify the GPX output makes sens
 - Gradle 9.5.0 (wrapper)
 - Kotlin 2.3.21 (KMP)
 - kotlinx-coroutines 1.11.0
-- kotlinx-datetime 0.7.1 (`Instant` = `kotlin.time.Instant` alias)
 - kotlinx-browser 0.5.0 (js + wasmJs)
 - xmlutil 0.91.3 (multi-target XML)
 - TwelveMonkeys imageio-webp 3.13.1 (JVM WebP)
