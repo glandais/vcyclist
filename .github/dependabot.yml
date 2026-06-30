@@ -1,43 +1,85 @@
 version: 2
 updates:
-  # Kotlin Multiplatform deps: libs.versions.toml + per-module build.gradle.kts
   - package-ecosystem: "gradle"
     directory: "/"
     schedule:
       interval: "weekly"
-    open-pull-requests-limit: 10
-    commit-message:
-      prefix: "chore(deps)"
-    groups:
-      kotlin:
-        patterns:
-          - "org.jetbrains.kotlin*"
-      kotlinx:
-        patterns:
-          - "org.jetbrains.kotlinx*"
-      xmlutil:
-        patterns:
-          - "io.github.pdvrieze.xmlutil*"
-
-  # GitHub Actions versions in .github/workflows/*.yml
-  - package-ecosystem: "github-actions"
-    directory: "/"
-    schedule:
-      interval: "weekly"
+      day: "monday"
+      time: "09:00"
+      timezone: "Europe/Paris"
     open-pull-requests-limit: 5
+    assignees:
+      - "glandais"
     commit-message:
-      prefix: "chore(ci)"
+      prefix: "deps(gradle)"
+      include: "scope"
+    labels:
+      - "dependencies"
+    groups:
+      minor-and-patch:
+        update-types:
+          - "minor"
+          - "patch"
 
-  # npm dev tooling (semantic-release and its plugins) — root package.json
   - package-ecosystem: "npm"
     directory: "/"
     schedule:
       interval: "weekly"
-    open-pull-requests-limit: 5
+      day: "monday"
+      time: "09:30"
+      timezone: "Europe/Paris"
+    open-pull-requests-limit: 10
+    assignees:
+      - "glandais"
     commit-message:
-      prefix: "chore(deps)"
+      prefix: "deps(npm)"
+      include: "scope"
+    labels:
+      - "dependencies"
     groups:
-      semantic-release:
-        patterns:
-          - "semantic-release"
-          - "@semantic-release/*"
+      minor-and-patch:
+        update-types:
+          - "minor"
+          - "patch"
+
+  - package-ecosystem: "npm"
+    directory: "/demo"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+      time: "09:30"
+      timezone: "Europe/Paris"
+    open-pull-requests-limit: 10
+    assignees:
+      - "glandais"
+    commit-message:
+      prefix: "deps(npm)"
+      include: "scope"
+    labels:
+      - "dependencies"
+    groups:
+      minor-and-patch:
+        update-types:
+          - "minor"
+          - "patch"
+
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+      time: "10:00"
+      timezone: "Europe/Paris"
+    open-pull-requests-limit: 5
+    assignees:
+      - "glandais"
+    commit-message:
+      prefix: "deps(github-actions)"
+      include: "scope"
+    labels:
+      - "dependencies"
+    groups:
+      minor-and-patch:
+        update-types:
+          - "minor"
+          - "patch"
