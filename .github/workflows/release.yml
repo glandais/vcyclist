@@ -34,6 +34,13 @@ jobs:
       - uses: gradle/actions/setup-gradle@v6
 
       - name: Run full check (build + tests on all targets)
+        # actions/setup-node (registry-url) writes an .npmrc with `_authToken=${NODE_AUTH_TOKEN}`
+        # into NPM_CONFIG_USERCONFIG. Kotlin's bundled yarn 1.x (:kotlinNpmInstall) fails hard
+        # with "Failed to replace env in config: ${NODE_AUTH_TOKEN}" when the var is undefined.
+        # `check` publishes nothing, so an empty token just lets yarn resolve the placeholder.
+        # Do NOT hoist this to the job/publish level — it would override OIDC trusted publishing.
+        env:
+          NODE_AUTH_TOKEN: ''
         run: ./gradlew check
 
       - name: Install release tooling
