@@ -1,3 +1,10 @@
+## [1.2.1](https://github.com/glandais/vcyclist/compare/v1.2.0...v1.2.1) (2026-07-20)
+
+
+### Bug Fixes
+
+* **build:** unblock release check step from setup-node npmrc auth token ([#32](https://github.com/glandais/vcyclist/issues/32)) ([7337de5](https://github.com/glandais/vcyclist/commit/7337de58949e8827014cbc5327cb497afa7b36b7))
+
 # [1.2.0](https://github.com/glandais/vcyclist/compare/v1.1.1...v1.2.0) (2026-05-11)
 
 
