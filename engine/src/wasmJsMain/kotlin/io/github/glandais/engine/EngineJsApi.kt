@@ -10,7 +10,9 @@ import io.github.glandais.elevation.ElevationProvider
 import io.github.glandais.engine.gpx.GpxParser
 import io.github.glandais.engine.gpx.GpxWriter
 import io.github.glandais.engine.gpx.firstTrackAsPath
+import io.github.glandais.engine.gpx.segmentsAsPaths
 import io.github.glandais.engine.gpx.toGpxDocument
+import io.github.glandais.engine.gpx.tracksAsPaths
 import io.github.glandais.engine.path.Path
 import kotlinx.coroutines.DelicateCoroutinesApi
 import kotlinx.coroutines.GlobalScope
@@ -77,6 +79,35 @@ private external fun pointObj(
 
 @JsExport
 fun parseGpx(xml: String): JsReference<Path> = GpxParser.parse(xml).firstTrackAsPath().toJsReference()
+
+/**
+ * Parse [xml] and return **one handle per `<trk>`**, in document order. Tracks with no point are
+ * skipped. Segments of a same track are concatenated — distance jumps across a segment boundary ;
+ * use [parseGpxSegments] if that artefact matters.
+ *
+ * Unlike the Kotlin/JS façade, which returns a plain `Array<Path>`, Wasm has to hand back a
+ * `JsArray` of opaque handles : `Path` is not a `JsAny`, so it can only cross the boundary
+ * wrapped in a [JsReference].
+ */
+@JsExport
+fun parseGpxTracks(xml: String): JsArray<JsReference<Path>> = GpxParser.parse(xml).tracksAsPaths().toHandleArray()
+
+/**
+ * Parse [xml] and return **one handle per `<trkseg>`**, across all tracks, in document order.
+ * Empty segments are skipped. Every returned Path is continuous.
+ */
+@JsExport
+fun parseGpxSegments(xml: String): JsArray<JsReference<Path>> = GpxParser.parse(xml).segmentsAsPaths().toHandleArray()
+
+/** Serialise the handles in [paths] as a multi-track GPX document — one `<trk>` per Path. */
+@JsExport
+fun writeGpxTracks(paths: JsArray<JsReference<Path>>): String = GpxWriter.write(List(paths.length) { i -> paths[i]!!.get() })
+
+private fun List<Path>.toHandleArray(): JsArray<JsReference<Path>> {
+    val out = JsArray<JsReference<Path>>()
+    for ((i, p) in withIndex()) out[i] = p.toJsReference()
+    return out
+}
 
 @JsExport
 fun pathSize(handle: JsReference<Path>): Int = handle.get().size

@@ -46,3 +46,23 @@ fun Path.toGpxDocument(
     name: String = "noname",
     trackName: String? = null,
 ): GpxDocument = GpxDocument(name = name, tracks = listOf(toGpxTrack(name = trackName)))
+
+/**
+ * Build a multi-track [GpxDocument] — one `<trk>` (single `<trkseg>`) per [Path], in order.
+ *
+ * @param paths one track per entry. An empty list produces a document with no track.
+ * @param name value for `<metadata><name>`.
+ * @param trackNames optional per-track `<trk><name>`. Entries beyond the list's size — or a
+ *   `null` list — leave the track unnamed. Extra names are ignored.
+ * @param type value for `<trk><type>` on every track. Defaults to `"cycling"`.
+ */
+fun pathsToGpxDocument(
+    paths: List<Path>,
+    name: String = "noname",
+    trackNames: List<String>? = null,
+    type: String? = "cycling",
+): GpxDocument =
+    GpxDocument(
+        name = name,
+        tracks = paths.mapIndexed { i, p -> p.toGpxTrack(name = trackNames?.getOrNull(i), type = type) },
+    )

@@ -262,4 +262,62 @@ object GpxFixtures {
   </trk>
 </gpx>
 """
+
+    /**
+     * Single track split into **3 `<trkseg>`** with a deliberate ~1.5 km teleport between
+     * segment 1 and segment 2 (45.002 → 45.02, same longitude). Exercises the documented
+     * difference between `tracksAsPaths()` (concatenates, jump counted) and
+     * `segmentsAsPaths()` (one continuous Path per segment).
+     */
+    val MULTI_SEGMENT_GPX: String =
+        """<?xml version="1.0" encoding="UTF-8"?>
+<gpx version="1.1" xmlns="http://www.topografix.com/GPX/1/1">
+  <trk>
+    <name>paused ride</name>
+    <trkseg>
+      <trkpt lat="45.0" lon="6.0"><ele>100</ele></trkpt>
+      <trkpt lat="45.001" lon="6.0"><ele>110</ele></trkpt>
+      <trkpt lat="45.002" lon="6.0"><ele>120</ele></trkpt>
+    </trkseg>
+    <trkseg>
+      <trkpt lat="45.02" lon="6.0"><ele>200</ele></trkpt>
+      <trkpt lat="45.021" lon="6.0"><ele>210</ele></trkpt>
+    </trkseg>
+    <trkseg>
+      <trkpt lat="45.03" lon="6.0"><ele>300</ele></trkpt>
+      <trkpt lat="45.031" lon="6.0"><ele>310</ele></trkpt>
+      <trkpt lat="45.032" lon="6.0"><ele>320</ele></trkpt>
+      <trkpt lat="45.033" lon="6.0"><ele>330</ele></trkpt>
+    </trkseg>
+  </trk>
+</gpx>
+"""
+
+    /**
+     * A pointless `<trkseg/>` between two real ones, plus a whole `<trk>` with no point at all.
+     * Both must vanish from `tracksAsPaths()` / `segmentsAsPaths()` rather than producing a
+     * parasitic `Path(0)`.
+     */
+    val EMPTY_PARTS_GPX: String =
+        """<?xml version="1.0" encoding="UTF-8"?>
+<gpx version="1.1" xmlns="http://www.topografix.com/GPX/1/1">
+  <trk>
+    <name>with holes</name>
+    <trkseg>
+      <trkpt lat="45.0" lon="6.0"><ele>100</ele></trkpt>
+      <trkpt lat="45.001" lon="6.0"><ele>110</ele></trkpt>
+    </trkseg>
+    <trkseg/>
+    <trkseg>
+      <trkpt lat="45.01" lon="6.0"><ele>200</ele></trkpt>
+      <trkpt lat="45.011" lon="6.0"><ele>210</ele></trkpt>
+      <trkpt lat="45.012" lon="6.0"><ele>220</ele></trkpt>
+    </trkseg>
+  </trk>
+  <trk>
+    <name>ghost</name>
+    <trkseg/>
+  </trk>
+</gpx>
+"""
 }

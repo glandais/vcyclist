@@ -56,4 +56,28 @@ class EngineJsApiTest {
             val xml = writeGpx(enhanced)
             assertTrue(xml.contains("<trkpt"))
         }
+
+    @Test
+    fun `parseGpxTracks and parseGpxSegments expose every track and segment`() {
+        val tracks = parseGpxTracks(GpxFixtures.MULTI_TRACK_GPX)
+        assertEquals(2, tracks.length)
+        assertEquals(3, pathSize(tracks[0]!!))
+        assertEquals(2, pathSize(tracks[1]!!))
+
+        val segments = parseGpxSegments(GpxFixtures.MULTI_SEGMENT_GPX)
+        assertEquals(3, segments.length)
+        assertEquals(listOf(3, 2, 4), List(segments.length) { pathSize(segments[it]!!) })
+        // The single-track façade still sees only the first track — no rupture.
+        assertEquals(3, pathSize(parseGpx(GpxFixtures.MULTI_TRACK_GPX)))
+    }
+
+    @Test
+    fun `writeGpxTracks round-trips a multi-track document`() {
+        val tracks = parseGpxTracks(GpxFixtures.MULTI_TRACK_GPX)
+        val xml = writeGpxTracks(tracks)
+        assertTrue(xml.startsWith("<?xml"), "expected XML declaration, got: ${xml.take(40)}")
+        val roundTrip = parseGpxTracks(xml)
+        assertEquals(2, roundTrip.length)
+        assertEquals(listOf(3, 2), List(roundTrip.length) { pathSize(roundTrip[it]!!) })
+    }
 }

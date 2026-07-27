@@ -2,8 +2,8 @@ package io.github.glandais.engine
 
 import io.github.glandais.engine.gpx.GpxParser
 import io.github.glandais.engine.gpx.GpxWriter
-import io.github.glandais.engine.gpx.firstTrackAsPath
-import io.github.glandais.engine.gpx.toGpxDocument
+import io.github.glandais.engine.gpx.pathsToGpxDocument
+import io.github.glandais.engine.gpx.tracksAsPaths
 import kotlinx.coroutines.runBlocking
 import java.io.File
 import kotlin.system.exitProcess
@@ -104,11 +104,15 @@ object EngineCli {
         println("Reading ${input.absolutePath}")
         val xml = input.readText()
         val doc = GpxParser.parse(xml)
-        val inputPath = doc.firstTrackAsPath()
+        val inputPaths = doc.tracksAsPaths()
+        if (inputPaths.isEmpty()) {
+            throw IllegalArgumentException("No track with any point in ${input.name}")
+        }
         println(
-            "  -> ${inputPath.size} points, " +
-                "${"%.1f".format(inputPath.totalDistance)} m, " +
-                "gain ${"%.1f".format(inputPath.elevationGain)} m",
+            "  -> ${inputPaths.size} track(s), " +
+                "${inputPaths.sumOf { it.size }} points total, " +
+                "${"%.1f".format(inputPaths.sumOf { it.totalDistance })} m, " +
+                "gain ${"%.1f".format(inputPaths.sumOf { it.elevationGain })} m",
         )
 
         // fixElevation=false (no HTTP provider here). Other steps run with defaults : the
@@ -118,26 +122,33 @@ object EngineCli {
         val options = EnhanceOptions.DEFAULT.copy(fixElevation = false)
 
         println("Running pipeline (fixElevation=false, all other steps default)...")
-        val result =
+        val results =
             runBlocking {
-                Enhancer.enhanceCourseDefault(
-                    inputPath,
+                Enhancer.enhanceCourses(
+                    inputPaths,
                     elevationProvider = null,
                     options = options,
                 )
             }
         println(
-            "  -> ${result.size} points, " +
-                "${"%.1f".format(result.totalDistance)} m, " +
-                "duration ${"%.1f".format(result.durationMs / 1000.0)} s",
+            "  -> ${results.size} track(s), " +
+                "${results.sumOf { it.size }} points total, " +
+                "${"%.1f".format(results.sumOf { it.totalDistance })} m, " +
+                "duration ${"%.1f".format(results.sumOf { it.durationMs } / 1000.0)} s",
         )
 
         if (output != null) {
             val outXml =
                 GpxWriter.write(
-                    result.toGpxDocument(
+                    pathsToGpxDocument(
+                        results,
                         name = input.nameWithoutExtension,
-                        trackName = "virtualized",
+                        // Single track keeps the pre-g02 name verbatim, so single-track output is
+                        // unchanged ; multi-track output gets a 1-based suffix.
+                        trackNames =
+                            results.indices.map { i ->
+                                if (results.size == 1) "virtualized" else "virtualized-${i + 1}"
+                            },
                     ),
                 )
             output.absoluteFile.parentFile?.mkdirs()

@@ -39,7 +39,7 @@ cœur (`:elevation`, `:gpx`, `:engine`, `:fit`) reste compilable sur les 4 cible
 | **— Phase A : restructuration (bloquante) —** | | | |
 | g01 | Extraction du module `:gpx` (Path + GPX I/O) | `:gpx` | ✅ |
 | **— Phase B : modèle GPX —** | | | |
-| g02 | Multi-track / multi-segment de bout en bout | `:gpx` | ⬜ |
+| g02 | Multi-track / multi-segment de bout en bout | `:gpx` | ✅ |
 | g03 | Waypoints `<wpt>` | `:gpx` | ⬜ |
 | g04 | `GpxXmlRepair` — réparation des GPX malformés | `:gpx` | ⬜ |
 | **— Phase C : exports —** | | | |
@@ -107,8 +107,9 @@ reste sans équivalent. Son sort fera l'objet d'une décision séparée.
   sur Maven Central, puisque le POM de `:engine` le référence via `api(project(":gpx"))`.
   `.d.ts` et `package.json` générés vérifiés identiques avant / après. Cf.
   [`docs/publishing.md`](publishing.md#why-gpx-ships-to-maven-central-but-not-to-npm).
-- **g02 / rupture de la façade JS** — passer de `parseGpx(xml): Path` à une API multi-track
-  change une signature visible depuis la démo. Prévoir une surcharge compatible.
+- ~~**g02 / rupture de la façade JS**~~ — **évité** : `parseGpx` est restée intacte et
+  `parseGpxTracks` / `parseGpxSegments` / `writeGpxTracks` ont été ajoutées à côté. Le diff des
+  `.d.ts` contre g01 est purement additif, la démo n'a pas bougé d'une ligne.
 - **g09 / `@garmin/fitsdk` en Wasm** — paquet ESM Node + navigateur. Même montage que
   `@jsquash/webp` (cf. `docs/kotlin-wasm-jvm-webp.md` et `webpack.config.d/externals.js`), et
   il faut vérifier qu'il tourne dans les tests Karma headless Chrome.

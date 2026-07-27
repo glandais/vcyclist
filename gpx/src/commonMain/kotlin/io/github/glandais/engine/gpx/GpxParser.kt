@@ -95,10 +95,15 @@ object GpxParser {
         return name
     }
 
+    /**
+     * Parse a `<trk>` into one [GpxSegment] per `<trkseg>`. Segments are preserved verbatim,
+     * **including empty ones** : the document model stays faithful to the file, and it is the
+     * `GpxToPath` conversion layer that decides to skip empties.
+     */
     private fun parseTrack(reader: XmlReader): GpxTrack {
         var name: String? = null
         var type: String? = null
-        val points = mutableListOf<GpxTrackPoint>()
+        val segments = mutableListOf<GpxSegment>()
         while (reader.hasNext()) {
             val ev = reader.next()
             when (ev) {
@@ -106,33 +111,32 @@ object GpxParser {
                     when (reader.localName) {
                         "name" -> name = readElementText(reader).trim().ifEmpty { null }
                         "type" -> type = readElementText(reader).trim().ifEmpty { null }
-                        "trkseg" -> parseTrackSegment(reader, points)
+                        "trkseg" -> segments.add(parseTrackSegment(reader))
                         else -> skipElement(reader)
                     }
-                EventType.END_ELEMENT -> return GpxTrack(name = name, type = type, points = points)
+                EventType.END_ELEMENT -> return GpxTrack(name = name, type = type, segments = segments)
                 else -> Unit
             }
         }
-        return GpxTrack(name = name, type = type, points = points)
+        return GpxTrack(name = name, type = type, segments = segments)
     }
 
-    private fun parseTrackSegment(
-        reader: XmlReader,
-        accum: MutableList<GpxTrackPoint>,
-    ) {
+    private fun parseTrackSegment(reader: XmlReader): GpxSegment {
+        val points = mutableListOf<GpxTrackPoint>()
         while (reader.hasNext()) {
             val ev = reader.next()
             when (ev) {
                 EventType.START_ELEMENT ->
                     if (reader.localName == "trkpt") {
-                        accum.add(parseTrackPoint(reader))
+                        points.add(parseTrackPoint(reader))
                     } else {
                         skipElement(reader)
                     }
-                EventType.END_ELEMENT -> return
+                EventType.END_ELEMENT -> return GpxSegment(points)
                 else -> Unit
             }
         }
+        return GpxSegment(points)
     }
 
     private fun parseTrackPoint(reader: XmlReader): GpxTrackPoint {

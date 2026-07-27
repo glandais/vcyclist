@@ -45,6 +45,22 @@ object Enhancer {
             cyclistPowerProvider = PowerProviderConstant(EngineConstants.DEFAULT_CYCLIST_POWER_W),
         )
 
+    /**
+     * Enhance several [paths] — typically the tracks or segments of one multi-track GPX (see
+     * `GpxDocument.tracksAsPaths()` / `segmentsAsPaths()`) — and return one result per input,
+     * in the same order.
+     *
+     * Each path goes through [enhanceCourseDefault] **independently and sequentially**. The
+     * sequential part is deliberate : [ElevationProvider] carries a shared tile cache whose
+     * thread-safety has not been audited, and the JS/Wasm targets are single-threaded anyway,
+     * so there is nothing to gain and a data race to lose.
+     */
+    suspend fun enhanceCourses(
+        paths: List<Path>,
+        elevationProvider: ElevationProvider? = null,
+        options: EnhanceOptions = EnhanceOptions.DEFAULT,
+    ): List<Path> = paths.map { enhanceCourseDefault(it, elevationProvider, options) }
+
     /** Convenience : enhance [path] with all defaults and an optional [elevationProvider]. */
     suspend fun enhanceCourseDefault(
         path: Path,

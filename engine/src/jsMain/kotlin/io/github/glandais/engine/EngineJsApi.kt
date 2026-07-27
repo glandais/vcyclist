@@ -9,7 +9,9 @@ import io.github.glandais.elevation.ElevationProvider
 import io.github.glandais.engine.gpx.GpxParser
 import io.github.glandais.engine.gpx.GpxWriter
 import io.github.glandais.engine.gpx.firstTrackAsPath
+import io.github.glandais.engine.gpx.segmentsAsPaths
 import io.github.glandais.engine.gpx.toGpxDocument
+import io.github.glandais.engine.gpx.tracksAsPaths
 import io.github.glandais.engine.path.Path
 import io.github.glandais.engine.path.PointField
 import io.github.glandais.engine.physics.AeroProviderConstant
@@ -156,6 +158,25 @@ private fun pointObj(
 
 @JsExport
 fun parseGpx(xml: String): Path = GpxParser.parse(xml).firstTrackAsPath()
+
+/**
+ * Parse [xml] and return **one Path per `<trk>`**, in document order. Tracks with no point are
+ * skipped. Segments of a same track are concatenated — distance jumps across a segment
+ * boundary ; use [parseGpxSegments] if that artefact matters.
+ */
+@JsExport
+fun parseGpxTracks(xml: String): Array<Path> = GpxParser.parse(xml).tracksAsPaths().toTypedArray()
+
+/**
+ * Parse [xml] and return **one Path per `<trkseg>`**, across all tracks, in document order.
+ * Empty segments are skipped. Every returned Path is continuous.
+ */
+@JsExport
+fun parseGpxSegments(xml: String): Array<Path> = GpxParser.parse(xml).segmentsAsPaths().toTypedArray()
+
+/** Serialise [paths] as a multi-track GPX document — one `<trk>` per Path. */
+@JsExport
+fun writeGpxTracks(paths: Array<Path>): String = GpxWriter.write(paths.toList())
 
 @JsExport
 fun pathSize(path: Path): Int = path.size

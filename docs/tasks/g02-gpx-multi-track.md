@@ -129,14 +129,51 @@ l'autre. **Décision : oui, elle saute** (concaténation naïve, comme aujourd'h
 
 ## Done when
 
-- [ ] `GpxSegment` introduit, `GpxTrack.points` conservé en compat
-- [ ] `tracksAsPaths` / `segmentsAsPaths` / `firstTrackAsPath` implémentées
-- [ ] Écriture multi-track
-- [ ] Façade JS étendue sans rupture, `.d.ts` régénérés
-- [ ] `Enhancer.enhanceCourses`
-- [ ] `EngineCli` traite tous les tracks
-- [ ] ≥ 10 tests verts × 4 cibles
-- [ ] `ktlintCheck` vert, démo toujours fonctionnelle
+- [x] `GpxSegment` introduit, `GpxTrack.points` conservé en compat
+- [x] `tracksAsPaths` / `segmentsAsPaths` / `firstTrackAsPath` implémentées
+- [x] Écriture multi-track
+- [x] Façade JS étendue sans rupture, `.d.ts` régénérés
+- [x] `Enhancer.enhanceCourses`
+- [x] `EngineCli` traite tous les tracks
+- [x] ≥ 10 tests verts × 4 cibles
+- [x] `ktlintCheck` vert, démo toujours fonctionnelle
+
+## Résultat
+
+**Compat de `GpxTrack` préservée par un `Companion.invoke`.** Le constructeur primaire prend
+désormais `segments: List<GpxSegment>`. Les appelants existants écrivent tous
+`GpxTrack(name = …, points = …)` : une surcharge `companion object { operator fun invoke(name,
+type, points) }` continue de résoudre cette forme (Kotlin essaie le constructeur, qui ne matche
+pas l'argument nommé `points`, puis retombe sur l'`invoke`). Zéro site d'appel modifié — y
+compris dans les tests. La lecture reste possible via `GpxTrack.points`, calculé une fois
+(`by lazy`) plutôt qu'à chaque accès. C'est une compat **source**, pas binaire.
+
+**Le parser reste fidèle, la conversion filtre.** `<trkseg/>` vide et `<trk>` sans point
+survivent au parsing (le test pré-existant `GpxParserTest case 03` l'exige) ; ce sont
+`tracksAsPaths()` / `segmentsAsPaths()` qui les sautent, donc aucun `Path(0)` parasite.
+
+**Distance inter-segment : elle saute, comme décidé.** Vérifié numériquement par le cas 10 sur
+`MULTI_SEGMENT_GPX` : 667 m de vélo réel, 3002 m de téléportation ajoutés par la concaténation.
+`segmentsAsPaths()` est la porte de sortie.
+
+**Façade JS/Wasm strictement additive.** Diff des `.d.ts` contre la baseline g01 : 3 lignes
+ajoutées de chaque côté (`parseGpxTracks`, `parseGpxSegments`, `writeGpxTracks`), aucune
+signature existante touchée. Côté Wasm, `Path` n'étant pas un `JsAny`, les tableaux sont des
+`JsArray<JsReference<Path>>` là où Kotlin/JS rend un `Array<Path>` — asymétrie inhérente au
+handle opaque déjà en place pour `parseGpx`.
+
+**CLI.** Sortie mono-track inchangée (`<name>virtualized</name>`) ; en multi-track les pistes
+sont suffixées `virtualized-1`, `virtualized-2`. Fumée réelle sur un GPX 2 tracks construit
+depuis `stelvio.gpx` :
+
+```
+  -> 2 track(s), 259 points total, 3568,7 m, gain 221,5 m
+  -> 2 track(s), 45 points total, 3470,2 m, duration 583,0 s
+```
+
+**Validation :** `./gradlew check` + `ktlintCheck` verts sur les 4 cibles ; 346 tests JVM
+(contre 332 avant g02) = 12 `GpxMultiTrackTest` + 2 `EnhancerTest` ; 2 tests de façade ajoutés
+côté jsTest et wasmJsTest ; démo rechargée dans le navigateur, profil identique à g01.
 
 ## Notes
 
