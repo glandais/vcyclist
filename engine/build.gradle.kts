@@ -72,13 +72,22 @@ kotlin {
     sourceSets {
         commonMain.dependencies {
             implementation(libs.kotlinx.coroutines.core)
-            implementation(libs.xmlutil.core)
-            implementation(libs.xmlutil.serialization)
+            // Re-exports Path + PointField + the resamplers + GPX I/O, which moved to `:gpx`
+            // in task g01. `api` keeps source compatibility for existing consumers : the
+            // package names did not change, so no import breaks.
+            api(project(":gpx"))
+            // Transitive via `:gpx`, but kept explicit : `physics/` and `Enhancer` use
+            // Coordinates directly.
             api(project(":elevation"))
         }
-        commonTest.dependencies {
-            implementation(kotlin("test"))
-            implementation(libs.kotlinx.coroutines.test)
+        commonTest {
+            // Shared GPX strings, compiled from `:gpx`'s test-fixtures directory. See the
+            // matching comment in gpx/build.gradle.kts.
+            kotlin.srcDir(file("../gpx/src/commonTestFixtures/kotlin"))
+            dependencies {
+                implementation(kotlin("test"))
+                implementation(libs.kotlinx.coroutines.test)
+            }
         }
         jsMain.dependencies {
             implementation(libs.kotlinx.browser)

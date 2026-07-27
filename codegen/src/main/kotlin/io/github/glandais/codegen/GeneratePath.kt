@@ -3,7 +3,7 @@ package io.github.glandais.codegen
 import java.io.File
 
 /*
- * Codegen for engine/src/commonMain/kotlin/io/github/glandais/engine/path/
+ * Codegen for gpx/src/commonMain/kotlin/io/github/glandais/engine/path/
  *   - GeneratedPath.kt        (abstract class with 36 typed accessor pairs + generic get/set)
  *   - PointFieldAccessors.kt  (POINT_FIELD_ACCESSORS list bound to GeneratedPath member refs)
  *
@@ -20,7 +20,7 @@ private data class FieldSpec(
     val prop: String,
 )
 
-// Keep in sync with engine/src/commonMain/kotlin/io/github/glandais/engine/path/PointField.kt
+// Keep in sync with gpx/src/commonMain/kotlin/io/github/glandais/engine/path/PointField.kt
 private val FIELDS =
     listOf(
         FieldSpec("LATITUDE", "latitude"),
@@ -67,7 +67,7 @@ fun main() {
     require(FIELDS.size == EXPECTED_COUNT) {
         "FIELDS list has ${FIELDS.size} entries, expected $EXPECTED_COUNT"
     }
-    val targetDir = File("engine/src/commonMain/kotlin/io/github/glandais/engine/path")
+    val targetDir = File("gpx/src/commonMain/kotlin/io/github/glandais/engine/path")
     require(targetDir.isDirectory) {
         "Target dir does not exist (run from vcyclist/ root): ${targetDir.absolutePath}"
     }

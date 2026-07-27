@@ -34,36 +34,36 @@ cœur (`:elevation`, `:gpx`, `:engine`, `:fit`) reste compilable sur les 4 cible
 
 ## Avancement
 
-| # | Tâche | Module | État | Commit |
-|---|---|---|---|---|
-| **— Phase A : restructuration (bloquante) —** | | | | |
-| g01 | Extraction du module `:gpx` (Path + GPX I/O) | `:gpx` | ⬜ | |
-| **— Phase B : modèle GPX —** | | | | |
-| g02 | Multi-track / multi-segment de bout en bout | `:gpx` | ⬜ | |
-| g03 | Waypoints `<wpt>` | `:gpx` | ⬜ | |
-| g04 | `GpxXmlRepair` — réparation des GPX malformés | `:gpx` | ⬜ | |
-| **— Phase C : exports —** | | | | |
-| g05 | `startTime: Instant?` — horodatage absolu à l'écriture | `:gpx` | ⬜ | |
-| g06 | Writer CSV (36 champs `PointField`) | `:gpx` | ⬜ | |
-| g07 | Writer JSON | `:gpx` | ⬜ | |
-| **— Phase D : FIT —** | | | | |
-| g08 | Bootstrap `:fit` + `expect`/`actual` + implémentation JVM | `:fit` | ⬜ | |
-| g09 | Implémentation JS + Wasm (`@garmin/fitsdk`) | `:fit` | ⬜ | |
-| g10 | Encodage Course/Lap/Records + tests round-trip | `:fit` | ⬜ | |
-| **— Phase E : cols —** | | | | |
-| g11 | Port de `ClimbDetector` | `:engine` | ⬜ | |
-| g12 | Façade `@JsExport` + intégration démo | `:engine` `:demo` | ⬜ | |
-| **— Phase F : cartes —** | | | | |
-| g13 | Projection + `MapImage` | `:map` | ⬜ | |
-| g14 | `TileMapProducer` — tuiles + cache | `:map` | ⬜ | |
-| g15 | `SRTMMapProducer` — profil d'élévation PNG | `:map` | ⬜ | |
-| **— Phase G : CLI —** | | | | |
-| g16 | Bootstrap picocli + mixins | `:cli` | ⬜ | |
-| g17 | Sous-commandes `process` / `virtualize` / `export` | `:cli` | ⬜ | |
-| g18 | Retrait d'`EngineCli` + documentation | `:cli` `:engine` | ⬜ | |
-| **— Phase H : clôture —** | | | | |
-| g19 | Publication des nouveaux artefacts (npm + Maven Central) | tous | ⬜ | |
-| g20 | Matrice de correspondance gpx2web → vcyclist | docs | ⬜ | |
+| # | Tâche | Module | État |
+|---|---|---|---|
+| **— Phase A : restructuration (bloquante) —** | | | |
+| g01 | Extraction du module `:gpx` (Path + GPX I/O) | `:gpx` | ✅ |
+| **— Phase B : modèle GPX —** | | | |
+| g02 | Multi-track / multi-segment de bout en bout | `:gpx` | ⬜ |
+| g03 | Waypoints `<wpt>` | `:gpx` | ⬜ |
+| g04 | `GpxXmlRepair` — réparation des GPX malformés | `:gpx` | ⬜ |
+| **— Phase C : exports —** | | | |
+| g05 | `startTime: Instant?` — horodatage absolu à l'écriture | `:gpx` | ⬜ |
+| g06 | Writer CSV (36 champs `PointField`) | `:gpx` | ⬜ |
+| g07 | Writer JSON | `:gpx` | ⬜ |
+| **— Phase D : FIT —** | | | |
+| g08 | Bootstrap `:fit` + `expect`/`actual` + implémentation JVM | `:fit` | ⬜ |
+| g09 | Implémentation JS + Wasm (`@garmin/fitsdk`) | `:fit` | ⬜ |
+| g10 | Encodage Course/Lap/Records + tests round-trip | `:fit` | ⬜ |
+| **— Phase E : cols —** | | | |
+| g11 | Port de `ClimbDetector` | `:engine` | ⬜ |
+| g12 | Façade `@JsExport` + intégration démo | `:engine` `:demo` | ⬜ |
+| **— Phase F : cartes —** | | | |
+| g13 | Projection + `MapImage` | `:map` | ⬜ |
+| g14 | `TileMapProducer` — tuiles + cache | `:map` | ⬜ |
+| g15 | `SRTMMapProducer` — profil d'élévation PNG | `:map` | ⬜ |
+| **— Phase G : CLI —** | | | |
+| g16 | Bootstrap picocli + mixins | `:cli` | ⬜ |
+| g17 | Sous-commandes `process` / `virtualize` / `export` | `:cli` | ⬜ |
+| g18 | Retrait d'`EngineCli` + documentation | `:cli` `:engine` | ⬜ |
+| **— Phase H : clôture —** | | | |
+| g19 | Publication des nouveaux artefacts (npm + Maven Central) | tous | ⬜ |
+| g20 | Matrice de correspondance gpx2web → vcyclist | docs | ⬜ |
 
 ## Décisions actées
 
@@ -102,11 +102,11 @@ reste sans équivalent. Son sort fera l'objet d'une décision séparée.
 
 ## Risques identifiés
 
-- **g01 / packaging npm** — Kotlin/JS produit un bundle par module. Publier `:gpx` en package
-  npm distinct obligerait la démo et les consommateurs de `@glandais/vcyclist-engine` à
-  importer deux packages, ce qui contredit le choix « pas de rupture ». À trancher dans g01 :
-  soit `:gpx` n'est pas publié en npm et son code est inliné dans le bundle `:engine`, soit
-  `@glandais/vcyclist-engine` déclare `@glandais/vcyclist-gpx` en dépendance.
+- ~~**g01 / packaging npm**~~ — **tranché** : `:gpx` n'est pas publié en npm, son code JS est
+  inliné dans le bundle `@glandais/vcyclist-engine` (`vcyclist-gpx.js`). Il l'est en revanche
+  sur Maven Central, puisque le POM de `:engine` le référence via `api(project(":gpx"))`.
+  `.d.ts` et `package.json` générés vérifiés identiques avant / après. Cf.
+  [`docs/publishing.md`](publishing.md#why-gpx-ships-to-maven-central-but-not-to-npm).
 - **g02 / rupture de la façade JS** — passer de `parseGpx(xml): Path` à une API multi-track
   change une signature visible depuis la démo. Prévoir une surcharge compatible.
 - **g09 / `@garmin/fitsdk` en Wasm** — paquet ESM Node + navigateur. Même montage que
@@ -130,14 +130,19 @@ reste sans équivalent. Son sort fera l'objet d'une décision séparée.
 
 ## Workflow
 
-Identique à celui de [`../CLAUDE.md`](../CLAUDE.md) : une fiche `tasks/gNN-*.md` par tâche,
-implémentation, validation (`./gradlew check` + `ktlintCheck` verts sur toutes les cibles),
-cases cochées, puis deux commits :
+Une fiche `tasks/gNN-*.md` par tâche, implémentation, validation (`./gradlew check` +
+`ktlintCheck` verts sur toutes les cibles), cases cochées, mise à jour de la colonne `État`
+ci-dessus, puis **un seul commit** regroupant code et documentation :
 
 ```
 feat(<module>): <sujet> (gpx2web task gNN)
-docs(plan): mark task gNN done in PLAN-GPX2WEB.md
 ```
+
+(`refactor(...)` plutôt que `feat(...)` quand la tâche ne change rien pour les consommateurs
+— c'était le cas de g01 : semantic-release n'a alors rien à publier.)
+
+La colonne `État` est l'unique source de vérité de l'avancement : pas de compteur, pas de
+hash de commit à recopier (`git log --grep 'gpx2web task'` les retrouve).
 
 ## Références gpx2web à lire
 
