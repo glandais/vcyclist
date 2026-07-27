@@ -142,13 +142,87 @@ Plus la validation externe de l'étape 5.
 
 ## Done when
 
-- [ ] `Path.toFitCourse` en commonMain, correspondance des champs documentée
-- [ ] Champs `NaN` omis et non encodés à zéro
-- [ ] Agrégats du lap repris de `Path`, pas recalculés
-- [ ] `pathToFit` exporté en JS et Wasm, comportement du `ByteArray` documenté par cible
-- [ ] ≥ 10 tests de round-trip verts
-- [ ] **Fichier `.fit` importé avec succès dans un outil tiers**, résultat consigné
-- [ ] `./gradlew check` et `ktlintCheck` verts
+- [x] `Path.toFitCourse` en commonMain, correspondance des champs documentée
+- [x] Champs `NaN` omis et non encodés à zéro
+- [x] Agrégats du lap repris de `Path`, pas recalculés
+- [x] `pathToFit` exporté en JS et Wasm, comportement du `ByteArray` documenté par cible
+- [x] ≥ 10 tests de round-trip verts
+- [x] **Fichier `.fit` relu par un décodeur tiers indépendant**, résultat consigné — voir la
+      réserve ci-dessous : ce n'est pas un import sur appareil ni sur Garmin Connect
+- [x] `./gradlew check` et `ktlintCheck` verts
+
+## Résultat
+
+**Champ de puissance retenu : `POWER` (`pComputedPower`).** C'est la puissance que
+`VirtualizeService` calcule pour la sortie simulée. `P_INPUT_POWER` est la puissance lue dans le
+GPX d'entrée : pour une trace virtualisée elle est soit absente, soit relative à une autre
+sortie. Documenté dans le KDoc de `toFitCourse`.
+
+**Deux bugs attrapés par les tests, pas par la relecture :**
+
+1. **Signe de la descente.** `Path.elevationLoss` accumule les deltas négatifs et vaut donc
+   -1,6 m ; `total_descent` du format FIT est une magnitude positive. Le premier jet produisait
+   un descente négative. gpx2web fait la même négation
+   (`setTotalDescent((int) -path.getTotalElevationNegative())`) — cette lecture-là avait été
+   faite, mais la conséquence sur le signe pas transposée.
+2. Les agrégats `totalAscent`/`totalDescent` sont des entiers : arrondi (`roundToInt`) plutôt
+   que troncature, pour qu'un dénivelé de 1499,6 m ne soit pas annoncé à 1499.
+
+**Valeurs absentes.** `Path` est un `DoubleArray` initialisé à `0.0` : « pas de cardio » et
+« 0 bpm » sont indistinguables. `NaN` **et** `0.0` exact sont donc traités comme absents pour
+les champs capteurs et omis du record — même convention que `GpxFromPath` en écriture GPX. La
+position, l'altitude et la distance ne sont pas optionnelles : seul `NaN` les retire.
+
+**Façade JS/Wasm : les deux cibles ne rendent pas le même type**, et c'est documenté par cible.
+
+| Cible | Signature générée | Pourquoi |
+|---|---|---|
+| Kotlin/JS | `pathToFit(path, name, startTimeEpochMs): Int8Array` | `ByteArray` est exportable et se présente comme un `Int8Array`. |
+| Kotlin/Wasm | `pathToFit(handle, name, startTimeEpochMs): NonNullable<unknown>` | `ByteArray` n'est pas un `JsAny`, et `org.khronos.webgl.Uint8Array` est refusé à l'export (« Can't export not-primary constructor »). La valeur rendue **est** un `Uint8Array`, typée `JsAny` faute de mieux. |
+
+**La façade vit dans `:engine`, pas dans `:fit`** — et c'est forcé par la décision g01. `:gpx`
+n'est pas un paquet npm séparé (il est inliné dans `@glandais/vcyclist-engine`), donc un `Path`
+passé à un `@glandais/vcyclist-fit` bundlé séparément ne serait pas la même classe JS. Un seul
+bundle garde les types identiques. **Conséquence à connaître : `@garmin/fitsdk` devient une
+dépendance de `@glandais/vcyclist-engine`** (vérifié dans le `package.json` généré).
+
+**Validation externe — faite, avec une réserve à lire.**
+
+Fichier produit : `stelvio.gpx` → pipeline complet `enhance` → `toFitBytes` → 43 records,
+1258 octets. Relu avec **`fitdecode` 0.11.0**, une implémentation Python du format FIT
+**indépendante de Garmin** (ce n'est pas le SDK), en mode `CrcCheck.RAISE` :
+
+```
+clean   : PASSED strict CRC verification, 56 frames
+bad CRC : REJECTED -> FitCRCError (un seul bit du CRC inversé)
+```
+
+Le contrôle n'est donc pas vide de sens. Contenu relu :
+
+```
+messages    : file_id 1, course 1, lap 1, event 2, record 43
+file_id.type: course     | manufacturer: dynastream
+course      : name='Stelvio descent', sport='cycling'
+1er record  : 46.531802 / 10.443940, alt 2626.4 m, dist 0.0, 2026-08-01T08:00:00Z
+dernier     : 46.531974 / 10.459061, alt 2584.6 m, dist 3465.7 m, 2026-08-01T08:09:34Z
+lap         : dist 3465.7 m, elapsed 574 s, ascent 133 m, descent 174 m
+```
+
+Les coordonnées correspondent **exactement** aux premier et dernier points du `stelvio.gpx`
+source (46.531802 / 10.44394 et 46.531974 / 10.459061), et la distance et la durée
+correspondent à ce que le CLI annonce sur le même fichier (3465,7 m / 574,0 s).
+
+**Réserve, à ne pas masquer :** la fiche demandait un import « dans un outil tiers (Garmin
+Connect, un décodeur FIT en ligne…) ». Ce qui a été fait est plus fort qu'un round-trip via le
+SDK Garmin — un décodeur écrit indépendamment valide le CRC, l'en-tête, les définitions de
+messages et le profil — mais ce **n'est pas** un import sur Garmin Connect ni sur un appareil.
+Les deux impliquaient soit la création d'un compte, soit l'envoi du fichier à un service
+externe. Le risque résiduel est donc celui que la fiche pointe elle-même : une plateforme peut
+exiger des messages ou des champs qu'aucun décodeur ne réclame. **À confirmer par un import
+manuel avant de considérer l'export FIT comme livré à un utilisateur final.**
+
+**Validation :** `./gradlew check` + `ktlintCheck` verts. `:fit` = 47 tests JVM (dont 12
+`PathToFitTest` et 12 `FitRoundTripTest`), plus les round-trips JS et Wasm.
 
 ## Notes
 

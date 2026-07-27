@@ -145,6 +145,19 @@ const xml = writeGpx(out);
 (mapterhorn Terrarium tiles) and runs the full pipeline (densify → fix elevation → smooth →
 max speeds → virtualize → resample → simplify).
 
+#### FIT export
+
+```js
+import { parseGpx, enhance, pathToFit } from '@glandais/vcyclist-engine';
+
+const out = await enhance(parseGpx(gpxXml), null);
+const fit = pathToFit(out, 'My route', Date.parse('2026-08-01T08:00:00Z'));
+// Kotlin/JS returns an Int8Array; the -wasm build returns a Uint8Array. Both are the same file.
+```
+
+FIT has no relative clock, so the start instant is mandatory. The output is a **Course** file
+(a route to follow), which is what a virtualized trace should be — not an Activity.
+
 #### Multi-track GPX
 
 `parseGpx` returns the **first** track, which is what most files contain. For documents with
