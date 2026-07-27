@@ -14,6 +14,8 @@ import io.github.glandais.engine.gpx.toGpxDocument
 import io.github.glandais.engine.gpx.tracksAsPaths
 import io.github.glandais.engine.io.CsvOptions
 import io.github.glandais.engine.io.CsvWriter
+import io.github.glandais.engine.io.JsonOptions
+import io.github.glandais.engine.io.JsonWriter
 import io.github.glandais.engine.path.Path
 import io.github.glandais.engine.path.PointField
 import io.github.glandais.engine.physics.AeroProviderConstant
@@ -513,3 +515,14 @@ fun pathToCsv(
         path,
         CsvOptions(separator = separator.firstOrNull() ?: ',', unitsInHeader = unitsInHeader),
     )
+
+/**
+ * Serialise [path] to JSON, column-oriented (one array per [PointField]) — see [JsonWriter] /
+ * task g07. Lets a browser demo hand the result straight to `JSON.parse` and feed a chart
+ * library (e.g. Chart.js) without a server round-trip.
+ */
+@JsExport
+fun pathToJson(
+    path: Path,
+    pretty: Boolean,
+): String = JsonWriter.write(path, JsonOptions(pretty = pretty))

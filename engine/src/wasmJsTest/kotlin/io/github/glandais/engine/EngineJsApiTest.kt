@@ -104,4 +104,35 @@ class EngineJsApiTest {
         val roundTrip = parseGpxWaypoints(xml)
         assertEquals(3, roundTrip.length)
     }
+
+    // ---- g07 : pathToJson must produce valid, directly usable JSON --------------
+
+    @Test
+    fun `pathToJson output is valid JSON directly usable by JSON-parse`() {
+        val handle = parseGpx(GpxFixtures.SAMPLE_GPX)
+        val json = pathToJson(handle, false)
+        val size = pathSize(handle)
+
+        assertTrue(jsonParsesToObjectOfSize(json, size), "JSON.parse failed or size mismatch : $json")
+        assertTrue(jsonElevationSeriesLength(json) == size)
+    }
+
+    @Test
+    fun `pathToJson pretty output also parses as valid JSON`() {
+        val handle = parseGpx(GpxFixtures.SAMPLE_GPX)
+        val json = pathToJson(handle, true)
+        assertTrue(json.contains("\n"))
+        assertTrue(jsonParsesToObjectOfSize(json, pathSize(handle)), "JSON.parse failed or size mismatch : $json")
+    }
 }
+
+/** Round-trips [json] through `JSON.parse` and checks `.size` matches [expectedSize]. */
+@JsFun("(json, expectedSize) => JSON.parse(json).size === expectedSize")
+private external fun jsonParsesToObjectOfSize(
+    json: String,
+    expectedSize: Int,
+): Boolean
+
+/** Parses [json] and returns the length of its `fields.elevation` series. */
+@JsFun("(json) => JSON.parse(json).fields.elevation.length")
+private external fun jsonElevationSeriesLength(json: String): Int

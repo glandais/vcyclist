@@ -97,4 +97,28 @@ class EngineJsApiTest {
         val roundTrip = parseGpxWaypoints(xml)
         assertEquals(3, roundTrip.size)
     }
+
+    // ---- g07 : pathToJson must produce valid, directly usable JSON --------------
+
+    @Test
+    fun `pathToJson output is valid JSON directly usable by JSON-parse`() {
+        val path = parseGpx(GpxFixtures.SAMPLE_GPX)
+        val json = pathToJson(path, false)
+
+        val parsed = kotlin.js.JSON.parse<dynamic>(json)
+        assertEquals(pathSize(path), (parsed.size as Int))
+        val elevationSeries = parsed.fields.elevation
+        assertTrue(elevationSeries.length as Int == pathSize(path))
+        assertTrue((parsed.meta.totalDistance as Double) > 0.0)
+    }
+
+    @Test
+    fun `pathToJson pretty output also parses as valid JSON`() {
+        val path = parseGpx(GpxFixtures.SAMPLE_GPX)
+        val json = pathToJson(path, true)
+        assertTrue(json.contains("\n"))
+
+        val parsed = kotlin.js.JSON.parse<dynamic>(json)
+        assertEquals(pathSize(path), (parsed.size as Int))
+    }
 }

@@ -15,6 +15,8 @@ import io.github.glandais.engine.gpx.toGpxDocument
 import io.github.glandais.engine.gpx.tracksAsPaths
 import io.github.glandais.engine.io.CsvOptions
 import io.github.glandais.engine.io.CsvWriter
+import io.github.glandais.engine.io.JsonOptions
+import io.github.glandais.engine.io.JsonWriter
 import io.github.glandais.engine.path.Path
 import kotlinx.coroutines.DelicateCoroutinesApi
 import kotlinx.coroutines.GlobalScope
@@ -308,3 +310,14 @@ fun pathToCsv(
         handle.get(),
         CsvOptions(separator = separator.firstOrNull() ?: ',', unitsInHeader = unitsInHeader),
     )
+
+/**
+ * Serialise the path behind [handle] to JSON, column-oriented (one array per
+ * [io.github.glandais.engine.path.PointField]) — see [JsonWriter] / task g07. Mirrors the
+ * Kotlin/JS façade's `pathToJson`.
+ */
+@JsExport
+fun pathToJson(
+    handle: JsReference<Path>,
+    pretty: Boolean,
+): String = JsonWriter.write(handle.get(), JsonOptions(pretty = pretty))

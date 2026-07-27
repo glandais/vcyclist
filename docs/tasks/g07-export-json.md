@@ -130,13 +130,77 @@ vraiment vérifier que la sortie est du JSON valide, sans embarquer un parser en
 
 ## Done when
 
-- [ ] Forme du document décidée après lecture du Java, et documentée
-- [ ] `JsonWriter` + `JsonOptions` en commonMain, sans nouvelle dépendance
-- [ ] `NaN` / infinis → `null`
-- [ ] Échappement des chaînes
-- [ ] `pathToJson` exporté, `.d.ts` régénérés
-- [ ] ≥ 10 tests verts × 4 cibles, dont un `JSON.parse` en jsTest et wasmJsTest
-- [ ] `ktlintCheck` vert
+- [x] Forme du document décidée après lecture du Java, et documentée
+- [x] `JsonWriter` + `JsonOptions` en commonMain, sans nouvelle dépendance
+- [x] `NaN` / infinis → `null`
+- [x] Échappement des chaînes
+- [x] `pathToJson` exporté, `.d.ts` régénérés
+- [x] ≥ 10 tests verts × 4 cibles, dont un `JSON.parse` en jsTest et wasmJsTest
+- [x] `ktlintCheck` vert
+
+## Résultat
+
+**Forme colonnes confirmée après lecture du Java.** `JsonFileWriter` (gpx2web) produit en fait un
+document orienté **lignes** : `{"keys": [...], "points": [{...}, {...}, ...]}`, un objet par
+point avec les 36 (ou moins, seulement les champs non-`null`) noms de propriétés répétés à chaque
+point. C'est bien la divergence anticipée par la fiche — actée ici plutôt que reportée à g20 vu
+qu'elle est déjà tranchée dans les Steps : `JsonWriter.write` produit
+`{"size":N,"meta":{...},"fields":{"distance":[...],"elevation":[...],...}}`, une série par champ.
+
+**`JsonWriter.kt` et `JsonOptions` en `commonMain`, réutilisant `CsvNumberFormat` sans le
+dupliquer.** `CsvNumberFormat.format` gère déjà `NaN` (→ `""`) et l'infini (→ `"Infinity"`/
+`"-Infinity"`), deux rendus invalides en JSON : `JsonWriter` ne délègue donc le formatage qu'aux
+valeurs finies, et intercepte `NaN`/infini en amont pour émettre le littéral `null` — voir
+`numberOrNull()`. Aucune dépendance nouvelle (pas de `kotlinx-serialization-json`) : le document a
+une forme fixe, assemblée à la main dans un `StringBuilder`, à l'image de `CsvWriter`.
+
+**Document produit :**
+
+```json
+{"size":2,"meta":{"totalDistance":123.4,"durationMs":5000,"elevationGain":12,"elevationLoss":-3,
+ "units":{"distance":"meters","elevation":"meters"}},
+ "fields":{"distance":[0,123.4],"elevation":[100,105]}}
+```
+
+- `meta.units` couvre uniquement les champs demandés via `JsonOptions.fields` (pas les 36 par
+  défaut si l'appelant restreint la sélection) — cohérent avec le fait que `fields` ne contient,
+  lui aussi, que les séries demandées.
+- `options.decimals` s'applique de façon uniforme à `meta` (agrégats) et aux séries de `fields` :
+  un seul réglage pour tout le document, pas de sous-option distincte pour les agrégats (la fiche
+  ne le demandait pas explicitement, choisi pour la cohérence — un document où `totalDistance`
+  aurait un nombre de décimales différent des séries aurait été surprenant).
+- `elevationLoss` est déjà négatif ou nul chez `Path` (`Path.kt` : "Always <= 0 (sum of negative
+  deltas)") ; `JsonWriter` ne le retraite pas, il transmet tel quel.
+
+**Échappement JSON.** `escapeJsonString` gère guillemet, antislash, `\n`/`\r`/`\t` et tout
+caractère de contrôle `< 0x20` restant (`\uXXXX`). Rendue `internal` (pas `private`), comme
+`CsvNumberFormat` pour g06 : aucun `PointField.prop`/`unit` actuel ne contient de caractère à
+échapper, donc le test dédié (`string_escaping_handles_quotes_backslashes_and_control_chars`)
+appelle la fonction directement plutôt que de la déclencher indirectement via `write()`.
+
+**Façade JS/Wasm : `pathToJson(path, pretty)`.** Miroir exact du pattern `pathToCsv` de g06:
+`path: Path` direct côté Kotlin/JS, `handle: JsReference<Path>` côté Wasm. Un seul paramètre
+utile à exposer au-delà de `pretty` (pas de sélection de champs ni de `decimals` à la frontière
+JS pour l'instant — un appelant qui a besoin de plus fin peut toujours appeler `JsonWriter.write`
+depuis du code Kotlin/JS partagé ; la façade reste un raccourci pour le cas d'usage "bouton export
+JSON" documenté dans la fiche).
+
+**Test d'acceptation `JSON.parse`, sur les deux cibles.** Ajouté dans
+`engine/src/jsTest/…/EngineJsApiTest.kt` (`kotlin.js.JSON.parse<dynamic>(json)`, puis lecture de
+`.size` / `.fields.elevation.length` / `.meta.totalDistance`) et dans
+`engine/src/wasmJsTest/…/EngineJsApiTest.kt` (deux fonctions `@JsFun` externes —
+`jsonParsesToObjectOfSize` et `jsonElevationSeriesLength` — qui appellent `JSON.parse` côté JS et
+renvoient un `Boolean`/`Int`, seul canal disponible à la frontière Wasm/JS pour ce genre de
+vérification). Les deux variantes couvrent `pretty = false` et `pretty = true`.
+
+**Vérifications.** `./gradlew :gpx:allTests :engine:allTests` vert sur JVM + JS Node + JS browser
++ Wasm browser. `JsonWriterTest` : 11 tests (les 10 cas de la table plus le test d'échappement),
+`:gpx` JVM passe de 196 à 207 tests (chiffre après le module g06). `EngineJsApiTest` (jsTest et
+wasmJsTest) : 2 tests neufs chacun (`pathToJson` compact + pretty via `JSON.parse`), portant
+`:engine` jsTest/wasmJsTest de 7 à 9 tests chacun. `ktlintFormat` puis `ktlintCheck` verts ;
+`ktlintFormat` a reformaté `JsonWriter.kt` (chaînage `appendKeyRaw` sur plusieurs lignes, style
+habituel du projet pour les appels enchaînés) — pas d'autre fichier touché au-delà du diff
+additif attendu sur les deux `EngineJsApi.kt`.
 
 ## Notes
 
