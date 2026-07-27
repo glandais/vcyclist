@@ -56,6 +56,16 @@ object GpxWriter {
         trackName: String? = null,
     ): String = write(path.toGpxDocument(name = name, trackName = trackName))
 
+    /**
+     * Convenience: serialise [paths] as a multi-track document — one `<trk>` per [Path].
+     * See [pathsToGpxDocument] for the [trackNames] semantics.
+     */
+    fun write(
+        paths: List<Path>,
+        name: String = "noname",
+        trackNames: List<String>? = null,
+    ): String = write(pathsToGpxDocument(paths, name = name, trackNames = trackNames))
+
     // ---------- Implementation ------------------------------------------------------
 
     private fun writeDocument(
@@ -99,9 +109,14 @@ object GpxWriter {
         w.startTag(NS_GPX, "trk", "")
         track.name?.let { writeSimpleText(w, "name", it) }
         track.type?.let { writeSimpleText(w, "type", it) }
-        w.startTag(NS_GPX, "trkseg", "")
-        for (p in track.points) writeTrackPoint(w, p)
-        w.endTag(NS_GPX, "trkseg", "")
+        // One <trkseg> per segment, preserving the discontinuities the parser saw. A track built
+        // through the single-segment `GpxTrack(points = …)` factory still emits exactly one
+        // <trkseg>, so single-track output is byte-identical to pre-g02.
+        for (segment in track.segments) {
+            w.startTag(NS_GPX, "trkseg", "")
+            for (p in segment.points) writeTrackPoint(w, p)
+            w.endTag(NS_GPX, "trkseg", "")
+        }
         w.endTag(NS_GPX, "trk", "")
     }
 

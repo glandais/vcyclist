@@ -4,6 +4,9 @@ import io.github.glandais.elevation.ElevationProvider
 import io.github.glandais.elevation.ElevationProviderConfig
 import io.github.glandais.elevation.MathConstants
 import io.github.glandais.elevation.RawTile
+import io.github.glandais.engine.gpx.GpxFixtures
+import io.github.glandais.engine.gpx.GpxParser
+import io.github.glandais.engine.gpx.tracksAsPaths
 import io.github.glandais.engine.path.Path
 import io.github.glandais.engine.physics.PowerProviderConstant
 import io.github.glandais.engine.physics.RhoProviderEstimate
@@ -343,5 +346,35 @@ class EnhancerTest {
             // The first and last source waypoints should be retained by Douglas-Peucker.
             assertEquals(src.latitude(0), out.latitude(0), 1e-12)
             assertEquals(src.latitude(src.size - 1), out.latitude(out.size - 1), 1e-12)
+        }
+
+    // ---- enhanceCourses (multi-track, task g02) -----------------------------
+
+    @Test
+    fun enhanceCourses_returns_one_virtualized_path_per_input_in_order() =
+        runTest {
+            val paths = GpxParser.parse(GpxFixtures.MULTI_TRACK_GPX).tracksAsPaths()
+            assertEquals(2, paths.size)
+
+            val out = Enhancer.enhanceCourses(paths, elevationProvider = null)
+
+            assertEquals(2, out.size, "one result per input track")
+            for ((i, p) in out.withIndex()) {
+                assertTrue(p.size >= 2, "track $i collapsed to ${p.size} points")
+                assertTrue(p.totalDistance > 0.0, "track $i has no distance")
+                // Virtualization ran : the simulation writes a strictly positive duration and a
+                // non-zero computed speed, neither of which is present on the raw parsed path.
+                assertTrue(p.durationMs > 0.0, "track $i was not virtualized (durationMs=${p.durationMs})")
+                assertTrue(p.speed(1) > 0.0, "track $i has zero speed at point 1")
+            }
+            // Order is preserved : input track 1 sits at 45° N, track 2 at 46° N.
+            assertEquals(45.0, out[0].latitudeDeg(0), 0.01)
+            assertEquals(46.0, out[1].latitudeDeg(0), 0.01)
+        }
+
+    @Test
+    fun enhanceCourses_on_an_empty_list_returns_an_empty_list() =
+        runTest {
+            assertEquals(0, Enhancer.enhanceCourses(emptyList(), elevationProvider = null).size)
         }
 }

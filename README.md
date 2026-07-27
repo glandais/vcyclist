@@ -144,6 +144,22 @@ const xml = writeGpx(out);
 (mapterhorn Terrarium tiles) and runs the full pipeline (densify → fix elevation → smooth →
 max speeds → virtualize → resample → simplify).
 
+#### Multi-track GPX
+
+`parseGpx` returns the **first** track, which is what most files contain. For documents with
+several `<trk>` or several `<trkseg>` :
+
+```js
+import { parseGpxTracks, parseGpxSegments, writeGpxTracks } from '@glandais/vcyclist-engine';
+
+const tracks = parseGpxTracks(gpxXml);       // one path per <trk>, segments concatenated
+const segments = parseGpxSegments(gpxXml);   // one path per <trkseg>, always continuous
+const xml = writeGpxTracks(tracks);          // one <trk> per path
+```
+
+Concatenating segments folds the pause between them into `totalDistance` — a `<trkseg>`
+boundary is a physical discontinuity. Use `parseGpxSegments` when that artefact matters.
+
 On Node.js / Bun, tile decoding uses [`@jsquash/webp`](https://www.npmjs.com/package/@jsquash/webp)
 (a pure-WASM WebP decoder, ~50 KB, listed as a runtime `dependency` of
 `@glandais/vcyclist-engine` and `@glandais/vcyclist-elevation`). It is loaded lazily via

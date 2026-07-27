@@ -6,6 +6,10 @@ import io.github.glandais.engine.path.Path
 /**
  * Convert the **first** track of [this] document to a [Path], computing derived data.
  * Throws if the document has no track. Matches the TS `GPXParser.parse(...).tracks[0]` usage.
+ *
+ * Segments of that track are concatenated — see [GpxTrack.toPath] for what that implies on
+ * distance. This is the pre-g02 behaviour, kept as the legitimate shortcut for the common
+ * single-track case ; it is **not** deprecated.
  */
 fun GpxDocument.firstTrackAsPath(): Path {
     val track = tracks.firstOrNull() ?: error("GpxDocument has no track")
@@ -13,7 +17,48 @@ fun GpxDocument.firstTrackAsPath(): Path {
 }
 
 /**
- * Materialise a [Path] from a [GpxTrack]:
+ * One [Path] per `<trk>`, in document order. Segments of a same track are **concatenated**
+ * (see [GpxTrack.toPath]).
+ *
+ * Tracks with no point at all are skipped, so the result never contains a parasitic `Path(0)`.
+ * The result may therefore be shorter than [GpxDocument.tracks], and may be empty.
+ */
+fun GpxDocument.tracksAsPaths(): List<Path> =
+    tracks
+        .filter { it.points.isNotEmpty() }
+        .map { it.toPath() }
+
+/**
+ * One [Path] per `<trkseg>`, across **all** tracks, in document order. Empty segments are
+ * skipped.
+ *
+ * Use this rather than [tracksAsPaths] when the inter-segment discontinuity matters : each
+ * returned [Path] is continuous, so no phantom distance is introduced by the pause/teleport
+ * between two segments. This is the shape gpx2web produces natively (one `GPXPath` per
+ * `<trkseg>`).
+ */
+fun GpxDocument.segmentsAsPaths(): List<Path> =
+    tracks
+        .flatMap { it.segments }
+        .filter { it.points.isNotEmpty() }
+        .map { it.toPath() }
+
+/**
+ * Materialise a [Path] from a [GpxTrack], concatenating its segments.
+ *
+ * **Distance across a segment boundary jumps.** The points of segment *n+1* follow those of
+ * segment *n* with no marker, so [Path.computeDerivedData] measures the straight-line gap
+ * between the last point of one segment and the first of the next, and folds it into
+ * `totalDistance`. That is deliberate — it preserves the pre-g02 behaviour of
+ * [GpxDocument.firstTrackAsPath] — but if the artefact is unacceptable, use
+ * [GpxDocument.segmentsAsPaths] instead, which never crosses a boundary.
+ *
+ * Point-level conversion is described on [GpxSegment.toPath].
+ */
+fun GpxTrack.toPath(): Path = pointsToPath(points)
+
+/**
+ * Materialise a [Path] from a single [GpxSegment]:
  * - latitude/longitude converted to radians (engine internal unit),
  * - elevation defaults to 0.0 if absent,
  * - time defaults to 0L if absent,
@@ -22,9 +67,10 @@ fun GpxDocument.firstTrackAsPath(): Path {
  * [Path.computeDerivedData] is invoked before returning so downstream consumers can
  * immediately read `totalDistance`, `bearing`, `speed`, etc.
  */
-fun GpxTrack.toPath(): Path {
-    val n = points.size
-    val path = Path(n)
+fun GpxSegment.toPath(): Path = pointsToPath(points)
+
+private fun pointsToPath(points: List<GpxTrackPoint>): Path {
+    val path = Path(points.size)
     for ((i, p) in points.withIndex()) {
         path.setLatitude(i, p.latitudeDeg * MathConstants.DEG_TO_RAD)
         path.setLongitude(i, p.longitudeDeg * MathConstants.DEG_TO_RAD)
