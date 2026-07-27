@@ -167,4 +167,35 @@ class GpxMultiTrackTest {
         assertEquals(1, single.segments.size)
         assertEquals(track.points, single.points)
     }
+
+    @Test
+    fun `case 13 — predefined XML entities in text survive parsing and a write round-trip`() {
+        // Regression : ENTITY_REF used to be an unhandled event in readElementText, so the entity
+        // and the text it stood for were dropped — "Ravito &amp; eau" parsed as "Ravito  eau".
+        val xml =
+            """<?xml version="1.0" encoding="UTF-8"?>
+<gpx version="1.1" xmlns="http://www.topografix.com/GPX/1/1">
+  <metadata><name>Col &amp; vall&#233;e</name></metadata>
+  <wpt lat="45.0" lon="6.0"><name>Ravito &amp; eau</name><desc>&lt;bidon&gt;</desc></wpt>
+  <trk>
+    <name>Alpe d&apos;Huez &amp; retour</name>
+    <trkseg>
+      <trkpt lat="45.0" lon="6.0"><ele>100</ele></trkpt>
+      <trkpt lat="45.001" lon="6.0"><ele>110</ele></trkpt>
+    </trkseg>
+  </trk>
+</gpx>
+"""
+        val doc = GpxParser.parse(xml)
+        assertEquals("Col & vallée", doc.name)
+        assertEquals("Alpe d'Huez & retour", doc.tracks.single().name)
+        assertEquals("Ravito & eau", doc.waypoints.single().name)
+        assertEquals("<bidon>", doc.waypoints.single().description)
+
+        // The writer must re-escape them, so a round-trip is lossless.
+        val reparsed = GpxParser.parse(GpxWriter.write(doc))
+        assertEquals(doc.name, reparsed.name)
+        assertEquals(doc.tracks.single().name, reparsed.tracks.single().name)
+        assertEquals(doc.waypoints, reparsed.waypoints)
+    }
 }
