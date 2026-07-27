@@ -74,7 +74,8 @@ class EngineJsApiTest {
     @Test
     fun `writeGpxTracks round-trips a multi-track document`() {
         val tracks = parseGpxTracks(GpxFixtures.MULTI_TRACK_GPX)
-        val xml = writeGpxTracks(tracks, JsArray())
+        // Omitting `waypoints` exercises the default argument — the JS façade has the same one.
+        val xml = writeGpxTracks(tracks)
         assertTrue(xml.startsWith("<?xml"), "expected XML declaration, got: ${xml.take(40)}")
         val roundTrip = parseGpxTracks(xml)
         assertEquals(2, roundTrip.length)
