@@ -48,7 +48,7 @@ cœur (`:elevation`, `:gpx`, `:engine`, `:fit`) reste compilable sur les 4 cible
 | g07 | Writer JSON | `:gpx` | ✅ |
 | **— Phase D : FIT —** | | | |
 | g08 | Bootstrap `:fit` + `expect`/`actual` + implémentation JVM | `:fit` | ✅ |
-| g09 | Implémentation JS + Wasm (`@garmin/fitsdk`) | `:fit` | ⬜ |
+| g09 | Implémentation JS + Wasm (`@garmin/fitsdk`) | `:fit` | ✅ |
 | g10 | Encodage Course/Lap/Records + tests round-trip | `:fit` | ⬜ |
 | **— Phase E : cols —** | | | |
 | g11 | Port de `ClimbDetector` | `:engine` | ⬜ |
@@ -110,9 +110,10 @@ reste sans équivalent. Son sort fera l'objet d'une décision séparée.
 - ~~**g02 / rupture de la façade JS**~~ — **évité** : `parseGpx` est restée intacte et
   `parseGpxTracks` / `parseGpxSegments` / `writeGpxTracks` ont été ajoutées à côté. Le diff des
   `.d.ts` contre g01 est purement additif, la démo n'a pas bougé d'une ligne.
-- **g09 / `@garmin/fitsdk` en Wasm** — paquet ESM Node + navigateur. Même montage que
-  `@jsquash/webp` (cf. `docs/kotlin-wasm-jvm-webp.md` et `webpack.config.d/externals.js`), et
-  il faut vérifier qu'il tourne dans les tests Karma headless Chrome.
+- ~~**g09 / `@garmin/fitsdk` en Wasm**~~ — **levé** : le paquet se charge et tourne en Karma
+  headless Chrome sur les deux cibles web. Pas d'`externals.js` : contrairement à
+  `@jsquash/webp` c'est du JavaScript pur, donc il est bundlé normalement et ressort en
+  dépendance npm épinglée des paquets publiés.
 - **Phase F / `java.awt`** — première dépendance non-multiplateforme du dépôt. D'où le module
   isolé : `./gradlew check` doit rester multi-cibles sur le cœur.
 - **g14 / politique d'usage des tuiles** — gpx2web déclare un `USER_AGENT` explicite. Toute

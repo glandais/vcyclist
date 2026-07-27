@@ -12,6 +12,11 @@
   resolved "https://registry.yarnpkg.com/@discoveryjs/json-ext/-/json-ext-0.6.3.tgz#f13c7c205915eb91ae54c557f5e92bddd8be0e83"
   integrity sha512-4B4OijXeVNOPZlYA2oEwWOTkzyltLao+xbotHQeqN++Rv27Y6s818+n2Qkp8q+Fxhn0t/5lA5X1Mxktud8eayQ==
 
+"@garmin/fitsdk@21.205.0":
+  version "21.205.0"
+  resolved "https://registry.yarnpkg.com/@garmin/fitsdk/-/fitsdk-21.205.0.tgz#00c8d749d858849f454e5bed07ed305a2a37261f"
+  integrity sha512-oSfiJVQ3BQlNxfc1f7XUBDn8yuHOdiP5jW21p6zjuBq0KPQfXWe6SU66yZdCNYliyBmKcfC3Gjd9osiKfR52Dg==
+
 "@isaacs/cliui@^8.0.2":
   version "8.0.2"
   resolved "https://registry.yarnpkg.com/@isaacs/cliui/-/cliui-8.0.2.tgz#b37667b7bc181c168782259bab42474fbf52b550"

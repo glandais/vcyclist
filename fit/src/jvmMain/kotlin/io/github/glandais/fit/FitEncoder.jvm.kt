@@ -58,9 +58,12 @@ actual object FitEncoder {
 
     private fun fileIdMesg(course: FitCourse): FileIdMesg =
         FileIdMesg().apply {
-            localNum = 0
-            manufacturer = Manufacturer.DYNASTREAM
+            localNum = LOCAL_FILE_ID
+            // `type` before `manufacturer` : both SDKs emit definition fields in the order the
+            // caller sets them, so keeping the same order here makes the JVM and JS message
+            // definitions structurally identical (see FitReferenceBytes for what still differs).
             type = FitFileType.COURSE
+            manufacturer = Manufacturer.DYNASTREAM
             product = PRODUCT_ID
             serialNumber = SERIAL_NUMBER
             // Deterministic per course rather than `Date()`-stamped : two encodes of the same
@@ -71,14 +74,14 @@ actual object FitEncoder {
 
     private fun courseMesg(course: FitCourse): CourseMesg =
         CourseMesg().apply {
-            localNum = 0
+            localNum = LOCAL_COURSE
             name = course.name
             sport = course.sport.toSdkSport()
         }
 
     private fun lapMesg(lap: FitLap): LapMesg =
         LapMesg().apply {
-            localNum = 0
+            localNum = LOCAL_LAP
             startTime = lap.startTime.toFitDateTime()
             // `timestamp` on a lap is its END, not its start — a classic FIT trap.
             timestamp = (lap.startTime + lap.totalElapsedTimeS.secondsAsDuration()).toFitDateTime()
@@ -101,7 +104,7 @@ actual object FitEncoder {
 
     private fun recordMesg(record: FitRecord): RecordMesg =
         RecordMesg().apply {
-            localNum = 0
+            localNum = LOCAL_RECORD
             timestamp = record.timestamp.toFitDateTime()
             positionLat = FitUnits.degreesToSemicircles(record.latitudeDeg)
             positionLong = FitUnits.degreesToSemicircles(record.longitudeDeg)
@@ -119,7 +122,7 @@ actual object FitEncoder {
         type: EventType,
     ): EventMesg =
         EventMesg().apply {
-            localNum = 0
+            localNum = LOCAL_EVENT
             event = Event.TIMER
             eventType = type
             eventGroup = 0
@@ -141,6 +144,17 @@ actual object FitEncoder {
     private fun Instant.toFitDateTime(): DateTime = DateTime(Date(toEpochMilliseconds()))
 
     private fun Double.secondsAsDuration(): Duration = (this * 1000.0).toLong().milliseconds
+
+    // One local message number per message type, assigned in first-use order — the same
+    // allocation the JavaScript SDK makes automatically. gpx2web puts everything on local 0,
+    // which forces FIT to re-emit a definition every time the message type changes: harmless,
+    // but it cost a redundant 18-byte `event` definition and made the JVM file longer than the
+    // JS one for no reason. With these, both are 277 bytes with identical message definitions.
+    private const val LOCAL_FILE_ID = 0
+    private const val LOCAL_COURSE = 1
+    private const val LOCAL_LAP = 2
+    private const val LOCAL_EVENT = 3
+    private const val LOCAL_RECORD = 4
 
     /** Arbitrary but stable identifiers, mirroring gpx2web's own placeholder values. */
     private const val PRODUCT_ID = 12345

@@ -124,13 +124,66 @@ Critères :
 
 ## Done when
 
-- [ ] `@garmin/fitsdk` épinglé en version exacte, jsMain + wasmJsMain
-- [ ] `actual` JS implémenté et testé
-- [ ] `actual` Wasm implémenté et testé
-- [ ] Montage webpack décidé après mesure, documenté
-- [ ] Test croisé JVM/JS sur octets, écarts documentés s'il y en a
-- [ ] Tests verts en Node **et** en navigateur headless
-- [ ] `./gradlew check` et `ktlintCheck` verts
+- [x] `@garmin/fitsdk` épinglé en version exacte, jsMain + wasmJsMain
+- [x] `actual` JS implémenté et testé
+- [x] `actual` Wasm implémenté et testé
+- [x] Montage webpack décidé après mesure, documenté
+- [x] Test croisé JVM/JS sur octets, écarts documentés s'il y en a
+- [x] Tests verts en Node **et** en navigateur headless
+- [x] `./gradlew check` et `ktlintCheck` verts
+
+## Résultat
+
+**Le risque principal ne s'est pas matérialisé.** `@garmin/fitsdk` se charge et tourne en Karma
+headless Chrome, sur les deux cibles web. Aucun `webpack.config.d/externals.js` n'a été
+nécessaire — et c'est la bonne décision, mesurée : contrairement à `@jsquash/webp`, ce paquet
+est du JavaScript pur, sans binaire ni `.wasm` à charger, donc rien ne justifie de l'exclure du
+bundle navigateur. Dans les paquets npm publiés il ressort en dépendance runtime épinglée
+(`"@garmin/fitsdk": "21.205.0"` dans les deux `package.json` générés), c'est le résolveur du
+consommateur qui s'en charge.
+
+**Le SDK JS applique les échelles, comme le SDK Java.** Vérifié dans `encoder.js`
+(`#transformValues` → `#unapplyScaleAndOffset`) : altitude, distance et vitesse se passent en
+unités réelles. Les `dateTime` acceptent un `Date` JS et passent par
+`Utils.convertDateToDateTime`, dont l'époque coïncide avec `FitUnits` (vérifié :
+`1989-12-31T00:00:00Z → 0`). Seule la position reste à convertir à la main, sur les deux cibles.
+La crainte de la fiche — « le SDK JS peut attendre des valeurs déjà mises à l'échelle » — était
+donc infondée, et `FitUnits` n'a pas eu à changer.
+
+**Test croisé : JS et Wasm sont octet pour octet identiques**, ce qui est le contrat qui empêche
+les deux `actual` écrits à la main de diverger (les deux SDK dérivent la définition d'un message
+de l'ordre d'insertion des clés, donc le moindre réordonnancement se verrait immédiatement).
+`FitReferenceBytes.WEB` fige ces 277 octets et les deux cibles l'assertent.
+
+**JVM vs JS : 2 écarts, tous deux imputables aux SDK, documentés champ par champ** dans le KDoc
+de `FitReferenceBytes` :
+
+| Position | SDK Java | SDK JavaScript | Cause |
+|---|---|---|---|
+| octet 1 de l'en-tête | `0x20` | `0x02` | Version de protocole. Java encode V2.0 en `majeur shl 4` ; JS écrit le littéral `2` en dur dans `encoder.js#updateFileHeader`. Aucun des deux n'expose de réglage. |
+| octets 12-13 | diffèrent | diffèrent | CRC d'en-tête, conséquence de la ligne précédente. |
+| octet d'architecture de chaque définition | `1` (big-endian) | `0` (little-endian) | Le SDK Java écrit en big-endian ; le SDK JS n'a aucune notion d'architecture et écrit toujours en little-endian. Toutes les valeurs multi-octets sont donc permutées entre les deux fichiers. |
+
+Aucun des deux n'est un défaut : l'octet d'architecture existe précisément pour que le lecteur
+gère les deux boutismes. **L'interopérabilité est prouvée dans les deux sens** — le SDK Java
+relit le fichier écrit par le SDK JS et inversement, chacun avec `checkIntegrity()` vert, 0
+erreur, et des valeurs de champs identiques. C'est asserté des deux côtés, pas supposé.
+
+**Un écart de plus a été supprimé plutôt que documenté.** Le premier jet donnait 295 octets côté
+JVM contre 277 côté JS. La cause : `localNum = 0` sur tous les messages, repris de gpx2web, qui
+force FIT à réémettre une définition à chaque changement de type de message — d'où une
+définition `event` redondante de 18 octets. En attribuant un `localNum` par type de message
+(l'allocation que le SDK JS fait automatiquement), les deux fichiers font 277 octets avec des
+définitions strictement identiques.
+
+**Coût du transfert Wasm, mesuré** comme demandé, en headless Chrome sur 10 000 records
+(230 193 octets de FIT) : **1,8 ms de transfert pour 739 ms d'encodage total**, soit 0,24 %.
+L'écriture des messages par le SDK domine complètement ; la copie passe par une revue signée
+`Int8Array` puis le `toByteArray()` de kotlinx-browser, sans lecture octet par octet.
+
+**Validation :** `./gradlew check` + `ktlintCheck` verts. `:fit` = 23 tests JVM, 20 JS Node,
+20 JS navigateur (Karma), 19 Wasm navigateur (Karma). Plus aucun `NotImplementedError` dans le
+module ; `NotImplemented.kt` a été supprimé.
 
 ## Notes
 

@@ -78,6 +78,19 @@ kotlin {
             // JS and Wasm targets go through @garmin/fitsdk instead (task g09).
             implementation(libs.garmin.fit)
         }
+        // Exact version, never a range : a binary encoder that changes behaviour on an
+        // `npm install` is miserable to diagnose. 21.205.0 also matches the Java SDK version
+        // exactly, so both targets encode against the same FIT profile revision.
+        jsMain.dependencies {
+            implementation(npm("@garmin/fitsdk", "21.205.0"))
+        }
+        wasmJsMain.dependencies {
+            implementation(npm("@garmin/fitsdk", "21.205.0"))
+            // For `org.khronos.webgl.Uint8Array` : those declarations are in the stdlib on
+            // Kotlin/JS but live in kotlinx-browser on Kotlin/Wasm. Needed only to receive the
+            // encoder's output buffer — `:fit` touches no DOM API.
+            implementation(libs.kotlinx.browser)
+        }
     }
 }
 
