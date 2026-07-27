@@ -13,7 +13,7 @@
       "@semantic-release/exec",
       {
         "prepareCmd": "sed -i 's/^version=.*/version=${nextRelease.version}/' gradle.properties",
-        "publishCmd": "./gradlew :engine:publishAndReleaseToMavenCentral :gpx:publishAndReleaseToMavenCentral :elevation:publishAndReleaseToMavenCentral :engine:npmPublishJs :engine:npmPublishWasm :elevation:npmPublishJs :elevation:npmPublishWasm --no-configuration-cache"
+        "publishCmd": "./gradlew :engine:publishAndReleaseToMavenCentral :gpx:publishAndReleaseToMavenCentral :elevation:publishAndReleaseToMavenCentral :fit:publishAndReleaseToMavenCentral :engine:npmPublishJs :engine:npmPublishWasm :elevation:npmPublishJs :elevation:npmPublishWasm :fit:npmPublishJs :fit:npmPublishWasm --no-configuration-cache"
       }
     ],
     [

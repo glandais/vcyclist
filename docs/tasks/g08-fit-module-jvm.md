@@ -227,9 +227,17 @@ donc aucun dépôt supplémentaire n'est nécessaire.
 à la main qui était fausse, pas le code. Les valeurs de référence sont désormais calculées hors
 de ce dépôt et la dérivation est notée en commentaire.
 
-**Reste ouvert pour g19 :** la licence du SDK Garmin et ses conditions de redistribution. `:fit`
-déclare bien la publication npm et Maven Central, mais n'est **pas** ajouté au `publishCmd` de
-`.releaserc.json` — la question doit être tranchée avant.
+**Licence du SDK Garmin : tranché, ce n'était pas un blocage.** `com.garmin:fit` est publié sur
+Maven Central **par Garmin elle-même** (POM : « The Official Garmin FIT SDK », licence *FIT
+Protocol License Agreement*). Publier `vcyclist-fit` ne redistribue donc rien : le POM déclare
+une dépendance, les consommateurs résolvent l'artefact chez Garmin. Et comme la dépendance est
+déclarée dans `jvmMain` seulement, rien de Garmin n'entre dans les bundles npm. `:fit` est donc
+ajouté au `publishCmd` de `.releaserc.json` (Maven Central + les deux paquets npm).
+
+**Réserve à connaître :** tant que g09 n'est pas fait, `@glandais/vcyclist-fit` et `-fit-wasm`
+publient un encodeur qui lève `NotImplementedError`. Seule la variante JVM de l'artefact Maven
+est fonctionnelle. Retirer `:fit:npmPublishJs :fit:npmPublishWasm` du `publishCmd` si l'on
+préfère ne pas diffuser un paquet npm non fonctionnel.
 
 ## Notes
 
