@@ -28,6 +28,7 @@ import io.github.glandais.engine.physics.Wind
 import io.github.glandais.engine.physics.WindProvider
 import io.github.glandais.engine.physics.WindProviderConstant
 import io.github.glandais.engine.physics.WindProviderNone
+import io.github.glandais.fit.toFitBytes
 import kotlinx.coroutines.DelicateCoroutinesApi
 import kotlinx.coroutines.GlobalScope
 import kotlinx.coroutines.promise
@@ -526,3 +527,21 @@ fun pathToJson(
     path: Path,
     pretty: Boolean,
 ): String = JsonWriter.write(path, JsonOptions(pretty = pretty))
+
+// ── FIT export (task g10) ────────────────────────────────────────────────────────────────────
+
+/**
+ * Encode [path] as a Garmin FIT Course file.
+ *
+ * @param startTimeEpochMs absolute start instant in Unix epoch milliseconds. FIT has no relative
+ *   clock, so this is mandatory — `Double` rather than `Long` to avoid a BigInt at the JS
+ *   boundary, matching the convention [pathDurationMs] and [writeGpxAt] already use.
+ * @return the complete FIT file. On Kotlin/JS a `ByteArray` surfaces as a JS `Int8Array`; the
+ *   Wasm façade returns a `Uint8Array` instead — see its KDoc for why they differ.
+ */
+@JsExport
+fun pathToFit(
+    path: Path,
+    name: String,
+    startTimeEpochMs: Double,
+): ByteArray = path.toFitBytes(name, Instant.fromEpochMilliseconds(startTimeEpochMs.toLong()))

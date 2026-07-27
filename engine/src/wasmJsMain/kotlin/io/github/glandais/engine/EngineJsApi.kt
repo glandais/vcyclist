@@ -18,6 +18,7 @@ import io.github.glandais.engine.io.CsvWriter
 import io.github.glandais.engine.io.JsonOptions
 import io.github.glandais.engine.io.JsonWriter
 import io.github.glandais.engine.path.Path
+import io.github.glandais.fit.toFitBytes
 import kotlinx.coroutines.DelicateCoroutinesApi
 import kotlinx.coroutines.GlobalScope
 import kotlinx.coroutines.promise
@@ -321,3 +322,41 @@ fun pathToJson(
     handle: JsReference<Path>,
     pretty: Boolean,
 ): String = JsonWriter.write(handle.get(), JsonOptions(pretty = pretty))
+
+// ── FIT export (task g10) ────────────────────────────────────────────────────────────────────
+
+/**
+ * Encode the path behind [handle] as a Garmin FIT Course file.
+ *
+ * **Return type differs from the Kotlin/JS façade.** Kotlin/JS exports a `ByteArray` directly
+ * (it surfaces as an `Int8Array`). Kotlin/Wasm can export neither: `ByteArray` is not a `JsAny`,
+ * and `org.khronos.webgl.Uint8Array` is rejected by the exporter ("Can't export not-primary
+ * constructor"). The value returned here **is** a JS `Uint8Array` — statically typed as `JsAny`
+ * because that is the only thing the boundary accepts. Callers get unsigned bytes here and
+ * signed ones on Kotlin/JS; both describe the same file, and `Uint8Array` is the friendlier
+ * shape to hand to a `Blob` or `fetch` anyway.
+ *
+ * @param startTimeEpochMs absolute start instant in Unix epoch milliseconds — FIT has no
+ *   relative clock. `Double` avoids a BigInt at the boundary, as [pathDurationMs] does.
+ */
+@JsExport
+fun pathToFit(
+    handle: JsReference<Path>,
+    name: String,
+    startTimeEpochMs: Double,
+): JsAny {
+    val bytes = handle.get().toFitBytes(name, Instant.fromEpochMilliseconds(startTimeEpochMs.toLong()))
+    val out = newUint8Array(bytes.size)
+    for (i in bytes.indices) setUint8(out, i, bytes[i].toInt())
+    return out
+}
+
+@JsFun("(n) => new Uint8Array(n)")
+private external fun newUint8Array(n: Int): JsAny
+
+@JsFun("(arr, i, v) => { arr[i] = v & 0xFF; }")
+private external fun setUint8(
+    arr: JsAny,
+    i: Int,
+    v: Int,
+)

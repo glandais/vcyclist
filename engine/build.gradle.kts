@@ -79,6 +79,14 @@ kotlin {
             // Transitive via `:gpx`, but kept explicit : `physics/` and `Enhancer` use
             // Coordinates directly.
             api(project(":elevation"))
+            // FIT export, exposed through `pathToFit` on the JS/Wasm facades (task g10).
+            //
+            // The facade has to live here rather than in `:fit`'s own bundle: `:gpx` is not a
+            // separate npm package (task g01 inlines it into `@glandais/vcyclist-engine`), so a
+            // `Path` handed to a separately-bundled `@glandais/vcyclist-fit` would not be the
+            // same JS class. One bundle keeps the types identical. The cost is that
+            // `@garmin/fitsdk` becomes a dependency of the engine package.
+            api(project(":fit"))
         }
         commonTest {
             // Shared GPX strings, compiled from `:gpx`'s test-fixtures directory. See the
