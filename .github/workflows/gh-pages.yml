@@ -6,6 +6,7 @@ on:
     paths:
       - 'demo/**'
       - 'engine/**'
+      - 'gpx/**'
       - 'elevation/**'
       - 'gradle/**'
       - 'build.gradle.kts'

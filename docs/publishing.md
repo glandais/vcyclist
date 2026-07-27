@@ -8,12 +8,31 @@ This document explains how the vcyclist artefacts ship to **Maven Central** and 
 |---|---|---|
 | Maven Central | `:engine` (jvm, js, wasm-js variants) | `io.github.glandais:vcyclist-engine:<version>` |
 | Maven Central | `:elevation` (jvm, js, wasm-js variants) | `io.github.glandais:vcyclist-elevation:<version>` |
+| Maven Central | `:gpx` (jvm, js, wasm-js variants) | `io.github.glandais:vcyclist-gpx:<version>` |
 | npm | engine — Kotlin/JS | `@glandais/vcyclist-engine` |
 | npm | engine — Kotlin/Wasm | `@glandais/vcyclist-engine-wasm` |
 | npm | elevation — Kotlin/JS | `@glandais/vcyclist-elevation` |
 | npm | elevation — Kotlin/Wasm | `@glandais/vcyclist-elevation-wasm` |
 
 `:codegen` is a build-time JVM helper and is **not** published.
+
+### Why `:gpx` ships to Maven Central but not to npm
+
+`:gpx` was extracted from `:engine` in gpx2web task g01. Kotlin/JS emits one bundle per
+Gradle module, so publishing it as a separate npm package would force the demo and every
+consumer of `@glandais/vcyclist-engine` to install **two** packages — exactly the breakage
+g01 set out to avoid. Instead, `:gpx` declares no `binaries.library()` / `packageJson` /
+`npmPublish*`, and its JS output is emitted **inside** the engine bundle as
+`vcyclist-gpx.js` (visible in `engine/build/dist/js/productionLibrary/`). One npm package,
+same imports, byte-identical `.d.ts`.
+
+Maven Central is different : `:engine` declares `api(project(":gpx"))`, so the published POM
+references `io.github.glandais:vcyclist-gpx` and that artefact **must** exist. It is
+therefore released alongside `:engine` and `:elevation` in `.releaserc.json`'s `publishCmd`.
+
+If a JS consumer ever wants parsing without physics, revisit this : the alternative is
+`@glandais/vcyclist-engine` declaring `@glandais/vcyclist-gpx` as a dependency, at the cost
+of keeping two npm packages version-locked.
 
 ## The release flow
 
@@ -71,7 +90,7 @@ ls engine/build/dist/wasmJs/productionLibrary/
 # adjust the workingDir of the npmPublishJs / npmPublishWasm tasks.
 
 # 2. Publish to the local Maven repo to inspect the POM and signatures.
-./gradlew :engine:publishToMavenLocal :elevation:publishToMavenLocal
+./gradlew :engine:publishToMavenLocal :gpx:publishToMavenLocal :elevation:publishToMavenLocal
 find ~/.m2/repository/io/github/glandais -name 'vcyclist-*.pom'
 
 # 3. Dry-run an npm pack (no upload).
@@ -146,7 +165,7 @@ get it transparently.
 
 The `:demo` module (Vue 3 + Vite, consumes the Kotlin/JS engine) is published
 automatically to GitHub Pages on every push to `develop` that touches
-`demo/`, `engine/`, `elevation/`, or the Gradle build files.
+`demo/`, `engine/`, `gpx/`, `elevation/`, or the Gradle build files.
 
 - **Workflow** : [`.github/workflows/gh-pages.yml`](../.github/workflows/gh-pages.yml)
 - **URL** : `https://glandais.github.io/vcyclist/`

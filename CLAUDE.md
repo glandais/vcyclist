@@ -15,11 +15,16 @@ The port is structured as:
 - `:elevation` — DEM tile fetching + 3D geometry utilities (Phase 1, tasks 00-09 ; Phase 3
   task 32 added Node.js / Bun support via runtime-detection in `TileFetcher.js.kt` + the
   `@jsquash/webp` WASM decoder).
-- `:engine` — Path model + physics + GPX I/O + `Enhancer` pipeline + CLI + JS/Wasm façades
-  (Phase 2, tasks 10-28 + Phase 2bis 29-31 + Phase 3 task 33 = Node integration tests +
-  `ElevationProvider` plumbing in `EngineJsApi.enhance` for `fixElevation: true`).
+- `:gpx` — Path model (`Path`, `PointField`, resamplers, `PathSimplifier`, `ElevationStep`) +
+  GPX I/O, extracted from `:engine` by gpx2web task g01. **Package names are unchanged**
+  (`io.github.glandais.engine.path.*`, `io.github.glandais.engine.gpx.*`) — only the Gradle
+  module that hosts them moved. Published to Maven Central as `vcyclist-gpx`, **not** to npm.
+- `:engine` — physics + `Enhancer` pipeline + CLI + JS/Wasm façades (Phase 2, tasks 10-28 +
+  Phase 2bis 29-31 + Phase 3 task 33 = Node integration tests + `ElevationProvider` plumbing
+  in `EngineJsApi.enhance` for `fixElevation: true`). Does `api(project(":gpx"))`, so
+  consumers of `:engine` keep seeing the whole Path + GPX surface.
 - `:codegen` — tiny JVM helper that regenerates `GeneratedPath.kt` and `PointFieldAccessors.kt`
-  from `PointField` when the field list changes.
+  from `PointField` when the field list changes (writes into `:gpx` since g01).
 
 ## Reference projects (read-only siblings)
 
@@ -39,6 +44,7 @@ From the `vcyclist/` root :
 ```bash
 ./gradlew check                          # full build + tests on all targets
 ./gradlew :engine:allTests               # engine tests (JVM + JS Node + JS browser + Wasm browser)
+./gradlew :gpx:allTests                  # Path model + GPX I/O tests (same targets)
 ./gradlew :elevation:allTests            # elevation tests (same targets)
 ./gradlew :engine:jvmTest                # JVM only (fast iteration)
 ./gradlew :engine:wasmJsBrowserTest      # Wasm browser tests in headless Chrome (Karma)
@@ -61,13 +67,13 @@ Browser demos (in `:elevation`) :
 
 ## Architecture invariants
 
-### `Path` model (engine)
+### `Path` model (`:gpx`)
 
 - `Path` extends `GeneratedPath(size)` and stores **36 fields × `DoubleArray`** flat. Fields
-  defined in `engine/src/commonMain/.../path/PointField.kt` (single source of truth).
+  defined in `gpx/src/commonMain/.../path/PointField.kt` (single source of truth).
 - `GeneratedPath.kt` and `PointFieldAccessors.kt` are **generated** by the `:codegen` module.
   After editing `PointField`, run `./gradlew :codegen:run` (or follow the regen instructions
-  in `engine/src/commonMain/.../path/GeneratedPath.kt` header).
+  in `gpx/src/commonMain/.../path/GeneratedPath.kt` header).
 - `Path` is **fixed-size**. Operations that change cardinality (resample, simplify) build a
   new `Path(newSize)` via a 2-pass plan/materialize pattern. See `PointPerSecond.kt`,
   `PointPerDistance.kt`, `PathSimplifier.kt`.
@@ -149,7 +155,7 @@ Co-Authored-By: Claude Opus 4.7 (1M context) <noreply@anthropic.com>
 ```
 
 Types : `feat`, `fix`, `test`, `docs`, `chore`, `style`, `refactor`. Scopes : `engine`,
-`elevation`, `codegen`, `plan`, `build`, `deps`. Always include the
+`gpx`, `elevation`, `codegen`, `plan`, `build`, `deps`. Always include the
 `Co-Authored-By` trailer.
 
 **The commit type drives the release** : `feat:` triggers a minor bump, `fix:` a patch
@@ -172,8 +178,11 @@ bump with `[skip ci]` and pushes it back to `develop`).
 - `commonTest` for portable logic — runs on every target. Prefer this whenever possible.
 - `jvmTest` for JVM-only integration (HTTP servers, file I/O, full pipeline smokes).
 - Inline test fixtures (e.g. GPX XML) as Kotlin raw strings in
-  `engine/src/commonTest/kotlin/.../gpx/GpxFixtures.kt` — `commonTest/resources` is not
+  `gpx/src/commonTestFixtures/kotlin/.../gpx/GpxFixtures.kt` — `commonTest/resources` is not
   portable across targets, but referenced files exist there for human / git diff readability.
+  That directory is added as an extra `commonTest` source dir by **both** `gpx/build.gradle.kts`
+  and `engine/build.gradle.kts` : KMP has no `java-test-fixtures`, and `:engine`'s parity /
+  JS-façade tests need the same strings.
 
 ### Numerical tolerances
 
@@ -197,7 +206,7 @@ copy-paste, commit with a comment).
 
 ### Adding a new `PointField`
 
-1. Edit `engine/src/commonMain/.../path/PointField.kt`.
+1. Edit `gpx/src/commonMain/.../path/PointField.kt`.
 2. Run `./gradlew :codegen:run` (or invoke the regen script — see `:codegen/README.md`).
 3. Update unit tests : `PointFieldTest` count, `GeneratedPathTest` round-trip.
 4. The new field is now accessible via `path.<name>(i)` / `path.set<Name>(i, v)` and via the

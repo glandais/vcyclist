@@ -2,10 +2,15 @@ package io.github.glandais.engine.gpx
 
 /**
  * Inline GPX fixtures used by [GpxParserTest]. Mirror the real `.gpx` files under
- * `engine/src/commonTest/resources/` (kept for human review and `git diff`), but truncated
+ * `gpx/src/commonTest/resources/` (kept for human review and `git diff`), but truncated
  * to a handful of trackpoints per source so the strings stay readable. The first trackpoint
  * of each fixture preserves the exact values seen in the upstream file — tests assert on
  * those.
+ *
+ * This file lives in `src/commonTestFixtures/` rather than `src/commonTest/` because
+ * `:engine`'s parity and JS-façade tests need the same strings. KMP has no test-fixtures
+ * publication, so both `gpx/build.gradle.kts` and `engine/build.gradle.kts` add this
+ * directory as an extra `commonTest` source dir — one file, two test compilations.
  */
 object GpxFixtures {
     /**

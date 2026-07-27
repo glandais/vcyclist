@@ -38,7 +38,8 @@ TypeScript library for elevation data.
 | Module | Purpose | Targets |
 |---|---|---|
 | **`:elevation`** | Terrarium tile fetch + DEM lookup + Haversine + Douglas-Peucker 3D + triangular smoother. See [`elevation/README.md`](elevation/README.md). | JVM, JS Node, JS browser, Wasm browser |
-| **`:engine`** | Path model (36 fields × `DoubleArray`), physics (4 resistive `PowerProvider`s + cyclist input + `MaxSpeedComputer` + `VirtualizeService`), GPX I/O, `Enhancer` pipeline, JVM CLI. | JVM, JS Node, JS browser, Wasm browser |
+| **`:gpx`** | Path model (36 fields × `DoubleArray`), resamplers, Douglas-Peucker simplifier, elevation steps, GPX I/O. Published to Maven Central; **not** published to npm — its JS output ships inside `@glandais/vcyclist-engine`. | JVM, JS Node, JS browser, Wasm browser |
+| **`:engine`** | Physics (4 resistive `PowerProvider`s + cyclist input + `MaxSpeedComputer` + `VirtualizeService`), `Enhancer` pipeline, JVM CLI, JS/Wasm façades. Re-exports `:gpx` via `api`, so `io.github.glandais.engine.path.*` and `…engine.gpx.*` stay importable from `:engine`. | JVM, JS Node, JS browser, Wasm browser |
 | **`:codegen`** | Tiny build-time helper that regenerates `GeneratedPath.kt` + `PointFieldAccessors.kt` from `PointField` (run only when the field list changes). | JVM only |
 
 ## Install
@@ -64,6 +65,8 @@ dependencies {
 
 Replace `1.0.0` by the latest version shown in the badges above. KMP consumers automatically
 get the platform-specific variant (`-jvm`, `-js`, `-wasm-js`) for their target.
+`vcyclist-gpx` (the `Path` model + GPX I/O) comes in transitively via `vcyclist-engine`, and
+can also be depended on alone if you only need parsing and resampling.
 
 See [`docs/publishing.md`](docs/publishing.md) for the release process.
 

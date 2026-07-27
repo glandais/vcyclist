@@ -144,15 +144,46 @@ Critères :
 
 ## Done when
 
-- [ ] Module `:gpx` créé et inclus dans `settings.gradle.kts`
-- [ ] Sources déplacées par `git mv`, packages inchangés
-- [ ] `:engine` fait `api(project(":gpx"))`
-- [ ] `:codegen` régénère dans `:gpx`, sortie idempotente
-- [ ] Choix de packaging npm tranché et documenté
-- [ ] Diff des `.d.ts` vide
-- [ ] `./gradlew check` vert, `ktlintCheck` vert
-- [ ] `:demo:assemble` vert et démo fonctionnelle manuellement
-- [ ] `README.md`, `CLAUDE.md`, `docs/publishing.md` à jour
+- [x] Module `:gpx` créé et inclus dans `settings.gradle.kts`
+- [x] Sources déplacées par `git mv`, packages inchangés
+- [x] `:engine` fait `api(project(":gpx"))`
+- [x] `:codegen` régénère dans `:gpx`, sortie idempotente
+- [x] Choix de packaging npm tranché et documenté
+- [x] Diff des `.d.ts` vide
+- [x] `./gradlew check` vert, `ktlintCheck` vert
+- [x] `:demo:assemble` vert et démo fonctionnelle manuellement
+- [x] `README.md`, `CLAUDE.md`, `docs/publishing.md` à jour
+
+## Résultat
+
+**Packaging npm : option (a) retenue.** `:gpx` n'a ni `binaries.library()`, ni `packageJson`,
+ni tâche `npmPublish*`. Son code JS est émis dans le bundle `:engine` sous
+`engine/build/dist/js/productionLibrary/vcyclist-gpx.js` — un seul package npm, aucun
+changement pour la démo. `:gpx` **est** publié sur Maven Central (`vcyclist-gpx`), obligatoire
+puisque le POM de `:engine` le référence via `api(project(":gpx"))` (vérifié :
+`engine/build/publications/jvm/pom-default.xml` contient `vcyclist-gpx-jvm` en scope
+`compile`). Documenté dans `docs/publishing.md`.
+
+**`GpxFixtures.kt` : répertoire de sources partagé.** Les tests de parité et de façade JS de
+`:engine` utilisent les mêmes chaînes GPX que les tests de `:gpx`, or KMP n'a pas d'équivalent
+à `java-test-fixtures`. Le fichier vit donc dans `gpx/src/commonTestFixtures/kotlin/` et **les
+deux** `build.gradle.kts` ajoutent ce répertoire à leur source set `commonTest` via
+`kotlin.srcDir(…)`. Un seul fichier sur le disque, deux compilations de test. C'est le seul
+écart au plan initial de la fiche.
+
+**Non-régression vérifiée :**
+
+| Contrôle | Résultat |
+|---|---|
+| `.d.ts` JS + `.d.mts` Wasm avant / après | **identiques octet pour octet** |
+| `package.json` npm généré (JS et Wasm) | **identiques octet pour octet** |
+| Tests JVM `:gpx` + `:engine` | 131 + 201 = **332**, soit exactement le total d'avant |
+| `./gradlew check` (4 cibles) + `ktlintCheck` | verts |
+| `./gradlew :codegen:run` | diff vide (régénération idempotente) |
+| `:demo:assemble` + chargement de `stelvio.gpx` dans le navigateur | profil altitude + vitesse simulée affichés |
+
+Aucun test n'a été modifié — uniquement déplacé. `:tools:parity` n'existe pas dans
+`settings.gradle.kts` (la note ci-dessous est un reliquat de la rédaction du plan).
 
 ## Notes
 
