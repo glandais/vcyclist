@@ -352,4 +352,70 @@ object GpxFixtures {
   </trk>
 </gpx>
 """
+
+    /** Minimal well-formed GPX used as the "already valid" baseline for [GpxXmlRepairTest]. */
+    val VALID_MINIMAL_GPX: String =
+        """<?xml version="1.0" encoding="UTF-8"?>
+<gpx version="1.1" xmlns="http://www.topografix.com/GPX/1/1">
+  <trk>
+    <name>Café &amp; Croissant</name>
+    <trkseg>
+      <trkpt lat="45.0" lon="6.0"><ele>100</ele></trkpt>
+      <trkpt lat="45.001" lon="6.0"><ele>110</ele></trkpt>
+    </trkseg>
+  </trk>
+</gpx>
+"""
+
+    /** Leading UTF-8 BOM before the XML declaration — a common artefact of Windows-authored exports. */
+    val BOM_GPX: String = "﻿" + VALID_MINIMAL_GPX
+
+    /** A stray NUL byte inside `<name>`, as seen from buggy device firmware. */
+    val CONTROL_CHAR_GPX: String =
+        """<?xml version="1.0" encoding="UTF-8"?>
+<gpx version="1.1" xmlns="http://www.topografix.com/GPX/1/1">
+  <trk>
+    <name>broken${'\u0000'}name</name>
+    <trkseg>
+      <trkpt lat="45.0" lon="6.0"><ele>100</ele></trkpt>
+      <trkpt lat="45.001" lon="6.0"><ele>110</ele></trkpt>
+    </trkseg>
+  </trk>
+</gpx>
+"""
+
+    /** A literal `&` in `<name>` instead of `&amp;` — the single most common hand-edited-GPX bug. */
+    val BARE_AMPERSAND_GPX: String =
+        """<?xml version="1.0" encoding="UTF-8"?>
+<gpx version="1.1" xmlns="http://www.topografix.com/GPX/1/1">
+  <trk>
+    <name>Café & Croissant</name>
+    <trkseg>
+      <trkpt lat="45.0" lon="6.0"><ele>100</ele></trkpt>
+      <trkpt lat="45.001" lon="6.0"><ele>110</ele></trkpt>
+    </trkseg>
+  </trk>
+</gpx>
+"""
+
+    /**
+     * A supplementary-plane character (here U+1F638, "grinning cat") written as two adjacent
+     * numeric character references to its UTF-16 surrogate pair — legal in some hand-rolled XML
+     * generators, but XML 1.0 forbids a numeric reference denoting a lone surrogate code point.
+     */
+    val SURROGATE_PAIR_GPX: String =
+        """<?xml version="1.0" encoding="UTF-8"?>
+<gpx version="1.1" xmlns="http://www.topografix.com/GPX/1/1">
+  <trk>
+    <name>cat &#55357;&#56888; face</name>
+    <trkseg>
+      <trkpt lat="45.0" lon="6.0"><ele>100</ele></trkpt>
+      <trkpt lat="45.001" lon="6.0"><ele>110</ele></trkpt>
+    </trkseg>
+  </trk>
+</gpx>
+"""
+
+    /** Not XML at all: no repair can rescue this, [GpxXmlRepair] must not loop or hang on it. */
+    val NOT_XML_AT_ALL: String = "pas du xml du tout"
 }

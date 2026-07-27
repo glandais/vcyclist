@@ -1,7 +1,6 @@
 package io.github.glandais.engine.gpx
 
 import nl.adaptivity.xmlutil.EventType
-import nl.adaptivity.xmlutil.XmlException
 import nl.adaptivity.xmlutil.XmlReader
 import nl.adaptivity.xmlutil.xmlStreaming
 import kotlin.time.Instant
@@ -20,17 +19,55 @@ object GpxParser {
     /**
      * Parse a full GPX XML string. Throws [IllegalArgumentException] on malformed XML
      * or on missing/invalid `lat`/`lon` attributes inside a `<trkpt>` element.
+     *
+     * When [repairOnFailure] is true (the default) and the first attempt fails, [GpxXmlRepair]
+     * is applied once and parsing is retried on the repaired text — this is what lets the
+     * browser demo accept files from approximate GPS devices/exporters instead of rejecting
+     * them outright. The repair pass itself costs a full string copy, so it only runs after a
+     * failure, never speculatively on the (common) valid file. If the retry also fails, the
+     * **second** attempt's exception is what propagates (the first describes a string that no
+     * longer exists after repair, so it would be a misleading message) with a note that a
+     * repair was attempted. Set [repairOnFailure] to false to see the original parse failure
+     * verbatim, or call [GpxXmlRepair.repair] / [GpxXmlRepair.repairVerbose] explicitly beforehand
+     * for diagnostics (which repairs were applied).
      */
-    fun parse(xml: String): GpxDocument {
+    fun parse(
+        xml: String,
+        repairOnFailure: Boolean = true,
+    ): GpxDocument =
+        try {
+            parseOnce(xml)
+        } catch (firstFailure: IllegalArgumentException) {
+            if (!repairOnFailure) throw firstFailure
+            val repaired = GpxXmlRepair.repair(xml)
+            try {
+                parseOnce(repaired)
+            } catch (secondFailure: IllegalArgumentException) {
+                throw IllegalArgumentException(
+                    "Invalid GPX XML (repair attempted but parsing still failed): ${secondFailure.message}",
+                    secondFailure,
+                )
+            }
+        }
+
+    private fun parseOnce(xml: String): GpxDocument {
+        // Catches any Exception, not just XmlException: some backends (e.g. the kxml-based
+        // Kotlin/JS/Wasm reader on unambiguously non-XML input such as plain text) surface an
+        // IllegalStateException instead. Our own IllegalArgumentException (missing/invalid
+        // lat/lon) passes through unwrapped so its message stays precise.
         val reader =
             try {
                 xmlStreaming.newReader(xml)
-            } catch (e: XmlException) {
+            } catch (e: IllegalArgumentException) {
+                throw e
+            } catch (e: Exception) {
                 throw IllegalArgumentException("Invalid GPX XML: ${e.message}", e)
             }
         return try {
             parseDocument(reader)
-        } catch (e: XmlException) {
+        } catch (e: IllegalArgumentException) {
+            throw e
+        } catch (e: Exception) {
             throw IllegalArgumentException("Invalid GPX XML: ${e.message}", e)
         } finally {
             reader.close()
