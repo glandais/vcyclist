@@ -14,3 +14,7 @@ dependencyResolutionManagement {
 }
 
 include(":elevation", ":gpx", ":engine", ":fit", ":map", ":cli", ":codegen", ":demo")
+
+// Numeric parity harness against the TypeScript reference (not published; see
+// tools/parity/README.md).
+include(":tools:parity")
