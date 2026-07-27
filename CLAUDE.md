@@ -207,11 +207,19 @@ different ULPs. Use these tolerances :
 
 ### Parity strategy
 
-Parity tests are **self-referential** : `ParityFixtures.kt` hard-codes the Kotlin pipeline's
-output on each input GPX, with a 0.5 % regression budget. See `docs/parity.md` for the
-rationale (the TS reference is not executable in CI). When a pipeline change shifts the
-output by more than the budget, regenerate the fixture values (run the pipeline once,
-copy-paste, commit with a comment).
+Parity tests are **TS-corroborated** : `ParityFixtures.kt` asserts the Kotlin pipeline's
+output, and each value carries the TS reference value measured on identical input plus a
+quantified explanation of the gap. See [`docs/parity.md`](docs/parity.md) for the full
+measurement and [`tools/parity/`](tools/parity/README.md) for the re-runnable harness
+(`./tools/parity/run-all.sh`).
+
+The TS values are deliberately **not** asserted: the TS reference seeds its simulation clock
+from `new Date()` and does not simulate the last point, both of which this port fixes on
+purpose. Don't "align" Kotlin to TS on those two points.
+
+When a pipeline change shifts the output by more than the 0.5 % budget, regenerate the
+fixture values (run the pipeline once, copy-paste, commit with a comment) and re-measure the
+TS side per the checklist at the end of `docs/parity.md`.
 
 ## Codebase touchpoints
 
