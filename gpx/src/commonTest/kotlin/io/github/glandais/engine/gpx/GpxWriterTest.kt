@@ -9,6 +9,7 @@ import kotlin.test.assertFalse
 import kotlin.test.assertNotNull
 import kotlin.test.assertNull
 import kotlin.test.assertTrue
+import kotlin.time.Instant
 
 /**
  * Covers the 18 cases listed in `docs/tasks/15-engine-gpx-writer.md` §3.
@@ -469,6 +470,110 @@ class GpxWriterTest {
         val reparsed = GpxParser.parse(xml)
         assertEquals(1, reparsed.waypoints.size)
         assertEquals("checkpoint", reparsed.waypoints[0].name)
+    }
+
+    // --- 25-30. `startTime` (g05) --------------------------------------------------------
+
+    @Test
+    fun `case 25 — startTime null keeps the pre-g05 behaviour (no absolute time forced)`() {
+        // A raw (non-virtualized) path with elevation but no time field set at all : time(i) stays
+        // at the GeneratedPath default (0.0), so the pre-g05 sentinel logic already emits no <time>.
+        val p = Path(2)
+        p.setLatitude(0, 45.0 * MathConstants.DEG_TO_RAD)
+        p.setLongitude(0, 6.0 * MathConstants.DEG_TO_RAD)
+        p.setLatitude(1, 45.001 * MathConstants.DEG_TO_RAD)
+        p.setLongitude(1, 6.001 * MathConstants.DEG_TO_RAD)
+        val withoutStartTime = GpxWriter.write(p, name = "n")
+        val withExplicitNull = GpxWriter.write(p, name = "n", startTime = null)
+        assertEquals(withoutStartTime, withExplicitNull, "default arg must match an explicit null")
+        assertFalse(withoutStartTime.contains("<time"), withoutStartTime)
+    }
+
+    @Test
+    fun `case 26 — startTime T stamps every point at T plus time i ms`() {
+        val p = Path(3)
+        for (i in 0 until 3) {
+            p.setLatitude(i, (45.0 + i * 0.001) * MathConstants.DEG_TO_RAD)
+            p.setLongitude(i, (6.0 + i * 0.001) * MathConstants.DEG_TO_RAD)
+            p.setTime(i, i * 1_000.0) // relative clock: 0 ms, 1000 ms, 2000 ms
+        }
+        val t = Instant.parse("2026-07-27T08:00:00Z")
+        val xml = GpxWriter.write(p, name = "n", startTime = t)
+        val reparsed = GpxParser.parse(xml)
+        val points = reparsed.tracks[0].points
+        assertEquals(3, points.size)
+        for (i in 0 until 3) {
+            assertEquals(
+                t.toEpochMilliseconds() + i * 1_000L,
+                points[i].timeEpochMs,
+                "point $i timestamp mismatch",
+            )
+        }
+    }
+
+    @Test
+    fun `case 27 — point 0 gets exactly startTime when time 0 is 0`() {
+        val p = Path(1)
+        p.setLatitude(0, 45.0 * MathConstants.DEG_TO_RAD)
+        p.setLongitude(0, 6.0 * MathConstants.DEG_TO_RAD)
+        p.setTime(0, 0.0)
+        val t = Instant.parse("2026-07-27T08:00:00Z")
+        val pt = p.toGpxTrack(startTime = t).points[0]
+        assertEquals(t.toEpochMilliseconds(), pt.timeEpochMs)
+    }
+
+    @Test
+    fun `case 28 — ISO 8601 UTC time tag format is schema-conformant`() {
+        val p = Path(1)
+        p.setLatitude(0, 45.0 * MathConstants.DEG_TO_RAD)
+        p.setLongitude(0, 6.0 * MathConstants.DEG_TO_RAD)
+        val t = Instant.parse("2026-07-27T08:00:00Z")
+        val xml = GpxWriter.write(p, name = "n", startTime = t)
+        // xs:dateTime with a UTC "Z" designator, e.g. 2026-07-27T08:00:00Z.
+        assertTrue(
+            Regex("<time>\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(?:\\.\\d+)?Z</time>").containsMatchIn(xml),
+            xml,
+        )
+    }
+
+    @Test
+    fun `case 29 — non integer time i ms rounds per point without cumulative drift`() {
+        val p = Path(3)
+        for (i in 0 until 3) {
+            p.setLatitude(i, (45.0 + i * 0.001) * MathConstants.DEG_TO_RAD)
+            p.setLongitude(i, (6.0 + i * 0.001) * MathConstants.DEG_TO_RAD)
+        }
+        // Non-integer relative times: each rounds independently (0.5 rounds to nearest even/up per
+        // roundToLong, but the point is there is no *cumulative* drift — point 2 is not off by more
+        // than half a millisecond from point 1's rounding error).
+        p.setTime(0, 0.3)
+        p.setTime(1, 1_500.7)
+        p.setTime(2, 3_000.2)
+        val t = Instant.parse("2026-07-27T08:00:00Z")
+        val xml = GpxWriter.write(p, name = "n", startTime = t)
+        val points = GpxParser.parse(xml).tracks[0].points
+        assertEquals(t.toEpochMilliseconds() + 0L, points[0].timeEpochMs) // 0.3 rounds to 0
+        assertEquals(t.toEpochMilliseconds() + 1_501L, points[1].timeEpochMs) // 1500.7 rounds to 1501
+        assertEquals(t.toEpochMilliseconds() + 3_000L, points[2].timeEpochMs) // 3000.2 rounds to 3000
+    }
+
+    @Test
+    fun `case 30 — output time tags are strictly monotonic when path time is`() {
+        val p = Path(5)
+        for (i in 0 until 5) {
+            p.setLatitude(i, (45.0 + i * 0.001) * MathConstants.DEG_TO_RAD)
+            p.setLongitude(i, (6.0 + i * 0.001) * MathConstants.DEG_TO_RAD)
+            p.setTime(i, i * 1_234.5) // strictly increasing, non-integer step
+        }
+        val t = Instant.parse("2026-07-27T08:00:00Z")
+        val xml = GpxWriter.write(p, name = "n", startTime = t)
+        val points = GpxParser.parse(xml).tracks[0].points
+        for (i in 1 until points.size) {
+            assertTrue(
+                points[i].timeEpochMs!! > points[i - 1].timeEpochMs!!,
+                "time must strictly increase at $i: ${points[i - 1].timeEpochMs} -> ${points[i].timeEpochMs}",
+            )
+        }
     }
 
     // ---------- Helpers --------------------------------------------------------------

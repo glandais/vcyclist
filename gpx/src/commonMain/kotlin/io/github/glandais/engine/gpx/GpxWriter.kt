@@ -49,23 +49,31 @@ object GpxWriter {
         return out.toString()
     }
 
-    /** Convenience: wrap [path] in a single-track document and serialise. */
+    /**
+     * Convenience: wrap [path] in a single-track document and serialise.
+     * See [Path.toGpxTrack] for the [startTime] semantics.
+     */
     fun write(
         path: Path,
         name: String = "noname",
         trackName: String? = null,
-    ): String = write(path.toGpxDocument(name = name, trackName = trackName))
+        startTime: Instant? = null,
+    ): String = write(path.toGpxDocument(name = name, trackName = trackName, startTime = startTime))
 
     /**
      * Convenience: serialise [paths] as a multi-track document — one `<trk>` per [Path].
-     * See [pathsToGpxDocument] for the [trackNames] / [waypoints] semantics.
+     * See [pathsToGpxDocument] for the [trackNames] / [waypoints] / [startTime] semantics.
      */
     fun write(
         paths: List<Path>,
         name: String = "noname",
         trackNames: List<String>? = null,
         waypoints: List<GpxWaypoint> = emptyList(),
-    ): String = write(pathsToGpxDocument(paths, name = name, trackNames = trackNames, waypoints = waypoints))
+        startTime: Instant? = null,
+    ): String =
+        write(
+            pathsToGpxDocument(paths, name = name, trackNames = trackNames, waypoints = waypoints, startTime = startTime),
+        )
 
     // ---------- Implementation ------------------------------------------------------
 

@@ -7,6 +7,7 @@ import io.github.glandais.engine.gpx.tracksAsPaths
 import kotlinx.coroutines.runBlocking
 import java.io.File
 import kotlin.system.exitProcess
+import kotlin.time.Instant
 
 /**
  * JVM entry point for the engine CLI. Minimal usage :
@@ -81,6 +82,25 @@ object EngineCli {
             } else {
                 null
             }
+        val startTimeIdx = args.indexOf("--start-time")
+        val startTime: Instant?
+        if (startTimeIdx >= 0) {
+            if (startTimeIdx + 1 >= args.size) {
+                System.err.println("Missing value for --start-time")
+                printUsage(System.err)
+                return EXIT_USAGE
+            }
+            val raw = args[startTimeIdx + 1]
+            startTime =
+                try {
+                    Instant.parse(raw)
+                } catch (e: IllegalArgumentException) {
+                    System.err.println("Invalid --start-time '$raw' (expected ISO-8601, e.g. 2026-07-27T08:00:00Z)")
+                    return EXIT_USAGE
+                }
+        } else {
+            startTime = null
+        }
 
         if (!input.exists()) {
             System.err.println("Input file does not exist: ${input.absolutePath}")
@@ -88,7 +108,7 @@ object EngineCli {
         }
 
         return try {
-            runEnhance(input, output)
+            runEnhance(input, output, startTime)
             0
         } catch (e: Exception) {
             System.err.println("Pipeline failed: ${e.message}")
@@ -100,6 +120,7 @@ object EngineCli {
     private fun runEnhance(
         input: File,
         output: File?,
+        startTime: Instant? = null,
     ) {
         println("Reading ${input.absolutePath}")
         val xml = input.readText()
@@ -154,6 +175,9 @@ object EngineCli {
                         // them, so they must be copied verbatim from the source document to the
                         // output one — see g03.
                         waypoints = doc.waypoints,
+                        // Absent unless --start-time was passed : no implicit "now" default, to
+                        // keep the CLI's output reproducible (see g05 spec Notes).
+                        startTime = startTime,
                     ),
                 )
             output.absoluteFile.parentFile?.mkdirs()
@@ -167,15 +191,20 @@ object EngineCli {
     private fun printUsage(out: java.io.PrintStream) {
         out.println(
             """
-            |Usage: engine enhance <input.gpx> [-o <output.gpx>]
+            |Usage: engine enhance <input.gpx> [-o <output.gpx>] [--start-time <ISO-8601>]
             |       engine help
             |
             |Runs the virtual-cyclist enhancement pipeline on the input GPX file with default
             |Cyclist (80 kg / 280 W) and Bike (Crr 0.004) parameters. No elevation correction
             |is performed (no HTTP access) ; every other pipeline step runs with its defaults.
             |
+            |--start-time <ISO-8601> : instant of the first output point (e.g.
+            |   2026-07-27T08:00:00Z). Every point's <time> becomes startTime + time(i). Absent
+            |   by default : the output then carries no <time> tag at all (no implicit "now" —
+            |   reproducibility over convenience, see docs/tasks/g05-gpx-start-time.md).
+            |
             |Gradle usage:
-            |   ./gradlew :engine:run -Pargs="enhance input.gpx -o /tmp/out.gpx"
+            |   ./gradlew :engine:run -Pargs="enhance input.gpx -o /tmp/out.gpx --start-time 2026-07-27T08:00:00Z"
             """.trimMargin(),
         )
     }

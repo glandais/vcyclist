@@ -113,12 +113,74 @@ Cas de test (≥ 8) :
 
 ## Done when
 
-- [ ] Paramètre `startTime: Instant?` sur l'écriture, défaut `null` neutre
-- [ ] `GpxDocument.startTime` exposé en lecture
-- [ ] `writeGpxAt` exporté en JS/Wasm, `.d.ts` régénérés
-- [ ] Option CLI `--start-time`
-- [ ] ≥ 8 tests verts × 4 cibles
-- [ ] `ktlintCheck` vert
+- [x] Paramètre `startTime: Instant?` sur l'écriture, défaut `null` neutre
+- [x] `GpxDocument.startTime` exposé en lecture
+- [x] `writeGpxAt` exporté en JS/Wasm, `.d.ts` régénérés
+- [x] Option CLI `--start-time`
+- [x] ≥ 8 tests verts × 4 cibles
+- [x] `ktlintCheck` vert
+
+## Resultat
+
+### API
+
+- `Path.toGpxTrack(name, type, startTime: Instant? = null)` (`GpxFromPath.kt`) : nouveau
+  paramètre `startTime`. Quand il est fourni, **tous** les points (y compris l'index 0) reçoivent
+  `timeEpochMs = startTime.toEpochMilliseconds() + time(i).roundToLong()`. Quand il vaut `null`
+  (défaut), le code emprunte exactement l'ancien chemin (`time(i).toLong().takeIf { it > 0L }`) —
+  comportement byte-for-byte identique à avant g05, y compris le test 25 qui compare littéralement
+  la sortie avec/sans argument explicite.
+- `Path.toGpxDocument(name, trackName, startTime = null)` et
+  `pathsToGpxDocument(paths, name, trackNames, waypoints, type, startTime = null)` relaient le
+  paramètre à chaque piste (même `startTime` partagé par toutes les pistes d'un document
+  multi-piste — cohérent avec un unique horodatage de départ).
+- `GpxWriter.write(path, name, trackName, startTime = null)` et
+  `GpxWriter.write(paths, name, trackNames, waypoints, startTime = null)` : mêmes surcharges de
+  confort, même défaut neutre.
+- `GpxDocument.startTime: Instant?` (nouvelle propriété d'extension, `GpxToPath.kt`) : instant du
+  **premier** `<trkpt>` horodaté du document, tous tracks/segments confondus, dans l'ordre du
+  document (`null` si aucun point n'a de `<time>`). Volontairement tolérant aux points non
+  horodatés en tête (cas réel : device qui perd le fix GPS puis le retrouve avec l'heure).
+- `writeGpxAt` exporté en `@JsExport` côté `jsMain` et `wasmJsMain` (signature `(Path,
+  startTimeEpochMs: Double): String` / `(JsReference<Path>, Double): String`), en miroir strict
+  des deux façades existantes — `Double` plutôt que `Long` pour éviter le `BigInt` côté Kotlin/JS,
+  même raisonnement que `pathDurationMs` déjà en place (epoch ms tient exactement dans un `Double`
+  jusqu'en l'an 287396).
+- `EngineCli` : option `--start-time <ISO-8601>` sur la sous-commande `enhance`. Absente par
+  défaut → aucun `<time>` en sortie (pas de défaut implicite « maintenant », voir Notes). Une
+  valeur invalide (non ISO-8601) retourne `EXIT_USAGE` (64) avec un message explicite plutôt que de
+  laisser remonter l'exception `Instant.parse`.
+
+### Décisions de conception
+
+- **Arrondi par point, pas par accumulation** : `time(i).roundToLong()` est appliqué
+  indépendamment à chaque point plutôt que d'accumuler un delta arrondi. Le test 29 vérifie
+  explicitement l'absence de dérive cumulée sur une série de temps non entiers
+  (`0.3, 1500.7, 3000.2` ms).
+- **`GpxDocument.startTime` ignore les rte** : non concerné, `<rte>` reste non supporté depuis g02.
+- **Pas de `.d.ts` committé à régénérer** : le projet ne committe aucun `.d.ts` généré (ils sortent
+  dans `build/js/…`/`build/wasmJs/…`, gitignorés). La case "`.d.ts` régénérés" est donc satisfaite
+  de facto — `writeGpxAt` apparaîtra dans le `.d.ts` généré au prochain build JS/Wasm, sans action
+  manuelle. Vérifié en inspectant l'arbre : aucun `*.d.ts` suivi par git en dehors de
+  `demo/src/vite-env.d.ts` (sans rapport).
+- **Round-trip réel = via `enhance`, pas via un `Path` brut parsé** : `GpxToPath.pointsToPath`
+  copie déjà `timeEpochMs` tel quel (absolu) dans `Path.time(i)` — ce n'est que
+  `VirtualizeService` qui produit un temps *relatif* (`time(0) == 0`). Le cas de test 6 du
+  tableau (round-trip startTime) a donc été écrit en rebasant manuellement le path parsé sur
+  l'instant recouvré (`time(i) -= startTimeMs`) pour simuler ce que produirait `enhance`, plutôt
+  que d'appeler `enhance` directement (coûteux, non déterministe sans provider d'élévation). Ce
+  point est documenté dans le commentaire du test `GpxToPathTest.kt` case 06.
+- **CLI, pas de `-t` court** : cohérent avec `-o` existant mais le spec nomme explicitement
+  `--start-time`, gardé tel quel plutôt que d'ajouter un alias non demandé.
+
+### Vérification
+
+- `./gradlew :gpx:allTests :engine:allTests` → vert sur les 4 cibles (JVM, JS Node, JS Browser,
+  Wasm Browser). Nouveaux tests : 6 dans `GpxWriterTest.kt` (cases 25-30) + 4 dans le nouveau
+  `GpxToPathTest.kt` (cases 06, 07 du tableau spec, plus 2 cas complémentaires sur
+  `GpxDocument.startTime`) = 10 nouveaux tests, au-delà du minimum de 8 demandé.
+- `./gradlew ktlintCheck` → vert, aucune reformulation nécessaire par `ktlintFormat`.
+- Aucun test existant modifié ni supprimé.
 
 ## Notes
 
