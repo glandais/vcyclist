@@ -2,6 +2,26 @@ package io.github.glandais.engine.gpx
 
 import io.github.glandais.elevation.MathConstants
 import io.github.glandais.engine.path.Path
+import kotlin.time.Instant
+
+/**
+ * Instant of the **first** `<trkpt>` that carries a `<time>` tag, in document order (all tracks,
+ * all segments — same order as [GpxTrack.points]). `null` if no track point in the document is
+ * timestamped.
+ *
+ * A parse → enhance → write round-trip loses this information today because [pointsToPath]
+ * normalises `time` down to a `Path`-relative clock (`time(0) == 0`, see `VirtualizeService`).
+ * Reading it here — from the raw, pre-conversion [GpxDocument] — lets a caller (CLI, JS façade)
+ * reuse the source file's own start time as the `startTime` argument of [pathsToGpxDocument] /
+ * [GpxWriter.write], instead of losing it or requiring the user to retype it (see task g05).
+ */
+val GpxDocument.startTime: Instant?
+    get() =
+        tracks
+            .asSequence()
+            .flatMap { it.points.asSequence() }
+            .firstNotNullOfOrNull { it.timeEpochMs }
+            ?.let { Instant.fromEpochMilliseconds(it) }
 
 /**
  * Convert the **first** track of [this] document to a [Path], computing derived data.

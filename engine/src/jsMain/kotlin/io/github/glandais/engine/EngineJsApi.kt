@@ -30,6 +30,7 @@ import kotlinx.coroutines.promise
 import kotlin.js.JsExport
 import kotlin.js.Promise
 import kotlin.math.PI
+import kotlin.time.Instant
 
 /**
  * JS-facing snapshot of a single path point. Read-only ; built lazily by [pointAt]. Field units
@@ -269,6 +270,27 @@ fun pointAt(
 
 @JsExport
 fun writeGpx(path: Path): String = GpxWriter.write(path.toGpxDocument(trackName = "virtualized"))
+
+/**
+ * Serialise [path] with an absolute `<time>` on every point : `<time> = startTimeEpochMs +
+ * time(i)` milliseconds (see [io.github.glandais.engine.gpx.startTime] / task g05).
+ *
+ * [startTimeEpochMs] is a `Double`, not a `Long` : on Kotlin/JS `Long` crosses the boundary as a
+ * `BigInt`, which is awkward for callers building it from `Date.now()` or `new Date(...).getTime()`
+ * (both already `number`/`Double`). Epoch milliseconds fit exactly in a `Double` until the year
+ * 287396 — the same reasoning already used by [pathDurationMs].
+ */
+@JsExport
+fun writeGpxAt(
+    path: Path,
+    startTimeEpochMs: Double,
+): String =
+    GpxWriter.write(
+        path.toGpxDocument(
+            trackName = "virtualized",
+            startTime = Instant.fromEpochMilliseconds(startTimeEpochMs.toLong()),
+        ),
+    )
 
 @JsExport
 fun enhance(

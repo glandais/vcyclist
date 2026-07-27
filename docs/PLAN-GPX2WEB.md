@@ -43,7 +43,7 @@ cœur (`:elevation`, `:gpx`, `:engine`, `:fit`) reste compilable sur les 4 cible
 | g03 | Waypoints `<wpt>` | `:gpx` | ✅ |
 | g04 | `GpxXmlRepair` — réparation des GPX malformés | `:gpx` | ✅ |
 | **— Phase C : exports —** | | | |
-| g05 | `startTime: Instant?` — horodatage absolu à l'écriture | `:gpx` | ⬜ |
+| g05 | `startTime: Instant?` — horodatage absolu à l'écriture | `:gpx` | ✅ |
 | g06 | Writer CSV (36 champs `PointField`) | `:gpx` | ⬜ |
 | g07 | Writer JSON | `:gpx` | ⬜ |
 | **— Phase D : FIT —** | | | |
