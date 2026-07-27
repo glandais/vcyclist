@@ -47,7 +47,7 @@ cœur (`:elevation`, `:gpx`, `:engine`, `:fit`) reste compilable sur les 4 cible
 | g06 | Writer CSV (36 champs `PointField`) | `:gpx` | ✅ |
 | g07 | Writer JSON | `:gpx` | ✅ |
 | **— Phase D : FIT —** | | | |
-| g08 | Bootstrap `:fit` + `expect`/`actual` + implémentation JVM | `:fit` | ⬜ |
+| g08 | Bootstrap `:fit` + `expect`/`actual` + implémentation JVM | `:fit` | ✅ |
 | g09 | Implémentation JS + Wasm (`@garmin/fitsdk`) | `:fit` | ⬜ |
 | g10 | Encodage Course/Lap/Records + tests round-trip | `:fit` | ⬜ |
 | **— Phase E : cols —** | | | |
