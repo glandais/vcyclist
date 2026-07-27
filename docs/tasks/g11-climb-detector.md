@@ -154,14 +154,75 @@ le comportement Java établi.
 
 ## Done when
 
-- [ ] `ClimbDetector.java` lu intégralement, algorithme documenté dans le KDoc
-- [ ] Modèle `Climb` / `ClimbPart` / `ClimbOptions` en commonMain
-- [ ] Découpage en portions via le `DouglasPeucker` de `:elevation`, écart avec `Simplifier`
+- [x] `ClimbDetector.java` lu intégralement, algorithme documenté dans le KDoc
+- [x] Modèle `Climb` / `ClimbPart` / `ClimbOptions` en commonMain
+- [x] Découpage en portions via le `DouglasPeucker` de `:elevation`, écart avec `Simplifier`
       documenté
-- [ ] Défauts identiques à `getClimbs(gpxPath)` de gpx2web
-- [ ] ≥ 12 tests verts × 4 cibles
-- [ ] Comportement du cas 6 figé et documenté
-- [ ] `ktlintCheck` vert
+- [x] Défauts identiques à `getClimbs(gpxPath)` de gpx2web
+- [x] 14 tests verts × 4 cibles
+- [x] Comportement du cas 6 figé et documenté — **et vérifié contre le Java**
+- [x] `ktlintCheck` vert
+
+## Résultat
+
+**Le `DouglasPeucker` de `:elevation` n'était pas réutilisable tel quel.** La fiche disait
+« l'utiliser avec la troisième coordonnée à zéro » : impossible, `simplify()` prend des
+`CoordinatesElevation` et les projette en ECEF, donc il attend une latitude et une longitude.
+Un profil `(distance, altitude)` n'en a pas.
+
+Plutôt que d'écrire un second Douglas-Peucker — ce que la fiche interdit à juste titre — la
+fonction a été **généralisée** : `DouglasPeucker.simplifyIndices(points: List<Vector3D>,
+tolerance): List<Int>` est désormais le cœur géométrique, et `simplify()` géographique
+l'appelle après projection ECEF. Une seule implémentation, deux appelants. Les fixtures de
+parité de `:engine` passent inchangées, ce qui confirme que le refactor est neutre.
+
+`Vector` de gpx2web n'a pas été porté non plus : `Vector3D` de `:elevation` a déjà
+`distanceToSegment`, avec la même sémantique (distance perpendiculaire, repli sur l'extrémité
+quand la projection sort du segment — gpx2web teste le signe des produits scalaires, `Vector3D`
+borne le paramètre de projection ; c'est le même prédicat écrit autrement).
+
+**Convention de pente.** Tout ce qui s'appelle `…Percent` est un pourcentage, tout ce qui
+s'appelle `…Grade` est sans unité (`0.08` = 8 %). L'algorithme travaille en pourcentage en
+interne, comme le Java, pour que `score` et les seuils restent directement comparables.
+
+**Cas 6 figé — et l'inverse de ce qui était supposé.** La première rédaction du test pariait
+que deux montées séparées par une courte descente resteraient séparées. C'est faux. Le
+comportement réel, mesuré puis figé :
+
+```
+creux  30 m -> ratio climbingGrade/averageGrade = 1,14 -> 1 col
+creux  60 m -> ratio 1,29                              -> 1 col
+creux  90 m -> ratio > 1,3                             -> 2 cols
+```
+
+C'est exactement `maxDiffRealGradeRatio` (1,3) qui décide : la montée reste entière tant que le
+creux ne déforme pas trop la moyenne. Lecture sensée — une courte descente dans un col reste le
+même col — et c'est le rôle que le commentaire du Java donne à ce paramètre.
+
+**Validation croisée contre le Java — faite.** La fiche la disait facultative mais « le seul
+moyen de valider vraiment le port ». Les 9 fichiers nécessaires (`climb/*`, `Simplifier`,
+`Vector`) ont été **copiés** dans un bac à sable, les annotations Spring/Jakarta retirées et
+`GPXPath` remplacé par une doublure exposant les quatre accesseurs réellement utilisés
+(`getDists`, `getEles`, `getPoints`, `getTotalElevation`). Le dépôt gpx2web n'a pas été touché.
+Sorties sur les mêmes profils :
+
+| Profil | Java | Kotlin |
+|---|---|---|
+| plat | 0 col | 0 ✓ |
+| descente pure | 0 col | 0 ✓ |
+| montée 500 m / 10 km | 1 col, +500 m, 5,000 % | 1 col, +500 m, 5,0 % ✓ |
+| pente 1 % | 0 col | 0 ✓ |
+| deux montées / plat long | 2 cols, +245 m chacun | 2 cols, +245 m ✓ |
+| creux 60 m | **1 col**, +430 m, 3,874 %, 3 portions | **1 col**, 3 portions ✓ |
+| creux 90 m | **2 cols**, +245 m chacun | **2 cols** ✓ |
+| Stelvio (21 km à 7,3 %) | 1 col, +1533 m, 7,300 % | 1 col, +1533 m, 7,3 % ✓ |
+
+Concordance sur tous les cas, y compris la frontière du cas 6. Les distances diffèrent de
+quelques mètres (11 088 m contre 11 100 m) parce que les fixtures Kotlin passent par de vraies
+distances géodésiques là où le harnais Java utilise des pas de 100 m exacts — sans incidence.
+
+**Validation :** `./gradlew check` + `ktlintCheck` verts. `:engine` = 218 tests JVM (contre 204),
+225 JS Node, 220 Wasm navigateur.
 
 ## Notes
 

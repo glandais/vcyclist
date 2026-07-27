@@ -51,7 +51,7 @@ cœur (`:elevation`, `:gpx`, `:engine`, `:fit`) reste compilable sur les 4 cible
 | g09 | Implémentation JS + Wasm (`@garmin/fitsdk`) | `:fit` | ✅ |
 | g10 | Encodage Course/Lap/Records + tests round-trip | `:fit` | ✅ |
 | **— Phase E : cols —** | | | |
-| g11 | Port de `ClimbDetector` | `:engine` | ⬜ |
+| g11 | Port de `ClimbDetector` | `:engine` | ✅ |
 | g12 | Façade `@JsExport` + intégration démo | `:engine` `:demo` | ⬜ |
 | **— Phase F : cartes —** | | | |
 | g13 | Projection + `MapImage` | `:map` | ⬜ |
