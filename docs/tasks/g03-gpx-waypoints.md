@@ -126,13 +126,76 @@ Cas de test (≥ 8) :
 
 ## Done when
 
-- [ ] `GpxWaypoint` modélisé, `GpxDocument.waypoints` ajouté
-- [ ] Parsing avec matching sur nom local
-- [ ] Écriture dans l'ordre imposé par le schéma GPX 1.1
-- [ ] Préservation à travers `enhance` (CLI + façade JS)
-- [ ] `parseGpxWaypoints` exporté, `.d.ts` régénérés
-- [ ] ≥ 8 tests verts × 4 cibles
-- [ ] `ktlintCheck` vert
+- [x] `GpxWaypoint` modélisé, `GpxDocument.waypoints` ajouté
+- [x] Parsing avec matching sur nom local
+- [x] Écriture dans l'ordre imposé par le schéma GPX 1.1
+- [x] Préservation à travers `enhance` (CLI + façade JS)
+- [x] `parseGpxWaypoints` exporté, `.d.ts` régénérés
+- [x] ≥ 8 tests verts × 4 cibles
+- [x] `ktlintCheck` vert
+
+## Résultat
+
+**Modèle.** `GpxWaypoint` ajouté dans `Gpx.kt` (pas un fichier séparé — cohérent avec la taille
+de `GpxTrackPoint`, déjà dans le même fichier). `GpxDocument` gagne `waypoints: List<GpxWaypoint>
+= emptyList()` en dernier paramètre : ajout purement additif, aucun site d'appel positionnel
+existant (`GpxDocument(name = …, tracks = …)`) n'est cassé.
+
+**Parsing.** `parseGpxRoot` traite `wpt` au même niveau que `metadata` / `trk`, matching sur
+`localName` comme le reste du parseur. `parseWaypoint` est la jumelle de `parseTrackPoint` en
+plus simple : mêmes erreurs `lat`/`lon` obligatoires, mais **pas** d'`ExtensionsAccumulator` — le
+spec dit explicitement que les extensions de waypoint ne sont pas portées (gpx2web ne fait pas
+mieux). `name`/`desc`/`sym`/`type` sont lus comme `<trk><name>` (trim + vide → `null`).
+
+**Écriture.** `writeWaypoint` émet les `<wpt>` avant la boucle `for (track in document.tracks)`,
+dans l'ordre `ele, time, name, desc, sym, type` (ordre du schéma GPX 1.1 `wptType`). Un commentaire
+rappelle explicitement le piège `metadata, wpt*, rte*, trk*` cité dans le spec — `<rte>` reste
+non supporté (g02).
+
+**Pas de `fixElevation` sur les waypoints — respecté par construction.** Les waypoints ne
+traversent jamais `Path` (ni `GpxToPath`, ni `Enhancer`) : ils voyagent uniquement via
+`GpxDocument.waypoints` / le nouveau paramètre `waypoints` de `pathsToGpxDocument` et
+`GpxWriter.write(paths, …)`. Il n'y a donc littéralement aucun point d'accroche pour
+`fixElevation` — le choix documenté au niveau KDoc de `GpxWaypoint` est une garantie structurelle,
+pas une case à cocher dans le pipeline.
+
+**`pathsToGpxDocument` / `GpxWriter.write(paths, …)`.** Nouveau paramètre `waypoints: List<GpxWaypoint>
+= emptyList()`, placé avant `type` (qui a lui-même un défaut) : tous les appelants existants
+utilisent des arguments nommés, donc zéro rupture. `EngineCli.runEnhance` passe `doc.waypoints`
+(le document source, avant enhance) vers l'appel `pathsToGpxDocument(results, …, waypoints =
+doc.waypoints)` — c'est le point exact où le spec demandait la ré-injection.
+
+**Façade JS/Wasm : `WaypointDto` + `parseGpxWaypoints`, et `writeGpxTracks` étendu.** Suit le
+patron `PointDto` existant (`external interface` + builder `js("({})")` côté JS,
+`external interface : JsAny` + `@JsFun` côté Wasm — doc `kotlin-wasm-jvm-webp.md` §4 approche B).
+Décision qui dépasse le minimum du spec : `writeGpxTracks` gagne aussi un paramètre `waypoints`
+pour que le round-trip complet (`parseGpxTracks` → enhance par `Path` → `writeGpxTracks`) puisse
+réinjecter les points d'intérêt côté JS/Wasm exactement comme le fait `EngineCli` côté JVM,
+sinon la préservation resterait un point mort de la façade.
+
+- Côté Kotlin/JS, `waypoints: Array<WaypointDto> = emptyArray()` a un défaut : l'appel existant
+  dans `EngineJsApiTest` (jsTest) continue de compiler tel quel, sans modification.
+- Côté Kotlin/Wasm, `waypoints: JsArray<WaypointDto>` **n'a pas** de défaut — les valeurs par
+  défaut sur les fonctions `@JsExport` top-level ne sont pas fiables dans ce compilateur, et le
+  reste de la façade Wasm n'en utilise déjà nulle part (`enhance(handle, options: …?)` est
+  toujours à deux arguments obligatoires). C'est un **changement de signature cassant** pour
+  `writeGpxTracks` côté Wasm ; le seul appelant du dépôt (`EngineJsApiTest.wasmJsTest`, cas
+  « writeGpxTracks round-trips… ») a été mis à jour pour passer `JsArray()`. Asymétrie
+  documentée ici plutôt que dans le code, dans l'esprit du reste du fichier
+  `kotlin-wasm-jvm-webp.md`.
+
+**Tests.** 24 cas dans `GpxParserTest` (+6 : cases 19-24), 24 cas dans `GpxWriterTest` (+4 :
+cases 21-24), 1 cas CLI JVM (`EngineCliSmokeTest` case 3b, round-trip complet
+parse→enhance→write sur `GpxFixtures.WAYPOINTS_GPX`, comparaison stricte
+`source.waypoints == reparsed.waypoints`), 2 cas ajoutés dans chacun des tests de façade
+`jsTest`/`wasmJsTest`. `GpxFixtures.WAYPOINTS_GPX` (nouvelle fixture) porte 3 `<wpt>` : un
+minimal, un complet (`ele`, `time`, `name`, `desc`, `sym`, `type`), un minimal — plus un `<trk>`
+à 3 points pour vérifier que les waypoints ne fuient pas dans `Path` (case 24 du parseur).
+Total JVM du dépôt (`gpx` + `engine`) : 357 tests, contre 346 avant g03 (+11, cohérent avec les
+6+4+1 cas ajoutés ci-dessus).
+
+**Validation :** `./gradlew :gpx:allTests :engine:allTests` vert sur les 4 cibles (JVM, JS Node,
+JS Browser/Karma, Wasm Browser/Karma) ; `./gradlew ktlintCheck` vert après `ktlintFormat`.
 
 ## Notes
 

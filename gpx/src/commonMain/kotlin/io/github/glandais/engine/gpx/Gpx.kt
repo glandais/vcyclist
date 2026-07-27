@@ -15,6 +15,32 @@ data class GpxDocument(
     /** Value of `<metadata><name>`, or `"noname"` if absent. */
     val name: String = "noname",
     val tracks: List<GpxTrack>,
+    /**
+     * The document's `<wpt>` elements, in document order. Waypoints are points of interest
+     * (feed zone, summit, start) independent of any track — they live on the document, not on a
+     * [GpxTrack], and never enter a [io.github.glandais.engine.path.Path] (see [GpxWaypoint]).
+     */
+    val waypoints: List<GpxWaypoint> = emptyList(),
+)
+
+/**
+ * A `<wpt>` GPX element. A point of interest independent of the track : it does not enter the
+ * [io.github.glandais.engine.path.Path] and is therefore untouched by resampling, simplification
+ * or elevation correction (`fixElevation` is deliberately **not** applied to waypoints — their
+ * altitude is often an intentional manual entry, e.g. a summit sign's official height).
+ */
+data class GpxWaypoint(
+    val latitudeDeg: Double,
+    val longitudeDeg: Double,
+    val elevationM: Double? = null,
+    val name: String? = null,
+    val description: String? = null,
+    /** Value of `<sym>` — icon suggested by the recording device. */
+    val symbol: String? = null,
+    /** Value of `<type>`. */
+    val type: String? = null,
+    /** Epoch milliseconds, `null` if `<time>` is absent or unreadable. */
+    val timeEpochMs: Long? = null,
 )
 
 /**

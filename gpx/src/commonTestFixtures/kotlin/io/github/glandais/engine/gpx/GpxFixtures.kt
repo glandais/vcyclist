@@ -294,6 +294,38 @@ object GpxFixtures {
 """
 
     /**
+     * A single track preceded by 3 `<wpt>` : one minimal (lat/lon only), one with every optional
+     * field populated (`ele`, `name`, `desc`, `sym`, `type`, `time`), and one minimal again.
+     * Exercises `GpxDocument.waypoints` parsing / round-trip (g03).
+     */
+    val WAYPOINTS_GPX: String =
+        """<?xml version="1.0" encoding="UTF-8"?>
+<gpx version="1.1" xmlns="http://www.topografix.com/GPX/1/1">
+  <metadata>
+    <name>with waypoints</name>
+  </metadata>
+  <wpt lat="45.5" lon="6.5"/>
+  <wpt lat="45.68" lon="6.4">
+    <ele>1200.5</ele>
+    <time>2024-11-03T14:00:00.000Z</time>
+    <name>Col du Sommet</name>
+    <desc>Ravitaillement au sommet</desc>
+    <sym>Summit</sym>
+    <type>peak</type>
+  </wpt>
+  <wpt lat="45.7" lon="6.3"/>
+  <trk>
+    <name>ride</name>
+    <trkseg>
+      <trkpt lat="45.0" lon="6.0"><ele>100</ele></trkpt>
+      <trkpt lat="45.001" lon="6.001"><ele>110</ele></trkpt>
+      <trkpt lat="45.002" lon="6.002"><ele>120</ele></trkpt>
+    </trkseg>
+  </trk>
+</gpx>
+"""
+
+    /**
      * A pointless `<trkseg/>` between two real ones, plus a whole `<trk>` with no point at all.
      * Both must vanish from `tracksAsPaths()` / `segmentsAsPaths()` rather than producing a
      * parasitic `Path(0)`.

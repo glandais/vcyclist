@@ -272,4 +272,79 @@ class GpxParserTest {
         assertEquals("first", doc.tracks[0].name)
         assertEquals("second", doc.tracks[1].name)
     }
+
+    // --- 5. Waypoints (g03) --------------------------------------------------------------
+
+    @Test
+    fun `case 19 — gpx with 3 wpt parses to 3 waypoints`() {
+        val doc = GpxParser.parse(GpxFixtures.WAYPOINTS_GPX)
+        assertEquals(3, doc.waypoints.size)
+    }
+
+    @Test
+    fun `case 20 — wpt without lat throws IllegalArgumentException`() {
+        assertFailsWith<IllegalArgumentException> {
+            GpxParser.parse(
+                """
+                <?xml version="1.0"?>
+                <gpx version="1.1" xmlns="http://www.topografix.com/GPX/1/1">
+                  <wpt lon="6.5"/>
+                </gpx>
+                """.trimIndent(),
+            )
+        }
+    }
+
+    @Test
+    fun `case 21 — minimal wpt has only lat lon, optional fields null`() {
+        val doc = GpxParser.parse(GpxFixtures.WAYPOINTS_GPX)
+        val w = doc.waypoints[0]
+        assertEquals(45.5, w.latitudeDeg)
+        assertEquals(6.5, w.longitudeDeg)
+        assertNull(w.elevationM)
+        assertNull(w.name)
+        assertNull(w.description)
+        assertNull(w.symbol)
+        assertNull(w.type)
+        assertNull(w.timeEpochMs)
+    }
+
+    @Test
+    fun `case 22 — full wpt has every optional field populated`() {
+        val doc = GpxParser.parse(GpxFixtures.WAYPOINTS_GPX)
+        val w = doc.waypoints[1]
+        assertEquals(45.68, w.latitudeDeg)
+        assertEquals(6.4, w.longitudeDeg)
+        assertEquals(1200.5, w.elevationM)
+        assertEquals("Col du Sommet", w.name)
+        assertEquals("Ravitaillement au sommet", w.description)
+        assertEquals("Summit", w.symbol)
+        assertEquals("peak", w.type)
+        assertEquals(1_730_642_400_000L, w.timeEpochMs)
+    }
+
+    @Test
+    fun `case 23 — namespace-prefixed wpt is parsed like an unprefixed one`() {
+        val doc =
+            GpxParser.parse(
+                """
+                <?xml version="1.0"?>
+                <gpx version="1.1" xmlns:gpx="http://www.topografix.com/GPX/1/1">
+                  <gpx:wpt lat="45.5" lon="6.5">
+                    <gpx:name>Départ</gpx:name>
+                  </gpx:wpt>
+                </gpx>
+                """.trimIndent(),
+            )
+        assertEquals(1, doc.waypoints.size)
+        assertEquals(45.5, doc.waypoints[0].latitudeDeg)
+        assertEquals("Départ", doc.waypoints[0].name)
+    }
+
+    @Test
+    fun `case 24 — waypoints do not affect firstTrackAsPath size`() {
+        val doc = GpxParser.parse(GpxFixtures.WAYPOINTS_GPX)
+        // 3 <trkpt> in the single <trk> ; the 3 <wpt> must not leak into the Path.
+        assertEquals(3, doc.firstTrackAsPath().size)
+    }
 }

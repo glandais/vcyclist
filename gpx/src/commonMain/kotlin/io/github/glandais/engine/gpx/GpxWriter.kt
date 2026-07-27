@@ -58,13 +58,14 @@ object GpxWriter {
 
     /**
      * Convenience: serialise [paths] as a multi-track document — one `<trk>` per [Path].
-     * See [pathsToGpxDocument] for the [trackNames] semantics.
+     * See [pathsToGpxDocument] for the [trackNames] / [waypoints] semantics.
      */
     fun write(
         paths: List<Path>,
         name: String = "noname",
         trackNames: List<String>? = null,
-    ): String = write(pathsToGpxDocument(paths, name = name, trackNames = trackNames))
+        waypoints: List<GpxWaypoint> = emptyList(),
+    ): String = write(pathsToGpxDocument(paths, name = name, trackNames = trackNames, waypoints = waypoints))
 
     // ---------- Implementation ------------------------------------------------------
 
@@ -88,9 +89,32 @@ object GpxWriter {
         w.attribute(NS_XSI, "schemaLocation", PREFIX_XSI, SCHEMA_LOCATION)
 
         writeMetadata(w, document.name)
+        // GPX 1.1 schema order is metadata, wpt*, rte*, trk* — a writer that puts <wpt> after
+        // <trk> produces a file that strict parsers reject. <rte> stays unsupported (see g02).
+        for (waypoint in document.waypoints) writeWaypoint(w, waypoint)
         for (track in document.tracks) writeTrack(w, track)
 
         w.endTag(NS_GPX, "gpx", "")
+    }
+
+    private fun writeWaypoint(
+        w: XmlWriter,
+        waypoint: GpxWaypoint,
+    ) {
+        w.startTag(NS_GPX, "wpt", "")
+        w.attribute(null, "lat", null, waypoint.latitudeDeg.toString())
+        w.attribute(null, "lon", null, waypoint.longitudeDeg.toString())
+
+        waypoint.elevationM?.let { writeSimpleText(w, "ele", it.toString()) }
+        waypoint.timeEpochMs?.let { ms ->
+            writeSimpleText(w, "time", Instant.fromEpochMilliseconds(ms).toString())
+        }
+        waypoint.name?.let { writeSimpleText(w, "name", it) }
+        waypoint.description?.let { writeSimpleText(w, "desc", it) }
+        waypoint.symbol?.let { writeSimpleText(w, "sym", it) }
+        waypoint.type?.let { writeSimpleText(w, "type", it) }
+
+        w.endTag(NS_GPX, "wpt", "")
     }
 
     private fun writeMetadata(

@@ -112,7 +112,8 @@ object EngineCli {
             "  -> ${inputPaths.size} track(s), " +
                 "${inputPaths.sumOf { it.size }} points total, " +
                 "${"%.1f".format(inputPaths.sumOf { it.totalDistance })} m, " +
-                "gain ${"%.1f".format(inputPaths.sumOf { it.elevationGain })} m",
+                "gain ${"%.1f".format(inputPaths.sumOf { it.elevationGain })} m, " +
+                "${doc.waypoints.size} waypoint(s)",
         )
 
         // fixElevation=false (no HTTP provider here). Other steps run with defaults : the
@@ -149,6 +150,10 @@ object EngineCli {
                             results.indices.map { i ->
                                 if (results.size == 1) "virtualized" else "virtualized-${i + 1}"
                             },
+                        // Waypoints are not track points : the enhancement pipeline never sees
+                        // them, so they must be copied verbatim from the source document to the
+                        // output one — see g03.
+                        waypoints = doc.waypoints,
                     ),
                 )
             output.absoluteFile.parentFile?.mkdirs()

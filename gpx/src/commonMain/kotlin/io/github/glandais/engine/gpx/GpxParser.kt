@@ -56,6 +56,7 @@ object GpxParser {
     private fun parseGpxRoot(reader: XmlReader): GpxDocument {
         var name = "noname"
         val tracks = mutableListOf<GpxTrack>()
+        val waypoints = mutableListOf<GpxWaypoint>()
         // Caller has just consumed the <gpx> START_ELEMENT.
         while (reader.hasNext()) {
             val ev = reader.next()
@@ -67,13 +68,14 @@ object GpxParser {
                             if (metaName != null) name = metaName
                         }
                         "trk" -> tracks.add(parseTrack(reader))
+                        "wpt" -> waypoints.add(parseWaypoint(reader))
                         else -> skipElement(reader)
                     }
-                EventType.END_ELEMENT -> return GpxDocument(name = name, tracks = tracks)
+                EventType.END_ELEMENT -> return GpxDocument(name = name, tracks = tracks, waypoints = waypoints)
                 else -> Unit // ignore
             }
         }
-        return GpxDocument(name = name, tracks = tracks)
+        return GpxDocument(name = name, tracks = tracks, waypoints = waypoints)
     }
 
     private fun parseMetadataName(reader: XmlReader): String? {
@@ -202,6 +204,83 @@ object GpxParser {
             cadence = ext.cadence,
             temperatureC = ext.temperatureC,
             powerW = ext.powerW,
+        )
+    }
+
+    /**
+     * Parse a `<wpt>` element. Same required-attribute contract as `<trkpt>` (`lat`/`lon`
+     * mandatory, everything else optional). Extensions are intentionally **not** parsed — the
+     * spec only carries the standard GPX 1.1 waypoint fields (`ele`, `name`, `desc`, `sym`,
+     * `type`, `time`).
+     */
+    private fun parseWaypoint(reader: XmlReader): GpxWaypoint {
+        val latStr = reader.getAttributeValue(null, "lat")
+        val lonStr = reader.getAttributeValue(null, "lon")
+        if (latStr.isNullOrBlank() || lonStr.isNullOrBlank()) {
+            throw IllegalArgumentException(
+                "Invalid waypoint: missing latitude or longitude attribute",
+            )
+        }
+        val lat =
+            latStr.toDoubleOrNull()
+                ?: throw IllegalArgumentException(
+                    "Invalid waypoint: latitude '$latStr' is not a valid number",
+                )
+        val lon =
+            lonStr.toDoubleOrNull()
+                ?: throw IllegalArgumentException(
+                    "Invalid waypoint: longitude '$lonStr' is not a valid number",
+                )
+
+        var elevation: Double? = null
+        var timeMs: Long? = null
+        var name: String? = null
+        var description: String? = null
+        var symbol: String? = null
+        var type: String? = null
+
+        while (reader.hasNext()) {
+            val ev = reader.next()
+            when (ev) {
+                EventType.START_ELEMENT ->
+                    when (reader.localName) {
+                        "ele" -> {
+                            val txt = readElementText(reader).trim()
+                            if (txt.isNotEmpty()) elevation = txt.toDoubleOrNull() ?: elevation
+                        }
+                        "time" -> {
+                            val txt = readElementText(reader).trim()
+                            if (txt.isNotEmpty()) timeMs = parseTimeIsoToMs(txt)
+                        }
+                        "name" -> name = readElementText(reader).trim().ifEmpty { null }
+                        "desc" -> description = readElementText(reader).trim().ifEmpty { null }
+                        "sym" -> symbol = readElementText(reader).trim().ifEmpty { null }
+                        "type" -> type = readElementText(reader).trim().ifEmpty { null }
+                        else -> skipElement(reader)
+                    }
+                EventType.END_ELEMENT ->
+                    return GpxWaypoint(
+                        latitudeDeg = lat,
+                        longitudeDeg = lon,
+                        elevationM = elevation,
+                        name = name,
+                        description = description,
+                        symbol = symbol,
+                        type = type,
+                        timeEpochMs = timeMs,
+                    )
+                else -> Unit
+            }
+        }
+        return GpxWaypoint(
+            latitudeDeg = lat,
+            longitudeDeg = lon,
+            elevationM = elevation,
+            name = name,
+            description = description,
+            symbol = symbol,
+            type = type,
+            timeEpochMs = timeMs,
         )
     }
 

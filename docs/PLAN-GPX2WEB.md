@@ -40,7 +40,7 @@ cœur (`:elevation`, `:gpx`, `:engine`, `:fit`) reste compilable sur les 4 cible
 | g01 | Extraction du module `:gpx` (Path + GPX I/O) | `:gpx` | ✅ |
 | **— Phase B : modèle GPX —** | | | |
 | g02 | Multi-track / multi-segment de bout en bout | `:gpx` | ✅ |
-| g03 | Waypoints `<wpt>` | `:gpx` | ⬜ |
+| g03 | Waypoints `<wpt>` | `:gpx` | ✅ |
 | g04 | `GpxXmlRepair` — réparation des GPX malformés | `:gpx` | ⬜ |
 | **— Phase C : exports —** | | | |
 | g05 | `startTime: Instant?` — horodatage absolu à l'écriture | `:gpx` | ⬜ |
