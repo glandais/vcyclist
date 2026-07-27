@@ -40,6 +40,7 @@ TypeScript library for elevation data.
 | **`:elevation`** | Terrarium tile fetch + DEM lookup + Haversine + Douglas-Peucker 3D + triangular smoother. See [`elevation/README.md`](elevation/README.md). | JVM, JS Node, JS browser, Wasm browser |
 | **`:gpx`** | Path model (36 fields × `DoubleArray`), resamplers, Douglas-Peucker simplifier, elevation steps, GPX I/O. Published to Maven Central; **not** published to npm — its JS output ships inside `@glandais/vcyclist-engine`. | JVM, JS Node, JS browser, Wasm browser |
 | **`:engine`** | Physics (4 resistive `PowerProvider`s + cyclist input + `MaxSpeedComputer` + `VirtualizeService`), `Enhancer` pipeline, JVM CLI, JS/Wasm façades. Re-exports `:gpx` via `api`, so `io.github.glandais.engine.path.*` and `…engine.gpx.*` stay importable from `:engine`. | JVM, JS Node, JS browser, Wasm browser |
+| **`:fit`** | Garmin FIT encoding. `FitCourse` model + unit conversions in commonMain; the encoder is an `expect object` with a JVM `actual` on `com.garmin:fit`. JS/Wasm land in task g09. | JVM (JS/Wasm compile, encoding throws until g09) |
 | **`:codegen`** | Tiny build-time helper that regenerates `GeneratedPath.kt` + `PointFieldAccessors.kt` from `PointField` (run only when the field list changes). | JVM only |
 
 ## Install

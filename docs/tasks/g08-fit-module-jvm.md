@@ -173,14 +173,63 @@ lèvent `NotImplementedError` avec un message explicite, et un test qui vérifie
 
 ## Done when
 
-- [ ] Module `:fit` créé, inclus, publiable
-- [ ] `FitCourse` / `FitRecord` / `FitLap` / `FitUnits` en commonMain
-- [ ] `expect object FitEncoder` posé au bon niveau de granularité
-- [ ] `actual` JVM adossé à `com.garmin:fit:21.205.0`
-- [ ] `actual` JS/Wasm provisoires levant `NotImplementedError`
-- [ ] Test JVM de round-trip minimal (encode → décode avec le SDK)
-- [ ] Tests d'unités verts × 4 cibles
-- [ ] `./gradlew check` et `ktlintCheck` verts
+- [x] Module `:fit` créé, inclus, publiable
+- [x] `FitCourse` / `FitRecord` / `FitLap` / `FitUnits` en commonMain
+- [x] `expect object FitEncoder` posé au bon niveau de granularité
+- [x] `actual` JVM adossé à `com.garmin:fit:21.205.0`
+- [x] `actual` JS/Wasm provisoires levant `NotImplementedError`
+- [x] Test JVM de round-trip minimal (encode → décode avec le SDK)
+- [x] Tests d'unités verts × 4 cibles
+- [x] `./gradlew check` et `ktlintCheck` verts
+
+## Résultat
+
+**Le découpage haut niveau tient.** `expect object FitEncoder { fun encode(course: FitCourse):
+ByteArray }` a été implémenté côté JVM sans jamais avoir besoin de descendre en granularité : le
+`actual` n'est que de la traduction mécanique vers les `Mesg` du SDK. La note « s'arrêter et
+rediscuter si ça ne tient pas » n'a pas eu à jouer.
+
+**Pas de fichier temporaire.** La fiche anticipait un encodage via `File` parce que
+`FileEncoder` écrit sur disque. Inutile : le SDK expose aussi `BufferEncoder`, dont `close()`
+rend directement le `byte[]`. La signature `ByteArray` de l'`expect` est donc honnête sur JVM —
+aucun accès au système de fichiers, ce qui compte pour un module qui devra tourner en navigateur.
+
+**Échelles : le SDK Java en fait la moitié.** Vérification faite dans les sources du SDK
+(`RecordMesg.java`) : les setters typés prennent des **unités réelles** et appliquent
+échelle + offset eux-mêmes (`setAltitude` en m, `setDistance` en m, `setSpeed` en m/s,
+`setPower` en W). Seule exception, la position, documentée `Units: semicircles` — d'où le
+`SemiCirclesConverter` de gpx2web, et d'où le fait que le `actual` JVM n'appelle que
+`FitUnits.degreesToSemicircles`. Les autres constantes sont quand même définies et testées dans
+`FitUnits` : le SDK JavaScript (g09) travaille plus près du fil, et un lecteur de dump FIT en a
+besoin.
+
+**Époque FIT.** `FitUnits.FIT_EPOCH_OFFSET_MS = 631_065_600_000` correspond exactement à
+`com.garmin.fit.DateTime.OFFSET` (constaté dans les sources). Le `actual` JVM passe par
+`DateTime(java.util.Date)`, qui applique l'offset lui-même, plutôt que de pré-convertir — les
+deux chemins sont comparés dans les tests.
+
+**Encodage déterministe.** `FileIdMesg.timeCreated` est dérivé de `course.startTime` et
+`number` du hash du nom, au lieu du `new Date()` de gpx2web. Deux encodages du même `FitCourse`
+produisent des octets identiques, sans quoi aucune assertion au niveau octet ne serait possible
+en g10. Test dédié.
+
+**Cibles JS/Wasm.** `actual` provisoires levant `NotImplementedError` avec un message qui nomme
+g09, plus un test par cible qui vérifie ce message. Ces deux tests échoueront volontairement dès
+que g09 rendra l'encodage fonctionnel — c'est le rappel de les supprimer.
+
+**Validation :** `./gradlew check` + `ktlintCheck` verts. `:fit` = 18 tests JVM (11 `FitUnitsTest`
++ 7 `FitEncoderJvmTest`, dont un round-trip complet encode → `FitDecoder` du SDK) et 11 tests sur
+chacune des 3 cibles web. Le SDK résout bien depuis Maven Central (`fit-21.205.0.jar` → HTTP 200),
+donc aucun dépôt supplémentaire n'est nécessaire.
+
+**Erreur attrapée par les tests.** La première version de `FitUnitsTest` affirmait
+`45.680697° → 544892337` semicercles ; la vraie valeur est `544991944`. C'est la constante écrite
+à la main qui était fausse, pas le code. Les valeurs de référence sont désormais calculées hors
+de ce dépôt et la dérivation est notée en commentaire.
+
+**Reste ouvert pour g19 :** la licence du SDK Garmin et ses conditions de redistribution. `:fit`
+déclare bien la publication npm et Maven Central, mais n'est **pas** ajouté au `publishCmd` de
+`.releaserc.json` — la question doit être tranchée avant.
 
 ## Notes
 
