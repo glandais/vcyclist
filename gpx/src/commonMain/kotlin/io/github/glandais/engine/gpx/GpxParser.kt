@@ -373,7 +373,16 @@ object GpxParser {
         while (reader.hasNext()) {
             val ev = reader.next()
             when (ev) {
-                EventType.TEXT, EventType.CDSECT, EventType.IGNORABLE_WHITESPACE -> sb.append(reader.text)
+                // ENTITY_REF matters : some xmlutil backends (the JVM/kxml reader in particular)
+                // surface a predefined entity such as `&amp;` as its own event rather than folding
+                // it into the surrounding TEXT. Without this branch the entity — and everything it
+                // stood for — was silently dropped, so `<name>Ravito &amp; eau</name>` parsed as
+                // "Ravito  eau". `reader.text` already carries the resolved character.
+                EventType.TEXT,
+                EventType.CDSECT,
+                EventType.IGNORABLE_WHITESPACE,
+                EventType.ENTITY_REF,
+                -> sb.append(reader.text)
                 EventType.START_ELEMENT -> skipElement(reader) // unexpected nested ; skip
                 EventType.END_ELEMENT -> return sb.toString()
                 else -> Unit
