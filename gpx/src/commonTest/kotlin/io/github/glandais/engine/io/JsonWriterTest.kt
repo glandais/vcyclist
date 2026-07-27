@@ -162,6 +162,6 @@ class JsonWriterTest {
         assertEquals("a\\\\b", JsonWriter.escapeJsonString("a\\b"))
         assertEquals("a\\nb", JsonWriter.escapeJsonString("a\nb"))
         assertEquals("a\\tb", JsonWriter.escapeJsonString("a\tb"))
-        assertEquals("a\\u0001b", JsonWriter.escapeJsonString("ab"))
+        assertEquals("a\\u0001b", JsonWriter.escapeJsonString("a${'\u0001'}b"))
     }
 }

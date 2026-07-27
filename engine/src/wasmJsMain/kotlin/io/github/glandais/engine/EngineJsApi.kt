@@ -177,7 +177,7 @@ fun parseGpxSegments(xml: String): JsArray<JsReference<Path>> = GpxParser.parse(
 @JsExport
 fun writeGpxTracks(
     paths: JsArray<JsReference<Path>>,
-    waypoints: JsArray<WaypointDto>,
+    waypoints: JsArray<WaypointDto> = JsArray(),
 ): String =
     GpxWriter.write(
         List(paths.length) { i -> paths[i]!!.get() },

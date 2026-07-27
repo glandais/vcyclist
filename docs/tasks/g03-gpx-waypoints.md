@@ -173,16 +173,16 @@ pour que le round-trip complet (`parseGpxTracks` → enhance par `Path` → `wri
 réinjecter les points d'intérêt côté JS/Wasm exactement comme le fait `EngineCli` côté JVM,
 sinon la préservation resterait un point mort de la façade.
 
-- Côté Kotlin/JS, `waypoints: Array<WaypointDto> = emptyArray()` a un défaut : l'appel existant
-  dans `EngineJsApiTest` (jsTest) continue de compiler tel quel, sans modification.
-- Côté Kotlin/Wasm, `waypoints: JsArray<WaypointDto>` **n'a pas** de défaut — les valeurs par
-  défaut sur les fonctions `@JsExport` top-level ne sont pas fiables dans ce compilateur, et le
-  reste de la façade Wasm n'en utilise déjà nulle part (`enhance(handle, options: …?)` est
-  toujours à deux arguments obligatoires). C'est un **changement de signature cassant** pour
-  `writeGpxTracks` côté Wasm ; le seul appelant du dépôt (`EngineJsApiTest.wasmJsTest`, cas
-  « writeGpxTracks round-trips… ») a été mis à jour pour passer `JsArray()`. Asymétrie
-  documentée ici plutôt que dans le code, dans l'esprit du reste du fichier
-  `kotlin-wasm-jvm-webp.md`.
+- Côté Kotlin/JS, `waypoints: Array<WaypointDto> = emptyArray()`.
+- Côté Kotlin/Wasm, `waypoints: JsArray<WaypointDto> = JsArray()`. Les deux façades restent donc
+  en phase, comme l'exige `CLAUDE.md`. Le défaut **compile et fonctionne** sur Kotlin/Wasm 2.3
+  (vérifié : le test `writeGpxTracks round-trips…` de `wasmJsTest` omet l'argument et passe en
+  Karma headless Chrome). Seule limite, cosmétique : le générateur TypeScript de Kotlin/Wasm
+  n'émet pas le `?` d'optionalité, donc le `.d.mts` déclare `waypoints` obligatoire là où le
+  `.d.ts` de Kotlin/JS déclare `waypoints?`. Sans effet sur le comportement à l'exécution.
+
+Aucune rupture publique : `writeGpxTracks` a été introduite par g02 dans cette même série de
+commits non publiée, elle n'a jamais existé dans une version diffusée.
 
 **Tests.** 24 cas dans `GpxParserTest` (+6 : cases 19-24), 24 cas dans `GpxWriterTest` (+4 :
 cases 21-24), 1 cas CLI JVM (`EngineCliSmokeTest` case 3b, round-trip complet
