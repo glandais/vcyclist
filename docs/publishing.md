@@ -9,12 +9,29 @@ This document explains how the vcyclist artefacts ship to **Maven Central** and 
 | Maven Central | `:engine` (jvm, js, wasm-js variants) | `io.github.glandais:vcyclist-engine:<version>` |
 | Maven Central | `:elevation` (jvm, js, wasm-js variants) | `io.github.glandais:vcyclist-elevation:<version>` |
 | Maven Central | `:gpx` (jvm, js, wasm-js variants) | `io.github.glandais:vcyclist-gpx:<version>` |
+| Maven Central | `:fit` (jvm, js, wasm-js variants) | `io.github.glandais:vcyclist-fit:<version>` |
 | npm | engine — Kotlin/JS | `@glandais/vcyclist-engine` |
 | npm | engine — Kotlin/Wasm | `@glandais/vcyclist-engine-wasm` |
 | npm | elevation — Kotlin/JS | `@glandais/vcyclist-elevation` |
 | npm | elevation — Kotlin/Wasm | `@glandais/vcyclist-elevation-wasm` |
+| npm | fit — Kotlin/JS | `@glandais/vcyclist-fit` |
+| npm | fit — Kotlin/Wasm | `@glandais/vcyclist-fit-wasm` |
 
 `:codegen` is a build-time JVM helper and is **not** published.
+
+### `:fit` and the Garmin SDK licence
+
+`:fit` depends on `com.garmin:fit`, published on Maven Central **by Garmin itself** under the
+FIT Protocol License Agreement. Publishing `vcyclist-fit` therefore does not redistribute the
+SDK: the POM declares a dependency, which is what the repository is for, and consumers resolve
+Garmin's artefact from Garmin's own coordinates. The dependency is declared in `jvmMain` only,
+so nothing of Garmin's ever enters the `@glandais/vcyclist-fit` npm bundles either.
+
+**Caveat until task g09**: the JS and Wasm `FitEncoder` are placeholders that throw
+`NotImplementedError`. The two npm packages are published for version alignment with the rest
+of the scope, but encoding only works on the JVM variant of the Maven artefact. If you would
+rather not ship a non-functional npm package, drop `:fit:npmPublishJs :fit:npmPublishWasm`
+from the `publishCmd` in `.releaserc.json` and re-add them with g09.
 
 ### Why `:gpx` ships to Maven Central but not to npm
 

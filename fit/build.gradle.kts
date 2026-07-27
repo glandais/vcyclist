@@ -112,9 +112,17 @@ mavenPublishing {
     }
 }
 
-// npm publishing tasks — same shape as `:engine` / `:elevation`. NOT yet wired into
-// `.releaserc.json` : the JS/Wasm encoders only become functional in task g09, and the
-// Garmin SDK redistribution question flagged in the g08 spec is settled in g19.
+// npm publishing tasks — same shape as `:engine` / `:elevation`, and wired into
+// `.releaserc.json` alongside them.
+//
+// Note that until task g09 lands, `@glandais/vcyclist-fit` and `-fit-wasm` ship an encoder
+// that throws `NotImplementedError`. The Maven Central artefact is fully functional on its
+// JVM variant.
+//
+// The Garmin SDK licence question raised in the g08 spec does not block this : `com.garmin:fit`
+// is published on Maven Central by Garmin itself, so `vcyclist-fit`'s POM merely *declares a
+// dependency* on it rather than redistributing it, and the dependency is jvmMain-only so
+// nothing of Garmin's ever reaches the npm bundles.
 val copyReadmeToJsPackage =
     tasks.register<Copy>("copyReadmeToJsPackage") {
         from(rootProject.layout.projectDirectory.file("README.md"))
