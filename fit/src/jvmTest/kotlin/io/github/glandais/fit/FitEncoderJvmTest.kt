@@ -197,4 +197,58 @@ class FitEncoderJvmTest {
         assertEquals(null, record.cadence)
         assertEquals(null, record.temperature)
     }
+
+    // ---- Cross-target contract (task g09) -----------------------------------
+
+    @Test
+    fun `the JVM encoder reproduces its committed reference bytes`() {
+        assertContentEquals(FitReferenceBytes.JVM, FitEncoder.encode(FitReferenceCourse.build()))
+    }
+
+    @Test
+    fun `the Java SDK decodes what the JS and Wasm encoders produce`() {
+        // The interoperability claim in FitReferenceBytes' KDoc, verified from this side: the
+        // little-endian file the JavaScript SDK writes is readable by the Java SDK, and yields
+        // exactly the same values as the JVM's own big-endian output.
+        val fromWeb = decode(FitReferenceBytes.WEB)
+        val fromJvm = decode(FitReferenceBytes.JVM)
+
+        assertEquals(fromJvm.recordMesgs.size, fromWeb.recordMesgs.size)
+        fromJvm.recordMesgs.forEachIndexed { i, expected ->
+            val actual = fromWeb.recordMesgs[i]
+            assertEquals(expected.positionLat, actual.positionLat, "record $i latitude")
+            assertEquals(expected.positionLong, actual.positionLong, "record $i longitude")
+            assertEquals(expected.altitude, actual.altitude, "record $i altitude")
+            assertEquals(expected.distance, actual.distance, "record $i distance")
+            assertEquals(expected.speed, actual.speed, "record $i speed")
+            assertEquals(expected.power, actual.power, "record $i power")
+            assertEquals(
+                expected.timestamp.timestamp,
+                actual.timestamp.timestamp,
+                "record $i timestamp",
+            )
+        }
+        assertEquals(fromJvm.courseMesgs.single().name, fromWeb.courseMesgs.single().name)
+        assertEquals(fromJvm.courseMesgs.single().sport, fromWeb.courseMesgs.single().sport)
+        assertEquals(
+            fromJvm.lapMesgs
+                .single()
+                .totalDistance,
+            fromWeb.lapMesgs
+                .single()
+                .totalDistance,
+        )
+    }
+
+    @Test
+    fun `the two encoder families differ only where documented`() {
+        val jvm = FitReferenceBytes.JVM
+        val web = FitReferenceBytes.WEB
+        assertEquals(jvm.size, web.size, "the two files must have the same length")
+        // Header byte 1 is the protocol version: 0x20 from the Java SDK, 0x02 from the JS one.
+        assertEquals(0x20.toByte(), jvm[1])
+        assertEquals(0x02.toByte(), web[1])
+        // Bytes 8..11 are the ".FIT" marker on both.
+        assertContentEquals(jvm.copyOfRange(8, 12), web.copyOfRange(8, 12))
+    }
 }

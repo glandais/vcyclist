@@ -13,18 +13,14 @@ package io.github.glandais.fit
  * So the only shared contract is *"a [FitCourse] goes in, a FIT file comes out"*. Everything
  * upstream of it lives in commonMain and is tested once on all four targets.
  *
- * ## Availability
+ * ## Implementations
  *
- * Only the JVM implementation exists as of task g08. The JS and Wasm `actual`s are placeholders
- * that throw [NotImplementedError] until task g09 wires up `@garmin/fitsdk` — this keeps
- * `./gradlew check` green and multi-target between the two tasks instead of leaving the module
- * uncompilable.
+ * - JVM — `com.garmin:fit`, the official Java SDK (task g08).
+ * - JS and Wasm — `@garmin/fitsdk`, the official JavaScript SDK, pinned to the same profile
+ *   revision (task g09). The two web `actual`s are structural mirrors of each other and are
+ *   held byte-identical by `FitReferenceBytes`.
  */
 expect object FitEncoder {
-    /**
-     * Encode [course] and return the complete FIT file, header and CRC included.
-     *
-     * @throws NotImplementedError on JS and Wasm until task g09.
-     */
+    /** Encode [course] and return the complete FIT file, header and CRC included. */
     fun encode(course: FitCourse): ByteArray
 }
