@@ -13,6 +13,8 @@ import io.github.glandais.engine.gpx.firstTrackAsPath
 import io.github.glandais.engine.gpx.segmentsAsPaths
 import io.github.glandais.engine.gpx.toGpxDocument
 import io.github.glandais.engine.gpx.tracksAsPaths
+import io.github.glandais.engine.io.CsvOptions
+import io.github.glandais.engine.io.CsvWriter
 import io.github.glandais.engine.path.Path
 import kotlinx.coroutines.DelicateCoroutinesApi
 import kotlinx.coroutines.GlobalScope
@@ -286,4 +288,23 @@ private fun defaultJsOptions(): EnhanceOptions =
         virtualizeTrack = true,
         computeOnePointPerSecond = false,
         simplifyPath = SimplifyPathOptions(enabled = false),
+    )
+
+/**
+ * Serialise the path behind [handle] to CSV (all 36 [io.github.glandais.engine.path.PointField]s,
+ * one row per point) — see
+ * [CsvWriter] / task g06. Mirrors the Kotlin/JS façade's `pathToCsv`.
+ *
+ * [separator] takes only its first character (no `Char` at the Wasm/JS interop boundary) ; an
+ * empty string falls back to `,`.
+ */
+@JsExport
+fun pathToCsv(
+    handle: JsReference<Path>,
+    separator: String,
+    unitsInHeader: Boolean,
+): String =
+    CsvWriter.write(
+        handle.get(),
+        CsvOptions(separator = separator.firstOrNull() ?: ',', unitsInHeader = unitsInHeader),
     )

@@ -12,6 +12,8 @@ import io.github.glandais.engine.gpx.firstTrackAsPath
 import io.github.glandais.engine.gpx.segmentsAsPaths
 import io.github.glandais.engine.gpx.toGpxDocument
 import io.github.glandais.engine.gpx.tracksAsPaths
+import io.github.glandais.engine.io.CsvOptions
+import io.github.glandais.engine.io.CsvWriter
 import io.github.glandais.engine.path.Path
 import io.github.glandais.engine.path.PointField
 import io.github.glandais.engine.physics.AeroProviderConstant
@@ -491,3 +493,23 @@ fun pathLongitudeDeg(
     path: Path,
     i: Int,
 ): Double = path.longitudeDeg(i)
+
+/**
+ * Serialise [path] to CSV (all 36 [PointField]s, one row per point) — see [CsvWriter] / task g06.
+ * Lets a browser demo offer an "Export CSV" button without a server round-trip : the caller
+ * wraps the returned `String` in a `Blob` and triggers a download via
+ * `URL.createObjectURL`.
+ *
+ * [separator] takes only its first character (JS has no `Char` type at the interop boundary) ;
+ * an empty string falls back to `,`.
+ */
+@JsExport
+fun pathToCsv(
+    path: Path,
+    separator: String,
+    unitsInHeader: Boolean,
+): String =
+    CsvWriter.write(
+        path,
+        CsvOptions(separator = separator.firstOrNull() ?: ',', unitsInHeader = unitsInHeader),
+    )
