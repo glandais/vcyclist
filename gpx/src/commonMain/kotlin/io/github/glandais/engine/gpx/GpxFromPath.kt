@@ -54,15 +54,21 @@ fun Path.toGpxDocument(
  * @param name value for `<metadata><name>`.
  * @param trackNames optional per-track `<trk><name>`. Entries beyond the list's size — or a
  *   `null` list — leave the track unnamed. Extra names are ignored.
+ * @param waypoints carried through verbatim onto [GpxDocument.waypoints] — typically the source
+ *   document's waypoints, so a caller re-attaching a track's enhancement output does not silently
+ *   drop the points of interest. Not touched by `fixElevation` or any other pipeline step : see
+ *   [GpxWaypoint].
  * @param type value for `<trk><type>` on every track. Defaults to `"cycling"`.
  */
 fun pathsToGpxDocument(
     paths: List<Path>,
     name: String = "noname",
     trackNames: List<String>? = null,
+    waypoints: List<GpxWaypoint> = emptyList(),
     type: String? = "cycling",
 ): GpxDocument =
     GpxDocument(
         name = name,
         tracks = paths.mapIndexed { i, p -> p.toGpxTrack(name = trackNames?.getOrNull(i), type = type) },
+        waypoints = waypoints,
     )

@@ -47,6 +47,44 @@ external interface PointDto {
 }
 
 /**
+ * JS-facing snapshot of a `<wpt>` waypoint (see [io.github.glandais.engine.gpx.GpxWaypoint]).
+ * Flat DTO ; built by [parseGpxWaypoints]. `timeEpochMs` is `null` when `<time>` is absent, same
+ * as the Kotlin model.
+ */
+external interface WaypointDto {
+    val latitudeDeg: Double
+    val longitudeDeg: Double
+    val elevationM: Double?
+    val name: String?
+    val description: String?
+    val symbol: String?
+    val type: String?
+    val timeEpochMs: Double?
+}
+
+private fun waypointObj(w: io.github.glandais.engine.gpx.GpxWaypoint): WaypointDto {
+    val o = js("({})")
+    o.latitudeDeg = w.latitudeDeg
+    o.longitudeDeg = w.longitudeDeg
+    o.elevationM = w.elevationM
+    o.name = w.name
+    o.description = w.description
+    o.symbol = w.symbol
+    o.type = w.type
+    o.timeEpochMs = w.timeEpochMs?.toDouble()
+    return o.unsafeCast<WaypointDto>()
+}
+
+/** Parse [xml] and return every `<wpt>` in document order, as flat [WaypointDto] objects. */
+@JsExport
+fun parseGpxWaypoints(xml: String): Array<WaypointDto> =
+    GpxParser
+        .parse(xml)
+        .waypoints
+        .map(::waypointObj)
+        .toTypedArray()
+
+/**
  * JS-side mirror of [EnhanceOptions] / [SimplifyPathOptions]. Every flag is optional ; when a
  * caller leaves a field `undefined`, [defaultJsOptions] picks the JS-safe default (skip elevation
  * fetch, skip 1 Hz resample, skip simplify — see task 27 for the timestamp pitfall).
@@ -174,9 +212,29 @@ fun parseGpxTracks(xml: String): Array<Path> = GpxParser.parse(xml).tracksAsPath
 @JsExport
 fun parseGpxSegments(xml: String): Array<Path> = GpxParser.parse(xml).segmentsAsPaths().toTypedArray()
 
-/** Serialise [paths] as a multi-track GPX document — one `<trk>` per Path. */
+/**
+ * Serialise [paths] as a multi-track GPX document — one `<trk>` per Path. [waypoints], if given,
+ * is written as `<wpt>` entries before the tracks (typically the source document's
+ * [io.github.glandais.engine.gpx.GpxDocument.waypoints], forwarded so a parse → enhance → write
+ * round-trip does not silently drop points of interest — see g03).
+ */
 @JsExport
-fun writeGpxTracks(paths: Array<Path>): String = GpxWriter.write(paths.toList())
+fun writeGpxTracks(
+    paths: Array<Path>,
+    waypoints: Array<WaypointDto> = emptyArray(),
+): String = GpxWriter.write(paths.toList(), waypoints = waypoints.map { it.toGpxWaypoint() })
+
+private fun WaypointDto.toGpxWaypoint(): io.github.glandais.engine.gpx.GpxWaypoint =
+    io.github.glandais.engine.gpx.GpxWaypoint(
+        latitudeDeg = latitudeDeg,
+        longitudeDeg = longitudeDeg,
+        elevationM = elevationM,
+        name = name,
+        description = description,
+        symbol = symbol,
+        type = type,
+        timeEpochMs = timeEpochMs?.toLong(),
+    )
 
 @JsExport
 fun pathSize(path: Path): Int = path.size

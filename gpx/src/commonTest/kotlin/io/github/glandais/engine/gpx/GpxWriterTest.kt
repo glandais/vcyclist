@@ -401,6 +401,76 @@ class GpxWriterTest {
         assertGpxDocumentsEqual(parsed, reparsed, tol)
     }
 
+    // --- 21-24. Waypoints (g03) ---------------------------------------------------------
+
+    @Test
+    fun `case 21 — wpt elements are written before trk elements`() {
+        val doc =
+            GpxDocument(
+                name = "n",
+                tracks = listOf(GpxTrack(name = "t", points = listOf(GpxTrackPoint(45.0, 6.0)))),
+                waypoints = listOf(GpxWaypoint(latitudeDeg = 45.1, longitudeDeg = 6.1, name = "start")),
+            )
+        val xml = GpxWriter.write(doc)
+        val wptIdx = xml.indexOf("<wpt")
+        val trkIdx = xml.indexOf("<trk>")
+        assertTrue(wptIdx in 0 until trkIdx, "expected <wpt> before <trk>, got:\n$xml")
+    }
+
+    @Test
+    fun `case 22 — round-trip parse write parse preserves waypoints`() {
+        val parsed = GpxParser.parse(GpxFixtures.WAYPOINTS_GPX)
+        val xml = GpxWriter.write(parsed)
+        val reparsed = GpxParser.parse(xml)
+        assertEquals(parsed.waypoints.size, reparsed.waypoints.size)
+        for ((a, b) in parsed.waypoints.zip(reparsed.waypoints)) {
+            assertEqualsApprox(a.latitudeDeg, b.latitudeDeg, tol, "wpt.lat")
+            assertEqualsApprox(a.longitudeDeg, b.longitudeDeg, tol, "wpt.lon")
+            assertOptDoubleEquals(a.elevationM, b.elevationM, tol, "wpt.ele")
+            assertEquals(a.name, b.name, "wpt.name")
+            assertEquals(a.description, b.description, "wpt.desc")
+            assertEquals(a.symbol, b.symbol, "wpt.sym")
+            assertEquals(a.type, b.type, "wpt.type")
+            assertEquals(a.timeEpochMs, b.timeEpochMs, "wpt.time")
+        }
+    }
+
+    @Test
+    fun `case 23 — minimal waypoint has no ele name desc sym type time tags`() {
+        val xml =
+            GpxWriter.write(
+                GpxDocument(
+                    name = "n",
+                    tracks = emptyList(),
+                    waypoints = listOf(GpxWaypoint(latitudeDeg = 45.0, longitudeDeg = 6.0)),
+                ),
+            )
+        assertTrue(xml.contains("<wpt"), xml)
+        // <metadata><name>n</name></metadata> is legitimate ; only the waypoint-local tags must
+        // be absent.
+        val wptBody = xml.substringAfter("<wpt")
+        assertFalse(wptBody.contains("<ele"), xml)
+        assertFalse(wptBody.contains("<name"), xml)
+        assertFalse(wptBody.contains("<desc"), xml)
+        assertFalse(wptBody.contains("<sym"), xml)
+        assertFalse(wptBody.contains("<type"), xml)
+        assertFalse(wptBody.contains("<time"), xml)
+    }
+
+    @Test
+    fun `case 24 — pathsToGpxDocument carries waypoints through to the written GPX`() {
+        val p = Path(1)
+        p.setLatitude(0, 45.0 * MathConstants.DEG_TO_RAD)
+        p.setLongitude(0, 6.0 * MathConstants.DEG_TO_RAD)
+        val waypoints = listOf(GpxWaypoint(latitudeDeg = 45.5, longitudeDeg = 6.5, name = "checkpoint"))
+        val doc = pathsToGpxDocument(listOf(p), name = "n", waypoints = waypoints)
+        assertEquals(waypoints, doc.waypoints)
+        val xml = GpxWriter.write(p.let { listOf(it) }, name = "n", waypoints = waypoints)
+        val reparsed = GpxParser.parse(xml)
+        assertEquals(1, reparsed.waypoints.size)
+        assertEquals("checkpoint", reparsed.waypoints[0].name)
+    }
+
     // ---------- Helpers --------------------------------------------------------------
 
     private fun singleTrackDoc(vararg points: GpxTrackPoint): GpxDocument =

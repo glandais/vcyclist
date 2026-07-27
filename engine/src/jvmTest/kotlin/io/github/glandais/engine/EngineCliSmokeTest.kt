@@ -112,6 +112,27 @@ class EngineCliSmokeTest {
         assertTrue(out.contains("Wrote ${output.absolutePath}"), "stdout=$out")
     }
 
+    // ---- 3b. waypoints survive the full pipeline (g03) ----------------------
+
+    @Test
+    fun `case 3b — waypoints in the input GPX are preserved verbatim in the output`() {
+        val tmpDir = createTempDirectory(prefix = "engine-cli-wpt-")
+        val input = createTempFile(tmpDir, "waypoints", ".gpx")
+        input.writeText(GpxFixtures.WAYPOINTS_GPX)
+        val output = tmpDir.resolve("out.gpx").toFile()
+
+        val code =
+            EngineCli.runCli(
+                arrayOf("enhance", input.toFile().absolutePath, "-o", output.absolutePath),
+            )
+        assertEquals(0, code, "stdout=${stdout()}\nstderr=${stderr()}")
+
+        val source = GpxParser.parse(GpxFixtures.WAYPOINTS_GPX)
+        val reparsed = GpxParser.parse(output.readText())
+        assertEquals(source.waypoints.size, reparsed.waypoints.size)
+        assertEquals(source.waypoints, reparsed.waypoints)
+    }
+
     // ---- 4. unknown command -------------------------------------------------
 
     @Test

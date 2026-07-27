@@ -73,4 +73,28 @@ class EngineJsApiTest {
         assertEquals(2, roundTrip.size)
         assertEquals(listOf(3, 2), roundTrip.map { pathSize(it) })
     }
+
+    @Test
+    fun `parseGpxWaypoints exposes every wpt with all fields populated`() {
+        val waypoints = parseGpxWaypoints(GpxFixtures.WAYPOINTS_GPX)
+        assertEquals(3, waypoints.size)
+        assertEquals(45.5, waypoints[0].latitudeDeg)
+        val full = waypoints[1]
+        assertEquals(1200.5, full.elevationM)
+        assertEquals("Col du Sommet", full.name)
+        assertEquals("Ravitaillement au sommet", full.description)
+        assertEquals("Summit", full.symbol)
+        assertEquals("peak", full.type)
+        assertTrue(full.timeEpochMs!! > 0.0)
+    }
+
+    @Test
+    fun `writeGpxTracks forwards waypoints as wpt elements before trk`() {
+        val waypoints = parseGpxWaypoints(GpxFixtures.WAYPOINTS_GPX)
+        val tracks = parseGpxTracks(GpxFixtures.WAYPOINTS_GPX)
+        val xml = writeGpxTracks(tracks, waypoints)
+        assertTrue(xml.indexOf("<wpt") in 0 until xml.indexOf("<trk>"), xml)
+        val roundTrip = parseGpxWaypoints(xml)
+        assertEquals(3, roundTrip.size)
+    }
 }
