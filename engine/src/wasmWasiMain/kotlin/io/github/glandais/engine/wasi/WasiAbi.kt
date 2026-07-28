@@ -31,7 +31,21 @@ internal object WasiAbi {
     /** An argument is out of range — a negative length, an empty payload. */
     const val ERR_INVALID_ARGUMENT: Int = -3
 
+    /**
+     * The capability exists in the API but not on this target. Today: FIT encoding, whose two
+     * `actual`s both wrap a Garmin SDK that cannot run under WASI (task w01, lifted by w12).
+     * Distinct from [ERR_GENERIC] on purpose — a host can tell "never going to work here" from
+     * "this input failed" and stop retrying.
+     */
+    const val ERR_UNSUPPORTED: Int = -4
+
     private val handles = HashMap<Int, Path>()
+    private val listHandles = HashMap<Int, List<Path>>()
+
+    /**
+     * Shared by both tables, so a list handle passed where a path handle is expected is simply
+     * unknown rather than silently interpreted as another object.
+     */
     private var nextHandle = 1
 
     /**
@@ -42,8 +56,8 @@ internal object WasiAbi {
     var lastError: String = ""
         private set
 
-    /** Number of live handles. Exposed for tests and for `vcReleaseAll`'s return value. */
-    val liveHandles: Int get() = handles.size
+    /** Number of live handles, paths and lists together. */
+    val liveHandles: Int get() = handles.size + listHandles.size
 
     /** Store [path] and return its fresh positive handle. */
     fun register(path: Path): Int {
@@ -52,11 +66,25 @@ internal object WasiAbi {
         return handle
     }
 
+    /**
+     * Store [paths] as one list handle. Multi-track parsing returns this rather than N handles:
+     * the host cannot receive an array through a numeric return, and walking the list with
+     * `vcListSize` / `vcListGet` keeps every path releasable on its own.
+     */
+    fun registerList(paths: List<Path>): Int {
+        val handle = nextHandle++
+        listHandles[handle] = paths
+        return handle
+    }
+
     /** The path behind [handle], or `null` if the host is holding a stale or invented key. */
     fun pathOrNull(handle: Int): Path? = handles[handle]
 
-    /** Drop [handle]. Returns 1 if it existed, 0 otherwise — never an error code. */
-    fun release(handle: Int): Int = if (handles.remove(handle) != null) 1 else 0
+    /** The path list behind [handle], or `null`. A path handle is not a list handle. */
+    fun listOrNull(handle: Int): List<Path>? = listHandles[handle]
+
+    /** Drop [handle], whichever table it is in. Returns 1 if it existed, 0 otherwise. */
+    fun release(handle: Int): Int = if (handles.remove(handle) != null || listHandles.remove(handle) != null) 1 else 0
 
     /**
      * Drop every handle and return how many were dropped. What a host reusing one instance
@@ -64,8 +92,9 @@ internal object WasiAbi {
      * the module, and nothing else can reclaim a handle the host has forgotten.
      */
     fun releaseAll(): Int {
-        val count = handles.size
+        val count = liveHandles
         handles.clear()
+        listHandles.clear()
         return count
     }
 
@@ -106,6 +135,7 @@ internal object WasiAbi {
     /** Test seam: forget every handle *and* the last error, so cases cannot leak into each other. */
     internal fun resetForTests() {
         handles.clear()
+        listHandles.clear()
         nextHandle = 1
         lastError = ""
     }
