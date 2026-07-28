@@ -1,5 +1,7 @@
 {
-  "branches": ["develop"],
+  "branches": [
+    "develop"
+  ],
   "plugins": [
     "@semantic-release/commit-analyzer",
     "@semantic-release/release-notes-generator",
@@ -13,16 +15,29 @@
       "@semantic-release/exec",
       {
         "prepareCmd": "sed -i 's/^version=.*/version=${nextRelease.version}/' gradle.properties",
-        "publishCmd": "./gradlew :engine:publishAndReleaseToMavenCentral :gpx:publishAndReleaseToMavenCentral :elevation:publishAndReleaseToMavenCentral :fit:publishAndReleaseToMavenCentral :engine:npmPublishJs :engine:npmPublishWasm :elevation:npmPublishJs :elevation:npmPublishWasm :fit:npmPublishJs :fit:npmPublishWasm --no-configuration-cache"
+        "publishCmd": "./gradlew :cli:executableJar :engine:publishAndReleaseToMavenCentral :gpx:publishAndReleaseToMavenCentral :elevation:publishAndReleaseToMavenCentral :fit:publishAndReleaseToMavenCentral :map:publishAndReleaseToMavenCentral :engine:npmPublishJs :engine:npmPublishWasm :elevation:npmPublishJs :elevation:npmPublishWasm :fit:npmPublishJs :fit:npmPublishWasm --no-configuration-cache"
       }
     ],
     [
       "@semantic-release/git",
       {
-        "assets": ["gradle.properties", "CHANGELOG.md"],
+        "assets": [
+          "gradle.properties",
+          "CHANGELOG.md"
+        ],
         "message": "chore(release): ${nextRelease.version} [skip ci]\n\n${nextRelease.notes}"
       }
     ],
-    "@semantic-release/github"
+    [
+      "@semantic-release/github",
+      {
+        "assets": [
+          {
+            "path": "cli/build/libs/vcyclist-cli-*-all.jar",
+            "label": "vcyclist-cli ${nextRelease.version} (executable jar, Java 21+)"
+          }
+        ]
+      }
+    ]
   ]
 }

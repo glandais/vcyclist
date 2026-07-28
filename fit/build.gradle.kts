@@ -94,37 +94,8 @@ kotlin {
     }
 }
 
-mavenPublishing {
-    publishToMavenCentral()
-    signAllPublications()
-    coordinates(group.toString(), "vcyclist-${project.name}", version.toString())
-    pom {
-        name.set("vcyclist-${project.name}")
-        description.set(
-            "Physics-based cycling simulator ported to Kotlin Multiplatform — ${project.name} module",
-        )
-        url.set("https://github.com/glandais/vcyclist")
-        licenses {
-            license {
-                name.set("The Apache License, Version 2.0")
-                url.set("https://www.apache.org/licenses/LICENSE-2.0.txt")
-            }
-        }
-        developers {
-            developer {
-                id.set("glandais")
-                name.set("Gabriel Landais")
-                url.set("https://github.com/glandais")
-            }
-        }
-        scm {
-            url.set("https://github.com/glandais/vcyclist")
-            connection.set("scm:git:git://github.com/glandais/vcyclist.git")
-            developerConnection.set("scm:git:git@github.com:glandais/vcyclist.git")
-        }
-    }
-}
-
+// Maven Central publication (coordinates, POM, signing) is configured once for every
+// module in the root build.gradle.kts — see the `subprojects` block there.
 // npm publishing tasks — same shape as `:engine` / `:elevation`, and wired into
 // `.releaserc.json` alongside them.
 //
@@ -132,10 +103,21 @@ mavenPublishing {
 // that throws `NotImplementedError`. The Maven Central artefact is fully functional on its
 // JVM variant.
 //
-// The Garmin SDK licence question raised in the g08 spec does not block this : `com.garmin:fit`
-// is published on Maven Central by Garmin itself, so `vcyclist-fit`'s POM merely *declares a
-// dependency* on it rather than redistributing it, and the dependency is jvmMain-only so
-// nothing of Garmin's ever reaches the npm bundles.
+// The Garmin SDK licence question raised in the g08 spec is settled in g19, and the reasoning is
+// worth stating exactly, because the obvious summary is wrong.
+//
+// vcyclist redistributes **none of Garmin's bytes**, on any target. Garmin publishes the SDK
+// itself — `com.garmin:fit` on Maven Central, `@garmin/fitsdk` on npm — and both are reached the
+// way the publisher intended : by declaring a dependency coordinate that the consumer's own
+// resolver fetches from Garmin's distribution. `vcyclist-fit`'s POM names `com.garmin:fit`; its
+// npm `package.json` names `@garmin/fitsdk`. Neither embeds a line of it.
+//
+// The correction : an earlier version of this note claimed the dependency was jvmMain-only and
+// that "nothing of Garmin's ever reaches the npm bundles". That is false — see the `npm(...)`
+// declarations above, and note that `:engine` does `api(project(":fit"))`, so **every** install
+// of `@glandais/vcyclist-engine` pulls `@garmin/fitsdk` in transitively, whether or not the
+// consumer ever writes a FIT file. The conclusion is unchanged (a coordinate, not a copy), but
+// the reach is wider than that note implied, and `docs/publishing.md` records it as such.
 val copyReadmeToJsPackage =
     tasks.register<Copy>("copyReadmeToJsPackage") {
         from(rootProject.layout.projectDirectory.file("README.md"))

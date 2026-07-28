@@ -114,13 +114,78 @@ Critères :
 
 ## Done when
 
-- [ ] Inventaire des artefacts figé
-- [ ] Non-rupture vérifiée **en pratique**, côté Maven et côté npm
-- [ ] `mavenPublishing` factorisé, `:map` (non-KMP) inclus
-- [ ] Licence du SDK Garmin tranchée avant publication de `:fit`
-- [ ] Workflow de release couvrant tous les modules
-- [ ] `docs/publishing.md` à jour
-- [ ] Badges README à jour
+- [x] Inventaire des artefacts figé
+- [x] Non-rupture vérifiée **en pratique**, côté Maven et côté npm
+- [x] `mavenPublishing` factorisé, `:map` (non-KMP) inclus
+- [x] Licence du SDK Garmin tranchée avant publication de `:fit`
+- [x] Workflow de release couvrant tous les modules
+- [x] `docs/publishing.md` à jour
+- [x] Badges README à jour
+
+## Résultat
+
+### Non-rupture — vérifiée, les deux côtés passent
+
+**Maven.** Projet Gradle jetable hors du dépôt, `mavenLocal()`, dépendance unique
+`io.github.glandais:vcyclist-engine:1.2.1`, code écrit avec les imports d'avant g01
+(`io.github.glandais.engine.path.Path`, `…gpx.GpxParser`, `…gpx.GpxWriter`, `Enhancer`).
+Compile et s'exécute sans modification : `3 in -> 2 out, 636 chars of GPX`. `vcyclist-gpx`
+arrive bien en transitif sans être nommé.
+
+**npm.** `3 in -> 1021 out, 2001.5 m`, GPX valide. Deux pièges, tous deux consignés dans
+`docs/publishing.md` parce qu'ils invalident la vérification sans la faire échouer franchement :
+
+1. **Installer un tarball, pas un lien.** `npm install <build-dir>` crée un lien symbolique et
+   Node résout les `require` du paquet depuis le *realpath*, donc dans `engine/build/` où les
+   dépendances ne sont pas. Échec en `Cannot find module '@garmin/fitsdk'` qui ne dit rien du
+   vrai paquet. `npm pack` puis installation du `.tgz` reproduit fidèlement une install registre.
+2. **Le bundle UMD n'a qu'un seul export de premier niveau, `io`.** Les imports nommés ne
+   fonctionnent pas — et le README en documentait quatre. Corrigés en g19 (voir plus bas).
+
+### Licence Garmin — tranchée : non bloquante
+
+vcyclist ne redistribue **aucun octet** de Garmin, sur aucune cible. Garmin publie le SDK
+lui-même sur les deux registres (`com.garmin:fit`, `@garmin/fitsdk`) ; vcyclist déclare une
+*coordonnée* que le résolveur du consommateur va chercher chez Garmin. Le §2.c du FIT Protocol
+License Agreement vise la redistribution, pas la déclaration de dépendance sur un paquet que le
+concédant a lui-même publié.
+
+Deux faits que la note précédente de `fit/build.gradle.kts` donnait faux, corrigés : la
+dépendance n'est **pas** jvmMain-only (`npm(...)` pour JS et Wasm), et comme `:engine` fait
+`api(project(":fit"))`, **tout `npm install @glandais/vcyclist-engine` tire `@garmin/fitsdk` en
+transitif**, que le consommateur écrive du FIT ou non. Vérifié en installant le tarball dans un
+projet vide. Conclusion inchangée, portée plus large — d'où la documentation explicite.
+
+Ce n'est pas un avis juridique, et Maven Central est irréversible.
+
+### `:fit` sur npm — suppression recommandée, pas appliquée
+
+`:fit` ne déclare **aucun `@JsExport`** : `@glandais/vcyclist-fit` et `-fit-wasm` publieraient
+un bundle sans API publique atteignable. La façade `pathToFit` vit dans `:engine` (un handle
+`Path` ne traverse pas une frontière de bundle), et le JS de `:fit` voyage déjà *dans*
+`@glandais/vcyclist-engine`. `:fit:npmPublishJs`/`npmPublishWasm` restent dans `publishCmd` —
+les retirer est une édition d'une ligne et ne casse aucun chemin d'import documenté.
+
+### Corrections de documentation trouvées par la vérification
+
+- **README, 4 extraits JS faux** : imports nommés qui n'ont jamais fonctionné. Remplacés par la
+  déviation de namespace unique (`engineRaw.io.github.glandais.engine`), celle que
+  `demo/src/engine-shim.ts` fait déjà.
+- **Nom du jar CLI** : le README annonçait `vcyclist-cli-*-all.jar`, Gradle produisait
+  `cli-1.2.1-all.jar`. Corrigé du côté Gradle (`archiveBaseName`), puisque ce jar est désormais
+  attaché à la release GitHub et téléchargé seul.
+
+### Wiring
+
+- `mavenPublishing` factorisé dans le `build.gradle.kts` racine (5 copies supprimées). Signature
+  conditionnée à la présence d'une clé, sinon `publishToMavenLocal` échoue hors CI. Piège
+  rencontré : dans `pom { }`, `name` désigne le POM, pas le projet — capturer `val moduleName =
+  name` **avant** le bloc, faute de quoi l'artefact s'appelle `vcyclist-property 'name'`.
+- `:map` ajouté à `publishCmd` ; le bloc racine s'applique tel quel à un module `kotlin-jvm`
+  (risque relevé en g13 : levé, `jar` + `pom` + `module` + sources + javadoc générés).
+- `:cli:executableJar` construit pendant `publishCmd` et attaché à la release GitHub via les
+  `assets` de `@semantic-release/github`.
+- Tous les modules publient en `1.2.1`, aucun en `unspecified`.
 
 ## Notes
 

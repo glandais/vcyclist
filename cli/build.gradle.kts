@@ -66,6 +66,10 @@ tasks.register<JavaExec>("run") {
 tasks.register<Jar>("executableJar") {
     group = "distribution"
     description = "Build a self-contained executable jar of the CLI"
+    // The Gradle module is `cli`, but this jar is attached to the GitHub release and downloaded
+    // on its own, where a bare `cli-1.2.1-all.jar` says nothing about what it is. Naming it here
+    // rather than renaming the module keeps the project path `:cli` short.
+    archiveBaseName.set("vcyclist-cli")
     archiveClassifier.set("all")
     manifest {
         attributes("Main-Class" to "io.github.glandais.cli.MainKt")

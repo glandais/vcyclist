@@ -21,25 +21,60 @@ This document explains how the vcyclist artefacts ship to **Maven Central** and 
 
 `:cli` is an **application**, not a library, so it is **not** published to Maven Central either —
 nobody should compile against a command-line tool. Its distributable is the self-contained jar
-produced by `./gradlew :cli:executableJar`, intended for attachment to the GitHub release. Wiring
-that into the release workflow is a task g19 decision.
+produced by `./gradlew :cli:executableJar`, intended for attachment to the GitHub release.
 
 `:map` is published to Maven Central (`vcyclist-map`) but **not** to npm: it renders with
-`java.awt`, which has no JS or Wasm equivalent.
+`java.awt`, which has no JS or Wasm equivalent. It is a plain `kotlin-jvm` module rather than a
+KMP one; the shared publishing configuration in the root `build.gradle.kts` applies to it
+unchanged (verified in g19 — `vcyclist-map-<version>.{jar,pom,module}` plus sources and javadoc).
 
-### `:fit` and the Garmin SDK licence
+### `:fit` and the Garmin SDK licence — the decision
 
-`:fit` depends on `com.garmin:fit`, published on Maven Central **by Garmin itself** under the
-FIT Protocol License Agreement. Publishing `vcyclist-fit` therefore does not redistribute the
-SDK: the POM declares a dependency, which is what the repository is for, and consumers resolve
-Garmin's artefact from Garmin's own coordinates. The dependency is declared in `jvmMain` only,
-so nothing of Garmin's ever enters the `@glandais/vcyclist-fit` npm bundles either.
+**Settled in g19: publishing `vcyclist-fit` to Maven Central does not redistribute Garmin's
+SDK, and is not blocked.** The reasoning, stated precisely because the short version is easy to
+get wrong in both directions:
 
-**Caveat until task g09**: the JS and Wasm `FitEncoder` are placeholders that throw
-`NotImplementedError`. The two npm packages are published for version alignment with the rest
-of the scope, but encoding only works on the JVM variant of the Maven artefact. If you would
-rather not ship a non-functional npm package, drop `:fit:npmPublishJs :fit:npmPublishWasm`
-from the `publishCmd` in `.releaserc.json` and re-add them with g09.
+Garmin publishes the SDK itself, on both registries — `com.garmin:fit` on Maven Central and
+`@garmin/fitsdk` on npm. vcyclist reaches it the way the publisher intended: by **declaring a
+coordinate** that the consumer's own resolver fetches from Garmin's distribution.
+`vcyclist-fit`'s POM names `com.garmin:fit`; the npm `package.json` names `@garmin/fitsdk`.
+**Neither embeds a byte of it.** The FIT Protocol License Agreement's §2.c prohibition on making
+the Licensed Technology "available to any third party" governs redistribution; a dependency
+declaration on a package the licensor has itself published publicly is the intended consumption
+path, not a redistribution of it.
+
+Two facts that a previous version of this section got wrong, and that anyone re-examining the
+question should have in front of them:
+
+- The Garmin dependency is **not** jvmMain-only. `fit/build.gradle.kts` declares
+  `npm("@garmin/fitsdk")` for both the JS and Wasm targets.
+- Because `:engine` does `api(project(":fit"))`, **every `npm install @glandais/vcyclist-engine`
+  pulls `@garmin/fitsdk` in transitively**, whether or not the consumer ever writes a FIT file.
+  Verified in g19 by installing the packed tarball into an empty project: npm resolved
+  `@garmin/fitsdk` and `@jsquash/webp` without being asked.
+
+That widens the reach — every engine consumer accepts Garmin's licence terms in practice — but
+does not change the conclusion, since it remains a coordinate rather than a copy. It is,
+however, the reason this is documented here rather than buried in a build file: it is a real
+obligation that a user installing `vcyclist-engine` for the physics alone would not expect.
+
+**Not a legal opinion.** Maven Central artefacts cannot be deleted once published. If that
+matters to you, have the terms reviewed before the first release that includes `:fit`.
+
+### `:fit` on npm — recommended removal
+
+`:fit` declares **no `@JsExport` at all**, so `@glandais/vcyclist-fit` and
+`@glandais/vcyclist-fit-wasm` would ship a bundle with no reachable public API. The FIT façade
+(`pathToFit`) deliberately lives in `:engine` instead — see the comment in
+`engine/build.gradle.kts`, which explains that `Path` handles cannot cross a bundle boundary.
+The JS output of `:fit` already ships *inside* `@glandais/vcyclist-engine` as `vcyclist-fit.js`,
+exactly as `:gpx` does.
+
+Publishing them anyway costs two empty packages that must stay version-locked forever, and
+publishes a package whose entire content wraps a proprietary SDK while exposing nothing of its
+own. `:fit:npmPublishJs :fit:npmPublishWasm` are currently still in `publishCmd`; dropping them
+is a one-line edit to `.releaserc.json` and breaks nothing, since no documented import path
+resolves to either package.
 
 ### Why `:gpx` ships to Maven Central but not to npm
 
@@ -124,6 +159,55 @@ find ~/.m2/repository/io/github/glandais -name 'vcyclist-*.pom'
 # 4. Dry-run semantic-release end-to-end.
 GITHUB_TOKEN=dummy npx semantic-release --dry-run --no-ci
 ```
+
+## Verifying that a release does not break existing consumers
+
+The g01 extraction of `:gpx` out of `:engine` promised that existing consumers need change
+nothing. That promise is only worth what a real consumer proves, so **run this against a
+throwaway project outside the repo** before any release that changes module boundaries.
+Reasoning about `api` vs `implementation` is not a substitute — and on the npm side it would
+have given the wrong answer twice, as below.
+
+### Maven
+
+```bash
+./gradlew publishToMavenLocal
+```
+
+Then, in an empty Gradle project with `mavenLocal()` first in `repositories` and **only**
+`implementation("io.github.glandais:vcyclist-engine:<version>")` as a dependency, compile code
+using the pre-split import paths — `io.github.glandais.engine.path.Path`,
+`…engine.gpx.GpxParser`, `…engine.gpx.GpxWriter`, `io.github.glandais.engine.Enhancer` — and run
+it. `vcyclist-gpx` must arrive transitively without being named.
+
+*g19 result: passes.* A consumer depending only on `vcyclist-engine`, with imports written
+before the split, compiles and runs unmodified.
+
+### npm
+
+**Pack, do not link.** `npm install /path/to/build/dist/js/productionLibrary` creates a symlink,
+and Node resolves that package's own `require`s from the link's *realpath* — so its
+dependencies are looked up inside `engine/build/`, where they are not, and the check fails with
+a `Cannot find module '@garmin/fitsdk'` that says nothing about the real package:
+
+```bash
+npm pack engine/build/dist/js/productionLibrary          # -> glandais-vcyclist-engine-<v>.tgz
+cd /tmp/consumer && npm install /path/to/glandais-vcyclist-engine-<v>.tgz
+```
+
+A tarball install reproduces a registry install faithfully, transitive dependencies included.
+
+Then call `parseGpx` / `enhance` / `writeGpx`. **Use a namespace import, not named imports** —
+the Kotlin/JS UMD bundle has exactly one top-level export, `io`:
+
+```js
+const engine = require('@glandais/vcyclist-engine').io.github.glandais.engine;
+const out = await engine.enhance(engine.parseGpx(xml), null);
+```
+
+*g19 result: passes* — 3 input points to 1021 enhanced points, 2001.5 m, valid GPX out. Note
+that this is also how the export shape was found to contradict the README, which documented
+named imports that never worked; the snippets there were corrected in g19.
 
 ## First-time setup checklist
 

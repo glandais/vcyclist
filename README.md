@@ -3,6 +3,9 @@
 [![npm engine](https://img.shields.io/npm/v/@glandais/vcyclist-engine?label=%40glandais%2Fvcyclist-engine)](https://www.npmjs.com/package/@glandais/vcyclist-engine)
 [![npm elevation](https://img.shields.io/npm/v/@glandais/vcyclist-elevation?label=%40glandais%2Fvcyclist-elevation)](https://www.npmjs.com/package/@glandais/vcyclist-elevation)
 [![Maven Central](https://img.shields.io/maven-central/v/io.github.glandais/vcyclist-engine?label=io.github.glandais%3Avcyclist-engine)](https://central.sonatype.com/artifact/io.github.glandais/vcyclist-engine)
+[![Maven Central gpx](https://img.shields.io/maven-central/v/io.github.glandais/vcyclist-gpx?label=io.github.glandais%3Avcyclist-gpx)](https://central.sonatype.com/artifact/io.github.glandais/vcyclist-gpx)
+[![Maven Central fit](https://img.shields.io/maven-central/v/io.github.glandais/vcyclist-fit?label=io.github.glandais%3Avcyclist-fit)](https://central.sonatype.com/artifact/io.github.glandais/vcyclist-fit)
+[![Maven Central map](https://img.shields.io/maven-central/v/io.github.glandais/vcyclist-map?label=io.github.glandais%3Avcyclist-map)](https://central.sonatype.com/artifact/io.github.glandais/vcyclist-map)
 
 Kotlin Multiplatform port of [`@glandais/virtual-cyclist`](https://github.com/glandais/virtual-cyclist):
 physics-based cycling simulator that turns a static GPS trace into a virtualized ride with
@@ -77,6 +80,10 @@ See [`docs/publishing.md`](docs/publishing.md) for the release process.
 
 ### Run the CLI
 
+The CLI is **not** on Maven Central — it is an application, distributed as a self-contained jar
+attached to each [GitHub release](https://github.com/glandais/vcyclist/releases). Download
+`vcyclist-cli-<version>-all.jar` and run it with Java 21+, or build it yourself:
+
 ```bash
 # Build a self-contained jar, then run it from anywhere:
 ./gradlew :cli:executableJar
@@ -127,10 +134,26 @@ suspend fun virtualize(xml: String): String {
 The Kotlin/JS variant (`@glandais/vcyclist-engine`, `@glandais/vcyclist-elevation`) runs
 **in both browser and Node.js / Bun**. The Wasm variants (`*-wasm`) are browser-only.
 
+#### Getting at the exports
+
+Kotlin/JS emits a **UMD bundle that preserves the package namespace**, so the module has
+exactly one top-level export, `io`. Named imports do not work — `import { parseGpx } from
+'@glandais/vcyclist-engine'` fails under Node ESM with *"Named export 'parseGpx' not found"*.
+Unwrap the namespace once and destructure from it :
+
+```js
+import * as engineRaw from '@glandais/vcyclist-engine';   // or: require('@glandais/vcyclist-engine')
+
+const engine = engineRaw.io.github.glandais.engine;
+```
+
+Every snippet below assumes that `engine`. `demo/src/engine-shim.ts` does the same unwrap and
+adds TypeScript types for the DTOs, which Kotlin/JS emits as referenced names only.
+
 #### Browser
 
 ```js
-import { parseGpx, enhance, writeGpx, pathSize, pathTotalDistance } from '@glandais/vcyclist-engine';
+const { parseGpx, enhance, writeGpx, pathSize, pathTotalDistance } = engine;
 
 const handle = parseGpx(gpxXml);
 console.log('input points:', pathSize(handle));
@@ -142,7 +165,7 @@ const xml = writeGpx(out);
 #### Node.js / Bun (with elevation correction)
 
 ```js
-import { parseGpx, enhance, writeGpx } from '@glandais/vcyclist-engine';
+const { parseGpx, enhance, writeGpx } = engine;
 
 const handle = parseGpx(gpxXml);
 const out = await enhance(handle, { fixElevation: true });  // fetches DEM tiles, decodes WebP
@@ -156,7 +179,7 @@ max speeds → virtualize → resample → simplify).
 #### FIT export
 
 ```js
-import { parseGpx, enhance, pathToFit } from '@glandais/vcyclist-engine';
+const { parseGpx, enhance, pathToFit } = engine;
 
 const out = await enhance(parseGpx(gpxXml), null);
 const fit = pathToFit(out, 'My route', Date.parse('2026-08-01T08:00:00Z'));
@@ -172,7 +195,7 @@ FIT has no relative clock, so the start instant is mandatory. The output is a **
 several `<trk>` or several `<trkseg>` :
 
 ```js
-import { parseGpxTracks, parseGpxSegments, writeGpxTracks } from '@glandais/vcyclist-engine';
+const { parseGpxTracks, parseGpxSegments, writeGpxTracks } = engine;
 
 const tracks = parseGpxTracks(gpxXml);       // one path per <trk>, segments concatenated
 const segments = parseGpxSegments(gpxXml);   // one path per <trkseg>, always continuous
