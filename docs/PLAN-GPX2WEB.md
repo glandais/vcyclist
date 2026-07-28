@@ -62,7 +62,7 @@ cœur (`:elevation`, `:gpx`, `:engine`, `:fit`) reste compilable sur les 4 cible
 | g17 | Sous-commandes `enhance` / `export` | `:cli` | ✅ |
 | g18 | Retrait d'`EngineCli` + documentation | `:cli` `:engine` | ✅ |
 | **— Phase H : clôture —** | | | |
-| g19 | Publication des nouveaux artefacts (npm + Maven Central) | tous | ⬜ |
+| g19 | Publication des nouveaux artefacts (npm + Maven Central) | tous | ✅ |
 | g20 | Matrice de correspondance gpx2web → vcyclist | docs | ⬜ |
 
 ## Décisions actées
@@ -117,6 +117,13 @@ reste sans équivalent. Son sort fera l'objet d'une décision séparée.
 - ~~**Phase F / `java.awt`**~~ — **levé pour g13** : `:map` utilise le plugin `kotlin-jvm`, n'a
   pas de `commonMain`, et rien ne dépend de lui (vérifié). `./gradlew check` reste vert et
   multi-cibles sur le cœur. Le bloc `mavenPublishing` fonctionne tel quel sur un module non-KMP.
+- ~~**g19 / licence du SDK Garmin**~~ — **tranché, non bloquant** : vcyclist ne redistribue aucun
+  octet de Garmin. Le SDK est publié par Garmin sur les deux registres (`com.garmin:fit`,
+  `@garmin/fitsdk`) et vcyclist n'en déclare que la *coordonnée*. Portée plus large qu'annoncé
+  jusqu'ici, et documentée comme telle : la dépendance n'est pas jvmMain-only, et comme `:engine`
+  fait `api(project(":fit"))`, tout `npm install @glandais/vcyclist-engine` tire `@garmin/fitsdk`
+  en transitif. Détail et réserves dans
+  [`docs/publishing.md`](publishing.md#fit-and-the-garmin-sdk-licence--the-decision).
 - ~~**g14 / politique d'usage des tuiles**~~ — **traité** : user-agent explicite
   `vcyclist (https://github.com/glandais/vcyclist)`, vérifié envoyé par un test contre un serveur
   HTTP local ; **aucune URL de tuiles par défaut**, ni en production ni dans le test
