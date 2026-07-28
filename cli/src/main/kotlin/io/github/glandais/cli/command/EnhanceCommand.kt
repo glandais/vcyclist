@@ -1,10 +1,12 @@
 package io.github.glandais.cli.command
 
 import io.github.glandais.cli.ExitCodes
+import io.github.glandais.cli.diskCachedElevationProvider
 import io.github.glandais.cli.mixin.BikeMixin
 import io.github.glandais.cli.mixin.CyclistMixin
 import io.github.glandais.cli.mixin.FilesMixin
 import io.github.glandais.cli.mixin.WindMixin
+import io.github.glandais.elevation.ElevationProvider
 import io.github.glandais.engine.Course
 import io.github.glandais.engine.CoursePhysics
 import io.github.glandais.engine.EnhanceOptions
@@ -123,9 +125,20 @@ class EnhanceCommand : Callable<Int> {
     @field:CommandLine.Option(
         names = ["--fix-elevation"],
         negatable = true,
-        description = ["Correct elevations from DEM tiles. Requires network access. (default: false)"],
+        description = [
+            "Correct elevations from DEM tiles, kept on disk under --cache. Downloads what",
+            "the cache does not hold yet. (default: false)",
+        ],
     )
     var fixElevation: Boolean? = null
+
+    /**
+     * Builds the provider used when `--fix-elevation` is on. A settable seam so the offline test
+     * can substitute a canned-tile provider — the wiring below it is exactly what task g34 found
+     * missing (the option parsed, then `null` reached the Enhancer and the step was skipped), so
+     * it must stay testable without the network.
+     */
+    internal var elevationProviderFactory: () -> ElevationProvider = { diskCachedElevationProvider(files.cache) }
 
     @field:CommandLine.Option(
         names = ["--virtualize"],
@@ -215,12 +228,15 @@ class EnhanceCommand : Callable<Int> {
         }
 
         val options = pipelineOptions()
+        // One provider for the whole batch, so its tile cache is shared across files — and none
+        // at all otherwise: it is an HTTP client a run without --fix-elevation has no use for.
+        val elevationProvider = if (options.fixElevation) elevationProviderFactory() else null
 
         val failures = mutableListOf<String>()
         for (input in inputs) {
             // One bad file must not abort the batch — the others are still worth processing, and
             // the caller learns about every failure at the end rather than the first one only.
-            runCatching { processOne(input, inputs.size, options, start, power) }
+            runCatching { processOne(input, inputs.size, options, start, power, elevationProvider) }
                 .onFailure { failures.add("${input.path}: ${it.message ?: it::class.simpleName}") }
         }
 
@@ -250,6 +266,7 @@ class EnhanceCommand : Callable<Int> {
         options: EnhanceOptions,
         start: Instant?,
         powerSource: GpxPowerSource,
+        elevationProvider: ElevationProvider?,
     ) {
         val out = spec.commandLine().out
         if (!quiet) out.println("Reading ${input.path}")
@@ -268,7 +285,7 @@ class EnhanceCommand : Callable<Int> {
             )
         }
 
-        val enhanced = runBlocking { paths.map { enhanceOne(it, options) } }
+        val enhanced = runBlocking { paths.map { enhanceOne(it, options, elevationProvider) } }
 
         if (!quiet) {
             out.println(
@@ -348,6 +365,7 @@ class EnhanceCommand : Callable<Int> {
     private suspend fun enhanceOne(
         path: Path,
         options: EnhanceOptions,
+        elevationProvider: ElevationProvider?,
     ): Path {
         val physics =
             CoursePhysics(
@@ -358,7 +376,7 @@ class EnhanceCommand : Callable<Int> {
                 // --gpx-power replays what the file recorded; otherwise the rider model applies.
                 cyclistPowerProvider = if (useGpxPower) PowerProviderFromData else cyclist.toPowerProvider(),
             )
-        return Enhancer.enhanceCourse(physics, options, elevationProvider = null)
+        return Enhancer.enhanceCourse(physics, options, elevationProvider)
     }
 }
 

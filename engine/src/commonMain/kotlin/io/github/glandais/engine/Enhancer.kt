@@ -61,18 +61,33 @@ object Enhancer {
         options: EnhanceOptions = EnhanceOptions.DEFAULT,
     ): List<Path> = paths.map { enhanceCourseDefault(it, elevationProvider, options) }
 
-    /** Convenience : enhance [path] with all defaults and an optional [elevationProvider]. */
+    /**
+     * Convenience : enhance [path] with all defaults and an optional [elevationProvider].
+     *
+     * Here — and only here — a `null` [elevationProvider] **means** "no elevation correction" :
+     * `fixElevation` is resolved against the provider's presence before delegating, so the
+     * one-argument call keeps working offline. [enhanceCourse], the explicit entry point, instead
+     * treats `fixElevation = true` without a provider as a caller error (task g34).
+     */
     suspend fun enhanceCourseDefault(
         path: Path,
         elevationProvider: ElevationProvider? = null,
         options: EnhanceOptions = EnhanceOptions.DEFAULT,
-    ): Path = enhanceCourse(getDefaultCourse(path), options, elevationProvider)
+    ): Path =
+        enhanceCourse(
+            getDefaultCourse(path),
+            options.copy(fixElevation = options.fixElevation && elevationProvider != null),
+            elevationProvider,
+        )
 
     /**
      * Run the enhancement pipeline.
      *
-     * - If [elevationProvider] is `null`, [EnhanceOptions.fixElevation] is skipped (no
-     *   provider → can't pull elevations). The smoother runs regardless.
+     * - [EnhanceOptions.fixElevation] requires an [elevationProvider] ; asking for the correction
+     *   without providing one throws [IllegalArgumentException]. Until task g34 the step was
+     *   silently skipped instead, which is how the CLI shipped a `--fix-elevation` that corrected
+     *   nothing — a wrong output that *looks* right is worse than an exception. Callers who want
+     *   "fix if you can" have [enhanceCourseDefault]. The smoother runs regardless.
      * - If [EnhanceOptions.virtualizeTrack] is `true`, max-speed computation is always run
      *   (the simulation needs `speedMax`).
      */
@@ -81,12 +96,16 @@ object Enhancer {
         options: EnhanceOptions = EnhanceOptions.DEFAULT,
         elevationProvider: ElevationProvider? = null,
     ): Path {
+        require(!options.fixElevation || elevationProvider != null) {
+            "fixElevation = true but elevationProvider is null. Pass a provider, or set " +
+                "fixElevation = false (enhanceCourseDefault resolves this automatically)."
+        }
         var path = course.path
 
         // Step 1a : densify before fixElevation so DEM lookups have ~30 m granularity.
         path = PointPerDistance.compute(path, minDistanceM = -1.0, maxDistanceM = 30.0)
 
-        // Step 1b : fix elevation (optional).
+        // Step 1b : fix elevation (optional). The provider is non-null here — see the require above.
         if (options.fixElevation && elevationProvider != null) {
             path = ElevationStep.fixElevation(path, elevationProvider)
         }

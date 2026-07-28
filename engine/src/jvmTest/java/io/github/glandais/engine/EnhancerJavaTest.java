@@ -43,8 +43,13 @@ public class EnhancerJavaTest {
 
     @Test
     public void enhanceCourseBlockingTakesAnExplicitCourse() {
+        // The explicit entry point refuses fixElevation without a provider since task g34, so
+        // an offline caller now has to say so — through the g27 factory, since Java cannot
+        // reach the Kotlin defaults of EnhanceOptions.
         Path enhanced =
-                EnhancerJvm.enhanceCourseBlocking(Enhancer.INSTANCE.getDefaultCourse(samplePath()));
+                EnhancerJvm.enhanceCourseBlocking(
+                        Enhancer.INSTANCE.getDefaultCourse(samplePath()),
+                        EngineModelJvm.enhanceOptions(false));
 
         assertTrue(enhanced.getSize() > 0);
     }

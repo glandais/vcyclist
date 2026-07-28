@@ -25,7 +25,8 @@ vcyclist enhance route.gpx --gpx out.gpx --csv out.csv --start-time 2026-08-01T0
 | `--start-time <ISO-8601>` | absolute instant of the first point |
 | `--no-extensions` | write a bare GPX: no `<extensions>`, so no power, heart rate, cadence or temperature |
 | `--gpx-power-source <input\|computed\|computed-or-input>` | which power the written GPX carries (default `input`) |
-| `--[no-]fix-elevation` | DEM elevation correction (off by default; downloads tiles) |
+| `--[no-]fix-elevation` | DEM elevation correction (off by default; downloads the missing tiles) |
+| `--cache <folder>` | where DEM and map tiles persist between runs (default `~/.vcyclist/cache`) |
 | `--[no-]virtualize` | physics simulation (on) |
 | `--[no-]simplify`, `--simplify-tolerance <m>` | Douglas-Peucker (on, 10 m) |
 | `--[no-]one-point-per-second` | 1 Hz resampling (on) |
@@ -35,6 +36,12 @@ vcyclist enhance route.gpx --gpx out.gpx --csv out.csv --start-time 2026-08-01T0
 `--fit` requires `--start-time` because the FIT format has no relative clock — the engine's
 timeline starts at zero, so the absolute start has to be supplied. The same applies to
 `--start-time` for GPX, where it is optional.
+
+`--fix-elevation` replaces the recorded elevations with values read from Terrarium DEM tiles.
+Tiles land under `--cache` (`{host}/{z}/{x}/{y}.webp`, same layout as the map tile cache) and
+never expire, so only the first run over an area touches the network. If a tile cannot be
+fetched, the file **fails** — exit code 70, with the cause on stderr — rather than writing
+plausible-looking output whose elevations were never corrected (task g34).
 
 ### `export` — derived outputs, no physics
 

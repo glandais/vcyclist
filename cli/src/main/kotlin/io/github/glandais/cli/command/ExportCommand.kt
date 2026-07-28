@@ -1,9 +1,8 @@
 package io.github.glandais.cli.command
 
 import io.github.glandais.cli.ExitCodes
+import io.github.glandais.cli.diskCachedElevationProvider
 import io.github.glandais.cli.mixin.FilesMixin
-import io.github.glandais.elevation.ElevationProvider
-import io.github.glandais.elevation.ElevationProviderConfig
 import io.github.glandais.engine.gpx.GpxParser
 import io.github.glandais.engine.gpx.GpxWriter
 import io.github.glandais.engine.gpx.tracksAsPaths
@@ -221,7 +220,9 @@ class ExportCommand : Callable<Int> {
         elevationMapOut?.let { target ->
             val file = naming.resolve(target, "png")
             file.absoluteFile.parentFile?.mkdirs()
-            val provider = ElevationProvider(ElevationProviderConfig())
+            // Disk-cached under --cache like the map tiles above — until g34 this provider
+            // ignored --cache and re-downloaded every DEM tile on every run.
+            val provider = diskCachedElevationProvider(files.cache)
             SrtmMapProducer(provider).createSrtmMap(file, paths, maxSize = maxSize, margin = margin)
             if (!quiet) out.println("  wrote ${file.path}")
         }

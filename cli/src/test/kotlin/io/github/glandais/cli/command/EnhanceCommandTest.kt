@@ -3,6 +3,9 @@ package io.github.glandais.cli.command
 import com.garmin.fit.FitDecoder
 import io.github.glandais.cli.ExitCodes
 import io.github.glandais.cli.RootCommand
+import io.github.glandais.elevation.ElevationProvider
+import io.github.glandais.elevation.ElevationProviderConfig
+import io.github.glandais.elevation.RawTile
 import io.github.glandais.engine.gpx.GpxParser
 import io.github.glandais.engine.gpx.tracksAsPaths
 import picocli.CommandLine
@@ -519,6 +522,104 @@ class EnhanceCommandTest {
 
         assertTrue(File(work, "out-1.json").isFile)
         assertTrue(File(work, "out-2.json").isFile)
+    }
+
+    // ---- --fix-elevation actually reaches the provider (task g34) -------------
+    //
+    // Until g34 EnhanceCommand parsed the flag, built the options... and passed
+    // `elevationProvider = null` to the Enhancer, which skipped the step. The command
+    // succeeded, the file looked plausible, and nothing said the DEM was never consulted.
+    // These tests run OFFLINE on purpose: the bug was wiring, and wiring must be checked
+    // without the network or it will not be checked in CI at all.
+
+    /** A provider whose every pixel decodes to [elevationM] (Terrarium encoding), no network. */
+    private fun cannedProvider(
+        elevationM: Int,
+        fetched: MutableList<String> = mutableListOf(),
+    ): ElevationProvider {
+        val tileSize = 4
+        val raw = elevationM + 32768
+        val rgba = ByteArray(tileSize * tileSize * 4)
+        for (pixel in 0 until tileSize * tileSize) {
+            rgba[pixel * 4] = ((raw shr 8) and 0xFF).toByte()
+            rgba[pixel * 4 + 1] = (raw and 0xFF).toByte()
+            rgba[pixel * 4 + 3] = 255.toByte()
+        }
+        return ElevationProvider(
+            ElevationProviderConfig(zoomLevel = 0, tileSize = tileSize, cacheSize = 4, tileUrlTemplate = "test://{z}/{x}/{y}"),
+        ) { url ->
+            fetched += url
+            RawTile(tileSize, tileSize, rgba)
+        }
+    }
+
+    /** Like [run], but through a hand-built [EnhanceCommand] so the provider seam is reachable. */
+    private fun runCommand(
+        command: EnhanceCommand,
+        vararg args: String,
+    ): Run {
+        val out = StringWriter()
+        val err = StringWriter()
+        val code =
+            CommandLine(command)
+                .setOut(PrintWriter(out, true))
+                .setErr(PrintWriter(err, true))
+                .execute(*args)
+        return Run(code, out.toString(), err.toString())
+    }
+
+    @Test
+    fun `case 29 — --fix-elevation rewrites the elevations from the DEM tiles, not the input GPX`() {
+        val fetched = mutableListOf<String>()
+        val command = EnhanceCommand().also { it.elevationProviderFactory = { cannedProvider(500, fetched) } }
+        val output = File(work, "fixed.gpx")
+
+        val result = runCommand(command, gpxFixture().path, "--gpx", output.path, "--fix-elevation")
+
+        assertEquals(0, result.code, result.err)
+        assertTrue(fetched.isNotEmpty(), "the provider was never asked for a tile — the g34 no-op is back")
+        val path = GpxParser.parse(output.readText()).tracksAsPaths().single()
+        // The input climbs 1000 → 1160 m; the DEM says 500 m everywhere. If any input elevation
+        // survives, the correction did not happen.
+        for (i in 0 until path.size) {
+            assertEquals(500.0, path.elevation(i), 1.0, "point $i kept an input elevation")
+        }
+    }
+
+    @Test
+    fun `case 30 — without --fix-elevation no provider is even built`() {
+        var built = 0
+        val command =
+            EnhanceCommand().also { cmd ->
+                cmd.elevationProviderFactory = {
+                    built++
+                    cannedProvider(500)
+                }
+            }
+
+        val result = runCommand(command, gpxFixture().path, "--gpx", File(work, "plain.gpx").path)
+
+        assertEquals(0, result.code, result.err)
+        assertEquals(0, built, "a run without --fix-elevation must not instantiate an HTTP tile client")
+    }
+
+    @Test
+    fun `case 31 — a failing tile fetch fails the run loudly instead of writing a plausible file`() {
+        val command =
+            EnhanceCommand().also { cmd ->
+                cmd.elevationProviderFactory = {
+                    ElevationProvider(
+                        ElevationProviderConfig(zoomLevel = 0, tileSize = 4, cacheSize = 4, tileUrlTemplate = "test://{z}/{x}/{y}"),
+                    ) { url -> throw IllegalStateException("tile unreachable: $url") }
+                }
+            }
+        val output = File(work, "never-fixed.gpx")
+
+        val result = runCommand(command, gpxFixture().path, "--gpx", output.path, "--fix-elevation")
+
+        assertEquals(ExitCodes.RUNTIME, result.code, "a failed correction must not exit 0")
+        assertContains(result.err, "tile unreachable")
+        assertTrue(!output.exists(), "no output file must be written when the correction failed")
     }
 
     @Test

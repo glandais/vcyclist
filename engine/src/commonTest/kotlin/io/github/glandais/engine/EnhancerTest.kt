@@ -141,6 +141,33 @@ class EnhancerTest {
             }
         }
 
+    // ---- 2b. fixElevation without a provider is a caller error (task g34) ----
+
+    @Test
+    fun enhanceCourse_fixElevation_without_provider_throws() =
+        runTest {
+            // Until g34 the step was skipped silently, which let the CLI ship a --fix-elevation
+            // that corrected nothing. The explicit entry point now refuses the combination.
+            val failure =
+                assertFailsWith<IllegalArgumentException> {
+                    Enhancer.enhanceCourse(
+                        Enhancer.getDefaultCourse(samplePath()),
+                        EnhanceOptions(fixElevation = true),
+                        elevationProvider = null,
+                    )
+                }
+            assertTrue("fixElevation" in (failure.message ?: ""), "message should name the option: $failure")
+        }
+
+    @Test
+    fun enhanceCourseDefault_without_provider_resolves_to_no_correction() =
+        runTest {
+            // The convenience wrapper keeps its documented "optional provider" contract : null
+            // means the step is off, even though EnhanceOptions.DEFAULT asks for it.
+            val out = Enhancer.enhanceCourseDefault(samplePath(), elevationProvider = null)
+            assertTrue(out.size >= 2, "pipeline should run to completion offline")
+        }
+
     // ---- 3. enhanceCourseDefault equivalent to enhanceCourse(getDefaultCourse) --
 
     @Test
@@ -152,7 +179,9 @@ class EnhancerTest {
             val out2 =
                 Enhancer.enhanceCourse(
                     Enhancer.getDefaultCourse(src2),
-                    EnhanceOptions.DEFAULT,
+                    // What enhanceCourseDefault resolves DEFAULT to when the provider is null —
+                    // passing DEFAULT itself here throws since g34 (fixElevation with no provider).
+                    EnhanceOptions.DEFAULT.copy(fixElevation = false),
                     elevationProvider = null,
                 )
             assertEquals(out1.size, out2.size)
@@ -219,20 +248,22 @@ class EnhancerTest {
             assertTrue(out.time(out.size - 2) >= 0.0)
         }
 
-    // ---- 8. fixElevation skipped silently when provider is null -----------
+    // ---- 8. the smoother runs even when fixElevation is off ----------------
 
     @Test
-    fun fix_elevation_skipped_when_provider_null_but_smoother_still_runs() =
+    fun smoother_runs_even_with_fix_elevation_off() =
         runTest {
+            // Until g34 this test pinned the silent skip (fixElevation = true, provider = null) —
+            // the behaviour that let the CLI ship a no-op --fix-elevation. The combination now
+            // throws (see test 2b); what remains worth pinning is that smoothElevation is
+            // unconditional.
             val src = samplePath()
             // Force a noticeable spike to verify the smoother does run.
             src.setElevation(2, 500.0)
             src.computeDerivedData()
-            // Only fixElevation enabled in options, but provider is null → step skipped.
-            // smoothElevation always runs → middle peak should be reduced.
             val options =
                 EnhanceOptions(
-                    fixElevation = true,
+                    fixElevation = false,
                     computeMaxSpeeds = false,
                     virtualizeTrack = false,
                     computeOnePointPerSecond = false,
