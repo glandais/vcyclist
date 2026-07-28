@@ -74,7 +74,7 @@ reste intact.
 | w02 | CI : `wasmWasiWasmtimeTest` dans `check` + cache wasmtime | build | ✅ |
 | **— Phase B : ABI et façade —** | | | |
 | w03 | `EngineWasiApi` — ABI v1 figée, absorption du POC `GpxWasiApi` | `:engine` `:gpx` | ✅ |
-| w04 | Parité fonctionnelle avec `EngineJsApi` (enhance, cols, exports, vent) | `:engine` | ⬜ |
+| w04 | Parité fonctionnelle avec `EngineJsApi` (enhance, cols, exports, vent) | `:engine` | ✅ |
 | w05 | Élévation host-injectée : import `fetch_tile` + pont `suspend`→synchrone | `:engine` `:elevation` | ⬜ |
 | **— Phase C : packaging et publication —** | | | |
 | w06 | Tâche Gradle de distribution du `.wasm` (nom stable, taille, checksum) | `:engine` build | ⬜ |
