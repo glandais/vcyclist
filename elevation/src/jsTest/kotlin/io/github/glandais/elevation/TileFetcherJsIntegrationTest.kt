@@ -6,16 +6,17 @@ import kotlin.test.assertEquals
 import kotlin.test.assertTrue
 
 /**
- * Live HTTP integration test of the Node tile fetcher (task 32).
+ * Live HTTP integration test of the Kotlin/JS tile fetcher (task 32).
  *
- * Gated by `INTEGRATION=1` (env propagated to KotlinJsTest by `build.gradle.kts`).
- * Skips silently in browser environments where `process` is undefined.
+ * This source set is shared by `jsNodeTest` and `jsBrowserTest`, so it exercises both branches
+ * of `TileFetcher.js.kt`. Gated by `INTEGRATION=1` — see `IntegrationGate.kt` for how the flag
+ * reaches Node (`process.env`) and the browser (`__karma__.config`).
  */
-class TileFetcherNodeIntegrationTest {
+class TileFetcherJsIntegrationTest {
     @Test
     fun montBlancTileDecodes() =
         runTest {
-            if (!integrationEnabled()) return@runTest
+            if (skipIfOffline("TileFetcherJsIntegrationTest")) return@runTest
             // Mont Blanc tile at zoom 12 : x=2138, y=1466 (Web Mercator). Mapterhorn serves
             // 512 × 512 high-DPI WebP tiles.
             val url = "https://tiles.mapterhorn.com/12/2138/1466.webp"

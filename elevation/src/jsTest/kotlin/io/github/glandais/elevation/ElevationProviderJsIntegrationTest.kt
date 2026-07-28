@@ -6,17 +6,16 @@ import kotlin.test.Test
 import kotlin.test.assertTrue
 
 /**
- * Live HTTP integration tests against tiles.mapterhorn.com from the Kotlin/JS Node target.
+ * Live HTTP integration tests against tiles.mapterhorn.com from the Kotlin/JS target (Node + browser).
  *
- * Mirrors the JVM `ElevationProviderIntegrationTest`. Gated by `INTEGRATION=1` (env propagated
- * to KotlinJsTest by `build.gradle.kts`). Skips silently in browser environments where
- * `process` is undefined.
+ * Mirrors the JVM `ElevationProviderIntegrationTest`. This source set is shared by `jsNodeTest`
+ * and `jsBrowserTest`, so both run. Gated by `INTEGRATION=1` — see `IntegrationGate.kt`.
  */
-class ElevationProviderNodeIntegrationTest {
+class ElevationProviderJsIntegrationTest {
     @Test
     fun montBlancAltitudeIsCloseTo4805m() =
         runTest {
-            if (!integrationEnabled()) return@runTest
+            if (skipIfOffline("ElevationProviderJsIntegrationTest")) return@runTest
             val provider = ElevationProvider()
             val alt = provider.getElevation(45.8326, 6.8652, interpolation = true)
             assertTrue(abs(alt - 4805.0) < 50.0, "Mont Blanc altitude $alt should be 4805 ± 50 m")
@@ -25,7 +24,7 @@ class ElevationProviderNodeIntegrationTest {
     @Test
     fun deadSeaAltitudeIsCloseToMinus430m() =
         runTest {
-            if (!integrationEnabled()) return@runTest
+            if (skipIfOffline("ElevationProviderJsIntegrationTest")) return@runTest
             val provider = ElevationProvider()
             val alt = provider.getElevation(31.5, 35.5, interpolation = true)
             assertTrue(abs(alt - (-430.0)) < 50.0, "Dead Sea altitude $alt should be -430 ± 50 m")
@@ -34,7 +33,7 @@ class ElevationProviderNodeIntegrationTest {
     @Test
     fun deathValleyAltitudeIsCloseToMinus85m() =
         runTest {
-            if (!integrationEnabled()) return@runTest
+            if (skipIfOffline("ElevationProviderJsIntegrationTest")) return@runTest
             val provider = ElevationProvider()
             val alt = provider.getElevation(36.250, -116.832, interpolation = true)
             assertTrue(abs(alt - (-85.0)) < 50.0, "Death Valley altitude $alt should be -85 ± 50 m")
@@ -43,7 +42,7 @@ class ElevationProviderNodeIntegrationTest {
     @Test
     fun getElevationsAlongMontBlancPathReturnsDensifiedProfile() =
         runTest {
-            if (!integrationEnabled()) return@runTest
+            if (skipIfOffline("ElevationProviderJsIntegrationTest")) return@runTest
             val provider = ElevationProvider()
             val path =
                 listOf(
