@@ -82,7 +82,7 @@ reste intact.
 | w08 | Passage à Kotlin 2.4.20 final et re-vérifications | build | ⬜ |
 | **— Phase D : hôtes de référence et documentation —** | | | |
 | w09 | Harnais d'hôtes `tools/wasi/` : wasmtime CLI + wasmtime-py, joué en CI | tools | ✅ |
-| w10 | Documentation : `docs/wasm-wasi-abi.md`, README, `publishing.md` | docs | ⬜ |
+| w10 | Documentation : `docs/wasm-wasi-abi.md`, README, `publishing.md` | docs | ✅ |
 | **— Phase E : autonomie complète (optionnel) —** | | | |
 | w11 | Décodeur WebP/VP8L pur Kotlin — `:elevation` autonome sous WASI | `:elevation` | ⬜ |
 | w12 | Encodeur FIT pur Kotlin — `pathToFit` sous WASI | `:fit` | ⬜ |
