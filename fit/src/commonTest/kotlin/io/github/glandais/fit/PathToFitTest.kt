@@ -80,15 +80,19 @@ class PathToFitTest {
 
     @Test
     fun `case 05 — untouched sensor slots are omitted, not encoded as zero`() {
-        // A Path allocates every field as 0.0, so a course built from a path that never had a
-        // heart-rate monitor must not claim a flat 0 bpm — that draws a line at the bottom of
-        // every chart instead of showing an absence.
+        // `GpxToPath` writes NaN for a sensor the GPX never carried, so a course built from a
+        // path that never had a heart-rate monitor must not claim a flat 0 bpm — that draws a
+        // line at the bottom of every chart instead of showing an absence.
         val p = Path(2)
         for (i in 0 until 2) {
             p.setLatitude(i, 45.0 * MathConstants.DEG_TO_RAD)
             p.setLongitude(i, 6.0 * MathConstants.DEG_TO_RAD)
             p.setElevation(i, 100.0)
             p.setTime(i, i * 1000.0)
+            p.setHeartRate(i, Double.NaN)
+            p.setCadence(i, Double.NaN)
+            p.setPInputPower(i, Double.NaN)
+            p.setTemperature(i, Double.NaN)
         }
         p.computeDerivedData()
 

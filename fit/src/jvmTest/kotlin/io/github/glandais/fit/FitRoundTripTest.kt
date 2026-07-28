@@ -112,6 +112,10 @@ class FitRoundTripTest {
             p.setLongitude(i, 6.0 * MathConstants.DEG_TO_RAD)
             p.setElevation(i, 100.0)
             p.setTime(i, i * 1000.0)
+            // NaN = "this sensor produced nothing", which is what `GpxToPath` writes.
+            p.setHeartRate(i, Double.NaN)
+            p.setCadence(i, Double.NaN)
+            p.setPInputPower(i, Double.NaN)
         }
         p.computeDerivedData()
 
