@@ -12,9 +12,20 @@ import kotlin.test.fail
  * exposed so a caller can own the transport (disk cache, object store, bundled tiles) without
  * reimplementing the decoder.
  *
- * These tests run **offline on all three targets**, which the pre-g21 decode tests could not:
- * they went through a `data:` URL, which the JVM's `HttpClient` does not support. Bytes have no
- * such problem — which is the point of the split.
+ * These tests run **offline**, which the pre-g21 decode tests could not: they went through a
+ * `data:` URL, which the JVM's `HttpClient` does not support. Bytes have no such problem — which
+ * is the point of the split.
+ *
+ * ## Why this file is not in `commonTest`
+ *
+ * Task w01 added the `wasmWasi` target, where `decodeTileBytes` is a stub that throws (no WebP
+ * decoder under WASI — see `TileFetcher.wasmWasi.kt` and `TileFetcherStubTest`). Everything here
+ * asserts *decoded pixels*, so on that target it can only fail. Rather than lose the coverage or
+ * keep seven permanent reds in CI, the file lives in `src/decodingTest/kotlin`, a source
+ * directory added to the `jvmTest` and `jsTest` compilations by `elevation/build.gradle.kts` —
+ * the two targets that actually decode. The coverage on JVM and JS is unchanged, byte for byte.
+ *
+ * Move it back to `commonTest` once task w11 lands a pure-Kotlin VP8L decoder.
  */
 class TileDecodeSplitTest {
     @Test

@@ -42,6 +42,14 @@ kotlin {
         }
     }
 
+    // Library target only : `:fit` produces a klib, never a standalone `.wasm` (the single
+    // executable binary of the project is `:engine`'s, see w06). The `actual` encoder throws —
+    // there is no FIT SDK under WASI, see `FitEncoder.wasmWasi.kt` and task w12.
+    @OptIn(org.jetbrains.kotlin.gradle.ExperimentalWasmDsl::class)
+    wasmWasi {
+        wasmtime()
+    }
+
     sourceSets {
         commonMain.dependencies {
             // `FitCourse` is built from a `Path` (task g10), and the conversion is part of the
@@ -51,6 +59,12 @@ kotlin {
         commonTest.dependencies {
             implementation(kotlin("test"))
         }
+        // Tests that actually call `FitEncoder`, compiled only into the targets that have an SDK
+        // behind it. wasmWasi's actual throws (task w01), so they cannot pass there ; the stub's
+        // own contract is pinned by `FitEncoderStubTest`. Same single-file-two-compilations
+        // trick as `commonTestFixtures` in gpx/build.gradle.kts.
+        jvmTest { kotlin.srcDir("src/encodingTest/kotlin") }
+        jsTest { kotlin.srcDir("src/encodingTest/kotlin") }
         jvmMain.dependencies {
             // Official Garmin FIT SDK, same coordinates and version as gpx2web. JVM-only : the
             // JS target goes through @garmin/fitsdk instead (task g09).
