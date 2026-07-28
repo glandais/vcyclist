@@ -226,8 +226,15 @@ class ExportCommand : Callable<Int> {
             if (!quiet) out.println("  wrote ${file.path}")
         }
 
-        csvOut?.let { target -> write(naming.resolve(target, "csv"), CsvWriter.write(paths.first()), out) }
-        jsonOut?.let { target -> write(naming.resolve(target, "json"), JsonWriter.write(paths.first()), out) }
+        // One file per track, like `enhance` — see `trackOutputFiles` (task g28).
+        csvOut?.let { target ->
+            trackOutputFiles(naming.resolve(target, "csv"), paths.size)
+                .forEachIndexed { i, file -> write(file, CsvWriter.write(paths[i]), out) }
+        }
+        jsonOut?.let { target ->
+            trackOutputFiles(naming.resolve(target, "json"), paths.size)
+                .forEachIndexed { i, file -> write(file, JsonWriter.write(paths[i]), out) }
+        }
         fitOut?.let { target ->
             val file = naming.resolve(target, "fit")
             file.absoluteFile.parentFile?.mkdirs()

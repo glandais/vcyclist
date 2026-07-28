@@ -461,4 +461,94 @@ class EnhanceCommandTest {
         assertEquals(ExitCodes.USAGE, result.code)
         assertContains(result.err, "--gpx-power-source")
     }
+
+    /** Two tracks, so the per-track export naming of g28 has something to name. */
+    private fun twoTrackFixture(): File {
+        val file = File(work, "two.gpx")
+        file.writeText(
+            """<?xml version="1.0" encoding="UTF-8"?>
+<gpx version="1.1" xmlns="http://www.topografix.com/GPX/1/1">
+  <trk><name>one</name><trkseg>
+    <trkpt lat="46.5000" lon="10.4000"><ele>1000</ele></trkpt>
+    <trkpt lat="46.5090" lon="10.4000"><ele>1050</ele></trkpt>
+    <trkpt lat="46.5180" lon="10.4000"><ele>1100</ele></trkpt>
+  </trkseg></trk>
+  <trk><name>two</name><trkseg>
+    <trkpt lat="45.0000" lon="6.0000"><ele>500</ele></trkpt>
+    <trkpt lat="45.0090" lon="6.0000"><ele>540</ele></trkpt>
+    <trkpt lat="45.0180" lon="6.0000"><ele>590</ele></trkpt>
+  </trkseg></trk>
+</gpx>
+""",
+        )
+        return file
+    }
+
+    @Test
+    fun `case 25 — a single-track CSV keeps the file name the user asked for`() {
+        val input = gpxFixture()
+        val csv = File(work, "single.csv")
+
+        assertEquals(0, run("enhance", input.path, "--csv", csv.path).code)
+
+        assertTrue(csv.isFile, "expected exactly ${csv.path}")
+        assertTrue(!File(work, "single-1.csv").exists(), "no suffix for a single track")
+    }
+
+    @Test
+    fun `case 26 — a two-track CSV writes one file per track, and says so`() {
+        val input = twoTrackFixture()
+        val csv = File(work, "out.csv")
+
+        val result = run("enhance", input.path, "--csv", csv.path)
+
+        assertEquals(0, result.code, result.err)
+        val first = File(work, "out-1.csv")
+        val second = File(work, "out-2.csv")
+        assertTrue(first.isFile && second.isFile, "expected out-1.csv and out-2.csv, got ${work.list()?.toList()}")
+        assertTrue(!csv.exists(), "the un-suffixed name is not written when there are several tracks")
+        assertContains(result.out, "out-1.csv")
+        assertContains(result.out, "out-2.csv")
+    }
+
+    @Test
+    fun `case 27 — JSON follows the same rule as CSV`() {
+        val input = twoTrackFixture()
+
+        assertEquals(0, run("enhance", input.path, "--json", File(work, "out.json").path).code)
+
+        assertTrue(File(work, "out-1.json").isFile)
+        assertTrue(File(work, "out-2.json").isFile)
+    }
+
+    @Test
+    fun `case 28 — every format describes the same set of tracks`() {
+        val input = twoTrackFixture()
+        val gpx = File(work, "all.gpx")
+
+        assertEquals(
+            0,
+            run(
+                "enhance",
+                input.path,
+                "--gpx",
+                gpx.path,
+                "--csv",
+                File(work, "all.csv").path,
+                "--fit",
+                File(work, "all.fit").path,
+                "--start-time",
+                "2026-08-01T08:00:00Z",
+            ).code,
+        )
+
+        val tracks = GpxParser.parse(gpx.readText()).tracksAsPaths()
+        assertEquals(2, tracks.size, "GPX")
+        assertEquals(2, FitDecoder().decode(File(work, "all.fit").inputStream()).lapMesgs.size, "FIT")
+        // One CSV per track, each with a header plus one row per point of *its* track.
+        for ((i, track) in tracks.withIndex()) {
+            val lines = File(work, "all-${i + 1}.csv").readLines().filter { it.isNotBlank() }
+            assertEquals(track.size + 1, lines.size, "CSV of track ${i + 1}")
+        }
+    }
 }

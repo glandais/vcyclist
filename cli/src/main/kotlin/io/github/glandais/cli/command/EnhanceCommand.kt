@@ -299,8 +299,14 @@ class EnhanceCommand : Callable<Int> {
             )
             if (!quiet) out.println("  wrote ${file.path}")
         }
-        csvOut?.let { target -> writeText(naming.resolve(target, "csv"), CsvWriter.write(enhanced.first()), out) }
-        jsonOut?.let { target -> writeText(naming.resolve(target, "json"), JsonWriter.write(enhanced.first()), out) }
+        csvOut?.let { target ->
+            trackOutputFiles(naming.resolve(target, "csv"), enhanced.size)
+                .forEachIndexed { i, file -> writeText(file, CsvWriter.write(enhanced[i]), out) }
+        }
+        jsonOut?.let { target ->
+            trackOutputFiles(naming.resolve(target, "json"), enhanced.size)
+                .forEachIndexed { i, file -> writeText(file, JsonWriter.write(enhanced[i]), out) }
+        }
         fitOut?.let { target ->
             val file = naming.resolve(target, "fit")
             file.absoluteFile.parentFile?.mkdirs()
@@ -355,6 +361,33 @@ class EnhanceCommand : Callable<Int> {
         return Enhancer.enhanceCourse(physics, options, elevationProvider = null)
     }
 }
+
+/**
+ * One output file per track (task g28).
+ *
+ * CSV and JSON describe a single [io.github.glandais.engine.path.Path], unlike GPX and FIT which
+ * hold several. Until g28 the CLI wrote `paths.first()` and dropped the rest **silently**: the
+ * point count printed a line earlier covered every track, the file covered one.
+ *
+ * A single track keeps [target] exactly as the user spelled it — that is the dominant case and its
+ * file name must not change. Several tracks produce `name-1.csv`, `name-2.csv`, …, which is the
+ * shape gpx2web's `CSVFileWriter` produces (one file per `GPXPath`), and each file stays readable
+ * on its own in a spreadsheet. Concatenating instead would have kept the defect, merely disguised.
+ */
+internal fun trackOutputFiles(
+    target: File,
+    trackCount: Int,
+): List<File> =
+    if (trackCount <= 1) {
+        listOf(target)
+    } else {
+        val base = target.nameWithoutExtension
+        val extension = target.extension
+        (1..trackCount).map { index ->
+            val name = if (extension.isEmpty()) "$base-$index" else "$base-$index.$extension"
+            File(target.absoluteFile.parentFile, name)
+        }
+    }
 
 /**
  * Decides where a given output goes.

@@ -99,12 +99,47 @@ différent des autres.
 
 ## Done when
 
-- [ ] Forme de sortie tranchée et écrite dans la fiche avant l'implémentation
-- [ ] `enhance` et `export` alignés, CSV et JSON alignés entre eux
-- [ ] Cas mono-piste inchangé, nom de fichier compris
-- [ ] Message de sortie explicite sur ce qui a été écrit
-- [ ] `cli/README.md` à jour
-- [ ] `./gradlew check` + `ktlintCheck` verts
+- [x] Forme de sortie tranchée et écrite dans la fiche avant l'implémentation
+- [x] `enhance` et `export` alignés, CSV et JSON alignés entre eux
+- [x] Cas mono-piste inchangé, nom de fichier compris
+- [x] Message de sortie explicite sur ce qui a été écrit
+- [x] `cli/README.md` à jour
+- [x] `./gradlew check` + `ktlintCheck` verts
+
+## Résultat
+
+### Option A retenue : un fichier par piste
+
+- **Une piste** (le cas dominant) : le fichier porte **exactement** le nom demandé, `out.csv`.
+  Aucun suffixe, aucun changement pour les scripts existants.
+- **Plusieurs pistes** : `out-1.csv`, `out-2.csv`, … chacune nommée sur la sortie standard.
+
+C'est la forme de gpx2web (`CSVFileWriter` écrit un fichier par `GPXPath`) et chaque fichier reste
+ouvrable tel quel dans un tableur. L'option C (concaténation) était écartée d'avance par la fiche
+— elle aurait conservé le défaut en le déguisant ; l'option B (colonne `track`) aurait modifié un
+format que des scripts lisent peut-être déjà.
+
+La logique tient dans une fonction, `trackOutputFiles(target, trackCount)`, partagée par `enhance`
+et `export` — les deux commandes avaient exactement le même défaut, elles ont maintenant exactement
+le même comportement.
+
+### Vérification
+
+- 4 cas dans `EnhanceCommandTest` (25-28) et 1 dans `ExportCommandTest` (20).
+- Le cas 28 est celui qui verrouille l'invariant que la fiche visait : sur un GPX à deux pistes,
+  `--gpx`, `--csv` et `--fit` décrivent **le même ensemble** — 2 tracks, 2 laps, 2 CSV dont chacun
+  a autant de lignes que sa propre piste a de points. Plus aucun format ne voit un sous-ensemble
+  différent des autres.
+- Le cas 25 vérifie l'absence de suffixe sur une piste unique, y compris qu'aucun `out-1.csv`
+  n'apparaît à côté.
+- `./gradlew check` + `ktlintCheck` verts.
+
+### Note de vérification annexe
+
+La fiche demandait de contrôler que `--map` et `--elevation-map` traitent bien toutes les pistes :
+c'est le cas, les deux reçoivent `paths` en entier (`TileMapProducer.createTileMap(paths = …)`,
+`SrtmMapProducer.createSrtmMap(file, paths, …)`) et dessinent une couleur par piste. Rien à
+corriger de ce côté.
 
 ## Notes
 

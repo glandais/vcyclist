@@ -74,7 +74,7 @@ ce plan, 4 cibles avec Kotlin/Wasm ; la cible a depuis été retirée du projet)
 | g26 | Port de `GPXDataComputer.getWind` | `:engine` | ✅ |
 | g27 | Façade JVM (ex-`@JvmOverloads`) sur l'API publique | tous | ✅ |
 | **— Phase J : suites de la phase I —** | | | |
-| g28 | CSV / JSON : écrire toutes les pistes, pas la première | `:cli` | ⬜ |
+| g28 | CSV / JSON : écrire toutes les pistes, pas la première | `:cli` | ✅ |
 | g29 | Rattrapage de la façade JS sur g23, g24 et g25 | `:engine` | ⬜ |
 | g30 | Quelle puissance le GPX exporte-t-il ? | `:gpx` `:cli` | ✅ |
 | g31 | Façade JS pour `dominantHeadwindDirection` | `:engine` `:demo` | ⬜ |

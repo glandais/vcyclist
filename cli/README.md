@@ -20,7 +20,7 @@ vcyclist enhance route.gpx --gpx out.gpx --csv out.csv --start-time 2026-08-01T0
 | Option | Meaning |
 |---|---|
 | `--gpx <file>` | enhanced GPX (a folder when several inputs are given) |
-| `--csv` / `--json` | tabular exports |
+| `--csv` / `--json` | tabular exports — **one file per track** (see below) |
 | `--fit <file>` | Garmin FIT course — **requires `--start-time`** |
 | `--start-time <ISO-8601>` | absolute instant of the first point |
 | `--no-extensions` | write a bare GPX: no `<extensions>`, so no power, heart rate, cadence or temperature |
@@ -49,6 +49,15 @@ means accepting its usage policy. See [`../map/README.md`](../map/README.md).
 Framing: `--max-size` (default), or `--width`/`--height`, or `--zoom`; plus `--margin`.
 
 `--no-extensions` applies to `--gpx` here too.
+
+### Several tracks, several CSV/JSON files
+
+A CSV or a JSON file describes one track, where a GPX or a FIT holds several. With a single-track
+input — the usual case — `--csv out.csv` writes exactly `out.csv`. With several tracks it writes
+`out-1.csv`, `out-2.csv`, … and names each one on stdout. Same for `--json`.
+
+Before this, only the first track was exported, without a word. gpx2web's `CSVFileWriter` also
+produces one file per path.
 
 ### Which power ends up in the GPX (`--gpx-power-source`)
 

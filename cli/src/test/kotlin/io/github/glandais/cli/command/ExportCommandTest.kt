@@ -169,4 +169,28 @@ class ExportCommandTest {
         assertTrue(!xml.contains("gpxtpx"), xml)
         assertTrue(xml.contains("<trkpt"), xml)
     }
+
+    @Test
+    fun `case 20 — export writes one CSV per track too`() {
+        val input = File(work, "two.gpx")
+        input.writeText(
+            """<?xml version="1.0" encoding="UTF-8"?>
+<gpx version="1.1" xmlns="http://www.topografix.com/GPX/1/1">
+  <trk><name>one</name><trkseg>
+    <trkpt lat="46.5000" lon="10.4000"><ele>1000</ele></trkpt>
+    <trkpt lat="46.5090" lon="10.4000"><ele>1050</ele></trkpt>
+  </trkseg></trk>
+  <trk><name>two</name><trkseg>
+    <trkpt lat="45.0000" lon="6.0000"><ele>500</ele></trkpt>
+    <trkpt lat="45.0090" lon="6.0000"><ele>540</ele></trkpt>
+  </trkseg></trk>
+</gpx>
+""",
+        )
+
+        assertEquals(0, run("export", input.path, "--csv", File(work, "out.csv").path).code)
+
+        assertTrue(File(work, "out-1.csv").isFile)
+        assertTrue(File(work, "out-2.csv").isFile)
+    }
 }
