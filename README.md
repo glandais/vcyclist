@@ -253,13 +253,27 @@ several `<trk>` or several `<trkseg>` :
 ```js
 const { parseGpxTracks, parseGpxSegments, writeGpxTracks } = engine;
 
-const tracks = parseGpxTracks(gpxXml);       // one path per <trk>, segments concatenated
+const tracks = parseGpxTracks(gpxXml);       // one path per <trk> *and* per <rte>
 const segments = parseGpxSegments(gpxXml);   // one path per <trkseg>, always continuous
 const xml = writeGpxTracks(tracks);          // one <trk> per path
 ```
 
 Concatenating segments folds the pause between them into `totalDistance` — a `<trkseg>`
 boundary is a physical discontinuity. Use `parseGpxSegments` when that artefact matters.
+
+`parseGpxTracks` also returns `<rte>` routes, which many planners emit and which used to be
+dropped silently. `parseGpxTracksOnly` and `parseGpxRoutesOnly` select one container or the other.
+
+#### Options on the writers
+
+```js
+const bare = engine.writeGpx(path, false);   // no <extensions>: no power, heart rate, cadence
+const fit = engine.pathsToFit([a, b], 'Two days', Date.parse('2026-08-01T08:00:00Z'));
+```
+
+`writeGpx`, `writeGpxAt` and `writeGpxTracks` take a trailing `writeExtensions` flag (default
+`true`). `pathsToFit` encodes several paths into one FIT course — a lap and a timer event pair
+each — where `pathToFit` takes a single one.
 
 On Node.js / Bun, tile decoding uses [`@jsquash/webp`](https://www.npmjs.com/package/@jsquash/webp)
 (a pure-WASM WebP decoder, ~50 KB, listed as a runtime `dependency` of

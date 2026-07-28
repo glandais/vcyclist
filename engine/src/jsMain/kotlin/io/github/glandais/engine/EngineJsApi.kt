@@ -11,6 +11,7 @@ import io.github.glandais.engine.climb.ClimbDetector
 import io.github.glandais.engine.climb.ClimbOptions
 import io.github.glandais.engine.climb.ClimbPart
 import io.github.glandais.engine.gpx.GpxParser
+import io.github.glandais.engine.gpx.GpxPathKind
 import io.github.glandais.engine.gpx.GpxWriter
 import io.github.glandais.engine.gpx.firstTrackAsPath
 import io.github.glandais.engine.gpx.segmentsAsPaths
@@ -39,6 +40,7 @@ import kotlinx.coroutines.promise
 import kotlin.js.JsExport
 import kotlin.js.Promise
 import kotlin.math.PI
+import kotlin.time.Duration.Companion.milliseconds
 import kotlin.time.Instant
 
 /**
@@ -210,6 +212,9 @@ fun parseGpx(xml: String): Path = GpxParser.parse(xml).firstTrackAsPath()
  * Parse [xml] and return **one Path per `<trk>`**, in document order. Tracks with no point are
  * skipped. Segments of a same track are concatenated — distance jumps across a segment
  * boundary ; use [parseGpxSegments] if that artefact matters.
+ *
+ * **Since task g24 this includes `<rte>` routes**, which used to be dropped silently. Use
+ * [parseGpxTracksOnly] for the pre-g24 selection.
  */
 @JsExport
 fun parseGpxTracks(xml: String): Array<Path> = GpxParser.parse(xml).tracksAsPaths().toTypedArray()
@@ -222,6 +227,27 @@ fun parseGpxTracks(xml: String): Array<Path> = GpxParser.parse(xml).tracksAsPath
 fun parseGpxSegments(xml: String): Array<Path> = GpxParser.parse(xml).segmentsAsPaths().toTypedArray()
 
 /**
+ * Like [parseGpxTracks] but **`<trk>` only** — routes are left out (task g29).
+ *
+ * `GpxPathKind` is deliberately not exported: an enum crosses to JavaScript as an object nobody
+ * wants to import just to filter a list. Two named functions say the same thing at the call site.
+ */
+@JsExport
+fun parseGpxTracksOnly(xml: String): Array<Path> =
+    GpxParser
+        .parse(xml)
+        .tracksAsPaths(kinds = setOf(GpxPathKind.TRACK))
+        .toTypedArray()
+
+/** Like [parseGpxTracks] but **`<rte>` only** — recorded tracks are left out (task g29). */
+@JsExport
+fun parseGpxRoutesOnly(xml: String): Array<Path> =
+    GpxParser
+        .parse(xml)
+        .tracksAsPaths(kinds = setOf(GpxPathKind.ROUTE))
+        .toTypedArray()
+
+/**
  * Serialise [paths] as a multi-track GPX document — one `<trk>` per Path. [waypoints], if given,
  * is written as `<wpt>` entries before the tracks (typically the source document's
  * [io.github.glandais.engine.gpx.GpxDocument.waypoints], forwarded so a parse → enhance → write
@@ -231,7 +257,13 @@ fun parseGpxSegments(xml: String): Array<Path> = GpxParser.parse(xml).segmentsAs
 fun writeGpxTracks(
     paths: Array<Path>,
     waypoints: Array<WaypointDto> = emptyArray(),
-): String = GpxWriter.write(paths.toList(), waypoints = waypoints.map { it.toGpxWaypoint() })
+    writeExtensions: Boolean = true,
+): String =
+    GpxWriter.write(
+        paths.toList(),
+        waypoints = waypoints.map { it.toGpxWaypoint() },
+        writeExtensions = writeExtensions,
+    )
 
 private fun WaypointDto.toGpxWaypoint(): io.github.glandais.engine.gpx.GpxWaypoint =
     io.github.glandais.engine.gpx.GpxWaypoint(
@@ -276,8 +308,18 @@ fun pointAt(
         grade = path.grade(i),
     )
 
+/**
+ * Serialise [path] as a single-track GPX.
+ *
+ * [writeExtensions] `false` drops `<extensions>` — no power, heart rate, cadence or temperature,
+ * and no `gpxtpx` namespace (task g23). `<ele>` and `<time>` are standard GPX and stay. Useful in
+ * a browser for a download meant for a platform with a strict schema.
+ */
 @JsExport
-fun writeGpx(path: Path): String = GpxWriter.write(path.toGpxDocument(trackName = "virtualized"))
+fun writeGpx(
+    path: Path,
+    writeExtensions: Boolean = true,
+): String = GpxWriter.write(path.toGpxDocument(trackName = "virtualized"), writeExtensions = writeExtensions)
 
 /**
  * Serialise [path] with an absolute `<time>` on every point : `<time> = startTimeEpochMs +
@@ -292,12 +334,14 @@ fun writeGpx(path: Path): String = GpxWriter.write(path.toGpxDocument(trackName 
 fun writeGpxAt(
     path: Path,
     startTimeEpochMs: Double,
+    writeExtensions: Boolean = true,
 ): String =
     GpxWriter.write(
         path.toGpxDocument(
             trackName = "virtualized",
             startTime = Instant.fromEpochMilliseconds(startTimeEpochMs.toLong()),
         ),
+        writeExtensions = writeExtensions,
     )
 
 @JsExport
@@ -547,6 +591,30 @@ fun pathToFit(
     name: String,
     startTimeEpochMs: Double,
 ): ByteArray = path.toFitBytes(name, Instant.fromEpochMilliseconds(startTimeEpochMs.toLong()))
+
+/**
+ * Encode **several** paths into one FIT course — one lap and one `TIMER`/`START`…`STOP` event
+ * pair per path (task g25, exported here by g29).
+ *
+ * A separate function rather than a parameter on [pathToFit]: the shape of the first argument
+ * changes, and Kotlin/JS has no overloading to lean on.
+ *
+ * [interPathGapMs] shifts each path after the first by that many milliseconds; `0` (the default)
+ * runs them straight on from one another. It is **not** a pause — FIT expresses those with
+ * `TIMER`/`PAUSE` events, which this port does not emit.
+ */
+@JsExport
+fun pathsToFit(
+    paths: Array<Path>,
+    name: String,
+    startTimeEpochMs: Double,
+    interPathGapMs: Double = 0.0,
+): ByteArray =
+    paths.toList().toFitBytes(
+        name,
+        Instant.fromEpochMilliseconds(startTimeEpochMs.toLong()),
+        interPathGap = interPathGapMs.toLong().milliseconds,
+    )
 
 // ── Climb detection (task g12) ───────────────────────────────────────────────────────────────
 

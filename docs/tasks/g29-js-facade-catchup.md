@@ -138,12 +138,66 @@ c'est le contrat réel vu par un consommateur TypeScript.
 
 ## Done when
 
-- [ ] `writeExtensions` sur les trois fonctions d'écriture GPX, défaut `true`
-- [ ] Accès JS aux deux conteneurs séparément, sans exporter `GpxPathKind`
-- [ ] `pathsToFit` exporté, `pathToFit` inchangé
-- [ ] Extraits du `README.md` vérifiés (pas juste modifiés)
-- [ ] `.d.ts` inspecté
-- [ ] `./gradlew check` + `ktlintCheck` verts
+- [x] `writeExtensions` sur les trois fonctions d'écriture GPX, défaut `true`
+- [x] Accès JS aux deux conteneurs séparément, sans exporter `GpxPathKind`
+- [x] `pathsToFit` exporté, `pathToFit` inchangé
+- [x] Extraits du `README.md` vérifiés (pas juste modifiés)
+- [x] `.d.ts` inspecté
+- [x] `./gradlew check` + `ktlintCheck` verts
+
+## Résultat
+
+### Ce qui est exporté
+
+| Ajout | Forme retenue |
+|---|---|
+| g23 | paramètre `writeExtensions: Boolean = true` en dernière position de `writeGpx`, `writeGpxAt`, `writeGpxTracks` |
+| g24 | deux fonctions nommées, `parseGpxTracksOnly` / `parseGpxRoutesOnly` ; `parseGpxTracks` garde les deux conteneurs |
+| g25 | fonction nouvelle `pathsToFit(paths, name, startTimeEpochMs, interPathGapMs = 0.0)` |
+
+Le choix « paramètre » vs « fonction nouvelle » suit la règle posée par la fiche : un paramètre
+quand seule une option s'ajoute, une fonction quand la **forme** d'un argument change (tableau au
+lieu d'un seul path). `GpxPathKind` n'est pas exporté — une énumération Kotlin traverse vers
+JavaScript sous une forme que personne n'a envie d'importer juste pour filtrer une liste.
+
+`interPathGapMs` est un `Double`, comme `startTimeEpochMs` : un `Long` deviendrait un `BigInt` à
+la frontière JS.
+
+### `.d.ts` vérifié, pas supposé
+
+Le contrat réel vu par un consommateur TypeScript, extrait du fichier généré :
+
+```ts
+function writeGpx(path: any, writeExtensions?: boolean): string;
+function writeGpxAt(path: any, startTimeEpochMs: number, writeExtensions?: boolean): string;
+function writeGpxTracks(paths: Array<any>, waypoints?: Array<WaypointDto>, writeExtensions?: boolean): string;
+function parseGpxTracksOnly(xml: string): Array<any>;
+function pathsToFit(paths: Array<any>, name: string, startTimeEpochMs: number, interPathGapMs?: number): Int8Array;
+```
+
+Les paramètres optionnels ressortent bien optionnels (`?`). Attention au piège rencontré : le
+`.d.ts` de `build/dist/js/productionLibrary/` n'est **pas** régénéré par `jsBrowserDistribution` ;
+c'est celui de `compileSync/js/main/productionExecutable/` qui est à jour. Vérifier la date avant
+de conclure quoi que ce soit d'une inspection de `.d.ts`.
+
+### Démo : signature typée, pas de case à cocher
+
+La fiche proposait une case « GPX sans extensions » à côté du bouton de téléchargement. **Il n'y a
+pas de bouton de téléchargement** : `writeGpx` est exporté par `demo/src/engine-shim.ts` mais
+aucun composant ne l'appelle. Ajouter le téléchargement *et* son option serait une fonctionnalité
+de démo, pas un rattrapage de façade.
+
+La signature du shim est mise à jour (`writeGpx: (path, writeExtensions?: boolean) => string`),
+donc l'option est typée et atteignable le jour où l'UI existe.
+
+### Vérification
+
+- 7 tests dans `EngineJsApiCatchupTest` (jsTest), qui vérifient le **passage de paramètre** et non
+  le comportement — celui-ci est déjà couvert en commonTest par g23, g24 et g25.
+- Le test des conteneurs assert que `parseGpxTracksOnly` et `parseGpxRoutesOnly` **partitionnent**
+  exactement `parseGpxTracks` : impossible qu'un fichier tombe entre les deux.
+- `pathsToFit([p])` est comparé octet à octet à `pathToFit(p)`.
+- `./gradlew check` + `ktlintCheck` + `:demo:assemble` verts.
 
 ## Notes
 

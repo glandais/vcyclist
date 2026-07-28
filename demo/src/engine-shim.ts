@@ -105,7 +105,7 @@ export interface ClimbDto {
 export type Path = object;
 
 export const parseGpx: (xml: string) => Path = ns.parseGpx;
-export const writeGpx: (path: Path) => string = ns.writeGpx;
+export const writeGpx: (path: Path, writeExtensions?: boolean) => string = ns.writeGpx;
 export const enhance: (path: Path, options: EnhanceOptionsDto | null) => Promise<Path> = ns.enhance;
 export const enhanceWithCourse: (
     path: Path,
