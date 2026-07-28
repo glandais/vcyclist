@@ -82,7 +82,9 @@ fun GpxTrack.toPath(): Path = pointsToPath(points)
  * - latitude/longitude converted to radians (engine internal unit),
  * - elevation defaults to 0.0 if absent,
  * - time defaults to 0L if absent,
- * - heart rate / cadence / temperature / power copied through when present.
+ * - heart rate / cadence / temperature / power copied through when present, **`NaN` when
+ *   absent** — the backing array is zero-initialised, so an unwritten slot would be
+ *   indistinguishable from a genuine `0` reading.
  *
  * [Path.computeDerivedData] is invoked before returning so downstream consumers can
  * immediately read `totalDistance`, `bearing`, `speed`, etc.
@@ -96,10 +98,14 @@ private fun pointsToPath(points: List<GpxTrackPoint>): Path {
         path.setLongitude(i, p.longitudeDeg * MathConstants.DEG_TO_RAD)
         path.setElevation(i, p.elevationM ?: 0.0)
         path.setTime(i, (p.timeEpochMs ?: 0L).toDouble())
-        p.powerW?.let { path.setPInputPower(i, it) }
-        p.heartRate?.let { path.setHeartRate(i, it.toDouble()) }
-        p.cadence?.let { path.setCadence(i, it.toDouble()) }
-        p.temperatureC?.let { path.setTemperature(i, it) }
+        // An absent sensor is written as NaN, not left at the array's 0.0 : `0` is a legitimate
+        // reading (0 °C, freewheeling at 0 rpm, 0 W) and must survive to the writers and to
+        // `RhoProviderEstimate`. Mirrors the TS parser, which spreads the all-NaN `EMPTY_POINT`
+        // into every point it creates.
+        path.setPInputPower(i, p.powerW ?: Double.NaN)
+        path.setHeartRate(i, p.heartRate?.toDouble() ?: Double.NaN)
+        path.setCadence(i, p.cadence?.toDouble() ?: Double.NaN)
+        path.setTemperature(i, p.temperatureC ?: Double.NaN)
     }
     path.computeDerivedData()
     return path

@@ -12,6 +12,9 @@ import kotlin.time.Instant
  * - latitude/longitude are converted from internal **radians** back to degrees,
  * - elevation is copied through (preserving `0.0` as a valid value — only `NaN` is dropped),
  * - time:
+ *   - a `NaN` `time(i)` (slot never written — `GeneratedPath` NaN-initialises every field) emits
+ *     no `<time>` at all, whatever [startTime] is. Mirrors `GPXWriter.ts`, which guards on
+ *     `!isNaN(trackPoint.time)`;
  *   - when [startTime] is `null` (the default), exposed as `epoch ms` **except** when
  *     `time(i) == 0` (treated as "absent" since the parser uses `0` as a sentinel for missing
  *     `<time>`, see [GpxTrack.toPath]) — this is the pre-g05 behaviour, unchanged;
@@ -20,9 +23,9 @@ import kotlin.time.Instant
  *     `time(i)` is the engine's relative simulation clock (`time(0) == 0`, see
  *     `VirtualizeService`), so this turns it into a wall-clock instant for consumption by
  *     devices/platforms (Garmin Connect, Strava) that require absolute timestamps.
- * - heart rate, cadence, temperature and power are emitted only when **non-zero** (and not `NaN`):
- *   `GeneratedPath` initialises every slot to `0.0`, so `0.0` is interpreted as "not set" rather
- *   than as a real zero. Documented compromise — see task 15 spec.
+ * - heart rate, cadence, temperature and power are emitted whenever the slot is not `NaN`. A
+ *   genuine `0` (freewheeling cadence, 0 W, 0 °C) is a real reading and is written out; only an
+ *   untouched slot is dropped. Mirrors `GPXWriter.ts`, which guards on `isNaN` alone.
  *
  * @param name optional value for the `<trk><name>` element.
  * @param type optional value for the `<trk><type>` element. Defaults to `"cycling"`.
@@ -43,15 +46,15 @@ fun Path.toGpxTrack(
                 longitudeDeg = longitude(i) * MathConstants.RAD_TO_DEG,
                 elevationM = elevation(i).takeUnless { it.isNaN() },
                 timeEpochMs =
-                    if (startTimeMs != null) {
-                        startTimeMs + time(i).roundToLong()
-                    } else {
-                        time(i).toLong().takeIf { it > 0L }
+                    when {
+                        time(i).isNaN() -> null
+                        startTimeMs != null -> startTimeMs + time(i).roundToLong()
+                        else -> time(i).toLong().takeIf { it > 0L }
                     },
-                heartRate = heartRate(i).takeUnless { it.isNaN() || it == 0.0 }?.roundToInt(),
-                cadence = cadence(i).takeUnless { it.isNaN() || it == 0.0 }?.roundToInt(),
-                temperatureC = temperature(i).takeUnless { it.isNaN() || it == 0.0 },
-                powerW = pInputPower(i).takeUnless { it.isNaN() || it == 0.0 },
+                heartRate = heartRate(i).takeUnless { it.isNaN() }?.roundToInt(),
+                cadence = cadence(i).takeUnless { it.isNaN() }?.roundToInt(),
+                temperatureC = temperature(i).takeUnless { it.isNaN() },
+                powerW = pInputPower(i).takeUnless { it.isNaN() },
             )
         }
     return GpxTrack(name = name, type = type, points = points)

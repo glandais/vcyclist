@@ -14,6 +14,11 @@ abstract class GeneratedPath(
         require(size >= 0) { "Negative size: $size" }
     }
 
+    /**
+     * Zero-initialised, matching the TS `AbstractPath` backing store
+     * (`new Float64Array(...)`). "Absent" is signalled by writing `Double.NaN`
+     * explicitly — see `GpxToPath`, which does so for absent sensor fields.
+     */
     protected val data: DoubleArray = DoubleArray(size * PointField.COUNT)
 
     /** Generic read by [field]. */

@@ -293,19 +293,41 @@ class GpxWriterTest {
         assertEquals("cycling", track.type)
     }
 
-    // --- 14. Path.toGpxTrack: zero heart rate → null ----------------------------------
+    // --- 14. Path.toGpxTrack: NaN extension field → null, genuine 0 preserved ---------
 
     @Test
-    fun `case 14 — Path toGpxTrack treats zero heart rate cadence temperature power as absent`() {
+    fun `case 14 — Path toGpxTrack treats NaN heart rate cadence temperature power as absent`() {
         val p = Path(1)
         p.setLatitude(0, 0.0)
         p.setLongitude(0, 0.0)
-        // All extension fields left at the default 0.0 — should map to null.
+        // NaN is what `GpxToPath` writes for an absent sensor — should map to null.
+        p.setHeartRate(0, Double.NaN)
+        p.setCadence(0, Double.NaN)
+        p.setTemperature(0, Double.NaN)
+        p.setPInputPower(0, Double.NaN)
         val pt = p.toGpxTrack().points[0]
-        assertNull(pt.heartRate, "heartRate should be null for default 0.0")
-        assertNull(pt.cadence, "cadence should be null for default 0.0")
-        assertNull(pt.temperatureC, "temperatureC should be null for default 0.0")
-        assertNull(pt.powerW, "powerW should be null for default 0.0")
+        assertNull(pt.heartRate, "heartRate should be null for NaN")
+        assertNull(pt.cadence, "cadence should be null for NaN")
+        assertNull(pt.temperatureC, "temperatureC should be null for NaN")
+        assertNull(pt.powerW, "powerW should be null for NaN")
+    }
+
+    @Test
+    fun `case 14b — Path toGpxTrack preserves a genuine zero reading`() {
+        // 0 rpm (freewheeling), 0 W and 0 °C are real measurements, not "missing" — the writer
+        // must emit them. Matches `GPXWriter.ts`, which guards on `isNaN` alone.
+        val p = Path(1)
+        p.setLatitude(0, 0.0)
+        p.setLongitude(0, 0.0)
+        p.setCadence(0, 0.0)
+        p.setTemperature(0, 0.0)
+        p.setPInputPower(0, 0.0)
+        p.setHeartRate(0, Double.NaN)
+        val pt = p.toGpxTrack().points[0]
+        assertEquals(0, pt.cadence)
+        assertEquals(0.0, pt.temperatureC)
+        assertEquals(0.0, pt.powerW)
+        assertNull(pt.heartRate)
     }
 
     // --- 15. Path.toGpxTrack: zero elevation preserved --------------------------------
