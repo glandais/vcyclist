@@ -48,6 +48,14 @@ TypeScript library for elevation data.
 | **`:cli`** | Command-line tool (picocli). **JVM-only, not published as a library** — distributed as an executable jar. Replaces gpx2web's `gpxtools-cli`. | JVM only |
 | **`:codegen`** | Tiny build-time helper that regenerates `GeneratedPath.kt` + `PointFieldAccessors.kt` from `PointField` (run only when the field list changes). | JVM only |
 
+### Migrating from gpx2web
+
+vcyclist replaces the `gpx` and `gpxtools-cli` modules of
+[gpx2web](https://github.com/glandais/gpx2web).
+[`docs/gpx2web-coverage.md`](docs/gpx2web-coverage.md) has one row per Java class — ported,
+replaced, or not ported with the reason — plus the deliberate behavioural differences. For the
+command-line options specifically, see [`cli/README.md`](cli/README.md).
+
 ## Install
 
 ### npm (Kotlin/JS or Kotlin/Wasm consumers)

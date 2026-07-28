@@ -63,7 +63,7 @@ cœur (`:elevation`, `:gpx`, `:engine`, `:fit`) reste compilable sur les 4 cible
 | g18 | Retrait d'`EngineCli` + documentation | `:cli` `:engine` | ✅ |
 | **— Phase H : clôture —** | | | |
 | g19 | Publication des nouveaux artefacts (npm + Maven Central) | tous | ✅ |
-| g20 | Matrice de correspondance gpx2web → vcyclist | docs | ⬜ |
+| g20 | Matrice de correspondance gpx2web → vcyclist | docs | ✅ |
 
 ## Décisions actées
 
@@ -99,6 +99,10 @@ normative : si l'un d'eux redevient nécessaire, il faut une nouvelle tâche.
 **À la fin de ce plan, gpx2web ne peut pas être archivé.** Les modules `gpx` et
 `gpxtools-cli` auront un remplaçant complet, mais `gpx-web` — la webapp Quarkus déployée —
 reste sans équivalent. Son sort fera l'objet d'une décision séparée.
+
+La matrice classe par classe qui l'établit est
+[`docs/gpx2web-coverage.md`](gpx2web-coverage.md) : 104 classes Java, une ligne chacune, plus
+les divergences de comportement assumées et les options pour le sort de la webapp.
 
 ## Risques identifiés
 
