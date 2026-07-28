@@ -10,12 +10,15 @@ This document explains how the vcyclist artefacts ship to **Maven Central** and 
 | Maven Central | `:elevation` (jvm, js, wasm-js variants) | `io.github.glandais:vcyclist-elevation:<version>` |
 | Maven Central | `:gpx` (jvm, js, wasm-js variants) | `io.github.glandais:vcyclist-gpx:<version>` |
 | Maven Central | `:fit` (jvm, js, wasm-js variants) | `io.github.glandais:vcyclist-fit:<version>` |
+| Maven Central | `:map` (jvm only) | `io.github.glandais:vcyclist-map:<version>` |
 | npm | engine — Kotlin/JS | `@glandais/vcyclist-engine` |
 | npm | engine — Kotlin/Wasm | `@glandais/vcyclist-engine-wasm` |
 | npm | elevation — Kotlin/JS | `@glandais/vcyclist-elevation` |
 | npm | elevation — Kotlin/Wasm | `@glandais/vcyclist-elevation-wasm` |
-| npm | fit — Kotlin/JS | `@glandais/vcyclist-fit` |
-| npm | fit — Kotlin/Wasm | `@glandais/vcyclist-fit-wasm` |
+| GitHub Release | `:cli` executable jar | `vcyclist-cli-<version>-all.jar` |
+
+Five Maven Central artefacts, four npm packages, one release asset. `:fit` is **not** published
+to npm — see below.
 
 `:codegen` is a build-time JVM helper and is **not** published.
 
@@ -54,14 +57,21 @@ question should have in front of them:
   `@garmin/fitsdk` and `@jsquash/webp` without being asked.
 
 That widens the reach — every engine consumer accepts Garmin's licence terms in practice — but
-does not change the conclusion, since it remains a coordinate rather than a copy. It is,
-however, the reason this is documented here rather than buried in a build file: it is a real
-obligation that a user installing `vcyclist-engine` for the physics alone would not expect.
+does not change the conclusion, since it remains a coordinate rather than a copy.
+
+**Decided (g19): accepted as-is.** `@garmin/fitsdk` weighs 1.3 MB next to the engine bundle's
+3.2 MB, and the alternative — an `optionalDependency` plus a dynamic import in the JS and Wasm
+`FitEncoder` actuals, on the model of `@jsquash/webp` — buys that back at the cost of a refactor
+across three targets. Should the weight ever matter, that is the route: make the dependency
+optional and load it on the first `pathToFit` call, rather than removing the façade.
+
+It is documented here rather than left in a build file because it is a real obligation that
+someone installing `vcyclist-engine` for the physics alone would not expect.
 
 **Not a legal opinion.** Maven Central artefacts cannot be deleted once published. If that
 matters to you, have the terms reviewed before the first release that includes `:fit`.
 
-### `:fit` on npm — recommended removal
+### `:fit` on npm — decided: not published
 
 `:fit` declares **no `@JsExport` at all**, so `@glandais/vcyclist-fit` and
 `@glandais/vcyclist-fit-wasm` would ship a bundle with no reachable public API. The FIT façade
@@ -70,29 +80,12 @@ matters to you, have the terms reviewed before the first release that includes `
 The JS output of `:fit` already ships *inside* `@glandais/vcyclist-engine` as `vcyclist-fit.js`,
 exactly as `:gpx` does.
 
-Publishing them anyway costs two empty packages that must stay version-locked forever, and
-publishes a package whose entire content wraps a proprietary SDK while exposing nothing of its
-own. `:fit:npmPublishJs :fit:npmPublishWasm` are currently still in `publishCmd`; dropping them
-is a one-line edit to `.releaserc.json` and breaks nothing, since no documented import path
-resolves to either package.
+`:fit:npmPublishJs` / `:fit:npmPublishWasm` are therefore **not in `publishCmd`**. The Gradle
+tasks still exist, so re-adding them is a one-line edit if `:fit` ever grows a JS API of its own.
+No documented import path resolves to either package name, so nothing breaks by their absence.
 
-### Why `:gpx` ships to Maven Central but not to npm
+`:fit` **is** published to Maven Central, where the JVM variant is fully functional.
 
-`:gpx` was extracted from `:engine` in gpx2web task g01. Kotlin/JS emits one bundle per
-Gradle module, so publishing it as a separate npm package would force the demo and every
-consumer of `@glandais/vcyclist-engine` to install **two** packages — exactly the breakage
-g01 set out to avoid. Instead, `:gpx` declares no `binaries.library()` / `packageJson` /
-`npmPublish*`, and its JS output is emitted **inside** the engine bundle as
-`vcyclist-gpx.js` (visible in `engine/build/dist/js/productionLibrary/`). One npm package,
-same imports, byte-identical `.d.ts`.
-
-Maven Central is different : `:engine` declares `api(project(":gpx"))`, so the published POM
-references `io.github.glandais:vcyclist-gpx` and that artefact **must** exist. It is
-therefore released alongside `:engine` and `:elevation` in `.releaserc.json`'s `publishCmd`.
-
-If a JS consumer ever wants parsing without physics, revisit this : the alternative is
-`@glandais/vcyclist-engine` declaring `@glandais/vcyclist-gpx` as a dependency, at the cost
-of keeping two npm packages version-locked.
 
 ## The release flow
 
@@ -108,12 +101,12 @@ mirror the workflow of the sibling projects (`elevation`, `virtual-cyclist`, `gp
    - analyses commits since the last tag,
    - bumps the version in `gradle.properties` via a `sed -i` in
      `@semantic-release/exec.prepareCmd`,
-   - assembles the artefacts (`./gradlew :engine:assemble :elevation:assemble`),
-   - publishes to Maven Central via `publishAndReleaseToMavenCentral` (vanniktech plugin,
-     stages and immediately releases — no manual approval needed),
+   - builds the CLI jar (`:cli:executableJar`),
+   - publishes the five modules to Maven Central via `publishAndReleaseToMavenCentral`
+     (vanniktech plugin, stages and immediately releases — no manual approval needed),
    - publishes the four npm packages via `npmPublishJs` / `npmPublishWasm`,
    - generates/updates `CHANGELOG.md`,
-   - creates a Git tag + GitHub Release,
+   - creates a Git tag + GitHub Release, with the CLI jar attached as an asset,
    - commits the version + changelog back to `develop` with `[skip ci]`.
 
 **`gradle.properties` always reflects the last released version. Never bump it manually

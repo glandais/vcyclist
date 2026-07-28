@@ -158,13 +158,28 @@ projet vide. Conclusion inchangée, portée plus large — d'où la documentatio
 
 Ce n'est pas un avis juridique, et Maven Central est irréversible.
 
-### `:fit` sur npm — suppression recommandée, pas appliquée
+### `:fit` sur npm — tranché : non publié
 
 `:fit` ne déclare **aucun `@JsExport`** : `@glandais/vcyclist-fit` et `-fit-wasm` publieraient
 un bundle sans API publique atteignable. La façade `pathToFit` vit dans `:engine` (un handle
 `Path` ne traverse pas une frontière de bundle), et le JS de `:fit` voyage déjà *dans*
-`@glandais/vcyclist-engine`. `:fit:npmPublishJs`/`npmPublishWasm` restent dans `publishCmd` —
-les retirer est une édition d'une ligne et ne casse aucun chemin d'import documenté.
+`@glandais/vcyclist-engine`.
+
+`:fit:npmPublishJs`/`npmPublishWasm` sont donc **retirés de `publishCmd`**. Les tâches Gradle
+restent, donc les remettre est une édition d'une ligne si `:fit` acquiert un jour une API JS.
+`:fit` **est** publié sur Maven Central, où la variante JVM est pleinement fonctionnelle.
+
+### `@garmin/fitsdk` en transitif — tranché : accepté tel quel
+
+1,3 Mo à côté des 3,2 Mo du bundle engine. L'alternative (`optionalDependency` + import dynamique
+dans les `actual` JS et Wasm, sur le modèle de `@jsquash/webp`) coûte un refactor sur trois
+cibles. Si le poids devient un problème un jour, c'est cette route-là — pas le retrait de la
+façade, que g10 a délibérément placée dans `:engine`.
+
+### Publication — décidée
+
+Publication au merge sur `develop`. g20 étant écrite, la condition posée par cette fiche
+(« ne pas publier tant que g20 n'est pas écrite ») est levée.
 
 ### Corrections de documentation trouvées par la vérification
 
