@@ -95,10 +95,10 @@ obtenu à celui de la JVM sur la même trace, à ±1 m (tolérance élévation d
 
 ## Validation
 
-- [ ] `./gradlew check` vert.
-- [ ] Un test WASI prouve que la suspension réelle échoue avec le message explicite.
-- [ ] `INTEGRATION=1` : profil altimétrique WASI vs JVM à ±1 m sur `stelvio.gpx`.
-- [ ] Le module s'instancie toujours si `fetch_tile` retourne `0` (chemin « pas de DEM »).
+- [x] `./gradlew check` vert.
+- [x] Un test WASI prouve que la suspension réelle échoue avec le message explicite.
+- [x] `INTEGRATION=1` : profil altimétrique WASI vs JVM à ±1 m sur `stelvio.gpx`.
+- [x] Le module s'instancie toujours si `fetch_tile` retourne `0` (chemin « pas de DEM »).
 
 ## Done when
 
@@ -109,3 +109,93 @@ fournies par l'hôte.
 
 Ne pas rappeler un export du module depuis `fetch_tile` : la règle de non-réentrance de l'ABI
 (w03) s'y applique comme aux autres callbacks, et l'allocateur scopé jetterait.
+
+### Ce qui s'est passé
+
+**Le contrat de l'import**, tel que livré :
+
+```
+fetch_tile(zoom: i32, x: i32, y: i32, ptr: i32, cap: i32) -> i32
+```
+
+`cap` = tuile écrite, `0` = pas de tuile ici, autre = erreur hôte. Des pixels **RGBA** (4 octets),
+pas RGB comme le supposait la fiche : `RawTile` impose `width × height × 4` et refuse le reste,
+donc coller à son invariant évite au guest de réinterpréter quoi que ce soit. Terrarium n'utilise
+que R, G et B ; l'octet alpha est ignoré.
+
+Le « pas de tuile » ne remplit **pas** de zéros : `r=128, g=0, b=0` décode exactement 0 m
+(`128 × 256 − 32768`), là où un buffer à zéro vaudrait −32768 m — pas « inconnu », mais une
+altitude catastrophiquement fausse que le lisseur étalerait ensuite sur les voisins.
+
+**Géométrie** : ni constante figée ni `vcSetTileGeometry`, mais les deux exports
+`vcSetElevationConfig` (zoom / tileSize / cacheSize, collant, validé immédiatement en construisant
+un `ElevationProvider`) et `vcTileGeometryJson` (ce que l'hôte doit être prêt à écrire). `cap`
+reste de toute façon passé à chaque appel.
+
+**Deux pièges de DCE**, tous deux mesurés :
+
+1. Câbler l'import dans `fetchAndDecodeTile` — ce que demandait l'étape 3 — le rend joignable
+   depuis *toute* construction de provider, puisque c'est la valeur par défaut du paramètre
+   `fetcher`. Résultat : l'import survit au DCE dans le binaire de **test** de `:elevation`, que
+   le runner KGP ne sait pas instancier, et les 194 tests de la cible tombent d'un coup. Le
+   fetcher hôte reste donc explicite (`ElevationProvider(config, hostTileFetcher())`), ce qui est
+   exactement le seam de g21 ; l'`actual` par défaut lève en le disant.
+2. Un `object` Kotlin garde ses membres joignables **en bloc** : tant que `fetcher()` était une
+   méthode de `HostTileSource`, lire `HostTileSource.tileSize` dans un test suffisait à
+   ré-embarquer l'import. D'où la séparation : données dans l'objet, `hostTileFetcher()`
+   top-level.
+
+**Le pont `suspend` → synchrone existait depuis w04, il a fallu lui donner un dispatcher.**
+`Enhancer` n'est pas une chaîne d'appels `suspend` : `Flux.kt` passe par
+`coroutineScope { async { … } }` derrière un `Semaphore`, et le cache de tuiles est protégé par
+un `Mutex`. Sans dispatcher dans le contexte, ces enfants partent sur une boucle d'événements que
+rien ne pompe sous WASI — et le garde-fou a fait exactement son travail au premier
+`fixElevation: true` réel :
+
+```
+enhance = -1 | the operation suspended, which this target cannot resume: nothing drives
+               a continuation under WASI (see RunSynchronously and task w05)
+```
+
+`Dispatchers.Unconfined` exécute chaque enfant sur la pile appelante : un `Mutex` non contendu,
+un `Semaphore` avec des permis, un `async` qui n'appelle que l'import synchrone se terminent sans
+jamais suspendre. On perd le parallélisme des tuiles — sans importance, l'hôte est de toute façon
+mono-thread à travers la frontière et n'a pas le droit de réentrer pendant un callback.
+
+### La mesure ±1 m, et la fausse piste qui l'a précédée
+
+Premier verdict : **8,94 m d'écart max** contre le JVM, budget 1 m. Trois vérifications ont
+suivi, dans cet ordre, et aucune n'a incriminé le guest :
+
+1. les deux décodeurs WebP rendent des octets **identiques** sur la tuile 12/2166/1448 (tuile
+   VP8L, donc sans perte) — `138,109,88,255,…` des deux côtés ;
+2. une **troisième implémentation** des formules Terrarium (Python, portée depuis
+   `ElevationCalculator`) donne 2626,2695 m au premier point, comme la JVM ;
+3. la même trace réduite à **un seul point** rend, sous WASI, `2626.269547963089` — bit pour bit
+   la valeur du provider JVM.
+
+La référence était fausse : `:cli`'s `enhanceOne` appelle `Enhancer.enhanceCourse(physics,
+options, elevationProvider = null)`, donc **`--fix-elevation` du CLI est un no-op silencieux**
+(`Enhancer` saute l'étape quand le provider est nul). Je comparais WASI *avec* DEM à une JVM
+*sans*. Bug réel, hors périmètre de cette fiche, à traiter à part.
+
+Avec une vraie référence JVM (même pipeline, `ElevationProvider()`, mêmes options) :
+
+| | valeur |
+|---|---|
+| Écart max sur 1 929 points | **0,000435 m** |
+| Écart moyen | 0,000031 m |
+| Tuiles téléchargées par l'hôte | 2 |
+
+Soit du bruit d'ULP sur les trigonométriques, à 2 000 fois sous le budget.
+
+Chemin « pas de DEM » (`fetch_tile` → `0` systématique) : le module s'instancie, `vcEnhance`
+réussit, le profil vaut 0 m partout — et non −32768.
+
+### Un test qui reste
+
+`ElevationBridgeTest` (wasmWasi) vérifie que chaque point reçoit l'altitude de **sa** tuile à
+travers `runSynchronously`, sans hôte, via un fetcher injecté. Sa première version affirmait des
+tuiles uniformes et échouait à juste titre : l'interpolation bilinéaire traverse légitimement les
+bords de tuile. La fixture est donc une **rampe linéaire** en coordonnées pixel globales — la
+bilinéaire d'une fonction linéaire est cette même fonction, donc l'attendu est une forme close.
