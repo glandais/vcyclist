@@ -3,6 +3,7 @@
 [![npm engine](https://img.shields.io/npm/v/@glandais/vcyclist-engine?label=%40glandais%2Fvcyclist-engine)](https://www.npmjs.com/package/@glandais/vcyclist-engine)
 [![npm elevation](https://img.shields.io/npm/v/@glandais/vcyclist-elevation?label=%40glandais%2Fvcyclist-elevation)](https://www.npmjs.com/package/@glandais/vcyclist-elevation)
 [![Maven Central](https://img.shields.io/maven-central/v/io.github.glandais/vcyclist-engine?label=io.github.glandais%3Avcyclist-engine)](https://central.sonatype.com/artifact/io.github.glandais/vcyclist-engine)
+[![Maven Central elevation](https://img.shields.io/maven-central/v/io.github.glandais/vcyclist-elevation?label=io.github.glandais%3Avcyclist-elevation)](https://central.sonatype.com/artifact/io.github.glandais/vcyclist-elevation)
 [![Maven Central gpx](https://img.shields.io/maven-central/v/io.github.glandais/vcyclist-gpx?label=io.github.glandais%3Avcyclist-gpx)](https://central.sonatype.com/artifact/io.github.glandais/vcyclist-gpx)
 [![Maven Central fit](https://img.shields.io/maven-central/v/io.github.glandais/vcyclist-fit?label=io.github.glandais%3Avcyclist-fit)](https://central.sonatype.com/artifact/io.github.glandais/vcyclist-fit)
 [![Maven Central map](https://img.shields.io/maven-central/v/io.github.glandais/vcyclist-map?label=io.github.glandais%3Avcyclist-map)](https://central.sonatype.com/artifact/io.github.glandais/vcyclist-map)
