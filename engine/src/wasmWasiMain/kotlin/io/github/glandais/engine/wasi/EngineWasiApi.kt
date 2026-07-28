@@ -2,6 +2,10 @@
 
 package io.github.glandais.engine.wasi
 
+import io.github.glandais.elevation.ElevationProvider
+import io.github.glandais.elevation.ElevationProviderConfig
+import io.github.glandais.elevation.HostTileSource
+import io.github.glandais.elevation.hostTileFetcher
 import io.github.glandais.engine.Course
 import io.github.glandais.engine.CoursePhysics
 import io.github.glandais.engine.EnhanceOptions
@@ -458,8 +462,15 @@ fun vcEnhance(
     guarded {
         val path = requirePath(handle)
         val options = readOptions(optionsJsonLen).toEnhanceOptions()
-        requireNoElevationFetch(options)
-        WasiAbi.register(runSynchronously { Enhancer.enhanceCourseDefault(path, options = options) })
+        WasiAbi.register(
+            runSynchronously {
+                Enhancer.enhanceCourseDefault(
+                    path,
+                    elevationProvider = elevationProviderFor(options),
+                    options = options,
+                )
+            },
+        )
     }
 
 /**
@@ -484,7 +495,6 @@ fun vcEnhanceWithCourse(
         val payload = readOptions(payloadJsonLen)
         payload?.requireOnly(setOf("cyclist", "bike", "wind", "power", "options"))
         val options = payload?.obj("options").toEnhanceOptions()
-        requireNoElevationFetch(options)
         val course =
             CoursePhysics(
                 course =
@@ -498,15 +508,96 @@ fun vcEnhanceWithCourse(
                 windProvider = payload?.obj("wind").toWindProvider(),
                 cyclistPowerProvider = payload?.obj("power").toCyclistPowerProvider(),
             )
-        WasiAbi.register(runSynchronously { Enhancer.enhanceCourse(course, options) })
+        WasiAbi.register(
+            runSynchronously { Enhancer.enhanceCourse(course, options, elevationProviderFor(options)) },
+        )
     }
 
-private fun requireNoElevationFetch(options: EnhanceOptions) {
-    require(!options.fixElevation) {
-        "fixElevation needs an elevation provider, which no host can inject yet on this target " +
-            "(task w05); set it to false or fix elevations before handing the path over"
+/**
+ * The provider `fixElevation` runs on, or `null` when the caller did not ask for it.
+ *
+ * Built on [HostTileSource] rather than on the library default: under WASI the tiles come from
+ * the host through the `fetch_tile` import (task w05), so the URL template is the host one and
+ * the fetcher reads through the import. `elevationConfig` is whatever the host last set with
+ * [vcSetElevationConfig], defaults included.
+ *
+ * Allocating a provider only when asked matches the JS façade, and keeps the tile cache out of
+ * the way of hosts that never fix elevations.
+ */
+private fun elevationProviderFor(options: EnhanceOptions): ElevationProvider? =
+    if (options.fixElevation) ElevationProvider(elevationConfig, fetcher = hostTileFetcher()) else null
+
+// ── Elevation, served by the host ────────────────────────────────────────────────────────────
+
+/**
+ * The tile configuration `fixElevation` uses, replaced wholesale by [vcSetElevationConfig].
+ *
+ * The URL template is not the library's `https://tiles.mapterhorn.com/…`: on this target the
+ * host serves tiles through the `fetch_tile` import, and [HostTileSource.URL_TEMPLATE] is the
+ * shape `TileManager` builds and the fetcher immediately parses back.
+ */
+private var elevationConfig: ElevationProviderConfig =
+    ElevationProviderConfig(tileUrlTemplate = HostTileSource.URL_TEMPLATE)
+
+/**
+ * Configure DEM tiles: `{"zoomLevel":12,"tileSize":512,"cacheSize":100}`, any subset, `0` for
+ * the defaults. Returns [WasiAbi.VERSION] on success, or a negative error code.
+ *
+ * Sticky, and read at the next `fixElevation`. Separate from the enhance options on purpose:
+ * those mirror the JS `EnhanceOptionsDto` field for field, and hanging a tile configuration off
+ * them would break that correspondence for something a host sets once per session, not per call.
+ *
+ * Setting `tileSize` also changes the `cap` the guest asks `fetch_tile` for — read the result
+ * back with [vcTileGeometryJson] rather than assuming it.
+ */
+@WasmExport
+fun vcSetElevationConfig(jsonLen: Int): Int =
+    guarded {
+        val json = readOptions(jsonLen)
+        json?.requireOnly(setOf("zoomLevel", "tileSize", "cacheSize"))
+        val defaults = ElevationProviderConfig()
+        val config =
+            ElevationProviderConfig(
+                zoomLevel = (json?.double("zoomLevel", defaults.zoomLevel.toDouble()) ?: defaults.zoomLevel.toDouble()).toInt(),
+                cacheSize = (json?.double("cacheSize", defaults.cacheSize.toDouble()) ?: defaults.cacheSize.toDouble()).toInt(),
+                tileSize = (json?.double("tileSize", defaults.tileSize.toDouble()) ?: defaults.tileSize.toDouble()).toInt(),
+                tileUrlTemplate = HostTileSource.URL_TEMPLATE,
+            )
+        // `ElevationProvider`'s init block is the one place that validates zoom / cache / size,
+        // so build one now: a host must learn about a bad configuration here, not three calls
+        // later from inside `vcEnhance`.
+        ElevationProvider(config, fetcher = hostTileFetcher())
+        elevationConfig = config
+        HostTileSource.tileSize = config.tileSize
+        WasiAbi.VERSION
     }
-}
+
+/**
+ * What the host must be ready to write when `fetch_tile` is called:
+ *
+ * ```json
+ * {"tileSize":512,"bytesPerPixel":4,"expectedBytes":1048576,
+ *  "layout":"RGBA","encoding":"terrarium","zoomLevel":12}
+ * ```
+ *
+ * The same number arrives as the `cap` argument of every `fetch_tile` call, so a host can also
+ * simply trust `cap`; this export exists so it can allocate once, up front, and validate that it
+ * and the guest agree.
+ */
+@WasmExport
+fun vcTileGeometryJson(): Int =
+    guarded {
+        writeTextToHost(
+            jsonObject(
+                "tileSize" to HostTileSource.tileSize.toString(),
+                "bytesPerPixel" to HostTileSource.BYTES_PER_PIXEL.toString(),
+                "expectedBytes" to HostTileSource.tileBytes.toString(),
+                "layout" to jsonString("RGBA"),
+                "encoding" to jsonString("terrarium"),
+                "zoomLevel" to elevationConfig.zoomLevel.toString(),
+            ),
+        )
+    }
 
 // ── Climbs and wind ──────────────────────────────────────────────────────────────────────────
 
