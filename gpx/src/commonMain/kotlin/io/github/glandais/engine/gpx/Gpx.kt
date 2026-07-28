@@ -44,7 +44,32 @@ data class GpxWaypoint(
 )
 
 /**
- * A `<trk>` element and its ordered list of `<trkseg>` segments.
+ * Which GPX container a [GpxTrack] came from — or should be written to.
+ *
+ * GPX 1.1 has two ordered point containers: `<trk>` (a recorded track, split into `<trkseg>`)
+ * and `<rte>` (a planned route, a flat list of `<rtept>`). vcyclist models both as [GpxTrack]
+ * and keeps the distinction here, so a parse → write round-trip gives back the container the
+ * file actually used. gpx2web made the same choice (`GPXPathType`).
+ *
+ * Both are written **in document order**, interleaved if that is how they were read. The GPX 1.1
+ * sequence nominally wants every `<rte>` before every `<trk>`, but round-tripping a file
+ * unchanged is worth more than that clause: reordering would silently rewrite the user's file,
+ * and documents mixing the two containers are rare. Waypoints are still written first, since
+ * putting them after the tracks is the ordering strict parsers actually reject in practice.
+ */
+enum class GpxPathKind {
+    /** `<trk>` / `<trkseg>` / `<trkpt>` — a recorded track. */
+    TRACK,
+
+    /** `<rte>` / `<rtept>` — a planned route: no segments, usually no timestamps. */
+    ROUTE,
+}
+
+/**
+ * A `<trk>` element and its ordered list of `<trkseg>` segments — **or** a `<rte>`, in which
+ * case [kind] is [GpxPathKind.ROUTE] and there is exactly one segment (routes have no segment
+ * concept). The class is not renamed for the route case: it would break source compatibility
+ * for every existing caller, for a cosmetic gain.
  *
  * A segment boundary is a **physical discontinuity** — a pause, a lost fix, a teleport. Keeping
  * segments distinct (rather than flattening them at parse time) lets callers decide whether that
@@ -57,6 +82,12 @@ data class GpxTrack(
     /** Value of `<trk><type>`, or `null` if absent (e.g. "cycling", "running"). */
     val type: String? = null,
     val segments: List<GpxSegment>,
+    /**
+     * Which container this came from. **Last parameter on purpose**: existing positional calls
+     * `GpxTrack(name, type, segments)` keep compiling, and the default preserves the pre-g24
+     * behaviour of every caller that does not care.
+     */
+    val kind: GpxPathKind = GpxPathKind.TRACK,
 ) {
     /**
      * All points of all segments, concatenated in document order. Kept as the pre-g02 accessor so
@@ -74,7 +105,8 @@ data class GpxTrack(
             name: String? = null,
             type: String? = null,
             points: List<GpxTrackPoint>,
-        ): GpxTrack = GpxTrack(name = name, type = type, segments = listOf(GpxSegment(points)))
+            kind: GpxPathKind = GpxPathKind.TRACK,
+        ): GpxTrack = GpxTrack(name = name, type = type, segments = listOf(GpxSegment(points)), kind = kind)
     }
 }
 

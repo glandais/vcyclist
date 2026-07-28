@@ -80,7 +80,7 @@ dans `ProcessCommand` et `VirtualizeCommand`.
 | `Point` | remplacé | index `i` dans un `Path` (`:gpx`) | Il n'y a pas d'objet point : `path.latitude(i)`, `path.speed(i)`. C'est le cœur du modèle — voir `CLAUDE.md`. |
 | `GPX` | remplacé | `…engine.gpx.Gpx` + `List<Path>` (`:gpx`) | Le document GPX et les traces sont séparés ; `tracksAsPaths()` / `segmentsAsPaths()` font le pont. |
 | `GPXWaypoint` | porté | `…engine.gpx.Gpx` (`Waypoint`) (`:gpx`) | Préservés à la lecture **et** à l'écriture depuis g03. |
-| `GPXPathType` | remplacé | `tracksAsPaths()` / `segmentsAsPaths()` (`:gpx`) | L'énumération distinguait `<trk>` / `<trkseg>` / route ; vcyclist en fait deux fonctions explicites. Les routes (`<rte>`) ne sont pas lues. |
+| `GPXPathType` | **porté** | `GpxPathKind` + `tracksAsPaths(kinds)` / `segmentsAsPaths(kinds)` (`:gpx`) | L'énumération distinguait `<trk>` / `<trkseg>` / route ; vcyclist sépare les deux axes : `GpxPathKind` porte le conteneur (`TRACK` / `ROUTE`, task g24), et les deux fonctions le découpage segment ou piste. Les routes sont lues **et** réécrites en `<rte>`. |
 | `FastTimeIndex` | **non porté** | — | Index binaire temps → point, utilisé **uniquement** par la webapp Quarkus pour répondre à une position de curseur. Aucun consommateur dans le périmètre porté. |
 
 ---

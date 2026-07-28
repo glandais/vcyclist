@@ -180,8 +180,11 @@ côté jsTest et wasmJsTest ; démo rechargée dans le navigateur, profil identi
 - **Ne pas paralléliser `enhanceCourses`** : `ElevationProvider` a un `LruCache` dont la
   thread-safety en JVM n'a pas été auditée, et les cibles JS/Wasm sont mono-thread de toute
   façon.
-- **`<rte>` (routes) reste non supporté.** gpx2web ne les gère pas non plus. Si le besoin
-  émerge, c'est une tâche à part.
+- ~~**`<rte>` (routes) reste non supporté.** gpx2web ne les gère pas non plus.~~ **Rectifié en
+  g24** : la seconde phrase était fausse — `GPXFileReader.java:153` et `:164` traitent `rte` et
+  `rtept` au même titre que `trk`/`trkpt`, et `GPXPathType` existe pour porter la distinction.
+  Les routes sont lues et écrites depuis g24 (`GpxPathKind`), cf.
+  [`g24-gpx-routes.md`](g24-gpx-routes.md).
 - **Distance inter-segment** : gpx2web produit un `GPXPath` par `<trkseg>` (donc pas
   d'artefact). Notre défaut diffère volontairement pour préserver la compat de
   `firstTrackAsPath()`. À signaler dans la matrice de correspondance (g20).

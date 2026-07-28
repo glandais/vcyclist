@@ -157,7 +157,9 @@ Cas de test (≥ 8) :
   indépendamment à chaque point plutôt que d'accumuler un delta arrondi. Le test 29 vérifie
   explicitement l'absence de dérive cumulée sur une série de temps non entiers
   (`0.3, 1500.7, 3000.2` ms).
-- **`GpxDocument.startTime` ignore les rte** : non concerné, `<rte>` reste non supporté depuis g02.
+- ~~**`GpxDocument.startTime` ignore les rte**~~ — **caduc depuis g24** : les routes sont lues,
+  modélisées comme des `GpxTrack` de `kind = ROUTE`, et un `<rtept>` horodaté alimente donc
+  `startTime` comme n'importe quel `<trkpt>`.
 - **Pas de `.d.ts` committé à régénérer** : le projet ne committe aucun `.d.ts` généré (ils sortent
   dans `build/js/…`/`build/wasmJs/…`, gitignorés). La case "`.d.ts` régénérés" est donc satisfaite
   de facto — `writeGpxAt` apparaîtra dans le `.d.ts` généré au prochain build JS/Wasm, sans action

@@ -359,4 +359,37 @@ class EnhanceCommandTest {
         assertTrue(bare.length() < full.length(), "bare=${bare.length()} full=${full.length()}")
         assertEquals(1, GpxParser.parse(xml).tracksAsPaths().size, "still parsable")
     }
+
+    @Test
+    fun `case 20 — a route-only GPX goes through the pipeline and comes out as a track`() {
+        val input = File(work, "route.gpx")
+        input.writeText(
+            """<?xml version="1.0" encoding="UTF-8"?>
+<gpx version="1.1" xmlns="http://www.topografix.com/GPX/1/1">
+  <rte><name>planned</name>
+    <rtept lat="46.5000" lon="10.4000"><ele>1000</ele></rtept>
+    <rtept lat="46.5090" lon="10.4000"><ele>1050</ele></rtept>
+    <rtept lat="46.5180" lon="10.4000"><ele>1100</ele></rtept>
+  </rte>
+</gpx>
+""",
+        )
+        val output = File(work, "route-out.gpx")
+
+        // Before g24 this exited RUNTIME on "no track with any point": the routes were dropped
+        // silently at parse time and the pipeline saw an empty document.
+        assertEquals(0, run("enhance", input.path, "--gpx", output.path).code)
+
+        val xml = output.readText()
+        // A virtualized route is a recording, not a plan: it comes out as <trk>, with timestamps.
+        assertTrue(xml.contains("<trk>"), xml)
+        assertTrue(!xml.contains("<rte>"), xml)
+        assertTrue(
+            GpxParser
+                .parse(xml)
+                .tracksAsPaths()
+                .first()
+                .size >= 2,
+        )
+    }
 }

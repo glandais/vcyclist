@@ -120,12 +120,56 @@ Créés :
 
 ## Done when
 
-- [ ] `GpxPathKind` exposé, `GpxTrack.kind` en dernière position avec défaut `TRACK`
-- [ ] `<rte>` / `<rtept>` lus, ordre du document préservé sur les fichiers mixtes
-- [ ] Écriture en `<rte>` quand `kind == ROUTE`, round-trip vert
-- [ ] `tracksAsPaths(kinds = …)` pour filtrer
-- [ ] Notes erronées de `g02`, `g05` et `gpx2web-coverage.md` rectifiées
-- [ ] `./gradlew check` + `ktlintCheck` verts
+- [x] `GpxPathKind` exposé, `GpxTrack.kind` en dernière position avec défaut `TRACK`
+- [x] `<rte>` / `<rtept>` lus, ordre du document préservé sur les fichiers mixtes
+- [x] Écriture en `<rte>` quand `kind == ROUTE`, round-trip vert
+- [x] `tracksAsPaths(kinds = …)` pour filtrer
+- [x] Notes erronées de `g02`, `g05` et `gpx2web-coverage.md` rectifiées
+- [x] `./gradlew check` + `ktlintCheck` verts
+
+## Résultat
+
+### API
+
+- `enum class GpxPathKind { TRACK, ROUTE }` et `GpxTrack.kind`, **en dernière position** du
+  constructeur avec défaut `TRACK` : tous les appels positionnels existants compilent inchangés.
+  Le `companion object invoke(name, type, points)` de g02 relaie le nouveau paramètre.
+- `GpxParser` : `"rte"` → `parseRoute`, `"rtept"` → **le même `parseTrackPoint` que `<trkpt>`**.
+  Ce partage n'est pas une commodité : GPX 1.1 déclare `<trkpt>`, `<rtept>` et `<wpt>` comme le
+  même `wptType`, donc les attributs obligatoires, les enfants optionnels et les messages
+  d'erreur sont identiques par construction (cas 3).
+- `GpxWriter` : `writeRoute` émet `<rte>` / `<rtept>` sans `<trkseg>`. `writeTrackPoint` prend un
+  `localName` (défaut `"trkpt"`) — un seul chemin de code pour les deux conteneurs, donc aucun
+  risque de divergence sur les extensions ou l'horodatage.
+- `tracksAsPaths(kinds = …)` et `segmentsAsPaths(kinds = …)` : défaut = les deux conteneurs.
+  `setOf(GpxPathKind.TRACK)` redonne la sélection pré-g24.
+
+### Ordre d'écriture : document, pas schéma
+
+Premier jet : routes groupées avant les pistes, pour respecter la séquence `wpt*, rte*, trk*` de
+GPX 1.1. **Corrigé sur demande** — routes et pistes sont écrites dans l'ordre du document, y
+compris entrelacées.
+
+Le compromis est explicite : réécrire un fichier mixte dans un ordre différent de celui où il a
+été lu revient à modifier silencieusement le fichier de l'utilisateur, ce qui pèse plus lourd que
+la clause d'ordre du schéma — d'autant que les documents mêlant les deux conteneurs sont rares.
+Les `<wpt>` restent écrits en premier : c'est l'ordre que les parseurs stricts rejettent
+réellement en pratique. Un test (cas 06b) vérifie que l'écriture est un point fixe, donc que
+l'ordre ne peut pas dériver au fil des round-trips.
+
+### Comportement de bout en bout
+
+`enhance` sur un GPX 100 % `<rte>` fonctionne désormais — il sortait en `RUNTIME` (« no track with
+any point ») auparavant. La sortie est un `<trk>` : une route virtualisée porte des horodatages et
+des données simulées, c'est un enregistrement, plus un plan. Vérifié par le cas CLI 20 et par un
+smoke réel.
+
+### Vérification
+
+- 13 cas dans `GpxRouteTest` (commonTest) × 3 cibles, plus le cas CLI 20.
+- Cas 8 : un fichier 100 % `<trk>` produit une sortie **identique** à pré-g24 — la tâche est
+  purement additive pour l'existant.
+- `./gradlew check` + `ktlintCheck` verts.
 
 ## Notes
 

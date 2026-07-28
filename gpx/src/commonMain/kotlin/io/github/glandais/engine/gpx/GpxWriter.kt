@@ -122,10 +122,20 @@ object GpxWriter {
         w.attribute(NS_XSI, "schemaLocation", PREFIX_XSI, SCHEMA_LOCATION)
 
         writeMetadata(w, document.name)
-        // GPX 1.1 schema order is metadata, wpt*, rte*, trk* — a writer that puts <wpt> after
-        // <trk> produces a file that strict parsers reject. <rte> stays unsupported (see g02).
+        // <wpt> comes first: the GPX 1.1 sequence is metadata, wpt*, rte*, trk*, and a writer
+        // that emitted waypoints after tracks would produce files strict parsers reject.
+        //
+        // Routes and tracks, however, are written **in document order**, interleaved if the
+        // source interleaved them. Round-tripping a file unchanged matters more here than the
+        // rte*-before-trk* clause: a document that mixes the two is rare, and reordering it
+        // would silently rewrite the user's file. Documented in the KDoc of [GpxPathKind].
         for (waypoint in document.waypoints) writeWaypoint(w, waypoint)
-        for (track in document.tracks) writeTrack(w, track, writeExtensions)
+        for (track in document.tracks) {
+            when (track.kind) {
+                GpxPathKind.ROUTE -> writeRoute(w, track, writeExtensions)
+                GpxPathKind.TRACK -> writeTrack(w, track, writeExtensions)
+            }
+        }
 
         w.endTag(NS_GPX, "gpx", "")
     }
@@ -178,12 +188,32 @@ object GpxWriter {
         w.endTag(NS_GPX, "trk", "")
     }
 
+    /**
+     * Write a [GpxPathKind.ROUTE] track as `<rte>` / `<rtept>`.
+     *
+     * A route has no segments in the schema. One built by hand with several (impossible to get
+     * from the parser, which always produces exactly one) is **concatenated** rather than
+     * rejected: dropping points would be worse than losing a boundary the format cannot express.
+     */
+    private fun writeRoute(
+        w: XmlWriter,
+        route: GpxTrack,
+        writeExtensions: Boolean,
+    ) {
+        w.startTag(NS_GPX, "rte", "")
+        route.name?.let { writeSimpleText(w, "name", it) }
+        route.type?.let { writeSimpleText(w, "type", it) }
+        for (p in route.points) writeTrackPoint(w, p, writeExtensions, localName = "rtept")
+        w.endTag(NS_GPX, "rte", "")
+    }
+
     private fun writeTrackPoint(
         w: XmlWriter,
         p: GpxTrackPoint,
         writeExtensions: Boolean,
+        localName: String = "trkpt",
     ) {
-        w.startTag(NS_GPX, "trkpt", "")
+        w.startTag(NS_GPX, localName, "")
         w.attribute(null, "lat", null, p.latitudeDeg.toString())
         w.attribute(null, "lon", null, p.longitudeDeg.toString())
 
@@ -218,7 +248,7 @@ object GpxWriter {
             w.endTag(NS_GPX, "extensions", "")
         }
 
-        w.endTag(NS_GPX, "trkpt", "")
+        w.endTag(NS_GPX, localName, "")
     }
 
     /** Emit `<localName>text</localName>` in the default GPX namespace. */

@@ -105,6 +105,10 @@ object GpxParser {
                             if (metaName != null) name = metaName
                         }
                         "trk" -> tracks.add(parseTrack(reader))
+                        // Routes land in the same list, in document order: a file mixing <trk>
+                        // and <rte> must come back out in the order it was written, not sorted
+                        // by container.
+                        "rte" -> tracks.add(parseRoute(reader))
                         "wpt" -> waypoints.add(parseWaypoint(reader))
                         else -> skipElement(reader)
                     }
@@ -160,6 +164,41 @@ object GpxParser {
         return GpxTrack(name = name, type = type, segments = segments)
     }
 
+    /**
+     * Parse a `<rte>` into a single-segment [GpxTrack] marked [GpxPathKind.ROUTE].
+     *
+     * A route has no `<rteseg>` in the schema — its `<rtept>` children are a flat list — so the
+     * one segment is a modelling artefact, not a claim about the file. `<rtept>` carries exactly
+     * the same attributes and children as `<trkpt>` (GPX 1.1 declares both as `wptType`), which
+     * is why point parsing is shared verbatim.
+     */
+    private fun parseRoute(reader: XmlReader): GpxTrack {
+        var name: String? = null
+        var type: String? = null
+        val points = mutableListOf<GpxTrackPoint>()
+        while (reader.hasNext()) {
+            val ev = reader.next()
+            when (ev) {
+                EventType.START_ELEMENT ->
+                    when (reader.localName) {
+                        "name" -> name = readElementText(reader).trim().ifEmpty { null }
+                        "type" -> type = readElementText(reader).trim().ifEmpty { null }
+                        "rtept" -> points.add(parseTrackPoint(reader))
+                        else -> skipElement(reader)
+                    }
+                EventType.END_ELEMENT ->
+                    return GpxTrack(
+                        name = name,
+                        type = type,
+                        segments = listOf(GpxSegment(points)),
+                        kind = GpxPathKind.ROUTE,
+                    )
+                else -> Unit
+            }
+        }
+        return GpxTrack(name = name, type = type, segments = listOf(GpxSegment(points)), kind = GpxPathKind.ROUTE)
+    }
+
     private fun parseTrackSegment(reader: XmlReader): GpxSegment {
         val points = mutableListOf<GpxTrackPoint>()
         while (reader.hasNext()) {
@@ -178,6 +217,7 @@ object GpxParser {
         return GpxSegment(points)
     }
 
+    /** Shared by `<trkpt>`, `<rtept>` and (via its own wrapper) `<wpt>` — all `wptType` in GPX 1.1. */
     private fun parseTrackPoint(reader: XmlReader): GpxTrackPoint {
         // lat/lon are required attributes — read before consuming children.
         val latStr = reader.getAttributeValue(null, "lat")

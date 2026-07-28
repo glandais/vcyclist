@@ -5,9 +5,12 @@ import io.github.glandais.engine.path.Path
 import kotlin.time.Instant
 
 /**
- * Instant of the **first** `<trkpt>` that carries a `<time>` tag, in document order (all tracks,
- * all segments — same order as [GpxTrack.points]). `null` if no track point in the document is
+ * Instant of the **first** point that carries a `<time>` tag, in document order (all tracks and
+ * routes, all segments — same order as [GpxTrack.points]). `null` if no point in the document is
  * timestamped.
+ *
+ * Since g24 this includes `<rtept>`: routes are usually not timestamped, but nothing in the
+ * schema forbids it, and a planner that does stamp them should not be ignored.
  *
  * A parse → enhance → write round-trip loses this information today because [pointsToPath]
  * normalises `time` down to a `Path`-relative clock (`time(0) == 0`, see `VirtualizeService`).
@@ -37,31 +40,42 @@ fun GpxDocument.firstTrackAsPath(): Path {
 }
 
 /**
- * One [Path] per `<trk>`, in document order. Segments of a same track are **concatenated**
- * (see [GpxTrack.toPath]).
+ * One [Path] per `<trk>` **and per `<rte>`**, in document order. Segments of a same track are
+ * **concatenated** (see [GpxTrack.toPath]).
  *
  * Tracks with no point at all are skipped, so the result never contains a parasitic `Path(0)`.
  * The result may therefore be shorter than [GpxDocument.tracks], and may be empty.
+ *
+ * @param kinds which containers to convert. The default takes both, which is what a caller
+ *   asking for "the paths in this file" means — a file made only of `<rte>` used to come back
+ *   empty, silently, before g24. Pass `setOf(GpxPathKind.TRACK)` to get the pre-g24 selection.
+ *   A parameter rather than two more functions: the combinations are the point, not the names.
  */
-fun GpxDocument.tracksAsPaths(): List<Path> =
+fun GpxDocument.tracksAsPaths(kinds: Set<GpxPathKind> = ALL_KINDS): List<Path> =
     tracks
-        .filter { it.points.isNotEmpty() }
+        .filter { it.kind in kinds && it.points.isNotEmpty() }
         .map { it.toPath() }
 
 /**
  * One [Path] per `<trkseg>`, across **all** tracks, in document order. Empty segments are
  * skipped.
  *
+ * A `<rte>` contributes exactly one [Path] here, since a route has no segments.
+ *
  * Use this rather than [tracksAsPaths] when the inter-segment discontinuity matters : each
  * returned [Path] is continuous, so no phantom distance is introduced by the pause/teleport
  * between two segments. This is the shape gpx2web produces natively (one `GPXPath` per
  * `<trkseg>`).
  */
-fun GpxDocument.segmentsAsPaths(): List<Path> =
+fun GpxDocument.segmentsAsPaths(kinds: Set<GpxPathKind> = ALL_KINDS): List<Path> =
     tracks
+        .filter { it.kind in kinds }
         .flatMap { it.segments }
         .filter { it.points.isNotEmpty() }
         .map { it.toPath() }
+
+/** Both containers — the default selection of [tracksAsPaths] and [segmentsAsPaths]. */
+private val ALL_KINDS: Set<GpxPathKind> = GpxPathKind.entries.toSet()
 
 /**
  * Materialise a [Path] from a [GpxTrack], concatenating its segments.
