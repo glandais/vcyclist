@@ -63,7 +63,7 @@ From the `vcyclist/` root :
 ./gradlew :engine:jsNodeTest             # JS Node tests
 ./gradlew ktlintCheck                    # lint
 ./gradlew ktlintFormat                   # auto-format
-./gradlew :engine:run -Pargs="enhance <input.gpx> -o <output.gpx>"   # CLI smoke
+./gradlew :cli:run -Pargs="enhance <input.gpx> --gpx <output.gpx>"   # CLI smoke
 INTEGRATION=1 ./gradlew :elevation:jvmTest --tests '*Integration*'   # live HTTP integration tests
 ```
 
@@ -237,7 +237,8 @@ copy-paste, commit with a comment).
 
 The pipeline ordering matches the TS reference (see *Architecture invariants* above). If you
 reorder steps, update the docstring of `Enhancer.kt`, the [`README.md`](README.md) ASCII
-diagram, and run a smoke through `EngineCli` to verify the GPX output makes sense.
+diagram, and run a smoke through the CLI (`./gradlew :cli:run -Pargs="enhance …"`) to verify
+the GPX output makes sense.
 
 ## What not to do
 
@@ -277,5 +278,5 @@ diagram, and run a smoke through `EngineCli` to verify the GPX output makes sens
 | What's the TS equivalent of `<class>` ? | Same name in `../virtual-cyclist/src/` — Kotlin file's KDoc names the TS source |
 | Why does this fixture have these numbers ? | `engine/src/commonTest/.../parity/ParityFixtures.kt` + `docs/parity.md` |
 | Why is `time(0) = 0` ? | `VirtualizeService.kt` KDoc (relative-time simulation) |
-| How to run the CLI ? | [`README.md`](README.md) Quick start, or `./gradlew :engine:help` |
+| How to run the CLI ? | [`cli/README.md`](cli/README.md) — usage, exit codes, and the gpxtools-cli migration table |
 | How to cut a release / publish to npm or Maven Central ? | [`docs/publishing.md`](docs/publishing.md) |

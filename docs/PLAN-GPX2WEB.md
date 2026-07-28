@@ -60,7 +60,7 @@ cœur (`:elevation`, `:gpx`, `:engine`, `:fit`) reste compilable sur les 4 cible
 | **— Phase G : CLI —** | | | |
 | g16 | Bootstrap picocli + mixins | `:cli` | ✅ |
 | g17 | Sous-commandes `enhance` / `export` | `:cli` | ✅ |
-| g18 | Retrait d'`EngineCli` + documentation | `:cli` `:engine` | ⬜ |
+| g18 | Retrait d'`EngineCli` + documentation | `:cli` `:engine` | ✅ |
 | **— Phase H : clôture —** | | | |
 | g19 | Publication des nouveaux artefacts (npm + Maven Central) | tous | ⬜ |
 | g20 | Matrice de correspondance gpx2web → vcyclist | docs | ⬜ |

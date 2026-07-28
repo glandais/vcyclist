@@ -5,6 +5,7 @@ import io.github.glandais.cli.mixin.FilesMixin
 import io.github.glandais.elevation.ElevationProvider
 import io.github.glandais.elevation.ElevationProviderConfig
 import io.github.glandais.engine.gpx.GpxParser
+import io.github.glandais.engine.gpx.GpxWriter
 import io.github.glandais.engine.gpx.tracksAsPaths
 import io.github.glandais.engine.io.CsvWriter
 import io.github.glandais.engine.io.JsonWriter
@@ -63,6 +64,12 @@ class ExportCommand : Callable<Int> {
         description = ["Write a PNG of the terrain coloured by altitude. Downloads DEM tiles."],
     )
     var elevationMapOut: File? = null
+
+    @field:CommandLine.Option(
+        names = ["--gpx"],
+        description = ["Re-write the GPX, optionally re-stamped with --start-time."],
+    )
+    var gpxOut: File? = null
 
     @field:CommandLine.Option(names = ["--csv"], description = ["Write a CSV export."])
     var csvOut: File? = null
@@ -130,8 +137,10 @@ class ExportCommand : Callable<Int> {
                     return ExitCodes.USAGE
                 }
             }
-        if (listOfNotNull(mapOut, elevationMapOut, csvOut, jsonOut, fitOut).isEmpty()) {
-            spec.commandLine().err.println("Nothing to export. Pass at least one of --map, --elevation-map, --csv, --json, --fit.")
+        if (listOfNotNull(mapOut, elevationMapOut, gpxOut, csvOut, jsonOut, fitOut).isEmpty()) {
+            spec.commandLine().err.println(
+                "Nothing to export. Pass at least one of --map, --elevation-map, --gpx, --csv, --json, --fit.",
+            )
             return ExitCodes.USAGE
         }
 
@@ -164,9 +173,23 @@ class ExportCommand : Callable<Int> {
         val out = spec.commandLine().out
         if (!quiet) out.println("Reading ${input.path}")
 
-        val paths = GpxParser.parse(input.readText()).tracksAsPaths()
+        val document = GpxParser.parse(input.readText())
+        val paths = document.tracksAsPaths()
         require(paths.isNotEmpty()) { "no track with any point" }
         val naming = OutputNaming(input, inputCount)
+
+        gpxOut?.let { target ->
+            write(
+                naming.resolve(target, "gpx"),
+                GpxWriter.write(
+                    paths,
+                    name = input.nameWithoutExtension,
+                    waypoints = document.waypoints,
+                    startTime = start,
+                ),
+                out,
+            )
+        }
 
         mapOut?.let { target ->
             val file = naming.resolve(target, "png")

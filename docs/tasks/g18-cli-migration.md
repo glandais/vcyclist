@@ -104,14 +104,64 @@ Critères :
 
 ## Done when
 
-- [ ] Couverture de `gpxtools-cli` et d'`EngineCli` établie option par option
-- [ ] `EngineCli` et son test supprimés, tâche `run` de `:engine` retirée ou redirigée
-- [ ] `FullPipelineSmokeTest` préservé
-- [ ] `README.md`, `CLAUDE.md`, `docs/publishing.md` à jour
-- [ ] `cli/README.md` avec la table de correspondance complète
-- [ ] Jar exécutable vérifié à la main
-- [ ] Étape CI ajoutée
-- [ ] `./gradlew check` et `ktlintCheck` verts
+- [x] Couverture de `gpxtools-cli` et d'`EngineCli` établie option par option
+- [x] `EngineCli` et son test supprimés, tâche `run` de `:engine` retirée
+- [x] `FullPipelineSmokeTest` préservé
+- [x] `README.md`, `CLAUDE.md`, `docs/publishing.md` à jour
+- [x] `cli/README.md` avec la table de correspondance complète
+- [x] Jar exécutable vérifié à la main, depuis un autre répertoire
+- [x] Étape CI ajoutée et rejouée localement
+- [x] `./gradlew check` et `ktlintCheck` verts
+
+## Résultat
+
+**La table a été établie avant toute suppression, et elle a révélé deux manques.** C'était le
+point de la consigne « ne rien supprimer avant que cette table soit complète » : en énumérant
+les options de `gpxtools-cli` une par une, deux n'avaient pas d'équivalent :
+
+1. **`process --gpx-power`** (« le GPX a des données de puissance valides » → rejouer la
+   puissance enregistrée au lieu de la constante). vcyclist avait déjà `PowerProviderFromData`
+   mais le CLI ne l'exposait pas. **Comblé** : `enhance --gpx-power`, même nom.
+2. **`export --gpx`** (réécrire le GPX). **Comblé** : `export --gpx`, même nom.
+
+Sans la table, les deux seraient passées inaperçues et la suppression aurait perdu des
+fonctionnalités.
+
+Une correspondance mérite d'être signalée parce qu'elle est **inversée** :
+`process --gpx-elevation` affirme que l'altitude du GPX est déjà bonne, donc qu'il ne faut pas
+la corriger ; côté vcyclist c'est le défaut, et l'équivalent explicite est
+`--no-fix-elevation`. Consigné dans la table.
+
+**Renommages assumés**, tous dans `cli/README.md` :
+
+| gpxtools-cli | vcyclist | Raison |
+|---|---|---|
+| `virtualize --start` | `enhance --start-time` | symétrie avec `export --start-time` |
+| `export --map-srtm` | `export --elevation-map` | « srtm » nommait une source de données, pas une sortie ; ce qui est produit est une carte hypsométrique |
+| `export --map-tile-url` | `export --tile-url` | non ambigu à l'intérieur d'`export` |
+| `export --map-width/-height` | `export --width/--height` | idem |
+
+**Suppression effectuée.** `EngineCli.kt` et `EngineCliSmokeTest.kt` retirés, tâche `run` de
+`:engine` supprimée avec un commentaire qui renvoie vers `:cli:run`. `FullPipelineSmokeTest` est
+préservé — vérifié présent et vert — donc `:engine` garde sa couverture du pipeline complet. Les
+seules occurrences restantes d'`EngineCli` dans le code sont trois **commentaires** qui
+expliquent le remplacement, plus les documents historiques (`CHANGELOG.md`, `docs/PLAN.md`, les
+fiches des tâches passées) qu'il ne faut pas réécrire.
+
+**Étape CI ajoutée** à `check.yml` : construit le jar, lance `--help` et `--version`, puis
+exécute un `enhance` complet **depuis un autre répertoire** et vérifie que les quatre sorties
+sont non vides et que le FIT porte bien son marqueur `.FIT` à l'offset 8. Le CLI est le seul
+consommateur qui traverse `:gpx` → `:engine` → `:fit` → `:map` d'un coup, donc c'est aussi le
+meilleur test d'intégration du dépôt. **Rejouée localement telle quelle** avant commit : le
+mode d'échec classique — un jar qui se construit mais ne s'exécute pas — est précisément ce
+qu'elle attrape.
+
+**Version : commit `feat!:`.** Retirer `EngineCli` supprime une classe publique d'un artefact
+publié ; même si son usage réel est vraisemblablement nul, « vraisemblablement nul » n'est pas un
+argument sémantique. Le `!` fera passer semantic-release en majeure au moment du merge sur
+`develop`. **Ce n'est pas irréversible** : rien ne se déclenche depuis cette branche, donc le
+type de commit peut encore être amendé avant merge si la décision de version doit être groupée
+avec la phase H (g19).
 
 ## Notes
 
