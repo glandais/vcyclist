@@ -8,8 +8,12 @@ Python via **wasmtime-py**. Remplace les hypothèses de l'ancienne fiche
 wasmtime de KGP), supprimée depuis.
 
 Ce document est une **note d'ingénierie** : ce qui a été mesuré et pourquoi. La suite de travaux
-qu'il alimente est [`PLAN-WASM-WASI.md`](PLAN-WASM-WASI.md) ; le guide destiné aux hôtes WASI
-sera `wasm-wasi-abi.md` (tâche w10).
+qu'il alimente est [`PLAN-WASM-WASI.md`](PLAN-WASM-WASI.md).
+
+Si vous cherchez plutôt **comment appeler le module depuis un hôte** — imports à fournir, exports,
+codes d'erreur, schémas JSON — c'est [`wasm-wasi-abi.md`](wasm-wasi-abi.md), et l'hôte de référence
+exécuté par la CI est [`tools/wasi`](../tools/wasi/README.md). Le présent document explique
+*pourquoi* l'ABI a cette forme ; l'autre explique *comment* s'en servir.
 
 ---
 

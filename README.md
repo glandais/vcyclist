@@ -41,13 +41,32 @@ TypeScript library for elevation data.
 
 | Module | Purpose | Targets |
 |---|---|---|
-| **`:elevation`** | Terrarium tile fetch + DEM lookup + Haversine + Douglas-Peucker 3D + triangular smoother. See [`elevation/README.md`](elevation/README.md). | JVM, JS Node, JS browser |
-| **`:gpx`** | Path model (36 fields × `DoubleArray`), resamplers, Douglas-Peucker simplifier, elevation steps, GPX I/O. Published to Maven Central; **not** published to npm — its JS output ships inside `@glandais/vcyclist-engine`. | JVM, JS Node, JS browser |
-| **`:engine`** | Physics (4 resistive `PowerProvider`s + cyclist input + `MaxSpeedComputer` + `VirtualizeService`), `Enhancer` pipeline, JVM CLI, JS façades. Re-exports `:gpx` via `api`, so `io.github.glandais.engine.path.*` and `…engine.gpx.*` stay importable from `:engine`. | JVM, JS Node, JS browser |
-| **`:fit`** | Garmin FIT encoding. `FitCourse` model + unit conversions in commonMain; `expect object FitEncoder` with a JVM `actual` on `com.garmin:fit` and a JS `actual` on `@garmin/fitsdk`. | JVM, JS Node, JS browser |
+| **`:elevation`** | Terrarium tile fetch + DEM lookup + Haversine + Douglas-Peucker 3D + triangular smoother. See [`elevation/README.md`](elevation/README.md). | JVM, JS Node, JS browser, WASI |
+| **`:gpx`** | Path model (36 fields × `DoubleArray`), resamplers, Douglas-Peucker simplifier, elevation steps, GPX I/O. Published to Maven Central; **not** published to npm — its JS output ships inside `@glandais/vcyclist-engine`. | JVM, JS Node, JS browser, WASI |
+| **`:engine`** | Physics (4 resistive `PowerProvider`s + cyclist input + `MaxSpeedComputer` + `VirtualizeService`), `Enhancer` pipeline, JVM CLI, JS façades. Re-exports `:gpx` via `api`, so `io.github.glandais.engine.path.*` and `…engine.gpx.*` stay importable from `:engine`. Also the module that links the standalone `.wasm` — see [`docs/wasm-wasi-abi.md`](docs/wasm-wasi-abi.md). | JVM, JS Node, JS browser, WASI |
+| **`:fit`** | Garmin FIT encoding. `FitCourse` model + unit conversions in commonMain; `expect object FitEncoder` with a JVM `actual` on `com.garmin:fit` and a JS `actual` on `@garmin/fitsdk`. Under WASI the encoder is a stub that fails explicitly. | JVM, JS Node, JS browser, WASI |
 | **`:map`** | Static map rendering: Web Mercator projection, image framing, tile download + cache, PNG output (`java.awt` / `ImageIO`). **JVM-only.** No default tile source — see [`map/README.md`](map/README.md) for the usage-policy obligations. | JVM only |
 | **`:cli`** | Command-line tool (picocli). **JVM-only, not published as a library** — distributed as an executable jar. Replaces gpx2web's `gpxtools-cli`. | JVM only |
 | **`:codegen`** | Tiny build-time helper that regenerates `GeneratedPath.kt` + `PointFieldAccessors.kt` from `PointField` (run only when the field list changes). | JVM only |
+
+### Running it without a JVM or a JavaScript host
+
+`:engine` also links a standalone **WASI module**, so the whole pipeline runs inside wasmtime,
+WasmEdge, wazero, or an embedding in Go, Rust, Python or the JVM — no JavaScript involved.
+
+```bash
+./gradlew :engine:wasmModule       # -> engine/build/wasm/vcyclist-engine.wasm + .sha256
+```
+
+```python
+handle = exports["vcParseGpx"](store, len(gpx_bytes))       # after wiring three imports
+print(exports["vcPathTotalDistance"](store, handle), "m")
+```
+
+The host provides `read_input`, `write_output` and `fetch_tile` (the last one may simply answer
+"no tile"); everything else is numeric exports and integer handles.
+[`docs/wasm-wasi-abi.md`](docs/wasm-wasi-abi.md) is the full contract, and
+[`tools/wasi`](tools/wasi/README.md) is a working host that CI runs on every pull request.
 
 ### Migrating from gpx2web
 

@@ -18,6 +18,13 @@ This document explains how the vcyclist artefacts ship to **Maven Central** and 
 Five Maven Central artefacts, two npm packages, one release asset. `:fit` is **not** published
 to npm — see below.
 
+Since the `wasmWasi` target landed, the four core modules also publish a `-wasm-wasi` variant
+(`io.github.glandais:vcyclist-<module>-wasm-wasi`), produced by the standard KMP layout with no
+extra configuration. Those are **klibs**, consumable by another Kotlin build — not the standalone
+`.wasm`. The executable module is a separate artefact, still to be attached to the release (task
+w07); it is built by `./gradlew :engine:wasmModule` and its contract is
+[`wasm-wasi-abi.md`](wasm-wasi-abi.md).
+
 `:codegen` is a build-time JVM helper and is **not** published.
 
 `:cli` is an **application**, not a library, so it is **not** published to Maven Central either —
