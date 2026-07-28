@@ -3,8 +3,13 @@
 Synthèse des points techniques validés par le POC de la branche `feat/wasm-wasi` (juillet 2026) :
 ajout de la cible `wasmWasi` avec Kotlin **2.4.20-Beta2**, tests sous **wasmtime**, publication
 des variantes `-wasm-wasi` sur Maven, et production d'un module `.wasm` autonome piloté depuis
-Python via **wasmtime-py**. Remplace les hypothèses de `docs/tasks/w01-wasmwasi-numeric-facade.md`
-(écrit avant la suppression de wasmJs et avant le support wasmtime de KGP).
+Python via **wasmtime-py**. Remplace les hypothèses de l'ancienne fiche
+`w01-wasmwasi-numeric-facade.md` (écrite avant la suppression de wasmJs et avant le support
+wasmtime de KGP), supprimée depuis.
+
+Ce document est une **note d'ingénierie** : ce qui a été mesuré et pourquoi. La suite de travaux
+qu'il alimente est [`PLAN-WASM-WASI.md`](PLAN-WASM-WASI.md) ; le guide destiné aux hôtes WASI
+sera `wasm-wasi-abi.md` (tâche w10).
 
 ---
 
@@ -51,7 +56,7 @@ Les deux seules dépendances tierces de `commonMain` publient des variantes `was
   - `IntegrationGate.wasmWasi.kt` : `integrationEnabled() = false` (pas de réseau).
   - Bilan : 191/198 tests verts ; les 7 échecs sont tous `TileDecodeSplitTest`, c'est-à-dire
     exactement le décodage WebP stubbé. Pour une intégration réelle : soit porter le décodeur
-    VP8L pur Kotlin (plan w01 §2), soit sortir ces 7 tests de la cible wasmWasi.
+    VP8L pur Kotlin (tâche w11), soit sortir ces 7 tests de la cible wasmWasi (tâche w01).
 - `kotlin("test")` et `kotlinx-coroutines-test` (`runTest`) fonctionnent tels quels.
 - La montée 2.4.10 → 2.4.20-Beta2 n'a cassé que `kotlin-js-store/yarn.lock` (tooling JS de KGP) :
   `./gradlew kotlinUpgradeYarnLock`, et `./gradlew check` est vert.
@@ -115,7 +120,7 @@ façade comprise. La forme du module dépend de la présence d'un `fun main()` :
 | avec `fun main()` | `_start`, `memory`, `@WasmExport…` | module *commande* WASI : l'hôte appelle `_start` (initialise puis exécute `main`) |
 | sans `main()` | `memory`, `@WasmExport…` seulement | **section `start` Wasm** : les initialiseurs globaux tournent automatiquement à l'instanciation ; rien à appeler |
 
-Contrairement à ce que documentait w01 (Kotlin antérieur), Beta2 n'exporte **pas**
+Contrairement à ce que documentait l'ancienne fiche w01 (Kotlin antérieur), Beta2 n'exporte **pas**
 `_initialize` : la forme sans `main` s'initialise toute seule. C'est la forme « bibliothèque »
 recommandée : instancier, puis appeler directement les exports.
 
@@ -129,8 +134,8 @@ peuvent les fournir (ou rester hors `commonTest`).
 ## 6. ABI : le protocole à callbacks (aucune API interne)
 
 `@WasmExport` n'accepte que des types numériques (`Int`, `Double`…) : les objets deviennent des
-handles entiers, les chaînes transitent par la mémoire linéaire. Le plan w01 envisageait l'arène
-`componentModelRealloc` (`@ComponentModelInternalApi`, avec ses règles piégeuses) ; le POC
+handles entiers, les chaînes transitent par la mémoire linéaire. L'ancienne fiche w01 envisageait
+l'arène `componentModelRealloc` (`@ComponentModelInternalApi`, avec ses règles piégeuses) ; le POC
 montre qu'un **protocole à callbacks** suffit, en n'utilisant que l'API publique
 `kotlin.wasm.unsafe.withScopedMemoryAllocator` :
 
@@ -262,7 +267,7 @@ Validé :
 Ouvert (hors POC) :
 
 - Étendre la cible à `:fit` (1 stub `FitEncoder`) puis `:engine` (ordre imposé par les `api()`),
-  et y déplacer la façade complète façon `EngineJsApi` (plan w01 §5).
+  et y déplacer la façade complète façon `EngineJsApi` (tâches w01, w03, w04).
 - Sort des 7 tests WebP sur wasmWasi : décodeur VP8L pur Kotlin ou gating par cible.
 - Attacher le `.wasm` autonome à la publication Maven (classifier custom) si on veut le
   distribuer tel quel.

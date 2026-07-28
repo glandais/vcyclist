@@ -12,8 +12,8 @@ import kotlin.wasm.unsafe.UnsafeWasmMemoryApi
 import kotlin.wasm.unsafe.withScopedMemoryAllocator
 
 /**
- * POC numeric façade for the standalone WASI reactor module (see docs/tasks/w01 for the full
- * design this is a proof-of-concept slice of).
+ * POC numeric façade for the standalone WASI reactor module. Absorbed into `:engine`'s
+ * `EngineWasiApi` by task w03 — see docs/PLAN-WASM-WASI.md.
  *
  * ABI shape — the **callback protocol**, which needs no allocator that outlives an export call
  * (and therefore no `@ComponentModelInternalApi`):

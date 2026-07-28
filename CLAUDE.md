@@ -332,6 +332,8 @@ the GPX output makes sense.
 | Question | Answer |
 |---|---|
 | What is task N about ? | `docs/tasks/N-slug.md` (and the `Avancement` table in `docs/PLAN.md`) |
+| What is task gNN / wNN about ? | `docs/PLAN-GPX2WEB.md` / `docs/PLAN-WASM-WASI.md` + the matching `docs/tasks/` file |
+| How does the `wasmWasi` target work ? | [`docs/kotlin-wasm-wasi.md`](docs/kotlin-wasm-wasi.md) (engineering notes), `docs/PLAN-WASM-WASI.md` (the work) |
 | Why this design decision ? | The relevant task markdown's "Notes" section, or `docs/PLAN.md` if architectural |
 | How does Kotlin/JS export this type ? | `docs/kotlin-js-jvm-webp.md` |
 | What's the TS equivalent of `<class>` ? | Same name in `../virtual-cyclist/src/` — Kotlin file's KDoc names the TS source |
