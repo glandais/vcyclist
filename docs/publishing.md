@@ -14,16 +14,62 @@ This document explains how the vcyclist artefacts ship to **Maven Central** and 
 | npm | engine — Kotlin/JS | `@glandais/vcyclist-engine` |
 | npm | elevation — Kotlin/JS | `@glandais/vcyclist-elevation` |
 | GitHub Release | `:cli` executable jar | `vcyclist-cli-<version>-all.jar` |
+| GitHub Release | standalone WASI module | `vcyclist-engine.wasm` + `vcyclist-engine.wasm.sha256` |
+| Maven Central | the same module, classified | `io.github.glandais:vcyclist-engine:<version>:wasi@wasm` |
 
-Five Maven Central artefacts, two npm packages, one release asset. `:fit` is **not** published
-to npm — see below.
+Five Maven Central artefacts plus one classified binary, two npm packages, three release assets.
+`:fit` is **not** published to npm — see below.
 
-Since the `wasmWasi` target landed, the four core modules also publish a `-wasm-wasi` variant
+### The WASI module
+
+The four core modules also publish a `-wasm-wasi` variant
 (`io.github.glandais:vcyclist-<module>-wasm-wasi`), produced by the standard KMP layout with no
-extra configuration. Those are **klibs**, consumable by another Kotlin build — not the standalone
-`.wasm`. The executable module is a separate artefact, still to be attached to the release (task
-w07); it is built by `./gradlew :engine:wasmModule` and its contract is
-[`wasm-wasi-abi.md`](wasm-wasi-abi.md).
+extra configuration. Those are **klibs** — Kotlin IR for another Kotlin build, not something a
+WASI runtime can execute. Do not point a host at them.
+
+The executable module is a separate artefact, on two channels:
+
+- **The GitHub release asset** is the primary one. It is what
+  [`wasm-wasi-abi.md`](wasm-wasi-abi.md) tells a Go, Rust or Python host to download, and it
+  needs neither Gradle nor a compiler:
+
+  ```bash
+  curl -LO https://github.com/glandais/vcyclist/releases/latest/download/vcyclist-engine.wasm
+  curl -LO https://github.com/glandais/vcyclist/releases/latest/download/vcyclist-engine.wasm.sha256
+  sha256sum -c vcyclist-engine.wasm.sha256      # the file is in sha256sum's own format
+  ```
+
+  The digest is reproducible: two clean builds of the same commit produce the same binary
+  (measured in task w06), so anyone rebuilding the tag can check it against the published one.
+
+- **Maven Central**, as a classifier on the root coordinate, for JVM embedders (Chicory,
+  wasmtime-java) that would rather declare a dependency than curl a file:
+
+  ```kotlin
+  implementation("io.github.glandais:vcyclist-engine:<version>:wasi@wasm")
+  ```
+
+  It is attached to the `kotlinMultiplatform` publication — the coordinate without a target
+  suffix — and signed like every other artefact. It does not appear in any Gradle variant, so
+  ordinary consumers of `vcyclist-engine` are unaffected by its presence.
+
+Both are built by `./gradlew :engine:wasmModule`, which the release workflow runs **before**
+semantic-release: a binary that fails to link or exceeds the size ceiling of w06 must stop the
+run while nothing has been published.
+
+### Two version numbers, and which one a host cares about
+
+The project version (`3.0.0`, semantic-release) and the **ABI version** (`vcAbiVersion`, task
+w03) are independent, on purpose:
+
+- The **ABI version** is what a WASI host checks. It is a small integer, bumped only when an
+  export's signature or meaning changes in a way that breaks a host. A host must call
+  `vcAbiVersion` first and refuse a number it does not know.
+- The **project version** moves with every release, including releases that do not touch the
+  WASI surface at all. It tells you which build you have, not what it speaks.
+
+So a host pins the ABI version in its code and the project version in its download URL. A patch
+release changes the second and not the first; that is the normal case.
 
 `:codegen` is a build-time JVM helper and is **not** published.
 

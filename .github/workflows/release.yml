@@ -43,6 +43,13 @@ jobs:
           NODE_AUTH_TOKEN: ''
         run: ./gradlew check
 
+      # Before semantic-release, and not only as a side effect of publishing: a binary that
+      # fails to link or blows the size ceiling must stop the run while nothing has been
+      # published yet. The files also have to exist by the time @semantic-release/github attaches
+      # them — see the assets in .releaserc.json, next to the CLI jar.
+      - name: Build the standalone .wasm
+        run: ./gradlew :engine:wasmModule :engine:checkWasmModuleSize
+
       - name: Install release tooling
         run: npm ci
 

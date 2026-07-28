@@ -240,3 +240,30 @@ tasks.register("checkWasmModuleSize") {
 // Packaging, not verification: `assemble` builds it, `check` does not. Deliberate — a `check`
 // that also links a Wasm binary makes every test run slower for no test-related reason.
 tasks.named("assemble") { dependsOn(wasmModule) }
+
+// ── Publishing the standalone module (Phase WASI task w07) ───────────────────────────────────
+//
+// The `-wasm-wasi` klib variants are published for free by the KMP layout, but they are for
+// Gradle consumers, not for WASI hosts: a klib is Kotlin IR, not an executable module. The
+// binary of w06 is attached here as a **classified artefact of the root publication**, so a JVM
+// host (Chicory, wasmtime-java) can declare
+//
+//     implementation("io.github.glandais:vcyclist-engine:<version>:wasi@wasm")
+//
+// The root (`kotlinMultiplatform`) publication rather than the `jvm` one, because that is the
+// coordinate without a target suffix — `vcyclist-engine`, not `vcyclist-engine-jvm` — and a host
+// asking for a Wasm binary is not asking for a JVM library.
+//
+// The GitHub release asset stays the primary channel for everyone else (see release.yml); this
+// is the declared-dependency channel.
+afterEvaluate {
+    publishing.publications.withType<MavenPublication>().configureEach {
+        if (name == "kotlinMultiplatform") {
+            artifact(wasmModule.map { it.destinationDir.resolve(wasmFileName) }) {
+                classifier = "wasi"
+                extension = "wasm"
+                builtBy(wasmModule)
+            }
+        }
+    }
+}

@@ -35,6 +35,14 @@
           {
             "path": "cli/build/libs/vcyclist-cli-*-all.jar",
             "label": "vcyclist-cli ${nextRelease.version} (executable jar, Java 21+)"
+          },
+          {
+            "path": "engine/build/wasm/vcyclist-engine.wasm",
+            "label": "vcyclist-engine.wasm ${nextRelease.version} (standalone WASI module)"
+          },
+          {
+            "path": "engine/build/wasm/vcyclist-engine.wasm.sha256",
+            "label": "vcyclist-engine.wasm.sha256 ${nextRelease.version}"
           }
         ]
       }
