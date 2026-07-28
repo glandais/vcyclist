@@ -70,12 +70,14 @@ lève, et le message cite le seam d'injection. Un stub non testé est un stub qu
 - `fit/src/wasmWasiMain/…/FitEncoder.wasmWasi.kt`.
 - `elevation/src/decodingTest/kotlin/…/TileDecodeSplitTest.kt` (déplacé) + wiring Gradle.
 - `elevation/src/wasmWasiTest/…/TileFetcherStubTest.kt`.
+- **Non prévu par la fiche** : `fit/src/encodingTest/kotlin/…/EncoderBackedTest.kt` (même
+  découpage que `decodingTest`, cf. Notes) + `fit/src/wasmWasiTest/…/FitEncoderStubTest.kt`.
 
 ## Validation
 
-- [ ] `./gradlew check` vert — y compris `:fit:wasmWasiWasmtimeTest`, `:engine:wasmWasiWasmtimeTest`.
-- [ ] Aucun test perdu : le total avant/après est identique par cible (JVM, JS Node, JS browser).
-- [ ] `./gradlew ktlintCheck` vert, arbre de travail propre.
+- [x] `./gradlew check` vert — y compris `:fit:wasmWasiWasmtimeTest`, `:engine:wasmWasiWasmtimeTest`.
+- [x] Aucun test perdu : le total avant/après est identique par cible (JVM, JS Node, JS browser).
+- [x] `./gradlew ktlintCheck` vert, arbre de travail propre.
 
 ## Done when
 
@@ -86,3 +88,45 @@ Les quatre modules du cœur compilent et testent sous wasmtime, sans échec ni t
 Ne pas ajouter `nodejs()` à côté de `wasmtime()` : le POC a montré que wasmtime suffit et
 s'auto-provisionne. L'avertissement `⚠️ JS Environment Not Selected` de la Beta2 est inoffensif
 (cf. `kotlin-wasm-wasi.md` §1) — le re-vérifier en w08, pas ici.
+
+### Ce qui s'est passé
+
+`:engine` n'avait effectivement aucun `expect` à `actual`iser : la cible ajoutée, il compile et
+passe ses 236 tests `commonTest` sous wasmtime sans une ligne de code. `:fit` a demandé le stub
+prévu — **et une deuxième application du découpage de l'étape 3**, que la fiche n'avait pas vue :
+trois cas de `commonTest` appellent `FitEncoder.encode`, donc échouaient exactement comme les 7
+tests WebP. Ils sont partis dans `fit/src/encodingTest/kotlin`, câblé dans `jvmTest` + `jsTest`,
+avec le même raisonnement (option A) que `:elevation`. Les fichiers d'origine gardent tout ce qui
+s'arrête à `FitCourse` — c'est-à-dire la quasi-totalité — et un commentaire dit où le cas est
+parti.
+
+Comptes de tests, mesurés avant / après sur l'arbre stashé :
+
+| Module | JVM | JS Node | wasmWasi |
+|---|---|---|---|
+| `:gpx` | 254 (=) | 240 (=) | 240 |
+| `:elevation` | 225 (=) | 204 (=) | 194 |
+| `:fit` | 70 → **71** | 51 → **52** | 42 |
+| `:engine` | 242 (=) | 264 (=) | 236 |
+
+Rien n'a été perdu : le déplacement de `TileDecodeSplitTest` est neutre pour JVM/JS (le fichier
+est recompilé dans les deux compilations de test), et `:fit` gagne un test — `EncoderBackedTest`
+en regroupe trois là où `commonTest` en cédait deux, le cas `case 03` de `PathToFitTimestampTest`
+restant sur place pour ses assertions d'horodatage et cédant seulement sa comparaison d'octets.
+
+Les deux stubs sont testés côté wasmWasi (`TileFetcherStubTest`, `FitEncoderStubTest`) : ils
+vérifient le *message*, seule documentation qu'un hôte lira, et que tout ce qui entoure le stub
+(conversion `Path` → `FitCourse`, `ElevationProvider` alimenté par un fetcher injecté) fonctionne
+bien sous WASI. C'est ce qui rend le stub acceptable.
+
+### Vérifications transverses (étape 4)
+
+- `wasmWasiWasmtimeTest` est bien de type `KotlinJsTest` (`./gradlew :elevation:help --task
+  wasmWasiWasmtimeTest`), donc les blocs `tasks.withType<KotlinJsTest>` de `:elevation` et
+  `:engine` (propagation `INTEGRATION`) s'y appliquent sans modification — vérifié, pas supposé.
+- wasmtime était déjà provisionné : `~/.gradle/wasmtime/wasmtime-v46.0.1-x86_64-linux`, **64 Mo**.
+  C'est le dossier à cacher en w02 ; la durée de premier téléchargement reste à mesurer sur un
+  runner froid.
+- `:fit` n'a **pas** `binaries.executable()` : un seul binaire dans le projet, celui de `:engine`
+  (w06). `:engine` l'a, et se linke sans `fun main()` — forme réacteur, cf. `kotlin-wasm-wasi.md`
+  §5. La façade exportée arrive en w03.
