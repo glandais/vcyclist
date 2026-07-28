@@ -63,10 +63,10 @@ projet.
 
 ## Validation
 
-- [ ] `./tools/wasi/run-all.sh` vert depuis un arbre propre.
-- [ ] Les métriques `enhance` tiennent dans 0,5 % des références JVM.
-- [ ] Le smoke wasmtime CLI échoue avec « missing import », pas autre chose.
-- [ ] La CI exécute le harnais et échoue si un export est renommé.
+- [x] `./tools/wasi/run-all.sh` vert depuis un arbre propre.
+- [x] Les métriques `enhance` tiennent dans 0,5 % des références JVM.
+- [x] Le smoke wasmtime CLI échoue avec « missing import », pas autre chose.
+- [x] La CI exécute le harnais et échoue si un export est renommé.
 
 ## Done when
 
@@ -76,3 +76,45 @@ Une régression de l'ABI ou du binaire fait rougir la CI, sans intervention manu
 
 Le harnais est aussi la **documentation exécutable** de l'ABI : w10 pointe dessus plutôt que de
 recopier du code Python dans un markdown qui divergera.
+
+### Ce qui s'est passé
+
+**33 tests**, tous verts hors ligne, 33/33 avec `INTEGRATION=1`. Découpage conforme à la fiche
+(`host.py`, `test_engine.py`, `requirements.txt`, `run-all.sh`, `README.md`), avec deux écarts
+assumés :
+
+- **`unittest` plutôt que pytest.** Le harnais tourne en CI ; une dépendance (`wasmtime`) se
+  justifie mieux que deux, et `Pillow` n'est importé que par le chemin réseau.
+- **`fixtures.py` en plus.** Les GPX et les métriques attendues sont **extraits des sources
+  Kotlin à l'exécution** (`GpxFixtures.kt`, `ParityFixtures.kt`) plutôt que recopiés. Un harnais
+  de parité dont les références sont périmées est pire que pas de harnais : il continue de
+  passer. Même raisonnement que le test de la table de parité de w04, qui lit lui aussi ses
+  sources.
+
+Les options comparées sont celles de `EnhancerParityTest.runPipeline` — `EnhanceOptions.DEFAULT`
+sans la correction d'altitude — et non les défauts WASI, qui sont les défauts **JS** (ni 1 Hz ni
+simplification) et mesureraient un autre pipeline. Avec les bonnes options, `SAMPLE` et `GARMIN`
+tombent sur les cinq métriques attendues : nombre de points **exact**, distance, durée, D+ et D−
+dans les 0,5 %.
+
+**Le test de compatibilité runtime** (étape 2) est celui qui a le plus de valeur à long terme :
+`wasmtime` en ligne de commande *doit* échouer, faute d'imports, mais sur `unknown import:
+vcyclist::…` et non sur « proposal non supporté » ou « module invalide ». C'est ce qui attrapera
+une montée de Kotlin ou de wasmtime qui casse le format — w08 par exemple. Le binaire utilisé est
+celui de `~/.gradle/wasmtime/`, pas celui du système, sinon on testerait autre chose que la CI ;
+absent, le test est skippé plutôt que faux.
+
+**Vérifié pour de bon**, plutôt que supposé : renommer `vcPathTotalDistance` en
+`vcPathTotalDistanceRenamed`, reconstruire, relancer → 3 erreurs (`KeyError:
+'vcPathTotalDistance'`). Revert → 33 verts.
+
+### Une remarque trouvée en écrivant les tests
+
+`vcWriteGpx` avec `startTimeEpochMs` sur un chemin **fraîchement parsé** date la sortie en 2079 :
+le champ `TIME` contient alors des millisecondes epoch absolues, et l'option ajoute `startTime +
+time(i)`. C'est le comportement documenté de `writeGpxAt` côté JS, et le test utilise donc un
+chemin simulé (`time(0) == 0`), où l'option veut dire ce qu'elle a l'air de vouloir dire.
+
+C'est la même classe de piège que `g25` a corrigée côté FIT — où les horodatages sont désormais
+rebasés sur le premier point du chemin. Côté GPX, non. À trancher dans une fiche à part : soit
+rebaser comme FIT, soit le documenter explicitement en w10.
