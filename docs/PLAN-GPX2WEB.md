@@ -72,7 +72,12 @@ ce plan, 4 cibles avec Kotlin/Wasm ; la cible a depuis été retirée du projet)
 | g24 | Lecture / écriture des GPX `<rte>` / `<rtept>` | `:gpx` | ✅ |
 | g25 | FIT multi-`Path` + contrat de timestamp | `:fit` `:cli` | ✅ |
 | g26 | Port de `GPXDataComputer.getWind` | `:engine` | ✅ |
-| g27 | `@JvmOverloads` sur l'API publique | tous | ⬜ |
+| g27 | Façade JVM (ex-`@JvmOverloads`) sur l'API publique | tous | ⬜ |
+| **— Phase J : suites de la phase I —** | | | |
+| g28 | CSV / JSON : écrire toutes les pistes, pas la première | `:cli` | ⬜ |
+| g29 | Rattrapage de la façade JS sur g23, g24 et g25 | `:engine` | ⬜ |
+| g30 | Quelle puissance le GPX exporte-t-il ? | `:gpx` `:cli` | ⬜ |
+| g31 | Façade JS pour `dominantHeadwindDirection` | `:engine` `:demo` | ⬜ |
 
 La **phase I** n'était pas au plan initial : elle rassemble les points bloquants remontés par la
 première migration réelle d'un projet consommateur (appelant **Java**) de gpx2web vers vcyclist.
@@ -81,6 +86,12 @@ d'**appelabilité** — l'API était juste, elle n'était pas utilisable sans r�
 ou du boilerplate. Les deux autres sont des écarts de parité constatés à l'usage : `<rte>`
 (g24, lu par gpx2web, silencieusement ignoré ici) et `getWind` (g26, dont le refus de portage
 reposait sur un « aucun consommateur » démenti depuis).
+
+La **phase J** ne l'était pas davantage : ce sont les suites relevées **en livrant** la phase I,
+et écrites au moment où elles ont été constatées plutôt que gardées en tête. Trois d'entre elles
+(g28, g29, g30) ont le même motif — une tâche a changé le cœur et une surface adjacente n'a pas
+suivi : les exports tabulaires du CLI, la façade JS, l'écriture GPX de la puissance. La quatrième
+(g31) donne son premier appelant à une fonction que g26 a portée sans en avoir.
 
 > g09 a livré `@garmin/fitsdk` sur JS **et** Kotlin/Wasm. La cible Kotlin/Wasm a depuis été
 > retirée du projet (Kotlin/Wasm n'est pas WASI et a de toute façon besoin d'un runtime JS, ce
@@ -167,8 +178,11 @@ les divergences de comportement assumées et les options pour le sort de la weba
 - **G dépend de C, D et F** (le CLI expose tous les formats de sortie).
 - **H clôture.**
 - **I vient après H** et ses sept fiches sont largement parallélisables, à deux contraintes
-  près : **g27 en dernier** (il annote des signatures que g23, g24 et g25 modifient) et **g23
+  près : **g27 en dernier** (il complète des signatures que g23, g24 et g25 modifient) et **g23
   avant g24** (les deux touchent `GpxWriter.kt`).
+- **J vient après I**, dont elle dépend fiche à fiche. Deux contraintes : **g30 avant g29** (autant
+  fixer la sémantique de la puissance avant d'exporter l'écriture GPX vers JS) et **g29 avant
+  g31** (les deux touchent `EngineJsApi.kt`). `g28` est indépendante des trois autres.
 
 ## Workflow
 
