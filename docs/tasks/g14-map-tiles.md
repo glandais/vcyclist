@@ -120,14 +120,67 @@ Le cas 7 est important : une carte partiellement téléchargée vaut mieux qu'un
 
 ## Done when
 
-- [ ] `TileFetcher` en interface injectable
-- [ ] User-agent explicite propre à vcyclist
-- [ ] URL de tuiles obligatoire, sans défaut
-- [ ] Cache disque `{cache}/{host}/{z}/{x}/{y}.png`
-- [ ] Trois modes de cadrage portés
-- [ ] Tuile manquante tolérée
-- [ ] ≥ 10 tests unitaires sans réseau + test d'intégration gaté
-- [ ] `ktlintCheck` vert
+- [x] `TileFetcher` en interface injectable
+- [x] User-agent explicite propre à vcyclist
+- [x] URL de tuiles obligatoire, sans défaut
+- [x] Cache disque `{cache}/{host}/{z}/{x}/{y}.png`
+- [x] Trois modes de cadrage portés
+- [x] Tuile manquante tolérée
+- [x] 19 tests unitaires sans réseau + test d'intégration gaté
+- [x] `ktlintCheck` vert
+
+## Résultat
+
+**Politique d'usage : c'est le point traité le plus sérieusement de la tâche.**
+
+- User-agent `vcyclist (https://github.com/glandais/vcyclist)`, adapté depuis celui de gpx2web
+  qui nommait l'autre projet. Il est **vérifié réellement envoyé** par un test qui lance un
+  `com.sun.net.httpserver` local et lit l'en-tête reçu — le vérifier via un faux fetcher n'aurait
+  rien prouvé, puisque l'en-tête est posé à l'intérieur de l'implémentation HTTP.
+- Un user-agent vide est **refusé à la construction** : échouer bruyamment vaut mieux que se
+  faire bannir silencieusement.
+- **Aucune URL par défaut**, ni dans `createTileMap`, ni dans `HttpTileFetcher`, ni même dans le
+  test d'intégration (qui lit `VCYCLIST_TILE_URL` et se saute si absent). C'est précisément
+  l'absence de défaut qui empêche un appelant de taper le serveur public d'OSM sans le savoir.
+- Politique documentée dans `map/README.md`, avec lien vers la Tile Usage Policy.
+
+**Aucun test unitaire ne touche le réseau.** Deux niveaux, comme demandé : un faux `TileFetcher`
+pour l'assemblage et le cache, et un serveur HTTP **local** pour la couche HTTP elle-même
+(en-têtes, codes de statut, corps vide, hôte injoignable). Le test d'intégration est gaté par
+`INTEGRATION=1`.
+
+**Trois écarts délibérés par rapport à la référence :**
+
+1. **Le code de statut est vérifié.** gpx2web envoie le corps de la réponse directement dans le
+   fichier de cache (`BodyHandlers.ofFile`), donc une 404 ou une page de rate-limit est
+   **enregistrée en tant que tuile** puis dessinée. Ici une réponse non-2xx signifie simplement
+   « pas de tuile ».
+2. **Les échecs ne sont pas mis en cache.** gpx2web crée un fichier vide (`FileUtils.touch`), ce
+   qui rend la panne définitive : une coupure réseau passagère efface cette tuile pour toujours.
+   Ici l'échec n'écrit rien et le rendu suivant réessaie. Les tuiles réussies restent en cache
+   indéfiniment, donc la reproductibilité demandée par la fiche est intacte.
+3. **Cache lisible par un humain** : `{cache}/{host}/{z}/{x}/{y}.png` au lieu du
+   `hex(urlPattern.hashCode())` de gpx2web, opaque quand on cherche pourquoi un rendu est faux.
+
+**`TileMapImage` n'a pas été porté comme classe.** Dans la référence il étend `MapImage` juste
+pour transporter `cache` et `urlPattern` ; côté Kotlin `MapImage` est final et ces deux valeurs
+appartiennent au producteur. Un `MapImage.ofZoom(...)` a été ajouté pour le troisième mode de
+cadrage.
+
+**Vérification du chemin d'intégration sans déranger personne.** Le test gaté a été exécuté
+contre un **serveur de tuiles local** (`VCYCLIST_TILE_URL=http://127.0.0.1:8299/{z}/{x}/{y}.png`)
+plutôt que contre un service public : cela valide toute la chaîne — requête HTTP réelle,
+assemblage, tracé, écriture du PNG, cache, puis second rendu à **zéro requête** — sans mettre en
+charge un serveur tiers. Un vrai test contre une source publique reste possible pour qui en a le
+droit, en fournissant l'URL.
+
+Au passage, l'assertion « beaucoup de couleurs distinctes » du premier jet a été remplacée : elle
+encodait une hypothèse sur la source (une vraie carte de rue), alors que la fiche laisse
+justement la source au choix de l'appelant. L'assertion porte désormais sur ce qui doit être vrai
+pour **toute** source : le fond est dessiné et la trace est par-dessus.
+
+**Validation :** `./gradlew check` + `ktlintCheck` verts. `:map` = 42 tests (23 de g13, 19
+nouveaux), dont 0 accès réseau par défaut.
 
 ## Notes
 

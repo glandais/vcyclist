@@ -152,6 +152,23 @@ class MapImage private constructor(
         }
 
         /**
+         * Frame [paths] at an explicitly chosen [zoom]. The image size follows from the padded
+         * bounds, so it can be large — this is the mode a caller uses when the zoom level, not
+         * the output size, is what matters.
+         */
+        fun ofZoom(
+            paths: List<Path>,
+            margin: Double = 0.0,
+            zoom: Int,
+            mapSpace: MapSpace = MapSpace.TILE_256,
+        ): MapImage {
+            val map = MapImage(mapSpace)
+            map.initBounds(paths, margin)
+            map.applyZoom(zoom)
+            return map
+        }
+
+        /**
          * Frame [paths] into an image of exactly [width] × [height] pixels, with [margin]
          * padding, choosing the deepest zoom at which the padded bounds still fit.
          */
