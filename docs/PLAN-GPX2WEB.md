@@ -55,7 +55,7 @@ cœur (`:elevation`, `:gpx`, `:engine`, `:fit`) reste compilable sur les 4 cible
 | g12 | Façade `@JsExport` + intégration démo | `:engine` `:demo` | ✅ |
 | **— Phase F : cartes —** | | | |
 | g13 | Projection + `MapImage` | `:map` | ✅ |
-| g14 | `TileMapProducer` — tuiles + cache | `:map` | ⬜ |
+| g14 | `TileMapProducer` — tuiles + cache | `:map` | ✅ |
 | g15 | `SRTMMapProducer` — profil d'élévation PNG | `:map` | ⬜ |
 | **— Phase G : CLI —** | | | |
 | g16 | Bootstrap picocli + mixins | `:cli` | ⬜ |
@@ -117,8 +117,11 @@ reste sans équivalent. Son sort fera l'objet d'une décision séparée.
 - ~~**Phase F / `java.awt`**~~ — **levé pour g13** : `:map` utilise le plugin `kotlin-jvm`, n'a
   pas de `commonMain`, et rien ne dépend de lui (vérifié). `./gradlew check` reste vert et
   multi-cibles sur le cœur. Le bloc `mavenPublishing` fonctionne tel quel sur un module non-KMP.
-- **g14 / politique d'usage des tuiles** — gpx2web déclare un `USER_AGENT` explicite. Toute
-  source de tuiles OSM impose une politique d'usage ; la reprendre telle quelle.
+- ~~**g14 / politique d'usage des tuiles**~~ — **traité** : user-agent explicite
+  `vcyclist (https://github.com/glandais/vcyclist)`, vérifié envoyé par un test contre un serveur
+  HTTP local ; **aucune URL de tuiles par défaut**, ni en production ni dans le test
+  d'intégration ; cache permanent ; aucun test unitaire ne touche le réseau. Politique documentée
+  dans [`map/README.md`](../map/README.md).
 
 ## Ordre d'exécution
 
