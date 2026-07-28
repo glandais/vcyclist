@@ -82,7 +82,7 @@ ce plan, 4 cibles avec Kotlin/Wasm ; la cible a depuis été retirée du projet)
 | g32 | Fabrique JVM acceptant un fetcher de tuiles | `:elevation` | ✅ |
 | g33 | Les quatre trous que g27 a laissés, trouvés en migrant | `:gpx` `:engine` `:fit` | ✅ |
 | **— Phase L : trouvé en construisant autre chose —** | | | |
-| g34 | `--fix-elevation` du CLI ne corrige aucune élévation | `:cli` `:engine` | ⬜ |
+| g34 | `--fix-elevation` du CLI ne corrige aucune élévation | `:cli` `:engine` | ✅ |
 
 La **phase I** n'était pas au plan initial : elle rassemble les points bloquants remontés par la
 première migration réelle d'un projet consommateur (appelant **Java**) de gpx2web vers vcyclist.
@@ -115,6 +115,14 @@ profil altimétrique. L'écart mesuré — 8,94 m pour un budget de 1 m — vena
 `--fix-elevation` du CLI est un no-op silencieux. Le motif est celui de la phase J (le cœur bouge,
 une surface adjacente ne suit pas), à ceci près que la surface n'a jamais suivi ; et le coût d'un
 no-op silencieux est là tout entier, puisqu'il ne casse rien mais fait mentir ce qui s'y compare.
+
+La livraison de `g34` fait trois choses : le CLI construit réellement un `ElevationProvider`
+(avec cache disque des tuiles DEM sous `--cache`, dont `export --elevation-map` profite aussi) ;
+`Enhancer.enhanceCourse` **lève** désormais quand `fixElevation` est demandé sans provider, au
+lieu de sauter l'étape — seuls les wrappers de commodité (`enhanceCourseDefault`,
+`enhanceCourses`) gardent le contrat « provider optionnel » en résolvant `fixElevation` contre sa
+présence ; et un test `:cli` hors ligne épingle que le flag atteint le provider, pour que le
+no-op ne revienne pas.
 
 > g09 a livré `@garmin/fitsdk` sur JS **et** Kotlin/Wasm. La cible Kotlin/Wasm a depuis été
 > retirée du projet (Kotlin/Wasm n'est pas WASI et a de toute façon besoin d'un runtime JS, ce

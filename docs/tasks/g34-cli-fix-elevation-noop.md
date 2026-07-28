@@ -109,10 +109,19 @@ Deux chemins à couvrir, tous deux constatés absents :
 
 ## Validation
 
-- [ ] `--fix-elevation` sur `demo/public/gpx/stelvio.gpx` change réellement les altitudes.
-- [ ] Le profil obtenu vaut celui de `ElevationProvider()` appelé directement, à ±1 m.
-- [ ] Un test hors ligne échoue si quelqu'un remet `elevationProvider = null`.
-- [ ] `./gradlew check` et `ktlintCheck` verts.
+- [x] `--fix-elevation` sur `demo/public/gpx/stelvio.gpx` change réellement les altitudes.
+  Mesuré : premier point 2629,2 m avec correction vs 2626,4 m sans ; durée simulée 548 s vs
+  574 s ; deux tuiles Terrarium apparues sous `--cache` (`tiles.mapterhorn.com/12/{x}/{y}.webp`).
+- [x] Le profil obtenu vaut celui de `ElevationProvider()` appelé directement, à ±1 m — **au
+  stade `fixElevation`**, là où l'égalité est définie : c'est ce qu'affirme le test hors ligne
+  (cas 29 : tuile connue → altitudes de sortie exactement celles de la tuile). Le fichier final,
+  lui, porte en plus le lissage 150 m (inconditionnel, hors périmètre g34) : sur les lacets du
+  Stelvio l'écart mesuré à la valeur DEM bilinéaire brute est de 4 m en médiane, 8,5 m au pire —
+  l'amplitude attendue du noyau sur une route à ~7 % qui se recroise.
+- [x] Un test hors ligne échoue si quelqu'un remet `elevationProvider = null` : cas 29 du
+  `EnhanceCommandTest` (le provider doit être atteint), doublé côté `:engine` par le `require`
+  de `enhanceCourse` et son test.
+- [x] `./gradlew check` et `ktlintCheck` verts.
 
 ## Done when
 
@@ -123,6 +132,30 @@ no-op.
 
 Vérifier au passage si `ExportCommand` a le même trou : il construit un provider pour la carte
 SRTM, mais son `enhance` interne — s'il en a un — pourrait avoir hérité du même `null`.
+
+### Décisions prises en livrant
+
+- **`--cache` (étape 2)** : variante de **A**. `--cache` ayant une valeur par défaut
+  (`~/.vcyclist/cache`), « avec » et « sans » l'option ne sont pas distinguables — et n'ont pas à
+  l'être : les tuiles DEM sont **toujours** cachées sur disque sous `--cache`, dans le même
+  agencement `{host}/{z}/{x}/{y}.webp` que le cache de tuiles carte de `TileMapProducer`. L'aide
+  de `--cache` promettait « elevation data » depuis le début ; c'est maintenant vrai.
+  (`DiskCachedElevation.kt` dans `:cli` ; le seam est le paramètre `fetcher` du constructeur de
+  `ElevationProvider`, pas la fabrique Java de g32 — le CLI est en Kotlin.)
+- **Invariant `Enhancer` (étape 3)** : tranché en deux niveaux. `enhanceCourse` — l'entrée
+  explicite, celle que le CLI utilisait — **lève** `IllegalArgumentException` quand
+  `fixElevation && elevationProvider == null`. Les wrappers de commodité `enhanceCourseDefault` /
+  `enhanceCourses`, dont le contrat documenté est « provider optionnel », résolvent
+  `fixElevation` contre la présence du provider avant de déléguer : `enhanceCourseDefault(path)`
+  hors ligne continue de marcher (README, tests Java, parité intouchés). Deux tests communs
+  l'affirment ; l'ancien test qui épinglait le saut silencieux est reconverti en « le smoother
+  est inconditionnel ».
+- **Erreur réseau (étape 3)** : propagation. L'exception du fetcher remonte jusqu'à la boucle de
+  lot d'`EnhanceCommand` : fichier en échec, exit 70, cause sur stderr, **aucun fichier écrit**
+  pour cette entrée. Testé hors ligne (cas 31).
+- **`ExportCommand`** : pas d'`enhance` interne, donc pas le trou de la fiche — mais son
+  `--elevation-map` construisait `ElevationProvider(ElevationProviderConfig())` en ignorant
+  `--cache`, retéléchargeant chaque tuile DEM à chaque run. Branché sur le même cache disque.
 
 Le fait que la façade JS ait raison depuis la tâche 33 et que le CLI ait tort est le motif exact
 de la phase J : le cœur bouge, une surface adjacente ne suit pas. Ici la surface n'a jamais suivi.
