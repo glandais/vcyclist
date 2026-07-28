@@ -9,6 +9,7 @@ JVM-only. Renders a `Path` (or several) over a raster tile background and writes
 | `MapImage` | Framing: bounds, zoom choice, image size, coordinate ↔ pixel accessors |
 | `TileFetcher` / `HttpTileFetcher` | Retrieves one tile; injectable so rendering can be tested offline |
 | `TileMapProducer` | Downloads and assembles the background, draws the tracks, writes the PNG |
+| `SrtmMapProducer` | Generates a hypsometric background from DEM data instead of downloading imagery |
 
 ## Choosing a tile source is your decision — and your obligation
 
@@ -29,6 +30,13 @@ things requires:
 - **caching** — see below.
 
 Commercial and self-hosted sources exist precisely so heavy use has somewhere to go.
+
+## Two kinds of map
+
+`TileMapProducer` downloads raster imagery and draws the track over it. `SrtmMapProducer`
+downloads no imagery at all: it colours the terrain by altitude from the elevation model that
+`:elevation` provides, then draws the track on top, coloured by its own altitude range. The
+second still fetches DEM tiles, so the usage-policy reasoning above applies to that source too.
 
 ## Cache
 

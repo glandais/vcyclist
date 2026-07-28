@@ -56,7 +56,7 @@ cœur (`:elevation`, `:gpx`, `:engine`, `:fit`) reste compilable sur les 4 cible
 | **— Phase F : cartes —** | | | |
 | g13 | Projection + `MapImage` | `:map` | ✅ |
 | g14 | `TileMapProducer` — tuiles + cache | `:map` | ✅ |
-| g15 | `SRTMMapProducer` — profil d'élévation PNG | `:map` | ⬜ |
+| g15 | `SRTMMapProducer` — carte hypsométrique PNG | `:map` | ✅ |
 | **— Phase G : CLI —** | | | |
 | g16 | Bootstrap picocli + mixins | `:cli` | ⬜ |
 | g17 | Sous-commandes `process` / `virtualize` / `export` | `:cli` | ⬜ |
