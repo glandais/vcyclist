@@ -1,3 +1,47 @@
+# [3.0.0](https://github.com/glandais/vcyclist/compare/v2.0.0...v3.0.0) (2026-07-28)
+
+
+* feat(build)!: drop the Kotlin/Wasm (wasmJs) target ([5fc5a98](https://github.com/glandais/vcyclist/commit/5fc5a985de33b946e5b9b04443e8a993744c2676))
+* feat(fit)!: rebase timestamps and write several paths per file (gpx2web task g25) ([696ab30](https://github.com/glandais/vcyclist/commit/696ab30f64e7c4f891c3685c8d087a4f32e4bcca))
+
+
+### Bug Fixes
+
+* **cli:** write every track to CSV and JSON, not just the first (gpx2web task g28) ([ef1ab40](https://github.com/glandais/vcyclist/commit/ef1ab408b0ea0239289af5d6f378d79d9f1ce7ab))
+
+
+### Features
+
+* **elevation:** accept a Java tile fetcher, so a disk cache can plug in (gpx2web task g32) ([36b869e](https://github.com/glandais/vcyclist/commit/36b869e96e3179c284a61c64b8122a3a7443cea6))
+* **elevation:** expose attribution in the Java config factory (gpx2web task g32) ([f570d77](https://github.com/glandais/vcyclist/commit/f570d777b516439a09ca3d17f09a0b55eb538f6e))
+* **elevation:** split tile fetching from tile decoding (gpx2web task g21) ([f03b227](https://github.com/glandais/vcyclist/commit/f03b22789fa8acedc56c4c29c8dbbbb952a13b46))
+* **engine:** add JVM blocking and future bridges for the suspend API (gpx2web task g22) ([67f1759](https://github.com/glandais/vcyclist/commit/67f17595fc07697267b94a5da500408dfcab40a2))
+* **engine:** catch the JS facade up with g23, g24 and g25 (gpx2web task g29) ([65ec0be](https://github.com/glandais/vcyclist/commit/65ec0befb73633c0cd943ac7235bcf6dad1ef174))
+* **engine:** export the worst-case wind direction to JavaScript (gpx2web task g31) ([50ea666](https://github.com/glandais/vcyclist/commit/50ea6661671ad30f086d996abca59f891f1fd21f))
+* **engine:** port getWind as dominantHeadwindDirection (gpx2web task g26) ([d9b3153](https://github.com/glandais/vcyclist/commit/d9b3153756e215b232f0d9eac03f9585e4850860))
+* **gpx:** add a writeExtensions flag to the GPX writer (gpx2web task g23) ([e6d0c2c](https://github.com/glandais/vcyclist/commit/e6d0c2c90842d5250c69fd6c43d8bb670103148d))
+* **gpx:** add JVM facades so Java can use the default arguments (gpx2web task g27) ([1211767](https://github.com/glandais/vcyclist/commit/121176765d93871dfc6cb63966a69b3e557e3792))
+* **gpx:** close the four JVM facade gaps the Quarkus migration surfaced (gpx2web task g33) ([15119bb](https://github.com/glandais/vcyclist/commit/15119bbc14ed526cd06ca0f75c0b96b5dd52c19a))
+* **gpx:** let the caller choose which power the GPX carries (gpx2web task g30) ([33e5765](https://github.com/glandais/vcyclist/commit/33e5765b415a646a04b72381b7f3189c4dcc0ed5))
+* **gpx:** read and write GPX routes (gpx2web task g24) ([74a3262](https://github.com/glandais/vcyclist/commit/74a3262c2a8aea6fe6beed5404b3b11ad8e1730e))
+
+
+### BREAKING CHANGES
+
+* FitCourse.copy(records = ...) and copy(lap = ...) no
+longer exist -- records and lap are now derived accessors over segments.
+Reading course.records and course.lap is unchanged for a single-segment
+course, and the previous constructor still resolves through a companion
+invoke; only copy() is affected.
+
+Co-Authored-By: Claude Opus 5 (1M context) <noreply@anthropic.com>
+* the npm packages @glandais/vcyclist-engine-wasm, @glandais/vcyclist-elevation-wasm
+and @glandais/vcyclist-fit-wasm are no longer built or published, and the wasmJs Gradle target and
+its Maven artifacts are gone. Consumers must switch to the Kotlin/JS packages
+(@glandais/vcyclist-engine, @glandais/vcyclist-elevation) or the JVM artifacts.
+
+Co-Authored-By: Claude Opus 5 (1M context) <noreply@anthropic.com>
+
 # [2.0.0](https://github.com/glandais/vcyclist/compare/v1.2.1...v2.0.0) (2026-07-28)
 
 
