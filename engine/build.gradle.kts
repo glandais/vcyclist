@@ -204,22 +204,10 @@ tasks.withType<org.jetbrains.kotlin.gradle.targets.js.testing.KotlinJsTest>().co
     )
 }
 
-// JVM `run` task for the EngineCli smoke entry point (task 27). KMP doesn't expose the
-// usual `application {}` plugin, so we register a JavaExec ourselves. The classpath is
-// the compiled `jvmMain` classes plus the resolved `jvmRuntimeClasspath` configuration.
-// Args are forwarded via `-Pargs="..."` :
+// The JVM `run` task that used to launch `EngineCli` is gone: task g18 removed that entry point
+// in favour of the `:cli` module, which covers it and all of gpxtools-cli. Use:
 //
-//   ./gradlew :engine:run -Pargs="enhance input.gpx -o /tmp/out.gpx"
-tasks.register<JavaExec>("run") {
-    group = "application"
-    description = "Run io.github.glandais.engine.EngineCli (JVM smoke entry point)"
-    dependsOn("jvmMainClasses")
-    val jvmMain =
-        kotlin.targets
-            .getByName("jvm")
-            .compilations
-            .getByName("main")
-    classpath = files(jvmMain.output.allOutputs) + configurations.getByName("jvmRuntimeClasspath")
-    mainClass.set("io.github.glandais.engine.EngineCli")
-    args = (project.findProperty("args") as String?)?.split(" ")?.filter { it.isNotBlank() } ?: emptyList()
-}
+//   ./gradlew :cli:run -Pargs="enhance input.gpx --gpx /tmp/out.gpx"
+//
+// `FullPipelineSmokeTest` (jvmTest) still exercises the whole pipeline from this module, so
+// removing the CLI did not cost any coverage here.

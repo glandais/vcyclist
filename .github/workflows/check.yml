@@ -11,3 +11,30 @@ jobs:
         with: { java-version: 21, distribution: temurin }
       - uses: gradle/actions/setup-gradle@v6
       - run: ./gradlew check
+
+      # Smoke the packaged CLI. It is the only consumer that crosses every module at once
+      # (:gpx -> :engine -> :fit -> :map), so it doubles as an integration test — and a fat jar
+      # that builds but cannot run (missing Main-Class, missing dependencies) is the classic
+      # failure this catches.
+      - name: Smoke the executable CLI jar
+        run: |
+          set -euo pipefail
+          ./gradlew :cli:executableJar
+          JAR=$(ls cli/build/libs/*-all.jar)
+          java -jar "$JAR" --help
+          java -jar "$JAR" --version
+          # Run from another directory to prove the jar is self-contained.
+          mkdir -p "$RUNNER_TEMP/clismoke" && cd "$RUNNER_TEMP/clismoke"
+          java -jar "$GITHUB_WORKSPACE/$JAR" enhance \
+            "$GITHUB_WORKSPACE/demo/public/gpx/stelvio.gpx" \
+            --gpx out.gpx --csv out.csv --json out.json \
+            --fit out.fit --start-time 2026-08-01T08:00:00Z
+          for f in out.gpx out.csv out.json out.fit; do
+            test -s "$f" || { echo "CLI produced no $f"; exit 1; }
+          done
+          # The FIT header carries an ASCII ".FIT" marker at offset 8; a truncated or empty
+          # encode would not.
+          test "$(dd if=out.fit bs=1 skip=8 count=4 2>/dev/null)" = ".FIT" || {
+            echo "out.fit is not a FIT file"; exit 1; }
+          echo "CLI smoke OK"
+

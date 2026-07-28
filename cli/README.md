@@ -48,15 +48,50 @@ Framing: `--max-size` (default), or `--width`/`--height`, or `--zoom`; plus `--m
 
 ## Coming from gpxtools-cli
 
+Every command and option of `gpxtools-cli` has a line here. This table is what justified
+removing the old entry points, and it feeds the g20 correspondence matrix.
+
+### Commands
+
 | gpxtools-cli | vcyclist | Note |
 |---|---|---|
 | `process` | `enhance` | |
 | `virtualize` | `enhance` | The two overlapped almost entirely and vcyclist has one `Enhancer` pipeline, so reproducing the split would invent a distinction the code does not make. |
 | `export` | `export` | |
-| `--csv` | `--csv` | |
-| `--xlsx` | *(dropped)* | Not ported — see `PLAN-GPX2WEB.md`. Passing it prints a message pointing at `--csv` rather than "unknown option". |
-| `--start-date` | `--start-time` | ISO-8601, unchanged in meaning. |
-| `--cyclist-*`, `--bike-*` | same names | Two **defaults** differ, see below. |
+
+### Options
+
+| gpxtools-cli | vcyclist | Note |
+|---|---|---|
+| `process --csv` | `enhance --csv` | |
+| `process --xlsx` | *(dropped)* | Not ported — see `PLAN-GPX2WEB.md`. Passing it prints a message pointing at `--csv`, not "unknown option". |
+| `process --gpx-elevation` | `enhance --no-fix-elevation` | Inverted sense. gpx2web's flag asserts the GPX elevation is already good; vcyclist expresses the same thing by *not* correcting, which is the default. |
+| `process --gpx-power` | `enhance --gpx-power` | Same name. Replays the recorded power instead of the constant `--cyclist-power`. |
+| `process --cyclist-power` | `--cyclist-power` | Same name; internally a power strategy rather than a field of the cyclist. |
+| `process/virtualize --wind-speed` | `--wind-speed` | Same name. gpx2web's help says "km/s", which is a typo for m/s. |
+| `process/virtualize --wind-direction` | `--wind-direction` | Same name and convention (degrees, clockwise, 0 = N). |
+| `virtualize --start` | `enhance --start-time` | Renamed for symmetry with `export --start-time`; same ISO-8601 meaning. |
+| `export --map` | `export --map` | Now **requires** `--tile-url`. |
+| `export --map-tile-url` | `export --tile-url` | Shortened; no default, deliberately. |
+| `export --map-srtm` | `export --elevation-map` | Renamed: it renders a hypsometric map, and "srtm" named a data source rather than an output. |
+| `export --map-width` / `--map-height` | `export --width` / `--height` | Shortened; unambiguous inside `export`. |
+| `export --gpx` | `export --gpx` | Same name. |
+| `export --fit` | `export --fit` | Now requires `--start-time` — FIT has no relative clock. |
+| `-o` / `--output` | `-o` / `--output` | Same. |
+| `--cyclist-weight`, `--cyclist-cd`, `--cyclist-a`, `--cyclist-max-brake` | same names | |
+| `--cyclist-max-angle` | same name, **different default** | 45° → 35°, see below. |
+| `--cyclist-max-speed` | same name, **different default** | 90 → 100 km/h, see below. |
+| `--bike-crr`, `--bike-inertia-front`, `--bike-inertia-rear`, `--bike-wheel-radius`, `--bike-efficiency` | same names | |
+
+Options with no gpx2web equivalent, added because vcyclist's pipeline exposes them:
+`--json`, `--[no-]virtualize`, `--[no-]simplify`, `--simplify-tolerance`,
+`--[no-]one-point-per-second`, `--max-size`, `--zoom`, `--margin`, `--cache`, `--quiet`.
+
+### Coming from `EngineCli`
+
+`:engine` used to ship a minimal `EngineCli` (`enhance <in> [-o <out>] [--start-time …]`),
+removed in task g18. `vcyclist enhance <in> --gpx <out> --start-time …` is the direct
+replacement, with the same exit codes.
 
 ### Defaults that deliberately differ
 

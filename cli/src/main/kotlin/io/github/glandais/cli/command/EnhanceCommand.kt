@@ -17,6 +17,7 @@ import io.github.glandais.engine.io.CsvWriter
 import io.github.glandais.engine.io.JsonWriter
 import io.github.glandais.engine.path.Path
 import io.github.glandais.engine.physics.AeroProviderConstant
+import io.github.glandais.engine.physics.PowerProviderFromData
 import io.github.glandais.engine.physics.RhoProviderEstimate
 import io.github.glandais.fit.toFitBytes
 import kotlinx.coroutines.runBlocking
@@ -131,6 +132,15 @@ class EnhanceCommand : Callable<Int> {
         description = ["Resample to 1 Hz before simplifying (default: true)"],
     )
     var onePointPerSecond: Boolean? = null
+
+    @field:CommandLine.Option(
+        names = ["--gpx-power"],
+        description = [
+            "Replay the power recorded in the GPX instead of the constant --cyclist-power.",
+            "gpxtools-cli spells this the same way.",
+        ],
+    )
+    var useGpxPower: Boolean = false
 
     @field:CommandLine.Option(names = ["-q", "--quiet"], description = ["Print nothing on success."])
     var quiet: Boolean = false
@@ -285,7 +295,8 @@ class EnhanceCommand : Callable<Int> {
                 rhoProvider = RhoProviderEstimate,
                 aeroProvider = AeroProviderConstant,
                 windProvider = wind.toWindProvider(),
-                cyclistPowerProvider = cyclist.toPowerProvider(),
+                // --gpx-power replays what the file recorded; otherwise the rider model applies.
+                cyclistPowerProvider = if (useGpxPower) PowerProviderFromData else cyclist.toPowerProvider(),
             )
         return Enhancer.enhanceCourse(physics, options, elevationProvider = null)
     }

@@ -75,15 +75,21 @@ See [`docs/publishing.md`](docs/publishing.md) for the release process.
 
 ## Quick start
 
-### Run the JVM CLI
+### Run the CLI
 
 ```bash
-# Enhance a GPX file with the default cyclist (80 kg / 280 W) and bike (Crr 0.004) :
-./gradlew :engine:run -Pargs="enhance path/to/input.gpx -o /tmp/output.gpx"
+# Build a self-contained jar, then run it from anywhere:
+./gradlew :cli:executableJar
+java -jar cli/build/libs/vcyclist-cli-*-all.jar enhance route.gpx --gpx out.gpx --csv out.csv
+
+# Or, during development:
+./gradlew :cli:run -Pargs="enhance route.gpx --gpx /tmp/out.gpx"
 ```
 
-The CLI runs the full enhancement pipeline (no elevation correction — no HTTP) and writes the
-simulated trace back to a GPX file. See [`engine/src/jvmMain/.../EngineCli.kt`](engine/src/jvmMain/kotlin/io/github/glandais/engine/EngineCli.kt).
+`enhance` runs the physics pipeline; `export` produces maps, FIT, CSV and JSON from a file you
+already have. Elevation correction is off unless you pass `--fix-elevation`, so nothing touches
+the network by default. Full usage, exit codes and the migration table from gpx2web's
+`gpxtools-cli` are in [`cli/README.md`](cli/README.md).
 
 ### Try the browser demos (elevation only)
 

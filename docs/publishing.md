@@ -19,6 +19,14 @@ This document explains how the vcyclist artefacts ship to **Maven Central** and 
 
 `:codegen` is a build-time JVM helper and is **not** published.
 
+`:cli` is an **application**, not a library, so it is **not** published to Maven Central either —
+nobody should compile against a command-line tool. Its distributable is the self-contained jar
+produced by `./gradlew :cli:executableJar`, intended for attachment to the GitHub release. Wiring
+that into the release workflow is a task g19 decision.
+
+`:map` is published to Maven Central (`vcyclist-map`) but **not** to npm: it renders with
+`java.awt`, which has no JS or Wasm equivalent.
+
 ### `:fit` and the Garmin SDK licence
 
 `:fit` depends on `com.garmin:fit`, published on Maven Central **by Garmin itself** under the
