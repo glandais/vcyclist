@@ -92,7 +92,28 @@ data class ClimbOptions(
      * Above 1 it biases selection towards steeper climbs rather than merely longer ones.
      */
     val booster: Double = 1.3,
+    /**
+     * Upper bound on how many points the O(n²) candidate search looks at. Above it the path is
+     * uniformly decimated for the *analysis* only; reported indices still refer to the original
+     * path.
+     *
+     * This bound is not in gpx2web, and it exists because of how the search scales. The cost is
+     * quadratic in the point count — measured in a browser: 259 points 104 ms, 621 points 345 ms.
+     * gpx2web feeds it simplified traces, but vcyclist's enhancement pipeline can hand over a
+     * path densified to 1–2 m spacing, which is ~25 000 points for a 140 km route: several
+     * minutes, enough to freeze a browser tab.
+     *
+     * Decimating costs nothing in accuracy at this scale. The parts are already Douglas-Peucker
+     * simplified with a 10–50 m tolerance, so resolving a climb's start to the nearest ~50 m
+     * point is well inside the noise. Paths at or below the bound are analysed in full, so the
+     * behaviour validated against the Java reference is untouched.
+     */
+    val maxAnalysisPoints: Int = 3000,
 ) {
+    init {
+        require(maxAnalysisPoints >= 2) { "maxAnalysisPoints must be at least 2" }
+    }
+
     companion object {
         val DEFAULT: ClimbOptions = ClimbOptions()
     }

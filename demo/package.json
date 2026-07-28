@@ -14,6 +14,7 @@
         "lint:fix": "eslint . --ext .vue,.js,.jsx,.cjs,.mjs,.ts,.tsx,.cts,.mts --fix"
     },
     "dependencies": {
+        "@garmin/fitsdk": "21.205.0",
         "@glandais/vcyclist-engine": "file:../engine/build/dist/js/productionLibrary",
         "@primeuix/themes": "^2.0.3",
         "@types/leaflet": "^1.9.21",

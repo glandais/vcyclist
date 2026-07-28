@@ -72,6 +72,36 @@ export interface FieldDefinitionDto {
 }
 
 // Opaque Path handle — Kotlin/JS class instance, no TS surface.
+/** One homogeneous-grade segment of a climb. `grade` is dimensionless: 0.08 = 8 %. */
+export interface ClimbPartDto {
+    startDistanceM: number;
+    endDistanceM: number;
+    startElevationM: number;
+    endElevationM: number;
+    lengthM: number;
+    elevationGainM: number;
+    grade: number;
+}
+
+/** A climb detected on the enhanced path. */
+export interface ClimbDto {
+    startIndex: number;
+    endIndex: number;
+    startDistanceM: number;
+    endDistanceM: number;
+    startElevationM: number;
+    endElevationM: number;
+    lengthM: number;
+    elevationGainM: number;
+    /** Dimensionless: 0.08 = 8 %. */
+    averageGrade: number;
+    /** Dimensionless, counting only the rising sections. */
+    climbingGrade: number;
+    positiveElevationM: number;
+    negativeElevationM: number;
+    parts: ClimbPartDto[];
+}
+
 export type Path = object;
 
 export const parseGpx: (xml: string) => Path = ns.parseGpx;
@@ -95,3 +125,13 @@ export const getField: (path: Path, i: number, fieldProp: string) => number = ns
 export const fieldDefinitions: () => FieldDefinitionDto[] = ns.fieldDefinitions;
 export const pathLatitudeDeg: (path: Path, i: number) => number = ns.pathLatitudeDeg;
 export const pathLongitudeDeg: (path: Path, i: number) => number = ns.pathLongitudeDeg;
+export const detectClimbs: (path: Path) => ClimbDto[] = ns.detectClimbs;
+export const detectClimbsWithOptions: (
+    path: Path,
+    minMinClimbElevationM: number,
+    maxMinClimbElevationM: number,
+    minClimbElevationRatio: number,
+    minGradePercent: number,
+    maxDiffRealGrade: number,
+    booster: number
+) => ClimbDto[] = ns.detectClimbsWithOptions;

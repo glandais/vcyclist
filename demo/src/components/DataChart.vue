@@ -2,13 +2,14 @@
 import { onMounted, ref, toRef } from 'vue';
 import { useChart } from '~/composables/useChart';
 import type { HoverInfo } from '~/composables/useHoverSync';
-import type { Path } from '~/engine-shim';
+import type { ClimbDto, Path } from '~/engine-shim';
 
 const props = defineProps<{
     currentPath: Path | null;
     selectedFields: Set<string>;
     isProcessing: boolean;
     hoveredInfo: HoverInfo | null;
+    climbs: ClimbDto[];
 }>();
 
 const emit = defineEmits<{
@@ -17,17 +18,19 @@ const emit = defineEmits<{
 
 const canvasRef = ref<HTMLCanvasElement | null>(null);
 
-const { createChart, resetZoom, resize } = useChart(
+const { createChart, resetZoom, resize, zoomToDistanceRange } = useChart(
     canvasRef,
     toRef(props, 'currentPath'),
     toRef(props, 'selectedFields'),
     toRef(props, 'hoveredInfo'),
-    (index: number | null) => emit('hoverChange', index)
+    (index: number | null) => emit('hoverChange', index),
+    toRef(props, 'climbs')
 );
 
 defineExpose({
     resetZoom,
     resize,
+    zoomToDistanceRange,
 });
 
 onMounted(() => {

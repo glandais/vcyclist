@@ -15,7 +15,8 @@ import {
 import zoomPlugin from 'chartjs-plugin-zoom';
 import { computed, type Ref, shallowRef, watch } from 'vue';
 import { fieldConfig } from '~/config/fieldConfig';
-import { getField, pathSize, type Path } from '~/engine-shim';
+import { gradeColor } from './useClimbs';
+import { type ClimbDto, getField, pathSize, type Path } from '~/engine-shim';
 import type { HoverInfo } from './useHoverSync';
 
 // Register Chart.js components
@@ -37,7 +38,8 @@ export function useChart(
     currentPath: Ref<Path | null>,
     selectedFields: Ref<Set<string>>,
     hoveredInfo: Ref<HoverInfo | null>,
-    onHoverChange: (index: number | null) => void
+    onHoverChange: (index: number | null) => void,
+    climbs: Ref<ClimbDto[]>
 ) {
     const chartInstance = shallowRef<Chart | null>(null);
 
@@ -100,6 +102,51 @@ export function useChart(
                 scales: {},
             },
             plugins: [
+                {
+                    // Shade each ClimbPart across the x-range it covers, in the conventional
+                    // cycling grade colours. Drawn in `beforeDatasetsDraw` so the bands sit
+                    // behind the series rather than hiding them, and keyed off distance (the
+                    // chart's x unit) so it works regardless of which fields are selected.
+                    id: 'climbBands',
+                    beforeDatasetsDraw: chart => {
+                        if (climbs.value.length === 0) {
+                            return;
+                        }
+                        const xAxis = chart.scales.x;
+                        const yAxis = chart.scales.y || Object.values(chart.scales)[1];
+                        if (!xAxis || !yAxis) {
+                            return;
+                        }
+                        const drawCtx = chart.ctx;
+                        drawCtx.save();
+                        drawCtx.beginPath();
+                        drawCtx.rect(
+                            xAxis.left,
+                            yAxis.top,
+                            xAxis.right - xAxis.left,
+                            yAxis.bottom - yAxis.top
+                        );
+                        drawCtx.clip();
+                        for (const climb of climbs.value) {
+                            for (const part of climb.parts) {
+                                const x0 = xAxis.getPixelForValue(part.startDistanceM / 1000);
+                                const x1 = xAxis.getPixelForValue(part.endDistanceM / 1000);
+                                if (!Number.isFinite(x0) || !Number.isFinite(x1)) {
+                                    continue;
+                                }
+                                drawCtx.fillStyle = gradeColor(part.grade);
+                                drawCtx.globalAlpha = 0.18;
+                                drawCtx.fillRect(
+                                    x0,
+                                    yAxis.top,
+                                    Math.max(x1 - x0, 1),
+                                    yAxis.bottom - yAxis.top
+                                );
+                            }
+                        }
+                        drawCtx.restore();
+                    },
+                },
                 {
                     id: 'crosshair',
                     afterDraw: chart => {
@@ -249,6 +296,25 @@ export function useChart(
         }
     });
 
+    watch(climbs, () => {
+        chartInstance.value?.update('none');
+    });
+
+    /** Zoom the x axis onto a distance window, in meters. Used when a climb row is clicked. */
+    const zoomToDistanceRange = (startM: number, endM: number) => {
+        const chart = chartInstance.value;
+        if (!chart) {
+            return;
+        }
+        // A little margin either side so the climb is not flush against the plot edges.
+        const marginKm = Math.max((endM - startM) / 1000 / 20, 0.1);
+        chart.zoomScale(
+            'x',
+            { min: startM / 1000 - marginKm, max: endM / 1000 + marginKm },
+            'default'
+        );
+    };
+
     return {
         chartInstance,
         createChart,
@@ -256,5 +322,6 @@ export function useChart(
         resetZoom,
         resize,
         hasData,
+        zoomToDistanceRange,
     };
 }

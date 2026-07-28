@@ -52,7 +52,7 @@ cœur (`:elevation`, `:gpx`, `:engine`, `:fit`) reste compilable sur les 4 cible
 | g10 | Encodage Course/Lap/Records + tests round-trip | `:fit` | ✅ |
 | **— Phase E : cols —** | | | |
 | g11 | Port de `ClimbDetector` | `:engine` | ✅ |
-| g12 | Façade `@JsExport` + intégration démo | `:engine` `:demo` | ⬜ |
+| g12 | Façade `@JsExport` + intégration démo | `:engine` `:demo` | ✅ |
 | **— Phase F : cartes —** | | | |
 | g13 | Projection + `MapImage` | `:map` | ⬜ |
 | g14 | `TileMapProducer` — tuiles + cache | `:map` | ⬜ |

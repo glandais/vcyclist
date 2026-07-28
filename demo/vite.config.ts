@@ -31,7 +31,17 @@ function manualChunks(id: string): string | null {
 export default defineConfig({
     plugins: [vue(), tailwindcss()],
     resolve: {
-        alias: [{ find: /^~\/(.*)$/, replacement: path.resolve(__dirname, './src/$1') }],
+        alias: [
+            { find: /^~\/(.*)$/, replacement: path.resolve(__dirname, './src/$1') },
+            // The engine bundle is linked with `file:` and lives outside this directory, so its
+            // own `import '@garmin/fitsdk'` (pulled in since the engine gained FIT export in
+            // task g10) resolves relative to `engine/build/dist/...`, where there is no
+            // node_modules. Point it at the copy installed here instead.
+            {
+                find: '@garmin/fitsdk',
+                replacement: path.resolve(__dirname, './node_modules/@garmin/fitsdk/src/index.js'),
+            },
+        ],
         extensions: ['.mjs', '.js', '.ts', '.jsx', '.tsx', '.json', '.vue'],
     },
     base: process.env.DEPLOY_TARGET === 'gh-pages' ? '/vcyclist/' : './',

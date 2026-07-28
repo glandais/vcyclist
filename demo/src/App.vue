@@ -2,6 +2,7 @@
 import Toast from 'primevue/toast';
 import { useToast } from 'primevue/usetoast';
 import { computed, nextTick, onMounted, ref, watch } from 'vue';
+import ClimbsPanel from '~/components/ClimbsPanel.vue';
 import ConfigModal from '~/components/ConfigModal.vue';
 import DataChart from '~/components/DataChart.vue';
 import FieldsSidebar from '~/components/FieldsSidebar.vue';
@@ -9,6 +10,7 @@ import FileSection from '~/components/FileSection.vue';
 import MapView from '~/components/MapView.vue';
 import Toolbar from '~/components/Toolbar.vue';
 import { loadConfig, useConfigPersistence } from '~/composables/useConfigPersistence';
+import { useClimbs } from '~/composables/useClimbs';
 import { useGPXDemo } from '~/composables/useGPXDemo';
 import { useHoverSync } from '~/composables/useHoverSync';
 
@@ -29,6 +31,21 @@ const {
     handleFileUpload,
     enhancePath,
 } = useGPXDemo(config);
+
+// Climb detection : recomputed once per enhanced path, never per render.
+const { climbs } = useClimbs(currentPath);
+const selectedClimbIndex = ref<number | null>(null);
+
+// Clicking a climb row recentres the map on it and zooms the chart to its distance range.
+const onClimbSelect = (index: number) => {
+    const climb = climbs.value[index];
+    if (!climb) {
+        return;
+    }
+    selectedClimbIndex.value = index;
+    mapViewRef.value?.focusOnClimb(climb);
+    dataChartRef.value?.zoomToDistanceRange(climb.startDistanceM, climb.endDistanceM);
+};
 
 // Set up hover sync between chart and map
 const { hoveredInfo, setHoveredIndex } = useHoverSync(currentPath);
@@ -98,6 +115,7 @@ watch(fieldsSidebarVisible, async () => {
 });
 
 const handleResetZoom = () => {
+    selectedClimbIndex.value = null;
     dataChartRef.value?.resetZoom();
     mapViewRef.value?.fitBounds();
 };
@@ -223,6 +241,7 @@ onMounted(() => {
                         :selected-fields="config.selectedFields"
                         :is-processing="isProcessing"
                         :hovered-info="hoveredInfo"
+                        :climbs="climbs"
                         @hover-change="handleHoverChange"
                         class="flex-1"
                     />
@@ -233,7 +252,17 @@ onMounted(() => {
                     ref="mapViewRef"
                     :current-path="currentPath"
                     :hovered-info="hoveredInfo"
+                    :climbs="climbs"
                     @hover-change="handleHoverChange"
+                />
+            </div>
+
+            <!-- Climbs -->
+            <div v-if="hasData" class="px-4 pb-4">
+                <ClimbsPanel
+                    :climbs="climbs"
+                    :selected-index="selectedClimbIndex"
+                    @select="onClimbSelect"
                 />
             </div>
         </div>
