@@ -77,7 +77,7 @@ reste intact.
 | w04 | Parité fonctionnelle avec `EngineJsApi` (enhance, cols, exports, vent) | `:engine` | ✅ |
 | w05 | Élévation host-injectée : import `fetch_tile` + pont `suspend`→synchrone | `:engine` `:elevation` | ✅ |
 | **— Phase C : packaging et publication —** | | | |
-| w06 | Tâche Gradle de distribution du `.wasm` (nom stable, taille, checksum) | `:engine` build | ⬜ |
+| w06 | Tâche Gradle de distribution du `.wasm` (nom stable, taille, checksum) | `:engine` build | ✅ |
 | w07 | Publier le `.wasm` : Maven Central (classifier) + asset de release GitHub | build docs | ⬜ |
 | w08 | Passage à Kotlin 2.4.20 final et re-vérifications | build | ⬜ |
 | **— Phase D : hôtes de référence et documentation —** | | | |
