@@ -81,6 +81,8 @@ ce plan, 4 cibles avec Kotlin/Wasm ; la cible a depuis été retirée du projet)
 | **— Phase K : seconde migration consommateur —** | | | |
 | g32 | Fabrique JVM acceptant un fetcher de tuiles | `:elevation` | ✅ |
 | g33 | Les quatre trous que g27 a laissés, trouvés en migrant | `:gpx` `:engine` `:fit` | ✅ |
+| **— Phase L : trouvé en construisant autre chose —** | | | |
+| g34 | `--fix-elevation` du CLI ne corrige aucune élévation | `:cli` `:engine` | ⬜ |
 
 La **phase I** n'était pas au plan initial : elle rassemble les points bloquants remontés par la
 première migration réelle d'un projet consommateur (appelant **Java**) de gpx2web vers vcyclist.
@@ -106,6 +108,13 @@ branche le cache disque des tuiles DEM que g21 avait délibérément laissé à 
 le backend nommait encore un type Kotlin à six endroits. Aucun n'était bloquant — c'est bien le
 motif de la phase I, l'API était juste et inutilement coûteuse à appeler — et aucun n'aurait été
 trouvé par relecture, seulement en comptant sur du code réel arrivé au bout.
+
+La **phase L** n'a rien à voir avec une migration : `g34` a été trouvée en livrant la tâche `w05`
+du [plan WASI](PLAN-WASM-WASI.md), qui se servait du CLI comme référence JVM pour valider un
+profil altimétrique. L'écart mesuré — 8,94 m pour un budget de 1 m — venait de la référence :
+`--fix-elevation` du CLI est un no-op silencieux. Le motif est celui de la phase J (le cœur bouge,
+une surface adjacente ne suit pas), à ceci près que la surface n'a jamais suivi ; et le coût d'un
+no-op silencieux est là tout entier, puisqu'il ne casse rien mais fait mentir ce qui s'y compare.
 
 > g09 a livré `@garmin/fitsdk` sur JS **et** Kotlin/Wasm. La cible Kotlin/Wasm a depuis été
 > retirée du projet (Kotlin/Wasm n'est pas WASI et a de toute façon besoin d'un runtime JS, ce
