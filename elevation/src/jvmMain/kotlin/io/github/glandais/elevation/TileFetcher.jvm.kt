@@ -18,22 +18,34 @@ private val httpClient: HttpClient by lazy {
         .build()
 }
 
+actual suspend fun fetchTileBytes(url: String): ByteArray = withContext(Dispatchers.IO) { httpGetBytes(url) }
+
+actual suspend fun decodeTileBytes(
+    bytes: ByteArray,
+    sourceUrl: String,
+): RawTile = withContext(Dispatchers.IO) { decodeBytes(bytes, sourceUrl) }
+
 actual suspend fun fetchAndDecodeTile(url: String): RawTile =
     withContext(Dispatchers.IO) {
-        val response =
-            httpClient.send(
-                HttpRequest
-                    .newBuilder(URI.create(url))
-                    .timeout(Duration.ofSeconds(30))
-                    .GET()
-                    .build(),
-                HttpResponse.BodyHandlers.ofByteArray(),
-            )
-        check(response.statusCode() in 200..299) {
-            "Tile fetch failed for $url: HTTP ${response.statusCode()}"
-        }
-        decodeBytes(response.body(), url)
+        // One IO hop for both halves rather than the two the naive composition would take.
+        decodeBytes(httpGetBytes(url), url)
     }
+
+private fun httpGetBytes(url: String): ByteArray {
+    val response =
+        httpClient.send(
+            HttpRequest
+                .newBuilder(URI.create(url))
+                .timeout(Duration.ofSeconds(30))
+                .GET()
+                .build(),
+            HttpResponse.BodyHandlers.ofByteArray(),
+        )
+    check(response.statusCode() in 200..299) {
+        "Tile fetch failed for $url: HTTP ${response.statusCode()}"
+    }
+    return response.body()
+}
 
 private fun decodeBytes(
     bytes: ByteArray,
@@ -41,7 +53,7 @@ private fun decodeBytes(
 ): RawTile {
     val img =
         ImageIO.read(ByteArrayInputStream(bytes))
-            ?: error("No ImageIO decoder for tile at $sourceUrl")
+            ?: error("No ImageIO decoder for tile at ${sourceUrl.ifEmpty { "<unnamed bytes>" }}")
     val w = img.width
     val h = img.height
     val argb = IntArray(w * h).also { img.getRGB(0, 0, w, h, it, 0, w) }

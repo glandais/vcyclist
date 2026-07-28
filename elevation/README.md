@@ -15,6 +15,37 @@ path, distance-based smoothing, and Douglas-Peucker 3D simplification.
 See `../docs/PLAN.md` and `../docs/kotlin-js-jvm-webp.md` for the design rationale and
 multi-target interop conventions.
 
+## Bringing your own tile transport
+
+`TileManager` and `ElevationProvider` take a `fetcher: suspend (String) -> RawTile`, defaulting
+to `fetchAndDecodeTile`. That hook exists so you can own the *transport* — a disk or object-store
+cache, an HTTP client with your own retry and `Cache-Control` policy, tiles shipped inside the
+application — without also having to own the *decoder*, which differs per target and has to be
+byte-exact (see `ReferenceTileDigestTest`).
+
+The two halves are public:
+
+```kotlin
+suspend fun fetchTileBytes(url: String): ByteArray
+suspend fun decodeTileBytes(bytes: ByteArray, sourceUrl: String = ""): RawTile
+```
+
+A caller-owned cache is then the obvious three lines:
+
+```kotlin
+val provider =
+    ElevationProvider(config) { url ->
+        val bytes = myCache.get(url) ?: fetchTileBytes(url).also { myCache.put(url, it) }
+        decodeTileBytes(bytes, url)
+    }
+```
+
+`decodeTileBytes` suspends because the browser decodes through `createImageBitmap`, which is
+asynchronous — not for symmetry with the fetch half.
+
+Two cache levels coexist and do not overlap: yours holds compressed bytes, `TileManager` keeps
+an LRU of decoded `Tile`s (`ElevationProviderConfig.cacheSize`).
+
 ## Build & test
 
 From the `vcyclist/` root:

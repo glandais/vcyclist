@@ -19,6 +19,20 @@ object InlineWebpFixture {
     const val WIDTH: Int = 4
     const val HEIGHT: Int = 1
 
+    /**
+     * The very same image as raw bytes — what [DATA_URL] carries. Lets [decodeTileBytes] be
+     * exercised without any URL, and therefore on **every** target: the JVM's `HttpClient` has no
+     * `data:` support, so [DATA_URL] is browser-and-Node-only.
+     *
+     * Written down independently rather than derived from [DATA_URL] at runtime: a fixture that
+     * computes itself can be wrong in the same way twice.
+     */
+    val BYTES: ByteArray =
+        hexToBytes(
+            "5249464632000000574542505650384c250000002f030000001f20202164badd860848089e5b2eb2018ae275579be63f" +
+                "805a7f35286d44ff0300",
+        )
+
     /** Packed RGBA, row-major — exactly what [RawTile.rgba] must contain. */
     val EXPECTED_RGBA: ByteArray =
         byteArrayOf(

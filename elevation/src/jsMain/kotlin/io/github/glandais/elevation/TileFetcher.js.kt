@@ -29,6 +29,10 @@ private fun fetchUrlNode(url: String): Promise<Response> = js("globalThis.fetch(
 // Wrap the response.arrayBuffer() promise — Web standard, available in Node 18+.
 private fun responseArrayBuffer(res: Response): Promise<dynamic> = js("res.arrayBuffer()").unsafeCast<Promise<dynamic>>()
 
+// `new Blob([bytes])`. A Kotlin/JS ByteArray IS an Int8Array at runtime, so this is a view, not
+// a copy — the Blob constructor accepts any ArrayBufferView.
+private fun blobOf(bytes: ByteArray): Blob = js("new Blob([bytes])").unsafeCast<Blob>()
+
 // Load @jsquash/webp lazily so webpack does NOT resolve it at bundle time for the browser
 // target. The `require()` is hidden behind `eval()` to defeat webpack's static resolver —
 // combined with `webpack.config.d/externals.js`, the browser bundle stays jsquash-free.
@@ -64,14 +68,38 @@ private suspend fun decodeWebpNode(buffer: dynamic): dynamic {
     return resultPromise.await()
 }
 
+actual suspend fun fetchTileBytes(url: String): ByteArray {
+    val res: Response = if (isNode) fetchUrlNode(url).await() else fetchUrlBrowser(url).await()
+    check(res.ok) { "Tile fetch failed for $url: HTTP ${res.status}" }
+    val ab: dynamic = responseArrayBuffer(res).await()
+    // A Kotlin/JS ByteArray IS an Int8Array at runtime, so this view is the ByteArray itself.
+    return js("new Int8Array(ab)").unsafeCast<ByteArray>()
+}
+
+actual suspend fun decodeTileBytes(
+    bytes: ByteArray,
+    sourceUrl: String,
+): RawTile = if (isNode) decodeBytesNode(bytes, sourceUrl) else decodeBlob(blobOf(bytes), sourceUrl)
+
 actual suspend fun fetchAndDecodeTile(url: String): RawTile = if (isNode) decodeNode(url) else decodeBrowser(url)
 
 private suspend fun decodeBrowser(url: String): RawTile {
     val res: Response = fetchUrlBrowser(url).await()
     check(res.ok) { "Tile fetch failed for $url: HTTP ${res.status}" }
-    val blob: Blob = res.blob().await()
+    // Straight to the Blob: no ByteArray round-trip when we own both halves.
+    return decodeBlob(res.blob().await(), url)
+}
 
-    val bitmap: ImageBitmap = window.createImageBitmap(blob).await()
+private suspend fun decodeBlob(
+    blob: Blob,
+    sourceUrl: String,
+): RawTile {
+    val bitmap: ImageBitmap =
+        try {
+            window.createImageBitmap(blob).await()
+        } catch (e: Throwable) {
+            error("Cannot decode tile at ${sourceUrl.ifEmpty { "<unnamed bytes>" }}: ${e.message}")
+        }
     try {
         val canvas = document.createElement("canvas") as HTMLCanvasElement
         canvas.width = bitmap.width
@@ -94,7 +122,27 @@ private suspend fun decodeNode(url: String): RawTile {
     val res: Response = fetchUrlNode(url).await()
     check(res.ok) { "Tile fetch failed for $url: HTTP ${res.status}" }
     val ab: dynamic = responseArrayBuffer(res).await()
-    val image: dynamic = decodeWebpNode(ab)
+    return rawTileFromJsquash(decodeWebpNode(ab))
+}
+
+private suspend fun decodeBytesNode(
+    bytes: ByteArray,
+    sourceUrl: String,
+): RawTile {
+    // @jsquash/webp takes an ArrayBuffer; a ByteArray is an Int8Array here, so hand over its
+    // backing buffer sliced to the view — `bytes.buffer` alone would be wrong for a sub-view.
+    val view: dynamic = bytes
+    val buffer: dynamic = js("view.buffer.slice(view.byteOffset, view.byteOffset + view.byteLength)")
+    val image: dynamic =
+        try {
+            decodeWebpNode(buffer)
+        } catch (e: Throwable) {
+            error("Cannot decode tile at ${sourceUrl.ifEmpty { "<unnamed bytes>" }}: ${e.message}")
+        }
+    return rawTileFromJsquash(image)
+}
+
+private fun rawTileFromJsquash(image: dynamic): RawTile {
     val width: Int = (image.width as Number).toInt()
     val height: Int = (image.height as Number).toInt()
     val src: dynamic = image.data // Uint8ClampedArray

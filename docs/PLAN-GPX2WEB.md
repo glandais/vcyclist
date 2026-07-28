@@ -66,7 +66,7 @@ ce plan, 4 cibles avec Kotlin/Wasm ; la cible a depuis été retirée du projet)
 | g19 | Publication des nouveaux artefacts (npm + Maven Central) | tous | ✅ |
 | g20 | Matrice de correspondance gpx2web → vcyclist | docs | ✅ |
 | **— Phase I : retours de migration —** | | | |
-| g21 | `TileFetcher` — séparer téléchargement et décodage | `:elevation` | ⬜ |
+| g21 | `TileFetcher` — séparer téléchargement et décodage | `:elevation` | ✅ |
 | g22 | Ponts JVM `Blocking` / `Async` pour les API `suspend` | `:gpx` `:engine` `:elevation` | ⬜ |
 | g23 | Option d'écriture des `<extensions>` GPX | `:gpx` `:cli` | ⬜ |
 | g24 | Lecture / écriture des GPX `<rte>` / `<rtept>` | `:gpx` | ⬜ |
