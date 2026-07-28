@@ -119,13 +119,72 @@ comportement et le documenter plutôt que de le corriger silencieusement.
 
 ## Done when
 
-- [ ] Module `:map` créé, JVM-only, publiable en Maven Central
-- [ ] Recouvrement avec `:elevation` évalué et conclusion documentée
-- [ ] `MapSpace` porté
-- [ ] `MapImage` porté, entrée `List<Path>`
-- [ ] ≥ 12 tests verts
-- [ ] Comportement antiméridien figé et documenté
-- [ ] `./gradlew check` vert sur tous les modules, `ktlintCheck` vert
+- [x] Module `:map` créé, JVM-only, publiable en Maven Central
+- [x] Recouvrement avec `:elevation` évalué et conclusion documentée
+- [x] `MapSpace` porté
+- [x] `MapImage` porté, entrée `List<Path>`
+- [x] 23 tests verts
+- [x] Comportement antiméridien figé et documenté
+- [x] `./gradlew check` vert sur tous les modules, `ktlintCheck` vert
+
+## Résultat
+
+**Recouvrement avec `:elevation` : c'est la même projection, démontré et verrouillé.** La
+comparaison a été faite algébriquement, pas supposée. gpx2web calcule
+`0,5 − ln((1+sin φ)/(1−sin φ)) / 4π` ; `:elevation` calcule `(1 − ln(tan φ + sec φ)/π) / 2`.
+Comme `ln((1+sin φ)/(1−sin φ)) = 2·ln(tan φ + sec φ)`, les deux expressions sont identiques —
+vérifié numériquement à 1e-11 près avant d'écrire une ligne de Kotlin.
+
+**Malgré cela, `MapSpace` est une implémentation distincte, pour trois raisons de convention :**
+
+| | `:elevation` | `:map` |
+|---|---|---|
+| Unités | coordonnées de **tuile** | **pixels** (facteur `tileSize`) |
+| Plage de zoom | 0–15 (limite de la source DEM) | 0–22 (le rendu va couramment à 16–18) |
+| Hors bornes | **lève** une exception | **borne** (clamp) |
+| Inverse pixel → lat/lon | absent | requis pour le cadrage |
+
+Le point 3 est le plus structurant : lever est correct pour une interrogation d'altitude, mais
+un rendu ne doit pas échouer parce qu'un point traîne à 86° — il produit un pixel de bord.
+
+Le risque que la fiche pointe (« deux implémentations de Web Mercator finiront par diverger »)
+est traité par `MapSpaceCrossCheckTest`, qui compare les deux sur 8 coordonnées × 16 niveaux de
+zoom à 1e-9 près. Sans ce test, « même projection » serait un commentaire invérifiable.
+
+**Antiméridien : figé, non corrigé.** Les bornes sont un min/max naïf sur les longitudes, donc
+une trace passant de +179,9° à −179,9° donne une étendue de 359,8° au lieu de 0,2°. L'image
+reste valide, simplement dézoomée au monde entier. C'est le comportement de la référence ; le
+corriger demanderait de détecter l'enroulement et de travailler dans un espace de longitude
+décalé, ce qui change le sens de tous les accesseurs. Le cas 11 le verrouille pour qu'une
+correction future soit un choix et non un accident.
+
+**Trois comportements de bord découverts par les tests, pas par la relecture :**
+
+1. **Le clamp à l'est casse l'aller-retour de longitude.** `lonToX` borne à `maxPixels − 1`
+   (repris de la référence), donc les longitudes situées dans le dernier pixel s'y écrasent. À
+   zoom 0 ce pixel fait **1,4° de large** : 179,9° revient à 178,59°. Documenté, et le test
+   d'agrément croisé s'arrête à 170° pour cette raison.
+2. **`MAX_LAT` projette sur y ≈ −2e-10, pas exactement 0.** C'est la latitude qui *définit* le
+   bord supérieur ; le flottant laisse un cheveu négatif. L'assertion est donc une tolérance.
+3. **Les bornes ne contenaient pas tout à fait la trace.** gpx2web tronque les deux coins vers
+   zéro, ce qui rétrécit la boîte d'une fraction de pixel — environ 2 m au zoom de travail — et
+   laissait le point extrême *hors* des bornes. **Écart délibéré assumé :** les coins sont
+   arrondis vers l'extérieur (`floor` pour le min, `ceil` pour le max). Contenir la trace est la
+   raison d'être de la classe ; 2 m d'écart sont invisibles sur une carte mais rendaient
+   l'invariant faux.
+
+**Module JVM-only : l'invariant tient.** `:map` utilise `kotlin-jvm`, n'a pas de `commonMain`, et
+**rien ne dépend de lui** (vérifié par recherche : aucune autre `build.gradle.kts` ne référence
+`project(":map")`). `./gradlew check` reste vert sur les quatre cibles du cœur.
+
+**Publication non-KMP : le bloc `mavenPublishing` fonctionne tel quel.** Le POM généré porte
+`io.github.glandais:vcyclist-map` et résout correctement les variantes `-jvm` de ses dépendances
+KMP (`vcyclist-gpx-jvm`, `vcyclist-elevation-jvm`). `publishAndReleaseToMavenCentral` existe.
+**Rien n'a encore été ajouté au `publishCmd` de `.releaserc.json`** — à faire en g19, quand
+`:map` aura du contenu utile (g14/g15).
+
+**Validation :** `./gradlew check` + `ktlintCheck` verts. `:map` = 23 tests (10 `MapSpaceTest`,
+11 `MapImageTest`, 2 `MapSpaceCrossCheckTest`).
 
 ## Notes
 
