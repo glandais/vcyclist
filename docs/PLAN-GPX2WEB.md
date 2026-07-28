@@ -71,7 +71,7 @@ ce plan, 4 cibles avec Kotlin/Wasm ; la cible a depuis été retirée du projet)
 | g23 | Option d'écriture des `<extensions>` GPX | `:gpx` `:cli` | ✅ |
 | g24 | Lecture / écriture des GPX `<rte>` / `<rtept>` | `:gpx` | ✅ |
 | g25 | FIT multi-`Path` + contrat de timestamp | `:fit` `:cli` | ✅ |
-| g26 | Port de `GPXDataComputer.getWind` | `:engine` | ⬜ |
+| g26 | Port de `GPXDataComputer.getWind` | `:engine` | ✅ |
 | g27 | `@JvmOverloads` sur l'API publique | tous | ⬜ |
 
 La **phase I** n'était pas au plan initial : elle rassemble les points bloquants remontés par la
@@ -108,7 +108,7 @@ normative : si l'un d'eux redevient nécessaire, il faut une nouvelle tâche.
 |---|---|
 | `virtual/power/cyclist/OptimalSpeedService` + `OptimalSpeeds` | Abandonné (décision produit). |
 | Export XLSX (`ProcessCommand --xlsx`) | Le CSV couvre le besoin tableur ; Apache POI est JVM-only et lourd. |
-| ~~`util/GPXDataComputer` (`isCrossing`, `getWind`)~~ | ~~Aucun consommateur identifié hors webapp.~~ **Réouvert** : `getWind` est porté par **g26** (le consommateur existe, il est apparu à la migration). Le sort d'`isCrossing` est tranché au démarrage de cette fiche. |
+| `util/GPXDataComputer.isCrossing` | Détection d'auto-intersection, en O(n²) sur la trace simplifiée à 50 m. Aucun consommateur identifié — tranché au démarrage de g26, qui n'a porté que `getWind` (→ `dominantHeadwindDirection`, `:engine`). |
 | `data/FastTimeIndex` | Index de recherche par temps, utilisé uniquement côté webapp. |
 | `virtual/StartTimeProvider` + dépendance `timeshape` | Remplacé par un `Instant` explicite (g05) ; ~50 Mo de données de fuseaux pour un défaut « demain 8 h ». |
 | `data/values/**` (`PropertyKey`, `PropertyKeys`, `Unit`, `Converters`) | Remplacé par `PointField` (nom + unité + catégorie déjà portés). |

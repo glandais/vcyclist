@@ -195,7 +195,7 @@ traduction ligne à ligne.
 | `Constants` | porté | `…engine.EngineConstants` (`:engine`) + `…elevation.Constants` | Séparées : les constantes physiques n'ont rien à faire dans `:elevation`. |
 | `SmoothService` | **partiellement porté** | `…engine.path.ElevationStep.smoothElevation` (`:gpx`) | Seul `smoothEle` est porté (noyau 150 m, toujours actif). `smoothPower`, `smoothAeroCoef` et `smoothSpeed` **ne le sont pas** : le pipeline de référence TypeScript ne les applique pas, et les ajouter changerait les sorties par rapport à `@glandais/virtual-cyclist`, qui est la référence de parité. |
 | `CacheFolderProvider` | remplacé | paramètre explicite (`:map`, `:cli`) | `TileMapProducer` reçoit son dossier de cache ; pas d'injection. |
-| `GPXDataComputer` | **non porté** | — | Détection de croisements de trace et agrégats pour l'affichage. **Aucun consommateur hors de la webapp** `gpx-web`. |
+| `GPXDataComputer` | **partiellement porté** | `Path.dominantHeadwindDirection()` (`:engine`) | `getWind` est porté sous un nom qui dit ce qu'il calcule : l'opposé de l'orientation dominante du parcours, soit le vent constant le plus défavorable en moyenne (task g26). `isCrossing` (auto-intersection de la trace) **reste non porté** : aucun consommateur, et un coût en O(n²) sur la trace simplifiée à 50 m. |
 
 ---
 
