@@ -222,6 +222,20 @@ pas couvert » de la fiche g27 est barrée et pointe ici.
   redondants.
 - `./gradlew check` + `ktlintCheck` verts, `ReadmeJavaSnippetTest` compris.
 
+### Ajout de la même famille : `attribution`
+
+La note de clôture annonçait `attribution` comme « le prochain trou de la même famille ». Il ne
+valait pas une fiche : `elevationProviderConfig` l'expose désormais en **dernier** paramètre, avec
+pour défaut celui du constructeur Kotlin — les formes courtes ne bougent pas.
+
+Ce n'est pas de l'exhaustivité pour l'exhaustivité : l'appelant qui pointe `tileUrlTemplate` sur
+son propre serveur de tuiles est précisément celui dont l'attribution n'est plus celle de
+Mapterhorn. L'omettre le faisait créditer la mauvaise source dans son interface. Une fabrique
+`attribution(text, url = null)` accompagne, `url` étant lui aussi un défaut Kotlin.
+
+Deux cas Java de plus, dont un qui vérifie que les formes courtes conservent l'attribution par
+défaut.
+
 ## Notes
 
 - **Pourquoi pas un cache disque livré par la bibliothèque.** La position de g21 tient toujours :
@@ -236,6 +250,6 @@ pas couvert » de la fiche g27 est barrée et pointe ici.
   consommateur Java sur un détail de la convention d'appel du compilateur Kotlin, et ça ne
   résoudrait pas l'étape 2 : rien ne l'amènerait à découvrir qu'il doit lui-même se placer sur un
   pool d'I/O.
-- **`elevationProviderConfig` n'expose toujours pas `attribution`** (5ᵉ champ de
-  `ElevationProviderConfig`). Hors périmètre ici, mais c'est le prochain trou de la même famille si
-  quelqu'un le rencontre.
+- ~~**`elevationProviderConfig` n'expose toujours pas `attribution`**~~ — **traité dans la foulée**
+  (voir *Résultat*, dernière section) : le trou a été rencontré aussitôt, puisque l'appelant qui
+  motive cette fiche sert ses propres tuiles.

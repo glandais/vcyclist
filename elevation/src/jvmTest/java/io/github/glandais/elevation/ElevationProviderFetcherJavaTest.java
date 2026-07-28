@@ -166,4 +166,28 @@ public class ElevationProviderFetcherJavaTest {
                 "expected parallel fetches, took " + elapsedMs + " ms for " + tiles + " tiles of " + sleepMs + " ms",
                 elapsedMs < tiles * sleepMs);
     }
+
+    @Test
+    public void attributionIsReachableFromTheConfigFactory() {
+        Attribution mine = ElevationProviderJvm.attribution("My own DEM", "https://example.org/licence");
+
+        ElevationProviderConfig config =
+                ElevationProviderJvm.elevationProviderConfig(12, 100, "https://tiles.example.org/{z}/{x}/{y}.webp", 512, mine);
+
+        assertEquals("My own DEM", config.getAttribution().getText());
+        assertEquals("https://example.org/licence", config.getAttribution().getUrl());
+        // A caller serving their own tiles must not keep crediting Mapterhorn.
+        assertEquals(mine, ElevationProviderJvm.newElevationProvider(config, url -> syntheticTile()).getAttribution());
+    }
+
+    @Test
+    public void attributionDefaultsAreUntouchedByTheShortForms() {
+        ElevationProviderConfig shortForm = ElevationProviderJvm.elevationProviderConfig(12, 100);
+        ElevationProviderConfig kotlinDefault = ElevationProviderJvm.elevationProviderConfig();
+
+        assertEquals(kotlinDefault.getAttribution(), shortForm.getAttribution());
+        assertTrue(shortForm.getAttribution().getText().contains("Mapterhorn"));
+        // url is a Kotlin default on Attribution too — the one-argument form must compile.
+        assertEquals(null, ElevationProviderJvm.attribution("no link").getUrl());
+    }
 }

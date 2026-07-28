@@ -96,19 +96,36 @@ fun newElevationProvider(
         withContext(Dispatchers.IO) { fetcher.apply(url) }
     }
 
+/**
+ * Every field of [ElevationProviderConfig], in declaration order.
+ *
+ * [attribution] is last and defaults to the same value the Kotlin constructor uses, so the short
+ * forms are unaffected. It belongs here all the same: a caller who points [tileUrlTemplate] at
+ * their own tile server is exactly the caller whose attribution text is no longer Mapterhorn's,
+ * and leaving it out would have them credit the wrong source in their UI.
+ */
 @JvmOverloads
 fun elevationProviderConfig(
     zoomLevel: Int = 12,
     cacheSize: Int = 100,
     tileUrlTemplate: String = "https://tiles.mapterhorn.com/{z}/{x}/{y}.webp",
     tileSize: Int = 512,
+    attribution: Attribution = ElevationProviderConfig().attribution,
 ): ElevationProviderConfig =
     ElevationProviderConfig(
         zoomLevel = zoomLevel,
         cacheSize = cacheSize,
         tileUrlTemplate = tileUrlTemplate,
         tileSize = tileSize,
+        attribution = attribution,
     )
+
+/** `new Attribution(text)` does not compile from Java: `url` is a Kotlin default. */
+@JvmOverloads
+fun attribution(
+    text: String,
+    url: String? = null,
+): Attribution = Attribution(text, url)
 
 /** `new LatLon(lat, lon)` does not compile from Java: `elevation` is a Kotlin default. */
 @JvmOverloads
