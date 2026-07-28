@@ -7,9 +7,11 @@ The Kotlin `:gpx` / `:engine` / `:elevation` modules are a port of the TypeScrip
 numerical relationship between the two implementations, the divergences found, and the
 parity strategy that follows from them.
 
-Measured 2026-07-27 against `virtual-cyclist` @ `develop` and `elevation` 3.2.2 (the
-elevation section re-measured 2026-07-28 against `elevation` 3.2.3), on all
-7 sample GPX files, stage by stage across the whole `Enhancer` pipeline.
+Measured on all 7 sample GPX files, stage by stage across the whole `Enhancer` pipeline.
+Re-measured 2026-07-28 against **`virtual-cyclist` 1.3.0** (`6bf256e`) and **`elevation`
+3.2.3**; the `clock-pinned` figures are byte-identical to the 2026-07-27 baseline taken
+against `virtual-cyclist` @ `develop` and `elevation` 3.2.2, so nothing in this document
+moved with those releases.
 
 The harness is committed in [`tools/parity/`](../tools/parity/README.md) and is
 re-runnable: `./tools/parity/run-all.sh`.
@@ -84,9 +86,9 @@ Cases live in [`tools/parity/cases/units.json`](../tools/parity/cases/units.json
 
 ## Divergences found
 
-### 1. `VirtualizeService` seeds its clock from the wall clock (TS defect)
+### 1. `VirtualizeService` defaults its clock to the wall clock (TS defect, now overridable)
 
-`virtual-cyclist/src/physics/VirtualizeService.ts:67`
+Up to `virtual-cyclist` 1.2.x, `src/physics/VirtualizeService.ts:67` had no way out:
 
 ```ts
 let time = new Date().getTime();     // ~1.785e12 ms
@@ -104,7 +106,11 @@ Two consequences, both measured:
   because `PointPerSecond` snaps to absolute epoch-second boundaries, the resampled
   positions depend on the sub-second phase of the wall clock at run time. Index-by-index
   agreement at `06-pointpersecond` drops to ~1.9 relative in `as-is` mode, versus ~8e-3
-  once the clock is pinned.
+  once the clock is pinned. Two full `as-is` sweeps a day apart disagree on the **point
+  counts themselves** — `sample` `07-simplify` 1017 then 1022, `strava` 191 then 193,
+  `sports-tracker` 85 then 84, `movescount` `06-pointpersecond` 2002 then 2003 — while the
+  Kotlin column is identical throughout. The `clock-pinned` dumps of the same two sweeps
+  are byte-identical.
 - **The TS time axis loses ~7 significant digits.** At 1.785e12 ms the float64 ULP is
   2.44e-4 ms; Kotlin, starting at 0, has an ULP of 1.16e-10 ms at t ≈ 600 s — a factor of
   **2.1e6**. Since `computeDerivedData` recomputes `dt` and `speed` from stored times, this
@@ -114,6 +120,20 @@ Two consequences, both measured:
 
 The Kotlin behaviour is correct. This is the `time(0) = 0` design recorded in
 `VirtualizeService.kt`'s KDoc and Phase 2bis task 29.
+
+**Mitigated upstream in `virtual-cyclist` 1.3.0** (`8532ba0`, *feat: allow custom start time
+for track virtualization*): `virtualizeTrack(course, startTime)` takes an optional start
+timestamp, surfaced as `EnhanceOptions.startTime`, and only falls back to `new Date()` when
+it is null or undefined. A caller can now opt into a reproducible time axis.
+
+The default is unchanged, so the defect still bites anyone who does not pass the option —
+which is why this divergence stays documented rather than closed. What it does change is the
+harness: `clock-pinned` mode used to monkey-patch `globalThis.Date`, and now passes
+`startTime = 0` through the public API. All 8 stage dumps are byte-identical across that
+switch, so no measurement in this document moved.
+
+Kotlin has no equivalent option: `VirtualizeService.kt` always starts at 0. Adding one would
+be an API-parity item, not a correctness one.
 
 ### 2. TS does not simulate the last point (TS defect, fixed in Kotlin task 29)
 
