@@ -83,6 +83,15 @@ class EnhanceCommand : Callable<Int> {
     var fitOut: File? = null
 
     @field:CommandLine.Option(
+        names = ["--no-extensions"],
+        description = [
+            "Write a bare GPX: no <extensions>, so no power, heart rate, cadence or",
+            "temperature. <ele> and <time> are standard GPX and are kept.",
+        ],
+    )
+    var noExtensions: Boolean = false
+
+    @field:CommandLine.Option(
         names = ["--start-time"],
         description = ["Absolute instant of the first point, ISO-8601 (e.g. 2026-08-01T08:00:00Z)."],
     )
@@ -261,6 +270,7 @@ class EnhanceCommand : Callable<Int> {
                     trackNames = enhanced.indices.map { if (enhanced.size == 1) "virtualized" else "virtualized-${it + 1}" },
                     waypoints = document.waypoints,
                     startTime = start,
+                    writeExtensions = !noExtensions,
                 ),
             )
             if (!quiet) out.println("  wrote ${file.path}")

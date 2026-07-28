@@ -27,7 +27,7 @@ public class ReadmeJavaSnippetTest {
 
         Path input = GpxToPathKt.firstTrackAsPath(GpxParser.INSTANCE.parse(xml, true));
         Path enhanced = EnhancerJvm.enhanceCourseDefaultBlocking(input);
-        String out = GpxWriter.INSTANCE.write(enhanced, "virtualized", null, null);
+        String out = GpxWriter.INSTANCE.write(enhanced, "virtualized", null, null, true);
 
         assertTrue(out.contains("<trk>"));
     }

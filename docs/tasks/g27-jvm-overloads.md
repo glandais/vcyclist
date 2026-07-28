@@ -32,14 +32,42 @@ Dernière fiche de la série `g21`-`g27`.
 
 ## Steps
 
-### 1. Vérifier la faisabilité **avant** d'annoter quoi que ce soit
+### 1. ~~Vérifier la faisabilité~~ — **tranché en g23 : `@JvmOverloads` est hors jeu en `commonMain`**
 
-`kotlin.jvm.JvmOverloads` doit être résoluble depuis `commonMain` en Kotlin 2.3.21 (l'annotation
-y est déclarée sans effet sur les cibles non-JVM). Annoter **un seul** fichier, lancer
-`./gradlew check`, et seulement ensuite dérouler.
+La question de départ était de savoir si `kotlin.jvm.JvmOverloads` est résoluble depuis un source
+set commun en Kotlin 2.3.21. **Elle ne l'est pas** — vérifié en g23, où la première écriture de
+`GpxWriter.write` la portait :
 
-Si ce n'est pas le cas : replier sur des surcharges explicites déclarées dans `jvmMain`, et
-documenter le repli — la valeur pour l'appelant Java est la même, le coût de maintenance non.
+```
+e: GpxWriter.kt:46:6 Unresolved reference 'JvmOverloads'.
+```
+
+Contrairement à `@JvmStatic` et `@JvmName`, elle n'a pas de déclaration commune. Toute l'API de
+`commonMain` — c'est-à-dire **tout le périmètre P0 et P1** — est donc concernée par le repli, qui
+devient le plan principal :
+
+**Des façades `jvmMain` par module, dans la lignée des ponts `…Jvm` de g22.** Pour chaque cible du
+périmètre, une fonction `jvmMain` qui appelle la version commune avec les défauts. Deux formes
+possibles, à trancher au démarrage :
+
+- **surcharges explicites** (`fun write(path: Path) = write(path, "noname", null, null, true)`) —
+  verbeuses mais triviales ;
+- **fonctions annotées `@JvmOverloads` dans `jvmMain`**, qui délèguent à la commune — une
+  déclaration par cible au lieu d'une ladder complète, l'annotation étant résoluble là.
+
+La seconde est plus courte et se maintient mieux ; la vérifier sur un cas avant de dérouler.
+
+Cela réoriente aussi le sens de la tâche : les fichiers `…Jvm` de g22 (`ElevationProviderJvm`,
+`ElevationStepJvm`, `EnhancerJvm`) sont l'endroit naturel où ces façades atterrissent, et g27
+devient « compléter la surface JVM », pas « annoter la surface commune ».
+
+**Bénéfice de bord, constaté en g23** : une façade JVM isole aussi Java de l'ajout d'un paramètre
+à défaut. Quand g23 a ajouté `writeExtensions` à `GpxWriter.write`, le test Java de g22 a cessé de
+compiler (les défauts Kotlin sont positionnels et obligatoires côté Java). Avec la façade, cet
+ajout serait passé inaperçu pour l'appelant Java.
+
+Ce qui reste annotable directement : le code **JVM-only** (`:map`, `:cli`) et tout ce qui vit déjà
+dans un `jvmMain`. Le P2 `:map` est donc traitable tel quel.
 
 ### 2. Périmètre, par priorité
 
@@ -55,7 +83,9 @@ l'annotation s'y avérait utile, c'est le générateur qu'il faudrait modifier, 
 
 ### 3. Règles et pièges
 
-- Sur un **constructeur** : forme `class X @JvmOverloads constructor(…)`.
+- Sur un **constructeur** : forme `class X @JvmOverloads constructor(…)` — **uniquement pour les
+  classes JVM-only**, cf. étape 1. Pour une classe `commonMain` (`ElevationProvider`,
+  `EnhanceOptions`, `Bike`), il faut une fonction de fabrique dans `jvmMain`.
 - **`@JvmOverloads` ne génère rien pour le `copy()` d'une `data class`.** Pour `EnhanceOptions`,
   le vrai point de friction côté Java est probablement `copy()`, pas le constructeur. Ne pas
   construire de `Builder` par anticipation : **confirmer d'abord sur le projet consommateur** que
@@ -112,7 +142,7 @@ javap -p build/classes/kotlin/jvm/main/io/github/glandais/engine/path/PathSimpli
 
 ## Done when
 
-- [ ] Faisabilité en `commonMain` vérifiée sur un fichier témoin avant déroulement
+- [ ] Forme de façade `jvmMain` tranchée sur un cas témoin (surcharges explicites vs `@JvmOverloads` délégant)
 - [ ] P0 et P1 annotés ; P2 annoté ou explicitement reporté avec motif
 - [ ] Exclusions techniques listées dans « Résultat »
 - [ ] `JavaInteropTest.java` + `FitJavaInteropTest.java` verts
@@ -122,8 +152,11 @@ javap -p build/classes/kotlin/jvm/main/io/github/glandais/engine/path/PathSimpli
 
 ## Notes
 
-- **Pourquoi en dernier.** Cette fiche annote des signatures ; trois des six autres les
+- **Pourquoi en dernier.** Cette fiche complète des signatures ; trois des six autres les
   modifient. L'inverse imposerait une seconde passe.
+- **Le titre est devenu trompeur.** Depuis le constat de g23, la tâche n'annote presque rien :
+  elle ajoute une surface JVM. Le renommer au démarrage (`g27-jvm-facade`) si cela aide, mais ne
+  pas renuméroter — les commits et le plan référencent `g27`.
 - **Ce que cette fiche révèle.** Elle et `g21`, `g22`, `g25` traitent la même cause : l'API était
   juste, mais pas *appelable* depuis un projet Java sans réécrire du code interne ou du
   boilerplate. Le test Java d'ici et le test « cache maison » de `g21` existent pour que la

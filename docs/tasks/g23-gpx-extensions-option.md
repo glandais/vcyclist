@@ -116,17 +116,81 @@ Créés :
 
 ## Done when
 
-- [ ] `writeExtensions` sur les 3 surcharges, en dernière position, défaut `true`
-- [ ] Namespaces `gpxtpx` / `xsi` retirés quand le drapeau est `false`
-- [ ] `--no-extensions` sur `enhance` et `export`, documenté dans `cli/README.md`
-- [ ] Cas 1 vérifié par une comparaison de chaîne exacte, pas par une assertion approximative
-- [ ] `./gradlew check` + `ktlintCheck` verts
+- [x] `writeExtensions` sur les 3 surcharges, en dernière position, défaut `true`
+- [x] Namespace `gpxtpx` retiré quand le drapeau est `false` (**`xsi` conservé**, voir Résultat)
+- [x] `--no-extensions` sur `enhance` et `export`, documenté dans `cli/README.md`
+- [x] Cas 1 vérifié par une comparaison de chaîne exacte, pas par une assertion approximative
+- [x] `./gradlew check` + `ktlintCheck` verts
+
+## Résultat
+
+### API
+
+`writeExtensions: Boolean = true` en **dernière position** des trois surcharges de
+`GpxWriter.write`, relayé jusqu'à `writeDocument` (déclaration de namespace) et `writeTrackPoint`
+(bloc `<extensions>`). Défaut neutre à l'octet près — c'est le cas de test 1, une comparaison de
+chaînes exacte entre `write(doc)` et `write(doc, writeExtensions = true)`.
+
+### Écart assumé : `xsi` est conservé
+
+La fiche demandait de retirer **`gpxtpx` et `xsi`**. Seul `gpxtpx` l'est.
+
+`xsi` n'est pas un namespace d'extension : il porte `xsi:schemaLocation`, qui référence le schéma
+**GPX lui-même** (`gpx.xsd`) et rien d'autre. Le retirer aurait supprimé une information utile aux
+validateurs stricts — c'est-à-dire précisément le public visé par un GPX nu — et aurait changé le
+contenu au-delà de ce que le drapeau annonce. Le raisonnement de la fiche (« un namespace déclaré
+mais non utilisé est du bruit ») ne s'applique qu'à `gpxtpx`, qui n'apparaît effectivement plus
+nulle part quand le drapeau est à `false`.
+
+### Découverte : `@JvmOverloads` est inutilisable en `commonMain`
+
+Première tentative d'écriture : `@JvmOverloads` sur les trois surcharges. Résultat :
+
+```
+e: GpxWriter.kt:46:6 Unresolved reference 'JvmOverloads'.
+```
+
+`kotlin.jvm.JvmOverloads` **n'est pas résoluble depuis un source set commun** en Kotlin 2.3.21 —
+contrairement à `@JvmStatic` ou `@JvmName`, elle n'a pas de déclaration commune. C'est la réponse
+à l'étape 1 de **g27**, obtenue avant d'y arriver : le repli documenté dans cette fiche (façades
+`jvmMain` avec surcharges explicites) devient le plan principal, cohérent d'ailleurs avec les
+ponts `…Jvm` de g22. `docs/tasks/g27-jvm-overloads.md` a été mis à jour en conséquence.
+
+Corollaire immédiat, constaté par la CI locale : **ajouter un paramètre à défaut est une rupture
+de source pour les appelants Java**. Le test `ReadmeJavaSnippetTest` (g22) a cessé de compiler dès
+l'ajout de `writeExtensions`, et il a fallu épeler `write(path, name, null, null, true)`. Le
+`README.md` a été corrigé dans le même mouvement. C'est un argument de plus pour la façade JVM de
+g27 : elle isolerait Java de ce genre d'évolution.
+
+### CLI
+
+`--no-extensions` sur `enhance` et `export` (drapeau négatif : son absence conserve le
+comportement actuel), propagé en `writeExtensions = !noExtensions`. Documenté dans
+`cli/README.md`, tableau des options + une section dédiée.
+
+Smoke réel sur une trace à extensions : 721 octets → **560 octets**, sans `<extensions>` ni
+`gpxtpx`, toujours parsable.
+
+### Vérification
+
+- 10 cas dans `GpxWriterExtensionsTest` (commonTest) × 3 cibles, plus 3 cas CLI
+  (`EnhanceCommandTest` 18-19, `ExportCommandTest` 19).
+- Le cas 10 compare les deux sorties d'un document **sans** capteur : elles ne diffèrent que par
+  la déclaration de namespace, vérifié par égalité de chaînes après retrait de celle-ci.
+- Deux assertions ont dû passer par le parser plutôt que par `contains` : `Double.toString` rend
+  `45.0` en `"45"` sur Kotlin/JS et `"45.0"` sur la JVM. Les tests concernés le documentent.
+- `./gradlew check` + `ktlintCheck` verts.
 
 ## Notes
 
 - **Pas d'objet `GpxWriteOptions` à cette occasion.** `startTime` (g05) et `writeExtensions` font
   deux paramètres optionnels, ce qui reste sous le seuil où un objet d'options se justifie. Si un
   troisième arrive, refactorer alors — et à ce moment-là seulement.
+- **`toGpxTrack` exporte `pInputPower`, pas `pComputedPower`.** Constaté en écrivant le test CLI :
+  un GPX enhancé depuis une trace sans extensions n'a **aucun** `<extensions>` en sortie, alors
+  que le FIT du même parcours porte la puissance simulée. Ce n'est pas une régression de g23 et
+  ce n'était pas dans son périmètre, mais c'est une asymétrie GPX/FIT à trancher — au minimum à
+  documenter, sinon à corriger dans une fiche à part.
 - **Un seul drapeau, pas une granularité par extension.** gpx2web n'en propose qu'un ; découper
   en « écrire la puissance / la FC / la cadence » multiplierait les combinaisons sans besoin
   identifié. Si le besoin apparaît, ce sera un `Set<PointField>` et non quatre booléens.

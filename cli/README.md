@@ -23,6 +23,7 @@ vcyclist enhance route.gpx --gpx out.gpx --csv out.csv --start-time 2026-08-01T0
 | `--csv` / `--json` | tabular exports |
 | `--fit <file>` | Garmin FIT course — **requires `--start-time`** |
 | `--start-time <ISO-8601>` | absolute instant of the first point |
+| `--no-extensions` | write a bare GPX: no `<extensions>`, so no power, heart rate, cadence or temperature |
 | `--[no-]fix-elevation` | DEM elevation correction (off by default; downloads tiles) |
 | `--[no-]virtualize` | physics simulation (on) |
 | `--[no-]simplify`, `--simplify-tolerance <m>` | Douglas-Peucker (on, 10 m) |
@@ -45,6 +46,18 @@ vcyclist export route.gpx --map map.png --tile-url 'https://{s}.tile.example.org
 means accepting its usage policy. See [`../map/README.md`](../map/README.md).
 
 Framing: `--max-size` (default), or `--width`/`--height`, or `--zoom`; plus `--margin`.
+
+`--no-extensions` applies to `--gpx` here too.
+
+### Bare GPX (`--no-extensions`)
+
+Both subcommands write `<extensions>` by default — power, heart rate, cadence and temperature,
+which on a 1 Hz track are most of the file. `--no-extensions` drops them, along with the now
+unused `gpxtpx` namespace declaration. `<ele>`, `<time>` and `<name>` are standard GPX 1.1
+elements, not extensions, and are always written.
+
+Use it for a strict import target, a readable diff between two traces, an old GPS unit, or
+simply a smaller file. gpx2web had the same switch on its writer.
 
 ## Coming from gpxtools-cli
 

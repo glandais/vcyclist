@@ -311,4 +311,52 @@ class EnhanceCommandTest {
         assertEquals(70, ExitCodes.RUNTIME)
         assertNotEquals(ExitCodes.USAGE, ExitCodes.NO_INPUT)
     }
+
+    /** Same trace, with the sensor extensions an enhanced GPX carries over from its input. */
+    private fun gpxFixtureWithExtensions(): File {
+        val file = File(work, "sensors.gpx")
+        file.writeText(
+            """<?xml version="1.0" encoding="UTF-8"?>
+<gpx version="1.1" xmlns="http://www.topografix.com/GPX/1/1"
+     xmlns:gpxtpx="http://www.garmin.com/xmlschemas/TrackPointExtension/v1">
+  <trk><name>test</name><trkseg>
+    <trkpt lat="46.5000" lon="10.4000"><ele>1000</ele><time>2024-01-01T10:00:00Z</time>
+      <extensions><power>210</power><gpxtpx:TrackPointExtension><gpxtpx:hr>141</gpxtpx:hr></gpxtpx:TrackPointExtension></extensions></trkpt>
+    <trkpt lat="46.5090" lon="10.4000"><ele>1050</ele><time>2024-01-01T10:04:00Z</time>
+      <extensions><power>215</power><gpxtpx:TrackPointExtension><gpxtpx:hr>146</gpxtpx:hr></gpxtpx:TrackPointExtension></extensions></trkpt>
+    <trkpt lat="46.5180" lon="10.4000"><ele>1100</ele><time>2024-01-01T10:08:00Z</time>
+      <extensions><power>220</power><gpxtpx:TrackPointExtension><gpxtpx:hr>150</gpxtpx:hr></gpxtpx:TrackPointExtension></extensions></trkpt>
+  </trkseg></trk>
+</gpx>
+""",
+        )
+        return file
+    }
+
+    @Test
+    fun `case 18 — without --no-extensions the GPX carries its sensor extensions over`() {
+        val input = gpxFixtureWithExtensions()
+        val output = File(work, "full.gpx")
+        assertEquals(0, run("enhance", input.path, "--gpx", output.path).code)
+
+        val xml = output.readText()
+        assertContains(xml, "<extensions>")
+        assertContains(xml, "gpxtpx")
+    }
+
+    @Test
+    fun `case 19 — --no-extensions writes a bare, smaller, still valid GPX`() {
+        val input = gpxFixtureWithExtensions()
+        val full = File(work, "full.gpx")
+        val bare = File(work, "bare.gpx")
+        assertEquals(0, run("enhance", input.path, "--gpx", full.path).code)
+        assertEquals(0, run("enhance", input.path, "--gpx", bare.path, "--no-extensions").code)
+
+        val xml = bare.readText()
+        assertTrue(!xml.contains("<extensions>"), "extensions should be gone: $xml")
+        assertTrue(!xml.contains("gpxtpx"), "gpxtpx namespace should be gone: $xml")
+        assertTrue(xml.contains("<ele>"), "elevations are standard GPX and must stay")
+        assertTrue(bare.length() < full.length(), "bare=${bare.length()} full=${full.length()}")
+        assertEquals(1, GpxParser.parse(xml).tracksAsPaths().size, "still parsable")
+    }
 }

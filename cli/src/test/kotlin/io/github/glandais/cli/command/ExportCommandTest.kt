@@ -157,4 +157,16 @@ class ExportCommandTest {
         val image = ImageIO.read(png)
         assertTrue(maxOf(image.width, image.height) <= 128, "maxSize not respected: ${image.width}x${image.height}")
     }
+
+    @Test
+    fun `case 19 — export --no-extensions rewrites the GPX without extensions`() {
+        val input = gpxFixture()
+        val output = File(work, "bare.gpx")
+        assertEquals(0, run("export", input.path, "--gpx", output.path, "--no-extensions").code)
+
+        val xml = output.readText()
+        assertTrue(!xml.contains("<extensions>"), xml)
+        assertTrue(!xml.contains("gpxtpx"), xml)
+        assertTrue(xml.contains("<trkpt"), xml)
+    }
 }

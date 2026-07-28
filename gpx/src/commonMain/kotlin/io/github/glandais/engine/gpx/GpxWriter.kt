@@ -15,6 +15,11 @@ import kotlin.time.Instant
  * Extensions are written exactly as the upstream `sample.gpx` does:
  *  - heart rate / cadence / ambient temperature → inside `<gpxtpx:TrackPointExtension>`
  *  - power → at the top of `<extensions>`, non-namespaced (matches the TS reference writer)
+ *
+ * Every entry point takes `writeExtensions` (default `true`, i.e. the pre-g23 behaviour to the
+ * byte). Pass `false` for a bare GPX — a strict import target, a readable diff, an old GPS unit,
+ * or simply a smaller file, since on a 1 Hz track the extensions are most of the bytes. gpx2web
+ * has the same switch (`GPXFileWriter.writeGPX(gpx, writer, boolean extensions)`).
  */
 object GpxWriter {
     // ---------- Namespace identity --------------------------------------------------
@@ -31,8 +36,17 @@ object GpxWriter {
 
     // ---------- Public entry points -------------------------------------------------
 
-    /** Serialise [document] to a GPX 1.1 XML string. */
-    fun write(document: GpxDocument): String {
+    /**
+     * Serialise [document] to a GPX 1.1 XML string.
+     *
+     * @param writeExtensions when `false`, no `<extensions>` element is emitted and the `gpxtpx`
+     *   namespace is not declared on the root. `<ele>`, `<time>`, `<name>`, `<sym>` and `<type>`
+     *   are GPX 1.1 elements, not extensions, and are written either way.
+     */
+    fun write(
+        document: GpxDocument,
+        writeExtensions: Boolean = true,
+    ): String {
         val out = StringBuilder()
         out.append("<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n")
         val writer =
@@ -42,7 +56,7 @@ object GpxWriter {
                 xmlDeclMode = XmlDeclMode.None,
             )
         try {
-            writeDocument(writer, document)
+            writeDocument(writer, document, writeExtensions)
         } finally {
             writer.close()
         }
@@ -58,7 +72,12 @@ object GpxWriter {
         name: String = "noname",
         trackName: String? = null,
         startTime: Instant? = null,
-    ): String = write(path.toGpxDocument(name = name, trackName = trackName, startTime = startTime))
+        writeExtensions: Boolean = true,
+    ): String =
+        write(
+            path.toGpxDocument(name = name, trackName = trackName, startTime = startTime),
+            writeExtensions = writeExtensions,
+        )
 
     /**
      * Convenience: serialise [paths] as a multi-track document — one `<trk>` per [Path].
@@ -70,9 +89,11 @@ object GpxWriter {
         trackNames: List<String>? = null,
         waypoints: List<GpxWaypoint> = emptyList(),
         startTime: Instant? = null,
+        writeExtensions: Boolean = true,
     ): String =
         write(
             pathsToGpxDocument(paths, name = name, trackNames = trackNames, waypoints = waypoints, startTime = startTime),
+            writeExtensions = writeExtensions,
         )
 
     // ---------- Implementation ------------------------------------------------------
@@ -80,11 +101,15 @@ object GpxWriter {
     private fun writeDocument(
         w: XmlWriter,
         document: GpxDocument,
+        writeExtensions: Boolean,
     ) {
         // Pre-register namespace prefixes so subsequent startTag/attribute calls resolve them.
         w.setPrefix("", NS_GPX)
         w.setPrefix(PREFIX_XSI, NS_XSI)
-        w.setPrefix(PREFIX_GARMIN_TPX, NS_GARMIN_TPX)
+        // `gpxtpx` is only ever used inside <extensions>; declaring it in a file that has none
+        // would be valid but noise, and would break a byte comparison with gpx2web's output.
+        // `xsi` stays either way — it carries schemaLocation, which is about GPX itself.
+        if (writeExtensions) w.setPrefix(PREFIX_GARMIN_TPX, NS_GARMIN_TPX)
 
         w.startTag(NS_GPX, "gpx", "")
         // Root attributes.
@@ -93,14 +118,14 @@ object GpxWriter {
         // Namespace declarations (in the order they should appear on disk).
         w.namespaceAttr("", NS_GPX)
         w.namespaceAttr(PREFIX_XSI, NS_XSI)
-        w.namespaceAttr(PREFIX_GARMIN_TPX, NS_GARMIN_TPX)
+        if (writeExtensions) w.namespaceAttr(PREFIX_GARMIN_TPX, NS_GARMIN_TPX)
         w.attribute(NS_XSI, "schemaLocation", PREFIX_XSI, SCHEMA_LOCATION)
 
         writeMetadata(w, document.name)
         // GPX 1.1 schema order is metadata, wpt*, rte*, trk* — a writer that puts <wpt> after
         // <trk> produces a file that strict parsers reject. <rte> stays unsupported (see g02).
         for (waypoint in document.waypoints) writeWaypoint(w, waypoint)
-        for (track in document.tracks) writeTrack(w, track)
+        for (track in document.tracks) writeTrack(w, track, writeExtensions)
 
         w.endTag(NS_GPX, "gpx", "")
     }
@@ -137,6 +162,7 @@ object GpxWriter {
     private fun writeTrack(
         w: XmlWriter,
         track: GpxTrack,
+        writeExtensions: Boolean,
     ) {
         w.startTag(NS_GPX, "trk", "")
         track.name?.let { writeSimpleText(w, "name", it) }
@@ -146,7 +172,7 @@ object GpxWriter {
         // <trkseg>, so single-track output is byte-identical to pre-g02.
         for (segment in track.segments) {
             w.startTag(NS_GPX, "trkseg", "")
-            for (p in segment.points) writeTrackPoint(w, p)
+            for (p in segment.points) writeTrackPoint(w, p, writeExtensions)
             w.endTag(NS_GPX, "trkseg", "")
         }
         w.endTag(NS_GPX, "trk", "")
@@ -155,6 +181,7 @@ object GpxWriter {
     private fun writeTrackPoint(
         w: XmlWriter,
         p: GpxTrackPoint,
+        writeExtensions: Boolean,
     ) {
         w.startTag(NS_GPX, "trkpt", "")
         w.attribute(null, "lat", null, p.latitudeDeg.toString())
@@ -169,7 +196,7 @@ object GpxWriter {
 
         val hasGarminExt = p.heartRate != null || p.cadence != null || p.temperatureC != null
         val hasPower = p.powerW != null
-        if (hasGarminExt || hasPower) {
+        if (writeExtensions && (hasGarminExt || hasPower)) {
             w.startTag(NS_GPX, "extensions", "")
             if (hasPower) {
                 // <power> at extensions root, non-namespaced — matches sample.gpx convention.

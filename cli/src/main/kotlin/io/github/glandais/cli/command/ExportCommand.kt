@@ -71,6 +71,15 @@ class ExportCommand : Callable<Int> {
     )
     var gpxOut: File? = null
 
+    @field:CommandLine.Option(
+        names = ["--no-extensions"],
+        description = [
+            "Write a bare GPX: no <extensions>, so no power, heart rate, cadence or",
+            "temperature. <ele> and <time> are standard GPX and are kept.",
+        ],
+    )
+    var noExtensions: Boolean = false
+
     @field:CommandLine.Option(names = ["--csv"], description = ["Write a CSV export."])
     var csvOut: File? = null
 
@@ -186,6 +195,7 @@ class ExportCommand : Callable<Int> {
                     name = input.nameWithoutExtension,
                     waypoints = document.waypoints,
                     startTime = start,
+                    writeExtensions = !noExtensions,
                 ),
                 out,
             )

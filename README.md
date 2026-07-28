@@ -161,8 +161,9 @@ Path enhanced = EnhancerJvm.enhanceCourseDefaultBlocking(input);
 ElevationProvider provider = new ElevationProvider(new ElevationProviderConfig(...));
 CompletableFuture<Path> future = EnhancerJvm.enhanceCourseDefaultAsync(input, provider);
 
-// name / trackName / startTime have Kotlin defaults, which Java cannot use — spell them out:
-String out = GpxWriter.INSTANCE.write(enhanced, "virtualized", null, null);
+// Kotlin defaults are not usable from Java, so every parameter is spelled out — including
+// `writeExtensions` (true = keep power / heart rate / cadence, the default on the Kotlin side).
+String out = GpxWriter.INSTANCE.write(enhanced, "virtualized", null, null, true);
 ```
 
 The bridges are `ElevationStepJvm` (`:gpx`), `EnhancerJvm` (`:engine`) and
