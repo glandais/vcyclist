@@ -7,6 +7,9 @@
 package io.github.glandais.engine
 
 import io.github.glandais.elevation.ElevationProvider
+import io.github.glandais.engine.climb.Climb
+import io.github.glandais.engine.climb.ClimbDetector
+import io.github.glandais.engine.climb.ClimbOptions
 import io.github.glandais.engine.gpx.GpxParser
 import io.github.glandais.engine.gpx.GpxWriter
 import io.github.glandais.engine.gpx.firstTrackAsPath
@@ -360,3 +363,144 @@ private external fun setUint8(
     i: Int,
     v: Int,
 )
+
+// ── Climb detection (task g12) ───────────────────────────────────────────────────────────────
+
+/**
+ * A homogeneous-grade segment of a climb. Distances are absolute along the path, in meters;
+ * [grade] is dimensionless (`0.08` = 8 %).
+ */
+external interface ClimbPartDto : JsAny {
+    val startDistanceM: Double
+    val endDistanceM: Double
+    val startElevationM: Double
+    val endElevationM: Double
+    val lengthM: Double
+    val elevationGainM: Double
+    val grade: Double
+}
+
+/**
+ * A detected climb.
+ *
+ * The nested `parts` array was the thing to verify first on this target, per the g12 spec: a
+ * `JsArray` of `JsAny` **inside** another exported DTO crosses the Wasm boundary without
+ * trouble, because the object is built entirely on the JS side by [climbObj] and Kotlin only
+ * ever holds an opaque reference to it. No flattening or second accessor function was needed.
+ */
+external interface ClimbDto : JsAny {
+    val startIndex: Int
+    val endIndex: Int
+    val startDistanceM: Double
+    val endDistanceM: Double
+    val startElevationM: Double
+    val endElevationM: Double
+    val lengthM: Double
+    val elevationGainM: Double
+    val averageGrade: Double
+    val climbingGrade: Double
+    val positiveElevationM: Double
+    val negativeElevationM: Double
+    val parts: JsArray<ClimbPartDto>
+}
+
+@JsFun(
+    """(startDistanceM, endDistanceM, startElevationM, endElevationM, lengthM, elevationGainM, grade) =>
+    ({ startDistanceM, endDistanceM, startElevationM, endElevationM, lengthM, elevationGainM, grade })""",
+)
+private external fun climbPartObj(
+    startDistanceM: Double,
+    endDistanceM: Double,
+    startElevationM: Double,
+    endElevationM: Double,
+    lengthM: Double,
+    elevationGainM: Double,
+    grade: Double,
+): ClimbPartDto
+
+@JsFun(
+    """(startIndex, endIndex, startDistanceM, endDistanceM, startElevationM, endElevationM, lengthM,
+        elevationGainM, averageGrade, climbingGrade, positiveElevationM, negativeElevationM, parts) =>
+    ({ startIndex, endIndex, startDistanceM, endDistanceM, startElevationM, endElevationM, lengthM,
+       elevationGainM, averageGrade, climbingGrade, positiveElevationM, negativeElevationM, parts })""",
+)
+private external fun climbObj(
+    startIndex: Int,
+    endIndex: Int,
+    startDistanceM: Double,
+    endDistanceM: Double,
+    startElevationM: Double,
+    endElevationM: Double,
+    lengthM: Double,
+    elevationGainM: Double,
+    averageGrade: Double,
+    climbingGrade: Double,
+    positiveElevationM: Double,
+    negativeElevationM: Double,
+    parts: JsArray<ClimbPartDto>,
+): ClimbDto
+
+private fun Climb.toDto(): ClimbDto {
+    val partArray = JsArray<ClimbPartDto>()
+    for ((i, part) in parts.withIndex()) {
+        partArray[i] =
+            climbPartObj(
+                part.startDistanceM,
+                part.endDistanceM,
+                part.startElevationM,
+                part.endElevationM,
+                part.lengthM,
+                part.elevationGainM,
+                part.grade,
+            )
+    }
+    return climbObj(
+        startIndex,
+        endIndex,
+        startDistanceM,
+        endDistanceM,
+        startElevationM,
+        endElevationM,
+        lengthM,
+        elevationGainM,
+        averageGrade,
+        climbingGrade,
+        positiveElevationM,
+        negativeElevationM,
+        partArray,
+    )
+}
+
+private fun List<Climb>.toDtoArray(): JsArray<ClimbDto> {
+    val out = JsArray<ClimbDto>()
+    for ((i, climb) in withIndex()) out[i] = climb.toDto()
+    return out
+}
+
+/** Detect climbs on the path behind [handle] with the default options. */
+@JsExport
+fun detectClimbs(handle: JsReference<Path>): JsArray<ClimbDto> = ClimbDetector.detect(handle.get()).toDtoArray()
+
+/** Detect climbs with explicit parameters. Same signature as the Kotlin/JS façade. */
+@JsExport
+fun detectClimbsWithOptions(
+    handle: JsReference<Path>,
+    minMinClimbElevationM: Double,
+    maxMinClimbElevationM: Double,
+    minClimbElevationRatio: Double,
+    minGradePercent: Double,
+    maxDiffRealGrade: Double,
+    booster: Double,
+): JsArray<ClimbDto> =
+    ClimbDetector
+        .detect(
+            handle.get(),
+            ClimbOptions(
+                minMinClimbElevationM = minMinClimbElevationM,
+                maxMinClimbElevationM = maxMinClimbElevationM,
+                minClimbElevationRatio = minClimbElevationRatio,
+                minGradePercent = minGradePercent,
+                maxDiffRealGradeRatio = maxDiffRealGrade,
+                booster = booster,
+            ),
+        ).toDtoArray()

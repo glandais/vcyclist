@@ -6,6 +6,10 @@
 package io.github.glandais.engine
 
 import io.github.glandais.elevation.ElevationProvider
+import io.github.glandais.engine.climb.Climb
+import io.github.glandais.engine.climb.ClimbDetector
+import io.github.glandais.engine.climb.ClimbOptions
+import io.github.glandais.engine.climb.ClimbPart
 import io.github.glandais.engine.gpx.GpxParser
 import io.github.glandais.engine.gpx.GpxWriter
 import io.github.glandais.engine.gpx.firstTrackAsPath
@@ -545,3 +549,102 @@ fun pathToFit(
     name: String,
     startTimeEpochMs: Double,
 ): ByteArray = path.toFitBytes(name, Instant.fromEpochMilliseconds(startTimeEpochMs.toLong()))
+
+// ── Climb detection (task g12) ───────────────────────────────────────────────────────────────
+
+/**
+ * A homogeneous-grade segment of a climb. Distances are absolute along the path, in meters;
+ * [grade] is dimensionless (`0.08` = 8 %), matching [ClimbDto.averageGrade].
+ */
+external interface ClimbPartDto {
+    val startDistanceM: Double
+    val endDistanceM: Double
+    val startElevationM: Double
+    val endElevationM: Double
+    val lengthM: Double
+    val elevationGainM: Double
+    val grade: Double
+}
+
+/** A detected climb, flattened for the JS boundary. */
+external interface ClimbDto {
+    val startIndex: Int
+    val endIndex: Int
+    val startDistanceM: Double
+    val endDistanceM: Double
+    val startElevationM: Double
+    val endElevationM: Double
+    val lengthM: Double
+    val elevationGainM: Double
+
+    /** Dimensionless: `0.08` = 8 %. */
+    val averageGrade: Double
+
+    /** Dimensionless, counting only the rising sections. */
+    val climbingGrade: Double
+    val positiveElevationM: Double
+    val negativeElevationM: Double
+    val parts: Array<ClimbPartDto>
+}
+
+private fun ClimbPart.toDto(): ClimbPartDto {
+    val o = js("({})")
+    o.startDistanceM = startDistanceM
+    o.endDistanceM = endDistanceM
+    o.startElevationM = startElevationM
+    o.endElevationM = endElevationM
+    o.lengthM = lengthM
+    o.elevationGainM = elevationGainM
+    o.grade = grade
+    return o.unsafeCast<ClimbPartDto>()
+}
+
+private fun Climb.toDto(): ClimbDto {
+    val o = js("({})")
+    o.startIndex = startIndex
+    o.endIndex = endIndex
+    o.startDistanceM = startDistanceM
+    o.endDistanceM = endDistanceM
+    o.startElevationM = startElevationM
+    o.endElevationM = endElevationM
+    o.lengthM = lengthM
+    o.elevationGainM = elevationGainM
+    o.averageGrade = averageGrade
+    o.climbingGrade = climbingGrade
+    o.positiveElevationM = positiveElevationM
+    o.negativeElevationM = negativeElevationM
+    o.parts = parts.map { it.toDto() }.toTypedArray()
+    return o.unsafeCast<ClimbDto>()
+}
+
+/** Detect climbs on [path] with the default options (those of gpx2web's `getClimbs`). */
+@JsExport
+fun detectClimbs(path: Path): Array<ClimbDto> = ClimbDetector.detect(path).map { it.toDto() }.toTypedArray()
+
+/**
+ * Detect climbs with explicit parameters. Flat scalars rather than an options DTO so the
+ * signature is identical on Kotlin/JS and Kotlin/Wasm — see the Wasm twin.
+ */
+@JsExport
+fun detectClimbsWithOptions(
+    path: Path,
+    minMinClimbElevationM: Double,
+    maxMinClimbElevationM: Double,
+    minClimbElevationRatio: Double,
+    minGradePercent: Double,
+    maxDiffRealGrade: Double,
+    booster: Double,
+): Array<ClimbDto> =
+    ClimbDetector
+        .detect(
+            path,
+            ClimbOptions(
+                minMinClimbElevationM = minMinClimbElevationM,
+                maxMinClimbElevationM = maxMinClimbElevationM,
+                minClimbElevationRatio = minClimbElevationRatio,
+                minGradePercent = minGradePercent,
+                maxDiffRealGradeRatio = maxDiffRealGrade,
+                booster = booster,
+            ),
+        ).map { it.toDto() }
+        .toTypedArray()

@@ -247,4 +247,38 @@ class ClimbDetectorTest {
             "a 12 m bump must not qualify when the dynamic threshold is ~15 m",
         )
     }
+
+    @Test
+    fun `case 15 — a dense path is decimated for analysis but reports original indices`() {
+        // The candidate search is O(n^2), and vcyclist's pipeline can hand over a path densified
+        // to 1-2 m spacing — ~25 000 points for a 140 km route, which measured in minutes in a
+        // browser. `maxAnalysisPoints` bounds that. This checks the bound does not change the
+        // answer in any way that matters, and that indices still address the caller's path.
+        // Kept modest on purpose: the unbounded reference run below is the very O(n^2) cost this
+        // bound exists to avoid, and it has to finish inside the Wasm browser suite's 2 s budget.
+        val dense = steadyClimb(n = 1_500, gainPerStepM = 0.3, stepM = 2.0)
+        val full = ClimbDetector.detect(dense, ClimbOptions(maxAnalysisPoints = 1_500))
+        val bounded = ClimbDetector.detect(dense, ClimbOptions(maxAnalysisPoints = 300))
+
+        assertEquals(full.size, bounded.size, "decimation must not change how many climbs are found")
+        val a = full.single()
+        val b = bounded.single()
+        assertEquals(a.elevationGainM, b.elevationGainM, 5.0, "gain")
+        assertEquals(a.averageGrade, b.averageGrade, 0.002, "average grade")
+        assertEquals(a.lengthM, b.lengthM, 50.0, "length")
+        // Indices address the original path, not the decimated profile.
+        assertTrue(b.endIndex > 300, "endIndex ${b.endIndex} looks like a profile index, not a path one")
+        assertTrue(b.endIndex < dense.size, "endIndex out of bounds")
+    }
+
+    @Test
+    fun `case 16 — paths at or below the bound are analysed in full`() {
+        // Guards the property the Java cross-validation relies on: nothing is decimated at the
+        // sizes those comparisons were run at.
+        val path = steadyClimb(n = 101, gainPerStepM = 5.0)
+        val withBound = ClimbDetector.detect(path, ClimbOptions(maxAnalysisPoints = 3_000))
+        val withoutBound = ClimbDetector.detect(path, ClimbOptions(maxAnalysisPoints = 101))
+        assertEquals(withBound, withoutBound)
+        assertEquals(100, withBound.single().endIndex)
+    }
 }
