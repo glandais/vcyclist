@@ -18,6 +18,7 @@ ROOT="${1:-$HOME/.cache/vcyclist-parity}"
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 VCYCLIST="$(cd "$HERE/../.." && pwd)"
 REF_TS="$(cd "$VCYCLIST/../virtual-cyclist" && pwd)"
+REF_ELE="$(cd "$VCYCLIST/../elevation" && pwd)"
 
 FIXTURES=(amazfit garmin movescount sample sports-tracker stelvio strava)
 
@@ -52,6 +53,23 @@ for f in "${FIXTURES[@]}"; do
         echo "-- $out.txt"
     done
 done
+
+echo "== Elevation sweep (DEM, needs network) =="
+# Both sides resolve the same 10 ELEVATION_COORDS against the same Terrarium tiles.
+# The TS runner needs cwd == the elevation/ reference repo (tsconfig paths + node_modules).
+# Since elevation 3.2.3 ("fix: decode WebP tiles in Node.js with sharp") the reference
+# decodes VP8L natively, so this measures the TS chain AS SHIPPED -- no decoder shim.
+# Expect a divergence anyway: see divergence 4 in docs/parity.md (TS toPixel floors before
+# ElevationCalculator derives dx/dy, so its "bilinear" is a floor-pixel lookup).
+mkdir -p "$ROOT/elevation"
+echo "-- Kotlin/JVM"
+(cd "$VCYCLIST" && ./gradlew --quiet :tools:parity:dumpElevation \
+    -Pargs="--out $ROOT/elevation/kt.json")
+echo "-- TypeScript"
+(cd "$REF_ELE" && npx tsx "$HERE/ts/liveElevation.ts" --out "$ROOT/elevation/ts.json")
+echo "-- $ROOT/reports/elevation.txt"
+python3 "$HERE/compare-units.py" "$ROOT/elevation/ts.json" "$ROOT/elevation/kt.json" \
+    > "$ROOT/reports/elevation.txt" 2>&1 || true
 
 echo
 echo "Reports in $ROOT/reports/"
