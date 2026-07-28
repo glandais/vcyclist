@@ -47,6 +47,16 @@ kotlin {
         }
     }
 
+    // The module that produces the standalone `.wasm` of the whole core: `:engine` sits on top
+    // of `:gpx`, `:elevation` and `:fit` through `api(...)`, so one binary carries everything.
+    // `binaries.executable()` is what links it (see docs/kotlin-wasm-wasi.md §5) ; the exported
+    // façade lands here in task w03, the distribution task in w06.
+    @OptIn(org.jetbrains.kotlin.gradle.ExperimentalWasmDsl::class)
+    wasmWasi {
+        wasmtime()
+        binaries.executable()
+    }
+
     sourceSets {
         commonMain.dependencies {
             implementation(libs.kotlinx.coroutines.core)

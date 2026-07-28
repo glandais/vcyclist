@@ -136,15 +136,8 @@ class PathToFitMultiTest {
         assertFailsWith<IllegalArgumentException> { listOf(path(), Path(0)).toFitCourse("x", start) }
     }
 
-    @Test
-    fun `case 09 — the encoded multi-path file is bigger and still deterministic`() {
-        val one = FitEncoder.encode(path().toFitCourse("multi", start))
-        val three = FitEncoder.encode(listOf(path(), path(latBase = 46.0), path(latBase = 47.0)).toFitCourse("multi", start))
-
-        assertTrue(three.size > one.size, "three paths cannot fit in the bytes of one")
-        val again = FitEncoder.encode(listOf(path(), path(latBase = 46.0), path(latBase = 47.0)).toFitCourse("multi", start))
-        assertEquals(three.toList(), again.toList(), "encoding must stay deterministic")
-    }
+    // `case 09 — the encoded multi-path file is bigger and still deterministic` moved to
+    // `src/encodingTest` in task w01: it calls the SDK-backed encoder, which wasmWasi stubs.
 
     @Test
     fun `case 10 — lap totals describe their own segment, not the whole file`() {

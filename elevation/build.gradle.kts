@@ -61,6 +61,13 @@ kotlin {
             implementation(kotlin("test"))
             implementation(libs.kotlinx.coroutines.test)
         }
+        // Tests that assert *decoded* pixels, compiled only into the targets that own a WebP
+        // decoder. wasmWasi stubs `decodeTileBytes` (task w01), so these cannot pass there ; the
+        // stub's own contract is pinned by `wasmWasiTest/TileFetcherStubTest`. Same
+        // single-file-two-compilations trick as `commonTestFixtures` in gpx/build.gradle.kts —
+        // KMP has no `java-test-fixtures`, and duplicating 200 lines of assertions is worse.
+        jvmTest { kotlin.srcDir("src/decodingTest/kotlin") }
+        jsTest { kotlin.srcDir("src/decodingTest/kotlin") }
         jvmMain.dependencies {
             implementation(libs.imageio.webp)
         }

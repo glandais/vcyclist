@@ -67,7 +67,8 @@ class PathToFitTimestampTest {
 
         assertEquals(relative.records.map { it.timestamp }, absolute.records.map { it.timestamp })
         assertEquals(relative.lap.startTime, absolute.lap.startTime)
-        assertContentEqualsBytes(FitEncoder.encode(relative), FitEncoder.encode(absolute))
+        // The byte-for-byte half of this case moved to `src/encodingTest` in task w01 (wasmWasi
+        // stubs the SDK-backed encoder) — the timestamps it derives from are asserted here.
     }
 
     @Test
@@ -104,14 +105,4 @@ class PathToFitTimestampTest {
     }
 
     private fun Instant.plusMs(ms: Long): Instant = Instant.fromEpochMilliseconds(toEpochMilliseconds() + ms)
-
-    private fun assertContentEqualsBytes(
-        expected: ByteArray,
-        actual: ByteArray,
-    ) {
-        assertEquals(expected.size, actual.size, "encoded size")
-        for (i in expected.indices) {
-            assertEquals(expected[i], actual[i], "byte $i")
-        }
-    }
 }

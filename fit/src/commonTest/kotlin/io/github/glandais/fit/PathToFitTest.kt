@@ -11,7 +11,9 @@ import kotlin.time.Instant
 
 /**
  * The `Path` → [FitCourse] mapping itself, independent of any SDK, so it runs on all four
- * targets. The SDK-backed round-trips live in `FitRoundTripTest` (JVM) and `FitEncoderJsTest`.
+ * targets — including wasmWasi, where [FitEncoder] itself is a stub. The cases that do call the
+ * encoder live in `src/encodingTest` (task w01) ; the SDK-backed round-trips are in
+ * `FitRoundTripTest` (JVM) and `FitEncoderJsTest`.
  */
 class PathToFitTest {
     private val start = Instant.parse("2026-07-28T08:00:00Z")
@@ -174,11 +176,8 @@ class PathToFitTest {
         assertEquals(FitSport.RUNNING, samplePath().toFitCourse("t", start, FitSport.RUNNING).sport)
     }
 
-    @Test
-    fun `case 12 — toFitBytes produces a FIT file`() {
-        val bytes = samplePath().toFitBytes("shortcut", start)
-        assertEquals(".FIT", bytes.copyOfRange(8, 12).decodeToString())
-    }
+    // `case 12 — toFitBytes produces a FIT file` moved to `src/encodingTest` in task w01: it is
+    // the only case here that calls the SDK-backed encoder, which wasmWasi stubs.
 
     private fun Instant.plusSeconds(s: Long): Instant = Instant.fromEpochMilliseconds(toEpochMilliseconds() + s * 1000)
 }
