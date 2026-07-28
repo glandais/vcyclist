@@ -58,51 +58,62 @@ actual object FitEncoder {
             },
         )
 
-        val lap = course.lap
-        encoder.writeMesg(
-            mesg(FitMessageNumbers.LAP) { o ->
-                o["startTime"] = lap.startTime.toJsDate()
-                // A lap's `timestamp` is its END, not its start — same trap as on the JVM side.
-                o["timestamp"] = (lap.startTime + lap.totalElapsedTimeS.seconds()).toJsDate()
-                o["totalElapsedTime"] = lap.totalElapsedTimeS
-                o["totalTimerTime"] = lap.totalTimerTimeS
-                o["totalDistance"] = lap.totalDistanceM
-                o["totalAscent"] = lap.totalAscentM
-                o["totalDescent"] = lap.totalDescentM
-                if (lap.totalTimerTimeS > 0.0) {
-                    o["avgSpeed"] = lap.totalDistanceM / lap.totalTimerTimeS
-                }
-                lap.maxSpeedMs?.let { o["maxSpeed"] = it }
-                lap.minAltitudeM?.let { o["minAltitude"] = it }
-                lap.maxAltitudeM?.let { o["maxAltitude"] = it }
-                lap.startLatitudeDeg?.let { o["startPositionLat"] = FitUnits.degreesToSemicircles(it) }
-                lap.startLongitudeDeg?.let { o["startPositionLong"] = FitUnits.degreesToSemicircles(it) }
-                lap.endLatitudeDeg?.let { o["endPositionLat"] = FitUnits.degreesToSemicircles(it) }
-                lap.endLongitudeDeg?.let { o["endPositionLong"] = FitUnits.degreesToSemicircles(it) }
-            },
-        )
+        for (lap in course.segments.map { it.lap }) {
+            encoder.writeMesg(lapMesg(lap))
+        }
 
-        encoder.writeMesg(timerEvent(course.records.first().timestamp, FitMessageNumbers.EVENT_TYPE_START))
-        for (record in course.records) {
+        for ((index, segment) in course.segments.withIndex()) {
+            val isLast = index == course.segments.lastIndex
+            encoder.writeMesg(timerEvent(segment.records.first().timestamp, FitMessageNumbers.EVENT_TYPE_START))
+            for (record in segment.records) {
+                encoder.writeMesg(recordMesg(record))
+            }
             encoder.writeMesg(
-                mesg(FitMessageNumbers.RECORD) { o ->
-                    o["timestamp"] = record.timestamp.toJsDate()
-                    o["positionLat"] = FitUnits.degreesToSemicircles(record.latitudeDeg)
-                    o["positionLong"] = FitUnits.degreesToSemicircles(record.longitudeDeg)
-                    o["distance"] = record.distanceM
-                    record.altitudeM?.let { o["altitude"] = it }
-                    record.speedMs?.let { o["speed"] = it }
-                    record.powerW?.let { o["power"] = it }
-                    record.heartRate?.let { o["heartRate"] = it }
-                    record.cadence?.let { o["cadence"] = it }
-                    record.temperatureC?.let { o["temperature"] = round(it).toInt() }
-                },
+                timerEvent(
+                    segment.records.last().timestamp,
+                    if (isLast) FitMessageNumbers.EVENT_TYPE_STOP_ALL else FitMessageNumbers.EVENT_TYPE_STOP,
+                ),
             )
         }
-        encoder.writeMesg(timerEvent(course.records.last().timestamp, FitMessageNumbers.EVENT_TYPE_STOP_ALL))
 
         return encoder.close().toByteArray()
     }
+
+    private fun lapMesg(lap: FitLap): dynamic =
+        mesg(FitMessageNumbers.LAP) { o ->
+            o["startTime"] = lap.startTime.toJsDate()
+            // A lap's `timestamp` is its END, not its start — same trap as on the JVM side.
+            o["timestamp"] = (lap.startTime + lap.totalElapsedTimeS.seconds()).toJsDate()
+            o["totalElapsedTime"] = lap.totalElapsedTimeS
+            o["totalTimerTime"] = lap.totalTimerTimeS
+            o["totalDistance"] = lap.totalDistanceM
+            o["totalAscent"] = lap.totalAscentM
+            o["totalDescent"] = lap.totalDescentM
+            if (lap.totalTimerTimeS > 0.0) {
+                o["avgSpeed"] = lap.totalDistanceM / lap.totalTimerTimeS
+            }
+            lap.maxSpeedMs?.let { o["maxSpeed"] = it }
+            lap.minAltitudeM?.let { o["minAltitude"] = it }
+            lap.maxAltitudeM?.let { o["maxAltitude"] = it }
+            lap.startLatitudeDeg?.let { o["startPositionLat"] = FitUnits.degreesToSemicircles(it) }
+            lap.startLongitudeDeg?.let { o["startPositionLong"] = FitUnits.degreesToSemicircles(it) }
+            lap.endLatitudeDeg?.let { o["endPositionLat"] = FitUnits.degreesToSemicircles(it) }
+            lap.endLongitudeDeg?.let { o["endPositionLong"] = FitUnits.degreesToSemicircles(it) }
+        }
+
+    private fun recordMesg(record: FitRecord): dynamic =
+        mesg(FitMessageNumbers.RECORD) { o ->
+            o["timestamp"] = record.timestamp.toJsDate()
+            o["positionLat"] = FitUnits.degreesToSemicircles(record.latitudeDeg)
+            o["positionLong"] = FitUnits.degreesToSemicircles(record.longitudeDeg)
+            o["distance"] = record.distanceM
+            record.altitudeM?.let { o["altitude"] = it }
+            record.speedMs?.let { o["speed"] = it }
+            record.powerW?.let { o["power"] = it }
+            record.heartRate?.let { o["heartRate"] = it }
+            record.cadence?.let { o["cadence"] = it }
+            record.temperatureC?.let { o["temperature"] = round(it).toInt() }
+        }
 
     private fun timerEvent(
         at: Instant,

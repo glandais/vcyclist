@@ -3,6 +3,7 @@ package io.github.glandais.fit
 import io.github.glandais.elevation.MathConstants
 import io.github.glandais.engine.path.Path
 import kotlin.math.roundToInt
+import kotlin.time.Duration
 import kotlin.time.Duration.Companion.milliseconds
 import kotlin.time.Instant
 
@@ -17,13 +18,22 @@ import kotlin.time.Instant
  *
  * | [FitRecord] | Source |
  * |---|---|
- * | `timestamp` | [startTime] + `TIME(i)` ms — the engine's clock is relative (`time(0) == 0`) |
+ * | `timestamp` | [startTime] + (`TIME(i)` − `TIME(0)`) ms — see *Rebasing* below |
  * | `latitudeDeg` / `longitudeDeg` | `LATITUDE` / `LONGITUDE`, radians → degrees |
  * | `altitudeM` | `ELEVATION` |
  * | `distanceM` | `DISTANCE` |
  * | `speedMs` | `SPEED` |
  * | `powerW` | `POWER` (`pComputedPower`) — the pipeline's *output* power |
  * | `heartRate` / `cadence` / `temperatureC` | the matching fields, when present |
+ *
+ * ## Rebasing (task g25)
+ *
+ * Timestamps are computed **relative to the path's own first point**, not from the raw `TIME`
+ * value. For a virtualized path this changes nothing — `VirtualizeService` guarantees
+ * `time(0) == 0` — but `GpxToPath` copies `timeEpochMs` through verbatim, so a path that was
+ * merely parsed from a timestamped GPX carries epoch milliseconds. Adding [startTime] to those
+ * produced a file dated some 57 years in the future. Rebasing makes [startTime] mean what its
+ * name says on both kinds of path, and makes the conversion idempotent.
  *
  * `POWER` is the right source among the 36 fields: it is what `VirtualizeService` computes for
  * the simulated ride. `P_INPUT_POWER` is the power read from the *input* GPX, which for a
@@ -44,18 +54,74 @@ import kotlin.time.Instant
  * @throws IllegalArgumentException if the path has no point. A FIT file with zero records is
  *   accepted by the SDK but rejected by the platforms that matter, so failing here is kinder
  *   than emitting one.
+ * @throws IllegalArgumentException if `TIME` is not monotonic. FIT accepts records going
+ *   backwards in time; the platforms that read them do not, so failing loudly beats shipping a
+ *   file that Garmin Connect silently rejects.
  */
 fun Path.toFitCourse(
     name: String,
     startTime: Instant,
     sport: FitSport = FitSport.CYCLING,
+): FitCourse = listOf(this).toFitCourse(name, startTime, sport)
+
+/** Shortcut: convert and encode in one step. */
+fun Path.toFitBytes(
+    name: String,
+    startTime: Instant,
+    sport: FitSport = FitSport.CYCLING,
+): ByteArray = FitEncoder.encode(toFitCourse(name, startTime, sport))
+
+/**
+ * Convert several [Path]s — typically the tracks of one multi-track GPX — into a **single**
+ * [FitCourse] with one [FitSegment], and therefore one `LapMesg` and one `TIMER`/`START`…`STOP`
+ * event pair, per path. This is what gpx2web's `FitFileWriter.writeGPX` produces from a `GPX`
+ * holding several `GPXPath`.
+ *
+ * Each path is rebased on its **own** first point (see *Rebasing* above), then laid down after
+ * the previous one, separated by [interPathGap]. The default of zero makes the paths run
+ * straight on from one another, which matches the dominant case: one ride cut into several
+ * traces. A non-zero gap is **not** a pause — FIT expresses those with `TIMER`/`PAUSE` events,
+ * which this port does not emit — it simply shifts the following path's clock.
+ */
+fun List<Path>.toFitCourse(
+    name: String,
+    startTime: Instant,
+    sport: FitSport = FitSport.CYCLING,
+    interPathGap: Duration = Duration.ZERO,
 ): FitCourse {
-    require(size > 0) { "Cannot build a FIT course from an empty Path" }
+    require(isNotEmpty()) { "Cannot build a FIT course from an empty list of paths" }
+    require(all { it.size > 0 }) { "Cannot build a FIT course from an empty Path" }
+
+    var segmentStart = startTime
+    val segments =
+        map { path ->
+            val segment = path.toFitSegment(segmentStart)
+            segmentStart = segment.records.last().timestamp + interPathGap
+            segment
+        }
+    return FitCourse(name = name, startTime = startTime, segments = segments, sport = sport)
+}
+
+/** Shortcut: convert and encode several paths in one step. */
+fun List<Path>.toFitBytes(
+    name: String,
+    startTime: Instant,
+    sport: FitSport = FitSport.CYCLING,
+    interPathGap: Duration = Duration.ZERO,
+): ByteArray = FitEncoder.encode(toFitCourse(name, startTime, sport, interPathGap))
+
+private fun Path.toFitSegment(startTime: Instant): FitSegment {
+    val t0 = time(0)
+    for (i in 1 until size) {
+        require(time(i) >= time(i - 1)) {
+            "Path time must be monotonic to encode a FIT file, but time($i) = ${time(i)} < time(${i - 1}) = ${time(i - 1)}"
+        }
+    }
 
     val records =
         List(size) { i ->
             FitRecord(
-                timestamp = startTime + time(i).toLong().milliseconds,
+                timestamp = startTime + (time(i) - t0).toLong().milliseconds,
                 latitudeDeg = latitude(i) * MathConstants.RAD_TO_DEG,
                 longitudeDeg = longitude(i) * MathConstants.RAD_TO_DEG,
                 altitudeM = elevation(i).takeUnless { it.isNaN() },
@@ -68,11 +134,8 @@ fun Path.toFitCourse(
             )
         }
 
-    return FitCourse(
-        name = name,
-        startTime = startTime,
+    return FitSegment(
         records = records,
-        sport = sport,
         lap =
             FitLap(
                 startTime = startTime,
@@ -102,13 +165,6 @@ fun Path.toFitCourse(
             ),
     )
 }
-
-/** Shortcut: convert and encode in one step. */
-fun Path.toFitBytes(
-    name: String,
-    startTime: Instant,
-    sport: FitSport = FitSport.CYCLING,
-): ByteArray = FitEncoder.encode(toFitCourse(name, startTime, sport))
 
 /**
  * `NaN` means "this sensor produced nothing" ; a genuine `0.0` reading is kept — 0 rpm while

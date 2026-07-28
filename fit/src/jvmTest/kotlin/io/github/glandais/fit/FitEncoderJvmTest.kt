@@ -183,11 +183,18 @@ class FitEncoderJvmTest {
 
     @Test
     fun `optional record fields are omitted rather than written as zero`() {
+        // `copy(records = …)` is gone since g25: records live in a FitSegment now.
+        val source = course()
         val bare =
-            course().copy(
-                records =
-                    course().records.map {
-                        it.copy(powerW = null, heartRate = null, cadence = null, temperatureC = null)
+            source.copy(
+                segments =
+                    source.segments.map { segment ->
+                        segment.copy(
+                            records =
+                                segment.records.map {
+                                    it.copy(powerW = null, heartRate = null, cadence = null, temperatureC = null)
+                                },
+                        )
                     },
             )
         val record = decode(FitEncoder.encode(bare)).recordMesgs.first()

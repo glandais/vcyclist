@@ -149,14 +149,69 @@ Créés :
 
 ## Done when
 
-- [ ] Timestamps rebasés sur `time(0)`, KDoc corrigé, garde de monotonie
-- [ ] Sortie inchangée pour tous les paths virtualisés (cas 1 vérifié par comparaison exacte)
-- [ ] `FitSegment` + accesseurs de compatibilité
-- [ ] `List<Path>.toFitCourse` / `toFitBytes` avec un lap et des events par path
-- [ ] Faisabilité des `EventMesg` tranchée et **identique sur les deux encodeurs**
-- [ ] Round-trip vert sur JVM, JS Node et JS navigateur
-- [ ] CLI `export --fit` écrit tous les paths
-- [ ] `./gradlew check` + `ktlintCheck` verts
+- [x] Timestamps rebasés sur `time(0)`, KDoc corrigé, garde de monotonie
+- [x] Sortie inchangée pour tous les paths virtualisés (cas 1 vérifié par comparaison exacte)
+- [x] `FitSegment` + accesseurs de compatibilité
+- [x] `List<Path>.toFitCourse` / `toFitBytes` avec un lap et des events par path
+- [x] Faisabilité des `EventMesg` tranchée et **identique sur les deux encodeurs**
+- [x] Round-trip vert sur JVM, JS Node et JS navigateur
+- [x] CLI `export --fit` **et `enhance --fit`** écrivent tous les paths
+- [x] `./gradlew check` + `ktlintCheck` verts
+
+## Résultat
+
+### (a) Le bug de timestamp
+
+`toFitSegment` calcule `startTime + (time(i) - time(0))`. Conséquences mesurées :
+
+- path virtualisé (`time(0) == 0`) : **sortie inchangée**, y compris au niveau des octets — les
+  tests g08-g10 et les deux références `FitReferenceBytes` passent sans retouche ;
+- path parsé d'un GPX horodaté : le premier record tombe exactement sur `startTime`, au lieu de
+  `startTime + 1,8 × 10¹² ms` (≈ 2083). Le cas de test 02 assert explicitement
+  `timestamp < 2_000_000_000_000` avec le commentaire qui explique pourquoi.
+
+Garde de monotonie ajoutée : un `time(i) < time(i-1)` lève avec les deux indices et les deux
+valeurs. FIT accepte des records qui reculent, les plateformes qui les lisent non.
+
+### (b) Le point de risque `EventMesg` : **il n'existait pas**
+
+La fiche annonçait la faisabilité des `EventMesg` comme le risque principal, à vérifier avant de
+figer le modèle. Vérification faite en lisant les deux `actual` : **les deux encodeurs écrivaient
+déjà** un `EventMesg` `TIMER`/`START` avant les records et un `TIMER`/`STOP_ALL` après, depuis
+g08/g09. Il n'y avait donc qu'à en émettre une paire par segment, et à ajouter la constante
+`EVENT_TYPE_STOP` (valeur 1) qui manquait — `EVENT_TYPE_STOP_ALL` (4) existait seule.
+
+Aucune divergence JVM / JS à arbitrer : les deux SDK exposent le message, et le round-trip
+décodé côté JVM confirme la séquence `START, STOP, START, STOP, START, STOP_ALL` sur trois paths.
+
+### (c) Modèle
+
+`FitCourse.segments: List<FitSegment>`, avec `FitSegment(records, lap)`. Les accesseurs dérivés
+`records` (concaténation) et `lap` (le lap unique, sinon `error`) couvrent la lecture, et un
+`operator fun invoke(name, startTime, records, lap, sport)` dans le companion garde le
+constructeur d'avant compilable.
+
+**Rupture assumée** : `FitCourse.copy(records = …)` et `copy(lap = …)` n'existent plus — un
+`copy()` de data class ne peut pas passer par des accesseurs dérivés. Un test interne l'utilisait
+et a été réécrit. C'est le seul point de rupture, il est en source uniquement, et il est signalé
+comme `BREAKING CHANGE` dans le commit.
+
+### (d) API et CLI
+
+`List<Path>.toFitCourse(name, startTime, sport, interPathGap = ZERO)` et le `toFitBytes`
+correspondant ; l'extension mono-`Path` délègue à `listOf(this)`, ce que le cas 05 vérifie par
+égalité de `FitCourse`. `enhance --fit` **et** `export --fit` écrivent désormais toutes les
+pistes — ils n'encodaient que `first()` et perdaient silencieusement les autres.
+
+### Vérification
+
+- 16 nouveaux tests : 6 (`PathToFitTimestampTest`) + 10 (`PathToFitMultiTest`) en commonTest × 3
+  cibles, plus 3 round-trips décodés par le SDK Java (`FitRoundTripTest` 10-12) et 1 cas CLI.
+- Le cas CLI décode le fichier produit et compte les laps et les events. `com.garmin:fit` a été
+  ajouté en `testImplementation` de `:cli` pour ça : il était déjà sur le classpath d'exécution
+  via `:fit`, la ligne le rend visible à la compilation des tests. Assertion structurelle plutôt
+  que sur la taille du fichier.
+- `./gradlew check` + `ktlintCheck` verts.
 
 ## Notes
 

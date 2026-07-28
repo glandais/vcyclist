@@ -23,14 +23,56 @@ data class FitCourse(
      * for GPX writing.
      */
     val startTime: Instant,
-    val records: List<FitRecord>,
-    val lap: FitLap,
+    /**
+     * One entry per source `Path` (task g25). A single-path course has exactly one, which is the
+     * shape every caller had before g25 — see the [records] and [lap] accessors.
+     */
+    val segments: List<FitSegment>,
     val sport: FitSport = FitSport.CYCLING,
 ) {
     init {
-        require(records.isNotEmpty()) { "A FIT course needs at least one record" }
+        require(segments.isNotEmpty()) { "A FIT course needs at least one segment" }
+        require(segments.all { it.records.isNotEmpty() }) { "A FIT course segment needs at least one record" }
+    }
+
+    /**
+     * Every record of every segment, in order. Compatibility accessor for the pre-g25 shape —
+     * same strategy as `GpxTrack.points` in g02.
+     */
+    val records: List<FitRecord> get() = segments.flatMap { it.records }
+
+    /**
+     * The single lap of a single-segment course. **Throws** on a multi-segment one, where the
+     * question has no answer — use [segments] there.
+     */
+    val lap: FitLap
+        get() =
+            segments.singleOrNull()?.lap
+                ?: error("This course has ${segments.size} segments; read `segments`, not `lap`")
+
+    companion object {
+        /** Build a single-segment course — the pre-g25 constructor, kept source-compatible. */
+        operator fun invoke(
+            name: String,
+            startTime: Instant,
+            records: List<FitRecord>,
+            lap: FitLap,
+            sport: FitSport = FitSport.CYCLING,
+        ): FitCourse = FitCourse(name, startTime, listOf(FitSegment(records, lap)), sport)
     }
 }
+
+/**
+ * One source `Path` inside a course: its records, and the [FitLap] summarising them.
+ *
+ * FIT expresses "several rides in one file" as several laps plus a `TIMER`/`START`…`STOP` event
+ * pair around each record run — which is what gpx2web's `FitFileWriter` writes when a `GPX`
+ * holds several `GPXPath`. This type is the neutral model of one such run.
+ */
+data class FitSegment(
+    val records: List<FitRecord>,
+    val lap: FitLap,
+)
 
 /**
  * One `RecordMesg`. Every field is in **real-world units** (degrees, meters, m/s, watts, bpm,

@@ -30,6 +30,9 @@ internal object FitMessageNumbers {
     /** `event_type` enum: START. */
     const val EVENT_TYPE_START = 0
 
-    /** `event_type` enum: STOP_ALL. */
+    /** `event_type` enum: STOP — closes one record run when another follows (task g25). */
+    const val EVENT_TYPE_STOP = 1
+
+    /** `event_type` enum: STOP_ALL — closes the last run, and with it the file. */
     const val EVENT_TYPE_STOP_ALL = 4
 }

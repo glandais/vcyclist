@@ -24,8 +24,9 @@ import com.garmin.fit.File as FitFileType
  * and version gpx2web uses.
  *
  * Message order is **not free** in a Course file and follows
- * `gpx2web/.../io/write/FitFileWriter.java`: `FileIdMesg`, then `CourseMesg`, then `LapMesg`,
- * then a `TIMER`/`START` event, the `RecordMesg` stream, and a closing `TIMER`/`STOP_ALL`.
+ * `gpx2web/.../io/write/FitFileWriter.java`: `FileIdMesg`, then `CourseMesg`, then one `LapMesg`
+ * per segment, then per segment a `TIMER`/`START` event, its `RecordMesg` stream and a
+ * `TIMER`/`STOP` — `STOP_ALL` on the last one, which is what tells a reader the file is over.
  *
  * The g08 spec anticipated having to encode through a temporary file because `FileEncoder`
  * writes to a `java.io.File`. That turned out to be unnecessary: the SDK also ships
@@ -43,15 +44,20 @@ actual object FitEncoder {
 
         encoder.write(fileIdMesg(course))
         encoder.write(courseMesg(course))
-        encoder.write(lapMesg(course.lap))
-
-        val first = course.records.first()
-        val last = course.records.last()
-        encoder.write(timerEvent(first.timestamp, EventType.START))
-        for (record in course.records) {
-            encoder.write(recordMesg(record))
+        // All laps first, then the record runs — gpx2web's order (`FitFileWriter.writeGPX`).
+        for (segment in course.segments) {
+            encoder.write(lapMesg(segment.lap))
         }
-        encoder.write(timerEvent(last.timestamp, EventType.STOP_ALL))
+
+        for ((index, segment) in course.segments.withIndex()) {
+            val isLast = index == course.segments.lastIndex
+            encoder.write(timerEvent(segment.records.first().timestamp, EventType.START))
+            for (record in segment.records) {
+                encoder.write(recordMesg(record))
+            }
+            // STOP_ALL closes the file; a plain STOP closes one run with more to come.
+            encoder.write(timerEvent(segment.records.last().timestamp, if (isLast) EventType.STOP_ALL else EventType.STOP))
+        }
 
         return encoder.close()
     }

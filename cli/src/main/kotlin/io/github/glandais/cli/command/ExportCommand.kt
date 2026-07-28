@@ -231,7 +231,8 @@ class ExportCommand : Callable<Int> {
         fitOut?.let { target ->
             val file = naming.resolve(target, "fit")
             file.absoluteFile.parentFile?.mkdirs()
-            file.writeBytes(paths.first().toFitBytes(input.nameWithoutExtension, start!!))
+            // Every track goes into the one FIT file, as a lap each (task g25).
+            file.writeBytes(paths.toFitBytes(input.nameWithoutExtension, start!!))
             if (!quiet) out.println("  wrote ${file.path}")
         }
     }

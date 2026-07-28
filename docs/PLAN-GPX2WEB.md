@@ -70,7 +70,7 @@ ce plan, 4 cibles avec Kotlin/Wasm ; la cible a depuis été retirée du projet)
 | g22 | Ponts JVM `Blocking` / `Async` pour les API `suspend` | `:gpx` `:engine` `:elevation` | ✅ |
 | g23 | Option d'écriture des `<extensions>` GPX | `:gpx` `:cli` | ✅ |
 | g24 | Lecture / écriture des GPX `<rte>` / `<rtept>` | `:gpx` | ✅ |
-| g25 | FIT multi-`Path` + contrat de timestamp | `:fit` `:cli` | ⬜ |
+| g25 | FIT multi-`Path` + contrat de timestamp | `:fit` `:cli` | ✅ |
 | g26 | Port de `GPXDataComputer.getWind` | `:engine` | ⬜ |
 | g27 | `@JvmOverloads` sur l'API publique | tous | ⬜ |
 

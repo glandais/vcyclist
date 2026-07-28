@@ -280,7 +280,8 @@ class EnhanceCommand : Callable<Int> {
         fitOut?.let { target ->
             val file = naming.resolve(target, "fit")
             file.absoluteFile.parentFile?.mkdirs()
-            file.writeBytes(enhanced.first().toFitBytes(input.nameWithoutExtension, start!!))
+            // Every track goes into the one FIT file, as a lap each (task g25).
+            file.writeBytes(enhanced.toFitBytes(input.nameWithoutExtension, start!!))
             if (!quiet) out.println("  wrote ${file.path}")
         }
     }

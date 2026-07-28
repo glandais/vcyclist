@@ -5,6 +5,7 @@ import io.github.glandais.elevation.MathConstants
 import io.github.glandais.engine.path.Path
 import java.io.ByteArrayInputStream
 import kotlin.test.Test
+import kotlin.test.assertContentEquals
 import kotlin.test.assertEquals
 import kotlin.test.assertNull
 import kotlin.test.assertTrue
@@ -203,5 +204,43 @@ class FitRoundTripTest {
         assertTrue(
             path.toFitBytes("determinism", start).contentEquals(path.toFitBytes("determinism", start)),
         )
+    }
+
+    // --- g25: several paths in one file -------------------------------------------------
+
+    @Test
+    fun `case 10 — three paths decode to three laps and three event pairs`() {
+        val paths = listOf(syntheticPath(5), syntheticPath(4), syntheticPath(6))
+
+        val messages = decode(paths.toFitBytes("multi", start))
+
+        assertEquals(3, messages.lapMesgs.size, "one lap per path")
+        assertEquals(15, messages.recordMesgs.size, "every point of every path")
+        val events = messages.eventMesgs
+        assertEquals(6, events.size, "a START and a STOP per path")
+        // 0 = START, 1 = STOP, 4 = STOP_ALL. Only the last run closes the file.
+        assertEquals(
+            listOf(0, 1, 0, 1, 0, 4),
+            events.map { it.eventType.value.toInt() },
+            "only the last run may carry STOP_ALL",
+        )
+    }
+
+    @Test
+    fun `case 11 — the decoded timestamps are contiguous across paths`() {
+        val paths = listOf(syntheticPath(5), syntheticPath(4))
+
+        val records = decode(paths.toFitBytes("multi", start)).recordMesgs.toList()
+
+        val timestamps = records.map { it.timestamp.date.time }
+        assertEquals(timestamps.sorted(), timestamps, "records must not go backwards")
+        assertEquals(start.toEpochMilliseconds(), timestamps.first(), "the file starts at startTime")
+    }
+
+    @Test
+    fun `case 12 — a one-path list encodes exactly like the single-path overload`() {
+        val path = syntheticPath(5)
+
+        assertContentEquals(path.toFitBytes("one", start), listOf(path).toFitBytes("one", start))
     }
 }

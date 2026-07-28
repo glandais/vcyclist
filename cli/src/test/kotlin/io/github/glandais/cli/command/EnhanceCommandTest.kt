@@ -1,5 +1,6 @@
 package io.github.glandais.cli.command
 
+import com.garmin.fit.FitDecoder
 import io.github.glandais.cli.ExitCodes
 import io.github.glandais.cli.RootCommand
 import io.github.glandais.engine.gpx.GpxParser
@@ -391,5 +392,34 @@ class EnhanceCommandTest {
                 .first()
                 .size >= 2,
         )
+    }
+
+    @Test
+    fun `case 21 — a multi-track GPX produces one FIT file with one lap per track`() {
+        val input = File(work, "two-tracks.gpx")
+        input.writeText(
+            """<?xml version="1.0" encoding="UTF-8"?>
+<gpx version="1.1" xmlns="http://www.topografix.com/GPX/1/1">
+  <trk><name>one</name><trkseg>
+    <trkpt lat="46.5000" lon="10.4000"><ele>1000</ele></trkpt>
+    <trkpt lat="46.5090" lon="10.4000"><ele>1050</ele></trkpt>
+  </trkseg></trk>
+  <trk><name>two</name><trkseg>
+    <trkpt lat="45.0000" lon="6.0000"><ele>500</ele></trkpt>
+    <trkpt lat="45.0090" lon="6.0000"><ele>540</ele></trkpt>
+  </trkseg></trk>
+</gpx>
+""",
+        )
+        val fit = File(work, "out.fit")
+
+        val result = run("enhance", input.path, "--fit", fit.path, "--start-time", "2026-08-01T08:00:00Z")
+
+        assertEquals(0, result.code, result.err)
+        assertTrue(fit.isFile, "no FIT written")
+        // Pre-g25 only the first track was encoded, silently dropping the second.
+        val messages = FitDecoder().decode(fit.inputStream())
+        assertEquals(2, messages.lapMesgs.size, "one lap per track")
+        assertEquals(4, messages.eventMesgs.size, "a START and a STOP per track")
     }
 }
