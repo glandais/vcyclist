@@ -191,6 +191,13 @@ bump with `[skip ci]` and pushes it back to `develop`).
   That directory is added as an extra `commonTest` source dir by **both** `gpx/build.gradle.kts`
   and `engine/build.gradle.kts` : KMP has no `java-test-fixtures`, and `:engine`'s parity /
   JS-façade tests need the same strings.
+- **Java sources in `src/jvmTest/java/`** are compiled and run as part of `jvmTest` (`:elevation`,
+  `:gpx`, `:engine` each have some since g22). They exist to pin *Java callability*, which no
+  Kotlin test can check — from Kotlin every call compiles whether the JVM bridges and
+  `@JvmOverloads` exist or not. The KMP JVM target runs **JUnit 4** (no `useJUnitPlatform()`), so
+  use `org.junit.Test` and `org.junit.Assert.*` there, not JUnit 5. Kotlin and Java sources of a
+  test compilation see each other, so anything Java cannot express (a `suspend` lambda, a default
+  argument) goes in a `JvmBridgeFixtures` object next to it.
 
 ### Numerical tolerances
 
@@ -237,6 +244,28 @@ TS side per the checklist at the end of `docs/parity.md`.
 3. Add it to `CoursePhysics` if it's a 1ˢᵗ-class strategy, or instantiate it ad-hoc in tests
    and the Enhancer.
 4. Add tests in `engine/src/commonTest/.../physics/` covering the formula at sentinel inputs.
+
+### Adding a public `suspend` function
+
+Anything `suspend` on the public surface needs a JVM bridge, or Java consumers cannot call it at
+all (a `Continuation` is not something anyone writes by hand). Task g22 set the convention — two
+shapes, named identically everywhere:
+
+| Shape | Suffix | Returns |
+|---|---|---|
+| Blocking | `…Blocking` | the value, exceptions unchanged |
+| Asynchronous | `…Async` | `CompletableFuture<T>`, cancellation propagated to the coroutine |
+
+1. Add them to the module's `…Jvm.kt` file in `jvmMain` (`ElevationProviderJvm`,
+   `ElevationStepJvm`, `EnhancerJvm`) — top-level functions under `@file:JvmName(...)`, so Java
+   sees a static utility class rather than `Xxx.INSTANCE` as the first argument.
+2. `…Async` takes `executor: Executor? = null` (JDK type, not `CoroutineDispatcher`: Java callers
+   have executors, and the coroutines dependency stays `implementation`). `null` means
+   `Dispatchers.IO`.
+3. `@JvmOverloads` on anything with a default, and a Java test in `src/jvmTest/java/`.
+
+Nothing JVM-only goes into `commonMain`, and the `suspend` original stays as it is — the bridge
+is an addition, never a replacement.
 
 ### Touching `Enhancer`
 

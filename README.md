@@ -131,6 +131,53 @@ suspend fun virtualize(xml: String): String {
 }
 ```
 
+### Use from Java
+
+The library is Kotlin-first, so its asynchronous entry points — elevation lookups and the
+`Enhancer` pipeline that may call them — are `suspend` functions. From Java that would mean
+hand-writing a `Continuation`, so each of them has a JVM bridge in two shapes:
+
+| Shape | Suffix | Returns | For |
+|---|---|---|---|
+| Blocking | `…Blocking` | the value | batch jobs, CLIs, tests |
+| Asynchronous | `…Async` | `CompletableFuture<T>` | servers, UIs |
+
+```java
+import io.github.glandais.elevation.ElevationProvider;
+import io.github.glandais.elevation.ElevationProviderConfig;
+import io.github.glandais.engine.EnhancerJvm;
+import io.github.glandais.engine.gpx.GpxParser;
+import io.github.glandais.engine.gpx.GpxToPathKt;
+import io.github.glandais.engine.gpx.GpxWriter;
+import io.github.glandais.engine.path.Path;
+
+String xml = Files.readString(java.nio.file.Path.of("route.gpx"));
+Path input = GpxToPathKt.firstTrackAsPath(GpxParser.INSTANCE.parse(xml, true));
+
+// Physics only, nothing touches the network:
+Path enhanced = EnhancerJvm.enhanceCourseDefaultBlocking(input);
+
+// Or with elevation correction, off the calling thread:
+ElevationProvider provider = new ElevationProvider(new ElevationProviderConfig(...));
+CompletableFuture<Path> future = EnhancerJvm.enhanceCourseDefaultAsync(input, provider);
+
+// name / trackName / startTime have Kotlin defaults, which Java cannot use — spell them out:
+String out = GpxWriter.INSTANCE.write(enhanced, "virtualized", null, null);
+```
+
+The bridges are `ElevationStepJvm` (`:gpx`), `EnhancerJvm` (`:engine`) and
+`ElevationProviderJvm` (`:elevation`).
+
+- `…Blocking` parks the calling thread. **Never call it from a UI thread, from inside a
+  coroutine, or from a thread of the executor you passed** — the first two freeze the caller,
+  the third can deadlock the pool. Exceptions propagate unchanged.
+- `…Async` takes an optional `java.util.concurrent.Executor` (default: the coroutines IO
+  dispatcher, the right pool for network-bound work). Cancelling the returned future cancels the
+  work underneath; failures arrive as a `CompletionException`, so unwrap with `getCause()`.
+- Everything else in the library is already synchronous and needs no bridge: `GpxParser`,
+  `GpxWriter`, `ElevationStep.smoothElevation`, `PathSimplifier`, the resamplers, FIT and the
+  CSV / JSON writers.
+
 ### Use from JavaScript / TypeScript
 
 `generateTypeScriptDefinitions()` is enabled on `js(IR)`, so you get a `.d.ts` next to the

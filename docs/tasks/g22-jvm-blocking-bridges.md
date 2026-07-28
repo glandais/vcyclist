@@ -113,12 +113,81 @@ Modifiés :
 
 ## Done when
 
-- [ ] `Blocking` + `Async` sur `fixElevation`, `Enhancer` (×3) et `ElevationProvider` (×2)
-- [ ] Annulation de la `CompletableFuture` propagée à la coroutine, testée
-- [ ] Aucune dépendance JVM ajoutée à un `commonMain`
-- [ ] Tests écrits **en Java**, verts
-- [ ] Section « Utilisation depuis Java » dans le `README.md`
-- [ ] `./gradlew check` + `ktlintCheck` verts
+- [x] `Blocking` + `Async` sur `fixElevation`, `Enhancer` (×3) et `ElevationProvider` (×2)
+- [x] Annulation de la `CompletableFuture` propagée à la coroutine, testée
+- [x] Aucune dépendance JVM ajoutée à un `commonMain`
+- [x] Tests écrits **en Java**, verts
+- [x] Section « Utilisation depuis Java » dans le `README.md`
+- [x] `./gradlew check` + `ktlintCheck` verts
+
+## Résultat
+
+### API
+
+Trois fichiers `jvmMain`, 11 fonctions :
+
+- `ElevationProviderJvm` (`:elevation`) — `getElevationBlocking`, `setElevationsBlocking`,
+  `getElevationAsync`, `setElevationsAsync`. Fonctions d'**extension** sur `ElevationProvider` :
+  la classe est instanciable, le receveur se lit naturellement depuis Java
+  (`ElevationProviderJvm.getElevationBlocking(provider, lat, lon)`).
+- `ElevationStepJvm` (`:gpx`) — `fixElevationBlocking`, `fixElevationAsync`.
+- `EnhancerJvm` (`:engine`) — `enhanceCourseBlocking`, `enhanceCourseDefaultBlocking`,
+  `enhanceCoursesBlocking` + les trois `Async`.
+
+### Écarts assumés par rapport au spec
+
+- **Top-level + `@file:JvmName`, pas des extensions, pour `ElevationStep` et `Enhancer`.** Ce sont
+  des `object`, et une extension sur un `object` s'appelle
+  `ElevationStepJvmKt.fixElevationBlocking(ElevationStep.INSTANCE, …)` depuis Java — exactement la
+  friction que cette tâche existe pour supprimer. Java voit maintenant une classe utilitaire
+  statique : `ElevationStepJvm.fixElevationBlocking(path, provider)`. Les extensions sont
+  conservées là où le receveur est une vraie instance (`ElevationProvider`).
+- **`Executor?` plutôt que `CoroutineDispatcher`** dans les signatures `Async`. Deux raisons : un
+  appelant Java a des `Executor`, pas des dispatchers ; et `kotlinx-coroutines-core` est déclaré
+  en `implementation` dans les `commonMain`, donc l'exposer en signature publique aurait imposé la
+  dépendance au classpath de compilation des consommateurs. `null` (défaut) = `Dispatchers.IO`.
+- **`@JvmOverloads` posé dès maintenant** sur ces 11 fonctions, alors que g27 traite le sujet
+  globalement : un pont dont les paramètres optionnels ne sont pas appelables depuis Java ne sert
+  à rien. g27 n'aura pas à y revenir.
+
+### Décisions de conception
+
+- **`kotlinx.coroutines.future.future` est bien dans le core 1.11** — vérifié dans le jar
+  (`kotlinx/coroutines/future/FutureKt.class`, le module `jdk8` y est fusionné depuis 1.7).
+  Aucune dépendance ajoutée, ni en `jvmMain` ni ailleurs.
+- **Pas de `GlobalScope`** : chaque `Async` crée un `CoroutineScope(dispatcher + SupervisorJob())`
+  local et passe par `scope.future { … }`, qui câble l'annulation dans les deux sens — annuler la
+  future annule la coroutine. C'est testé, pas supposé (cas 4).
+- **Helper `jvmFuture` privé, dupliqué trois fois.** Six lignes par module ; le partager aurait
+  demandé soit une fonction publique existant uniquement pour être partagée, soit une dépendance
+  inter-modules pour rien.
+- **Tests JUnit 4, pas JUnit 5.** Les modules KMP n'appellent pas `useJUnitPlatform()`, donc
+  `kotlin("test")` y résout `kotlin-test-junit` : les sources Java doivent utiliser `org.junit`.
+  Noté dans `CLAUDE.md` § *Testing* pour la prochaine fois.
+- **Les fixtures des tests Java sont en Kotlin** (`JvmBridgeFixtures`) : le `fetcher` d'un
+  `ElevationProvider` est un `suspend (String) -> RawTile`, qui n'a pas de littéral Java. Le fait
+  même que la fixture doive être écrite en Kotlin est une illustration du problème que la tâche
+  traite.
+
+### Vérification
+
+- 15 tests, tous en **source Java** : `ElevationProviderJavaTest` (7),
+  `ElevationStepJavaTest` (3), `EnhancerJavaTest` (4), `ReadmeJavaSnippetTest` (1).
+- Le test d'annulation attend que la coroutine soit *entrée* dans le fetch (`CompletableDeferred`)
+  avant d'annuler, puis vérifie que le `catch (CancellationException)` a bien été traversé — pas
+  de `sleep` arbitraire, pas de faux vert possible.
+- `ReadmeJavaSnippetTest` compile et exécute l'exemple Java du `README.md`. Un exemple qui ne
+  compile pas est pire que pas d'exemple, et c'est le seul moyen de le savoir : il a d'ailleurs
+  fallu corriger le nombre d'arguments de `GpxWriter.write` en l'écrivant.
+- `./gradlew check` + `ktlintCheck` verts. Les cibles JS/Node et JS/navigateur sont inchangées :
+  rien de JVM n'a fui dans un `commonMain` (cas 7).
+
+### Bénéfice inattendu
+
+Écrire les tests en Java a immédiatement produit deux illustrations concrètes pour **g27** :
+`GpxParser.parse(xml)` et `new LatLon(lat, lon)` ne compilent pas depuis Java faute de
+`@JvmOverloads`, et les tests doivent épeler `parse(xml, true)` / `new LatLon(lat, lon, null)`.
+Ces appels sont commentés comme tels dans les sources — ils deviendront le premier diff de g27.
 
 ## Notes
 
