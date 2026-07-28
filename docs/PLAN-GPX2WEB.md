@@ -22,7 +22,7 @@ vcyclist/
 ├─ :elevation   KMP   inchangé
 ├─ :gpx         KMP   Path + PointField + GPX I/O + waypoints + repair + exports CSV/JSON
 ├─ :engine      KMP   physique + Enhancer + détection de cols   →  api(project(":gpx"))
-├─ :fit         KMP   com.garmin:fit (JVM) / @garmin/fitsdk (JS + Wasm)
+├─ :fit         KMP   com.garmin:fit (JVM) / @garmin/fitsdk (JS)
 ├─ :map         JVM   cartes statiques (java.awt / ImageIO)
 ├─ :cli         JVM   picocli — remplace gpxtools-cli
 ├─ :codegen     JVM   génère désormais dans :gpx
@@ -30,7 +30,8 @@ vcyclist/
 ```
 
 Les briques JVM-only (`:map`, `:cli`) sont **isolées dans leurs propres modules** pour que le
-cœur (`:elevation`, `:gpx`, `:engine`, `:fit`) reste compilable sur les 4 cibles.
+cœur (`:elevation`, `:gpx`, `:engine`, `:fit`) reste compilable sur les 3 cibles (à l'époque de
+ce plan, 4 cibles avec Kotlin/Wasm ; la cible a depuis été retirée du projet).
 
 ## Avancement
 
@@ -65,11 +66,15 @@ cœur (`:elevation`, `:gpx`, `:engine`, `:fit`) reste compilable sur les 4 cible
 | g19 | Publication des nouveaux artefacts (npm + Maven Central) | tous | ✅ |
 | g20 | Matrice de correspondance gpx2web → vcyclist | docs | ✅ |
 
+> g09 a livré `@garmin/fitsdk` sur JS **et** Kotlin/Wasm. La cible Kotlin/Wasm a depuis été
+> retirée du projet (Kotlin/Wasm n'est pas WASI et a de toute façon besoin d'un runtime JS, ce
+> que Kotlin/JS couvre déjà) ; `:fit` ne compile plus que pour JVM, JS Node et JS browser.
+
 ## Décisions actées
 
 | Sujet | Décision |
 |---|---|
-| Écriture FIT | Module KMP `:fit`. JVM → `com.garmin:fit:21.205.0` (Maven Central). JS + Wasm → `@garmin/fitsdk` (classe `Encoder`). Interface `expect` **haut niveau** (`Path` → `ByteArray`), les deux SDK n'ayant aucune API commune. |
+| Écriture FIT | Module KMP `:fit`. JVM → `com.garmin:fit:21.205.0` (Maven Central). JS → `@garmin/fitsdk` (classe `Encoder`). Interface `expect` **haut niveau** (`Path` → `ByteArray`), les deux SDK n'ayant aucune API commune. |
 | Détection de cols | commonMain, plus façade JS et affichage dans la démo. |
 | Cartes statiques | Port JVM-only fidèle (`java.awt`), module `:map` isolé. |
 | Exports tabulaires | CSV + JSON en commonMain. **XLSX abandonné.** |
@@ -114,10 +119,11 @@ les divergences de comportement assumées et les options pour le sort de la weba
 - ~~**g02 / rupture de la façade JS**~~ — **évité** : `parseGpx` est restée intacte et
   `parseGpxTracks` / `parseGpxSegments` / `writeGpxTracks` ont été ajoutées à côté. Le diff des
   `.d.ts` contre g01 est purement additif, la démo n'a pas bougé d'une ligne.
-- ~~**g09 / `@garmin/fitsdk` en Wasm**~~ — **levé** : le paquet se charge et tourne en Karma
-  headless Chrome sur les deux cibles web. Pas d'`externals.js` : contrairement à
-  `@jsquash/webp` c'est du JavaScript pur, donc il est bundlé normalement et ressort en
-  dépendance npm épinglée des paquets publiés.
+- ~~**g09 / `@garmin/fitsdk` en Wasm**~~ — **levé** : le paquet se chargeait et tournait en Karma
+  headless Chrome sur les deux cibles web (JS et Kotlin/Wasm). Pas d'`externals.js` : contrairement
+  à `@jsquash/webp` c'est du JavaScript pur, donc il est bundlé normalement et ressort en
+  dépendance npm épinglée des paquets publiés. La cible Kotlin/Wasm a depuis été retirée du
+  projet ; ce risque ne concerne plus que la cible JS restante.
 - ~~**Phase F / `java.awt`**~~ — **levé pour g13** : `:map` utilise le plugin `kotlin-jvm`, n'a
   pas de `commonMain`, et rien ne dépend de lui (vérifié). `./gradlew check` reste vert et
   multi-cibles sur le cœur. Le bloc `mavenPublishing` fonctionne tel quel sur un module non-KMP.

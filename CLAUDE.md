@@ -14,18 +14,18 @@ The port is structured as:
 
 - `:elevation` — DEM tile fetching + 3D geometry utilities (Phase 1, tasks 00-09 ; Phase 3
   task 32 added Node.js / Bun support via runtime-detection in `TileFetcher.js.kt` + the
-  `@jsquash/webp` WASM decoder).
+  `@jsquash/webp` WASM decoder, a third-party WebP codec unrelated to the Kotlin/Wasm target).
 - `:gpx` — Path model (`Path`, `PointField`, resamplers, `PathSimplifier`, `ElevationStep`) +
   GPX I/O, extracted from `:engine` by gpx2web task g01. **Package names are unchanged**
   (`io.github.glandais.engine.path.*`, `io.github.glandais.engine.gpx.*`) — only the Gradle
   module that hosts them moved. Published to Maven Central as `vcyclist-gpx`, **not** to npm.
-- `:engine` — physics + `Enhancer` pipeline + CLI + JS/Wasm façades (Phase 2, tasks 10-28 +
+- `:engine` — physics + `Enhancer` pipeline + CLI + JS façades (Phase 2, tasks 10-28 +
   Phase 2bis 29-31 + Phase 3 task 33 = Node integration tests + `ElevationProvider` plumbing
   in `EngineJsApi.enhance` for `fixElevation: true`). Does `api(project(":gpx"))`, so
   consumers of `:engine` keep seeing the whole Path + GPX surface.
 - `:map` — **JVM-only** static map rendering: Web Mercator projection (`MapSpace`) and image
   framing (`MapImage`), on `java.awt` / `ImageIO`. Uses the `kotlin-jvm` plugin, not KMP, so it
-  has no `commonMain` and the four-target invariant is untouched — but **nothing may depend on
+  has no `commonMain` and the three-target invariant is untouched — but **nothing may depend on
   it**: the arrow only points from `:map` into `:gpx` / `:elevation`.
 - `:cli` — **JVM-only** command-line tool on picocli, replacing gpx2web's `gpxtools-cli`.
   Deliberately **not** published to Maven Central: it is an application, distributed as an
@@ -51,14 +51,13 @@ From the `vcyclist/` root :
 
 ```bash
 ./gradlew check                          # full build + tests on all targets
-./gradlew :engine:allTests               # engine tests (JVM + JS Node + JS browser + Wasm browser)
+./gradlew :engine:allTests               # engine tests (JVM + JS Node + JS browser)
 ./gradlew :gpx:allTests                  # Path model + GPX I/O tests (same targets)
 ./gradlew :map:test                      # static map rendering (JVM only)
 ./gradlew :cli:test                      # CLI option parsing (JVM only)
 ./gradlew :cli:run -Pargs="--help"       # run the CLI
 ./gradlew :elevation:allTests            # elevation tests (same targets)
 ./gradlew :engine:jvmTest                # JVM only (fast iteration)
-./gradlew :engine:wasmJsBrowserTest      # Wasm browser tests in headless Chrome (Karma)
 ./gradlew :engine:jsBrowserTest          # JS browser tests in headless Chrome
 ./gradlew :engine:jsNodeTest             # JS Node tests
 ./gradlew ktlintCheck                    # lint
@@ -70,9 +69,7 @@ INTEGRATION=1 ./gradlew :elevation:jvmTest --tests '*Integration*'   # live HTTP
 Browser demos (in `:elevation`) :
 
 ```bash
-./gradlew :elevation:wasmJsBrowserDevelopmentRun   # Wasm demo with hot-reload
 ./gradlew :elevation:jsBrowserDevelopmentRun       # Kotlin/JS demo with hot-reload
-./gradlew :elevation:wasmJsBrowserDistribution     # static dist → build/dist/wasmJs/productionExecutable/
 ./gradlew :elevation:jsBrowserDistribution         # static dist → build/dist/js/productionExecutable/
 ```
 
@@ -115,21 +112,21 @@ Browser demos (in `:elevation`) :
 - Conventions : resistive powers are **negative**, cyclist input is **positive**, gravity is
   negative climbing / positive descending.
 
-### Kotlin/Wasm ↔ JS interop
+### Kotlin/JS ↔ JS interop
 
 The patterns for `@JsExport` façades and WebP decoding are documented exhaustively in
-[`docs/kotlin-wasm-jvm-webp.md`](docs/kotlin-wasm-jvm-webp.md). **Always read this guide
-before touching `wasmJsMain/` or `jsMain/` code.** Key points :
+[`docs/kotlin-js-jvm-webp.md`](docs/kotlin-js-jvm-webp.md). **Always read this guide
+before touching `jsMain/` code.** Key points :
 
-- Kotlin/Wasm 2.3 restricts `@JsExport` to **top-level functions**. Use a `JsReference<T>`
-  opaque handle for class-like APIs.
-- DTOs : `external interface … : JsAny` (Wasm) vs `external interface …` (Kotlin/JS).
-- Build outputs : `js("({})")` + `unsafeCast` (Kotlin/JS) vs `@JsFun("(…) => ({ … })")` (Wasm).
+- DTOs : `external interface …` for the exported JS-facing types.
+- Build outputs : `js("({})")` + `unsafeCast` to assemble plain JS objects from Kotlin/JS.
 - `suspend` → wrap in `Promise<T>` via `GlobalScope.promise { … }` (`@OptIn(DelicateCoroutinesApi)`).
+- WebP decoding on JS relies on `@jsquash/webp`, which itself loads a `.wasm` binary at
+  runtime — that third-party codec is unrelated to (and unaffected by) the removal of the
+  Kotlin/Wasm compilation target.
 
 The complete reference façades are :
 
-- `elevation/src/wasmJsMain/.../ElevationJsApi.kt` + `engine/src/wasmJsMain/.../EngineJsApi.kt`
 - `elevation/src/jsMain/.../ElevationJsApi.kt` + `engine/src/jsMain/.../EngineJsApi.kt`
 
 ## Task workflow
@@ -197,7 +194,7 @@ bump with `[skip ci]` and pushes it back to `develop`).
 
 ### Numerical tolerances
 
-Two `sin`/`cos`/`atan2`/`sqrt` implementations across libc / JS / Wasm produce slightly
+Two `sin`/`cos`/`atan2`/`sqrt` implementations across libc / JS produce slightly
 different ULPs. Use these tolerances :
 
 - Trivial constants : `1e-12`.
@@ -253,7 +250,7 @@ the GPX output makes sense.
 - Don't modify the sibling reference projects (`../virtual-cyclist`, `../elevation`,
   `../gpx2web`). They are read-only inspiration.
 - Don't add JVM-only dependencies to `commonMain` source sets. Anything in `commonMain` must
-  compile on JVM + JS Node + JS browser + Wasm browser.
+  compile on JVM + JS Node + JS browser.
 - Don't bypass `Path`'s generated accessors by writing into `data` directly. The accessors
   are the only sanctioned API.
 - Don't introduce floating-point comparisons via `==` on `Double` — always use a tolerance,
@@ -271,7 +268,7 @@ the GPX output makes sense.
 - Gradle 9.5.0 (wrapper)
 - Kotlin 2.3.21 (KMP)
 - kotlinx-coroutines 1.11.0
-- kotlinx-browser 0.5.0 (js + wasmJs)
+- kotlinx-browser 0.5.0 (js)
 - xmlutil 0.91.3 (multi-target XML)
 - TwelveMonkeys imageio-webp 3.13.1 (JVM WebP)
 - ktlint 14.2.0
@@ -282,7 +279,7 @@ the GPX output makes sense.
 |---|---|
 | What is task N about ? | `docs/tasks/N-slug.md` (and the `Avancement` table in `docs/PLAN.md`) |
 | Why this design decision ? | The relevant task markdown's "Notes" section, or `docs/PLAN.md` if architectural |
-| How does Kotlin/Wasm export this type ? | `docs/kotlin-wasm-jvm-webp.md` |
+| How does Kotlin/JS export this type ? | `docs/kotlin-js-jvm-webp.md` |
 | What's the TS equivalent of `<class>` ? | Same name in `../virtual-cyclist/src/` — Kotlin file's KDoc names the TS source |
 | Why does this fixture have these numbers ? | `engine/src/commonTest/.../parity/ParityFixtures.kt` + `docs/parity.md` |
 | Why is `time(0) = 0` ? | `VirtualizeService.kt` KDoc (relative-time simulation) |

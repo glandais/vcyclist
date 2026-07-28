@@ -100,8 +100,8 @@ class FitEncoderJsTest {
 
     @Test
     fun `Kotlin_JS reproduces the committed web reference bytes`() {
-        // Same fixture the Wasm target asserts against — that shared expectation is what keeps
-        // the two hand-written `actual`s from drifting in field order or units.
+        // Committed alongside the JVM reference bytes so a drift in field order or units shows
+        // up as a byte diff instead of silently shipping a different file.
         assertTrue(
             FitEncoder.encode(FitReferenceCourse.build()).contentEquals(FitReferenceBytes.WEB),
             "Kotlin/JS output diverged from the committed reference bytes",

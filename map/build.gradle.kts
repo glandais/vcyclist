@@ -25,9 +25,9 @@ tasks.withType<Test>().configureEach {
 }
 
 // The FIRST JVM-only module in the repo. `:map` renders with java.awt / ImageIO, which have no
-// Kotlin/JS or Wasm equivalent, so it deliberately does not use the multiplatform plugin.
+// Kotlin/JS equivalent, so it deliberately does not use the multiplatform plugin.
 //
-// The invariant that commonMain compiles on four targets is not at risk — `:map` has no
+// The invariant that commonMain compiles on three targets is not at risk — `:map` has no
 // commonMain — but nothing in `:gpx`, `:engine` or `:fit` may ever depend on it. The dependency
 // only points this way.
 // Maven Central publication (coordinates, POM, signing) is configured once for every

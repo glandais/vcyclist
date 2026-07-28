@@ -4,10 +4,10 @@ package io.github.glandais.fit
  * FIT global message numbers and the enum wire values this port emits.
  *
  * The Java SDK hides these behind typed classes (`RecordMesg`, `Sport.CYCLING`, …), but the
- * JavaScript SDK addresses messages by number and fields by name, so the JS and Wasm encoders
- * need the raw values. Keeping them in commonMain — rather than inline in each `actual` — is
- * what stops the two web encoders from drifting apart, and [FitMessageNumbersTest] pins them
- * against the FIT profile.
+ * JavaScript SDK addresses messages by number and fields by name, so the JS encoder needs the
+ * raw values. Keeping them in commonMain — rather than inline in the `actual` — is what stops
+ * the JVM and JS encoders from drifting apart, and [FitMessageNumbersTest] pins them against
+ * the FIT profile.
  *
  * Values verified against `@garmin/fitsdk@21.205.0`'s `Profile.MesgNum`.
  */

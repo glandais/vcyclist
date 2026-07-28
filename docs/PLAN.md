@@ -13,7 +13,14 @@ Le projet TypeScript `virtual-cyclist` (simulateur de cyclisme basé physique av
 - Modèle Path : **DoubleArray plat + getters générés** (codegen, comme la version TS)
 - Focus initial sur le **module engine** ; demo abordée brièvement en fin de plan
 
-**Choix techniques pour interop & WebP** (cf. `kotlin-wasm-jvm-webp.md` à la racine du repo, source de vérité) :
+> **Note (postérieure à ce plan)** : la cible Kotlin/Wasm décrite dans ce chapitre (cibles
+> engine, démo Compose, choix WebP, `wasmJsMain`) a depuis été **retirée du projet**. Kotlin/Wasm
+> n'est pas WASI et a de toute façon besoin d'un runtime JS pour tourner dans un navigateur — ce
+> que la cible Kotlin/JS, déjà présente, couvre. Les paragraphes ci-dessous sont conservés tels
+> qu'écrits au moment de la décision initiale ; la cible réelle du projet est désormais **JVM,
+> JS (Node), JS (browser)**.
+
+**Choix techniques pour interop & WebP** (cf. `kotlin-js-jvm-webp.md` à la racine du repo, source de vérité) :
 - **KMP avec `expect`/`actual`** pour tout ce qui touche au runtime (fetch HTTP, décodage tuile, IO fichier).
 - **Décodage WebP des tuiles Terrarium** :
   - JVM : **TwelveMonkeys ImageIO** (`com.twelvemonkeys.imageio:imageio-webp:3.12.0`), pur Java, SPI, déploiement trivial.
@@ -45,7 +52,7 @@ Le projet TypeScript `virtual-cyclist` (simulateur de cyclisme basé physique av
 | 08 | Flux + ElevationCalculator + BatchCalculator + ElevationProvider | ✅ | `409ed40` + `78a93b9` + `325add2` | 33 |
 | **— Phase 1 (module `:elevation`) terminée —** | | | | |
 | 09 | Intégration HTTP réelle (tuiles mapterhorn, gated `INTEGRATION=1`) | ✅ | `ad2837b` | 6 (jvmTest, opt-in) |
-| ★ | **Bonus** — WASM browser demo + `@JsExport` façade `ElevationJsApi` | ✅ | `a095ff8` | — (smoke E2E Mont Blanc ≈ 4757 m) |
+| ★ | **Bonus** — WASM browser demo + `@JsExport` façade `ElevationJsApi` | ✅ | `a095ff8` | — (smoke E2E Mont Blanc ≈ 4757 m) — *cible Kotlin/Wasm retirée depuis (Kotlin/Wasm n'est pas WASI, Kotlin/JS couvre déjà le browser)* |
 | ★ | **Bonus** — Kotlin/JS browser demo (sibling of WASM, same UI) | ✅ | `3090acf` + `0bb2a34` | — (smoke E2E Chrome : sample.gpx 1053 pts / 64 tuiles, Mont Blanc = 4756.57 m, parité Wasm) |
 | 10 | Engine — `PointField` + `PointFieldCategory` (36 champs / 14 catégories) | ✅ | `2d20d4a` | 16 (×3 targets = 48) |
 | 11 | Engine — `GeneratedPath` codegen (sous-projet `:codegen`) + `PointFieldAccessors` | ✅ | `97ed1d9` | 9 (×3 targets = 27) |
@@ -65,7 +72,7 @@ Le projet TypeScript `virtual-cyclist` (simulateur de cyclisme basé physique av
 | 25 | Engine — `Enhancer` (pipeline orchestrator) | ✅ | `fad5e96` | 12 (×3 targets = 36) |
 | 26 | Engine — parity fixtures (self-referential regression baseline) | ✅ | `c1b06c1` | 9 (×3 targets = 27) |
 | 27 | Engine — `EngineCli` JVM smoke entry point + Gradle `run` task | ✅ | — | 5 (jvmTest only) |
-| 28 | Engine — `@JsExport` façade (JS Node + Wasm browser) + `.d.ts` | ✅ | — | 3 (jsTest + wasmJsTest + jsBrowserTest, smoke) |
+| 28 | Engine — `@JsExport` façade (JS Node + Wasm browser) + `.d.ts` | ✅ | — | 3 (jsTest + wasmJsTest + jsBrowserTest, smoke) — *cible Kotlin/Wasm retirée depuis, voir note en tête de document* |
 | **— Phase 2 (module `:engine`, tâches 10-28) terminée —** | | | | |
 | **— Phase 2bis : correction des bugs résiduels —** | | | | |
 | 29 | Engine — `VirtualizeService` : normaliser `time(0)=0` + propager `time(n-1)` cohérent | ✅ | `d80d56d` | 2 (×3 targets = 6) |
@@ -136,9 +143,9 @@ const out = await enhance(path, { fixElevation: true })   // tire les tuiles Ter
 const xml = writeGpx(out)
 ```
 
-et obtenir un GPX corrigé du DEM. Le navigateur (Wasm + Kotlin/JS) reste fonctionnel à l'identique (la branche `decodeBrowser` est inchangée). Le bundle browser ne pulle pas `@jsquash/webp` (webpack externals + `eval('require')`). Pour valider manuellement sous Bun (hors CI) : compiler le bundle Node puis `INTEGRATION=1 bun run engine/build/.../productionExecutable/.../vcyclist-engine.mjs`.
+et obtenir un GPX corrigé du DEM. Le navigateur (à l'époque Wasm + Kotlin/JS, aujourd'hui Kotlin/JS seul — la cible Kotlin/Wasm a depuis été retirée du projet) reste fonctionnel à l'identique (la branche `decodeBrowser` est inchangée). Le bundle browser ne pulle pas `@jsquash/webp` (webpack externals + `eval('require')`). Pour valider manuellement sous Bun (hors CI) : compiler le bundle Node puis `INTEGRATION=1 bun run engine/build/.../productionExecutable/.../vcyclist-engine.mjs`.
 
-**— Phase 2 (module `:engine`, tâches 10-28) terminée —** Le moteur Kotlin Multiplatform `:engine` est désormais complet : modèle de données (PointField + GeneratedPath + Path), modèles de domaine (Cyclist/Bike/Course/CoursePhysics), I/O GPX (parser + writer), physique (4 PowerProviders + AeroProvider + RhoProvider + WindProvider + PowerComputer + MaxSpeedComputer), simulation (VirtualizeService + PointPerSecond), post-traitement (PathSimplifier + ElevationStep), orchestration (Enhancer), CLI JVM smoke (EngineCli), et façades `@JsExport` pour JS Node + Wasm browser + JS browser. Prêt pour Phase 3 (demo Compose Multiplatform) ou intégration npm.
+**— Phase 2 (module `:engine`, tâches 10-28) terminée —** Le moteur Kotlin Multiplatform `:engine` est désormais complet : modèle de données (PointField + GeneratedPath + Path), modèles de domaine (Cyclist/Bike/Course/CoursePhysics), I/O GPX (parser + writer), physique (4 PowerProviders + AeroProvider + RhoProvider + WindProvider + PowerComputer + MaxSpeedComputer), simulation (VirtualizeService + PointPerSecond), post-traitement (PathSimplifier + ElevationStep), orchestration (Enhancer), CLI JVM smoke (EngineCli), et façades `@JsExport` pour JS Node + Wasm browser + JS browser (la cible Wasm browser a depuis été retirée du projet). Prêt pour Phase 3 (demo Compose Multiplatform) ou intégration npm.
 
 **Phase 2bis terminée (tâches 29-31)** : les 3 bugs identifiés à la fin de Phase 2 sont corrigés.
 
@@ -147,9 +154,9 @@ et obtenir un GPX corrigé du DEM. Le navigateur (Wasm + Kotlin/JS) reste foncti
 - **Bug #3 — `Enhancer` n'invoquait pas `PointPerDistance`** ✅ corrigé en tâche 31 (`6b3cca7`) : `Enhancer.enhanceCourse` exécute désormais `PointPerDistance.compute(path, -1.0, 30.0)` avant `fixElevation` (pré-densification à 30 m max pour donner à `fixElevation` une grille fine de lookup DEM) puis `PointPerDistance.compute(path, 1.0, 2.0)` après `fixElevation` mais avant `smoothElevation` (raffinage à 1-2 m pour les passes physiques aval). Les deux appels sont toujours exécutés (non-toggleable), conformément au pipeline TS. Smoke E2E sample.gpx : 3569 → 1018 pts, 128.6 km, 19 157 s simulés, 164 KiB GPX, ~1.7 s wall (très en dessous du budget 10 s ajouté à `FullPipelineSmokeTest`). 4 tests `EnhancerTest` ajustés (PointPerDistance densifie même quand les options sont off) et 4 valeurs `ParityFixtures.SAMPLE`/`GARMIN` régénérées (cf. `docs/parity.md`).
 - **Parité TS** (auto-baseline) : avec ces 3 corrections, le pipeline Kotlin reproduit fidèlement le pipeline TS (séquence `PointPerDistance` → `fixElevation` → `PointPerDistance` → `smoothElevation` → `MaxSpeedComputer` → `VirtualizeService` → `PointPerSecond` → `PathSimplifier`). La tâche 26 a posé un baseline self-referential ; il est désormais possible d'exécuter le TS hors-CI et de comparer numériquement les sorties (Phase 3 envisageable).
 
-**Critère Phase 1** : `./gradlew :elevation:allTests` vert sur JVM + JS Node + Wasm browser. ✅ Module utilisable comme dépendance via `api(project(":elevation"))` à activer en Phase 2.
+**Critère Phase 1** : `./gradlew :elevation:allTests` vert sur JVM + JS Node + Wasm browser (la cible Wasm browser a depuis été retirée du projet ; le critère actuel est JVM + JS Node + JS browser). ✅ Module utilisable comme dépendance via `api(project(":elevation"))` à activer en Phase 2.
 
-**Bonus hors plan** : le commit `a095ff8` ajoute un démonstrateur browser Kotlin/Wasm (Leaflet + Chart.js + GPX upload) et la façade `@JsExport` `ElevationJsApi` (top-level functions + `JsReference<ElevationProvider>` handle pattern + DTOs `external interface : JsAny` + `Promise<…>` via `GlobalScope.promise`). Cela **valide les patterns** documentés dans `kotlin-wasm-jvm-webp.md` et **réduit le scope de la tâche 28** (la recette est désormais éprouvée pour `:engine`). E2E vérifié contre `tiles.mapterhorn.com` (Mont Blanc ≈ 4757 m). À noter : pas de tests unitaires pour cette façade, et `GlobalScope.promise` requiert `@OptIn(DelicateCoroutinesApi)` — à traiter si publication npm.
+**Bonus hors plan** : le commit `a095ff8` ajoute un démonstrateur browser Kotlin/Wasm (Leaflet + Chart.js + GPX upload) et la façade `@JsExport` `ElevationJsApi` (top-level functions + `JsReference<ElevationProvider>` handle pattern + DTOs `external interface : JsAny` + `Promise<…>` via `GlobalScope.promise`). Cela **validait les patterns** documentés dans `kotlin-wasm-jvm-webp.md` et **réduisait le scope de la tâche 28** (la recette était éprouvée pour `:engine`). E2E vérifié contre `tiles.mapterhorn.com` (Mont Blanc ≈ 4757 m). À noter : pas de tests unitaires pour cette façade, et `GlobalScope.promise` requiert `@OptIn(DelicateCoroutinesApi)` — à traiter si publication npm. *La cible Kotlin/Wasm de ce démonstrateur a depuis été retirée du projet ; le guide est renommé `kotlin-js-jvm-webp.md` et ne couvre plus que Kotlin/JS ↔ JS interop + décodage WebP JVM/JS.*
 
 **Bonus hors plan (suite)** : un second démonstrateur browser, en **Kotlin/JS pur** (sans Wasm), est ajouté sous `elevation/src/jsMain/` (cf. `docs/tasks/bonus-elevation-js-demo.md`). Il partage l'UI complète avec la démo Wasm (`demo.css`/`demo.js`/`sample.gpx` strictement identiques) et expose une façade `@JsExport` parallèle adaptée aux conventions Kotlin/JS (pas de `JsAny`/`JsReference<T>`/`JsArray<T>` : DTOs `external interface` simples, `ElevationProvider` passé en référence directe, `Array<T>` natif). Le pipeline fetch/decode WebP utilise le même `createImageBitmap` + canvas 2D que la version Wasm. Bundle de production : ~140 KiB `elevation.js` monolithique (vs ~13 KiB loader + ~135 KiB `.wasm` côté Wasm). Tasks Gradle : `:elevation:jsBrowserDevelopmentRun` (dev server) et `:elevation:jsBrowserDistribution` (dist statique sous `build/dist/js/productionExecutable/`). `:elevation:jsBrowserTest` (Karma + Chrome headless) ajouté en complément de `:jsNodeTest`. Pas de smoke E2E HTTP automatisé — la validation manuelle se fait via `sample.gpx` chargé dans le navigateur (altitude max attendue ≈ 4757 m, même chemin algorithmique que la version Wasm).
 
@@ -172,16 +179,20 @@ et obtenir un GPX corrigé du DEM. Le navigateur (Wasm + Kotlin/JS) reste foncti
 │       └── …
 ├── elevation/                         # module Gradle KMP
 │   ├── build.gradle.kts
-│   └── src/{commonMain,jvmMain,jsMain,wasmJsMain,commonTest,jvmTest}/...
+│   └── src/{commonMain,jvmMain,jsMain,commonTest,jvmTest}/...
 ├── engine/                            # module Gradle KMP (dépend de elevation)
 │   ├── build.gradle.kts
-│   └── src/{commonMain,jvmMain,jsMain,wasmJsMain,commonTest,jvmTest}/...
+│   └── src/{commonMain,jvmMain,jsMain,commonTest,jvmTest}/...
 └── demo/                              # module Gradle Compose Multiplatform
     ├── build.gradle.kts
-    └── src/{commonMain,desktopMain,wasmJsMain}/...
+    └── src/{commonMain,desktopMain}/...
 ```
 
-Tests : chaque algorithme a son test unitaire en `commonTest` ; intégrations qui dépendent de l'environnement (HTTP, fichiers) sont en `jvmTest` (et `jsTest`/`wasmJsTest` quand pertinent). Sample data partagée via `commonTest/resources` ou ressource embarquée.
+(structure telle qu'envisagée au moment de ce plan — `wasmJsMain` figurait alors dans `:elevation`
+et `:engine`, avant le retrait de la cible Kotlin/Wasm ; la démo Compose a par ailleurs été
+abandonnée au profit d'une démo Vue/Vite, voir Phase 9)
+
+Tests : chaque algorithme a son test unitaire en `commonTest` ; intégrations qui dépendent de l'environnement (HTTP, fichiers) sont en `jvmTest` (et `jsTest` quand pertinent). Sample data partagée via `commonTest/resources` ou ressource embarquée.
 
 ---
 
@@ -216,7 +227,7 @@ Chaque `docs/tasks/NN-slug.md` suit ce format :
 - Numerical parity check (si applicable) : tolérance 1e-9 vs sortie TS
 
 ## Done when
-- [ ] Tests verts sur cibles JVM/JS/Wasm activées
+- [ ] Tests verts sur cibles JVM/JS activées
 - [ ] Coverage du nouveau code ≥ 80 %
 - [ ] Pas de warning compilateur
 - [ ] Markdown coché
@@ -243,6 +254,9 @@ Chaque `docs/tasks/NN-slug.md` suit ce format :
 - CI minimal : GitHub Actions ou script `make check` qui lance build + tests sur toutes cibles.
 - `docs/tasks/` créé, `PLAN.md` copié depuis ce plan, `kotlin-wasm-jvm-webp.md` recopié/lié dans `docs/`.
 - **Validation** : `./gradlew build` passe (modules vides) ; `:elevation:allTests` et `:engine:allTests` retournent UP-TO-DATE.
+
+*(bootstrap tel qu'exécuté à l'époque — la cible `wasmJs` a depuis été retirée du projet, et
+`kotlin-wasm-jvm-webp.md` a été renommé `kotlin-js-jvm-webp.md`, voir la note en tête de document)*
 
 ---
 
@@ -282,7 +296,7 @@ Référence canonique : `/home/glandais/code/perso/vcyclist-all/elevation/src/`.
 
 ### 06-elevation-tile-fetcher.md
 - `commonMain` : `data class RawTile(val width: Int, val height: Int, val rgba: ByteArray)` + `expect suspend fun fetchAndDecodeTile(url: String): RawTile`.
-- `actual` **JVM** : `java.net.http.HttpClient` (KMP-friendly, pas de dépendance Ktor obligatoire) + `ImageIO.read(...)` via TwelveMonkeys (SPI auto-enregistré). Décode ARGB → conversion vers `ByteArray` RGBA (pattern exact du `kotlin-wasm-jvm-webp.md` §6 jvmMain).
+- `actual` **JVM** : `java.net.http.HttpClient` (KMP-friendly, pas de dépendance Ktor obligatoire) + `ImageIO.read(...)` via TwelveMonkeys (SPI auto-enregistré). Décode ARGB → conversion vers `ByteArray` RGBA (pattern exact du `kotlin-js-jvm-webp.md` §6 jvmMain).
 - `actual` **Wasm/browser** : `window.fetch(url).await<Response>()` → `.blob().await<Blob>()` → `window.createImageBitmap(blob).await<ImageBitmap>()` → canvas 2D + `getImageData()` → `data.data.toByteArray()` (pattern §5 cas 2 et §6 wasmJsMain).
 - `actual` **JS (Node)** : `node-fetch` + `sharp` (`sharp(buffer).raw().toBuffer({ resolveWithObject: true })`). Si `sharp` indisponible (build/CI offline), fallback : forcer URL Terrarium PNG et décoder via `pngjs`. Cette target est marquée **optionnelle** ; commenter le bloc `jsMain` si non utilisé.
 - Tests :
@@ -308,7 +322,7 @@ Référence canonique : `/home/glandais/code/perso/vcyclist-all/elevation/src/`.
 - Skippable via env var `INTEGRATION=1` pour CI offline.
 - Sanity check : altitude Mont Blanc ≈ 4800 m ± 50 m.
 
-**Critère de fin de Phase 1** : `./gradlew :elevation:allTests` vert sur `jvm`, `js`, `wasmJs`. Coverage ≥ 80 %. Le module est utilisable comme dépendance.
+**Critère de fin de Phase 1** : `./gradlew :elevation:allTests` vert sur `jvm`, `js`, `wasmJs` (la cible `wasmJs` a depuis été retirée du projet ; le critère actuel est `jvm`, `js`). Coverage ≥ 80 %. Le module est utilisable comme dépendance.
 
 ---
 
@@ -481,6 +495,10 @@ Référence cœur : `/home/glandais/code/perso/vcyclist-all/virtual-cyclist/src/
 - Activation `generateTypeScriptDefinitions()` dans le bloc `wasmJs {}` du build → produit `engine.d.ts` à côté du `.mjs`.
 - Validation : fichier `.d.ts` généré et lisible ; smoke test JS dans `wasmJsTest` qui appelle parseGpx → enhance → writeGpx sur un GPX inline.
 
+*(spec telle qu'écrite au moment de la tâche 28 — la cible Kotlin/Wasm (`wasmJs`, `wasmJsMain`,
+`wasmJsTest`) a depuis été retirée du projet ; seule la façade `jsMain` décrite plus haut
+subsiste)*
+
 **Critère de fin** : `./gradlew check` vert sur toutes cibles, parity tests passants à la tolérance définie, `.d.ts` généré.
 
 ---
@@ -556,13 +574,14 @@ FieldsSidebar.
 - `gpx/.../virtual/maxspeed/MaxSpeedComputer.java`
 - `gpx/.../data/{Point,GPXPath,values/PropertyKeys}.java`
 
-**`kotlin-wasm-jvm-webp.md`** (racine du repo) — guide d'interop & décodage WebP
+**`kotlin-js-jvm-webp.md`** (racine du repo, renommé depuis `kotlin-wasm-jvm-webp.md` après le
+retrait de la cible Kotlin/Wasm) — guide d'interop Kotlin/JS ↔ JS & décodage WebP JVM/JS
 - §1 — `@JsExport` et types autorisés
 - §3 — wrappers `suspend` → `Promise`
-- §4 — `generateTypeScriptDefinitions()` et choix DTO (`external interface` vs `@JsExport class`)
+- §4 — `generateTypeScriptDefinitions()` et choix DTO (`external interface` vs classe exportée)
 - §5 — fetch + `createImageBitmap` + canvas pour décoder WebP côté browser
-- §6 — pattern `expect`/`actual` complet (commonMain + wasmJsMain + jvmMain TwelveMonkeys)
-- Référence à citer dans chaque tâche qui touche au fetcher de tuiles ou à l'export JS/Wasm.
+- §6 — pattern `expect`/`actual` complet (commonMain + jsMain + jvmMain TwelveMonkeys)
+- Référence à citer dans chaque tâche qui touche au fetcher de tuiles ou à l'export JS.
 
 ---
 
@@ -571,9 +590,9 @@ FieldsSidebar.
 Une fois toutes les tâches du plan exécutées :
 
 1. `cd vcyclist && ./gradlew check` — toutes targets compilent et passent les tests.
-2. `./gradlew :elevation:allTests :engine:allTests` — tests verts en JVM, JS, Wasm.
+2. `./gradlew :elevation:allTests :engine:allTests` — tests verts en JVM, JS Node, JS browser (invariant trois cibles ; la cible Wasm listée ici à l'origine a été retirée du projet).
 3. `./gradlew :engine:jvmRun --args="enhance ../virtual-cyclist/sample.gpx -o /tmp/out.gpx"` — smoke CLI.
 4. Comparaison fixtures de parité : `./gradlew :engine:jvmTest --tests "*ParityTest"` — vert.
 5. Couverture rapportée ≥ 80 % sur les deux modules.
 
-À ce stade, l'engine Kotlin est fonctionnellement équivalent à l'engine TS, compilable en JVM/JS/Wasm, et prêt à servir la Phase 9 (demo Compose).
+À ce stade, l'engine Kotlin est fonctionnellement équivalent à l'engine TS, compilable en JVM/JS/Wasm (la cible Wasm a depuis été retirée du projet ; compilable en JVM/JS), et prêt à servir la Phase 9 (demo Compose, elle-même remplacée depuis par la démo Vue/Vite — voir Phase 9).

@@ -7,7 +7,7 @@ import kotlin.time.Instant
  *
  * This model exists so that the conversion work — reading a
  * [io.github.glandais.engine.path.Path], deriving lap totals, picking timestamps — is written
- * **once in commonMain** and tested on all four targets. Each [FitEncoder] `actual` is then a
+ * **once in commonMain** and tested on all three targets. Each [FitEncoder] `actual` is then a
  * mechanical translation into its own SDK's message objects, with no logic of its own to get
  * wrong twice.
  *

@@ -5,8 +5,6 @@ import kotlin.test.Test
 import kotlin.test.assertEquals
 
 /**
- * Kotlin/JS mirror of `WasmBrowserDecodePathTest.decodesInlineWebpByteExactly`.
- *
  * This source set is shared by `jsNodeTest` and `jsBrowserTest`, so the same assertion covers
  * both branches of `TileFetcher.js.kt`: the browser branch (`fetch` → `createImageBitmap` →
  * canvas) and the Node branch (`globalThis.fetch` → `@jsquash/webp`). Offline — the fixture is a

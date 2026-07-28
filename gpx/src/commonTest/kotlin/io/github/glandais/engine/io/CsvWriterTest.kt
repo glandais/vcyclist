@@ -113,7 +113,7 @@ class CsvWriterTest {
         assertEquals("elevation\n100.00", csv)
     }
 
-    // ---- 9. decimals = null : stable across the 4 targets --------------------
+    // ---- 9. decimals = null : stable across the 3 targets --------------------
 
     @Test
     fun decimals_null_on_one_point_zero_is_platform_stable_not_1_dot_0() {

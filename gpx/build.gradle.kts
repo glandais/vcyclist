@@ -29,11 +29,6 @@ kotlin {
         // bundle, so consumers keep installing a single package. See docs/publishing.md.
     }
 
-    @OptIn(org.jetbrains.kotlin.gradle.ExperimentalWasmDsl::class)
-    wasmJs {
-        browser { testTask { useKarma { useChromeHeadless() } } }
-    }
-
     sourceSets {
         commonMain.dependencies {
             implementation(libs.kotlinx.coroutines.core)

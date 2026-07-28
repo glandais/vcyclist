@@ -11,14 +11,13 @@ package io.github.glandais.fit
  * dominant failure mode in this format.
  *
  * So the only shared contract is *"a [FitCourse] goes in, a FIT file comes out"*. Everything
- * upstream of it lives in commonMain and is tested once on all four targets.
+ * upstream of it lives in commonMain and is tested once on all three targets.
  *
  * ## Implementations
  *
  * - JVM — `com.garmin:fit`, the official Java SDK (task g08).
- * - JS and Wasm — `@garmin/fitsdk`, the official JavaScript SDK, pinned to the same profile
- *   revision (task g09). The two web `actual`s are structural mirrors of each other and are
- *   held byte-identical by `FitReferenceBytes`.
+ * - JS — `@garmin/fitsdk`, the official JavaScript SDK, pinned to the same profile revision
+ *   (task g09). Its output is held byte-identical to the JVM SDK's by `FitReferenceBytes`.
  */
 expect object FitEncoder {
     /** Encode [course] and return the complete FIT file, header and CRC included. */

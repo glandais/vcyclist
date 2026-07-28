@@ -48,34 +48,6 @@ kotlin {
         }
     }
 
-    @OptIn(org.jetbrains.kotlin.gradle.ExperimentalWasmDsl::class)
-    wasmJs {
-        browser {
-            testTask {
-                useKarma {
-                    useChromeHeadless()
-                }
-            }
-        }
-        binaries.executable()
-        binaries.library()
-        generateTypeScriptDefinitions()
-        compilations.named("main") {
-            packageJson {
-                customField("name", "@glandais/vcyclist-elevation-wasm")
-                customField("publishConfig", mapOf("access" to "public"))
-                customField("license", "Apache-2.0")
-                customField(
-                    "repository",
-                    mapOf(
-                        "type" to "git",
-                        "url" to "https://github.com/glandais/vcyclist.git",
-                    ),
-                )
-            }
-        }
-    }
-
     sourceSets {
         commonMain.dependencies {
             implementation(libs.kotlinx.coroutines.core)
@@ -91,9 +63,6 @@ kotlin {
             implementation(libs.kotlinx.browser)
             implementation(npm("@jsquash/webp", "1.4.0"))
         }
-        wasmJsMain.dependencies {
-            implementation(libs.kotlinx.browser)
-        }
     }
 }
 
@@ -104,12 +73,6 @@ val copyReadmeToJsPackage =
     tasks.register<Copy>("copyReadmeToJsPackage") {
         from(rootProject.layout.projectDirectory.file("README.md"))
         into(layout.buildDirectory.dir("dist/js/productionLibrary"))
-    }
-
-val copyReadmeToWasmPackage =
-    tasks.register<Copy>("copyReadmeToWasmPackage") {
-        from(rootProject.layout.projectDirectory.file("README.md"))
-        into(layout.buildDirectory.dir("dist/wasmJs/productionLibrary"))
     }
 
 tasks.register<Exec>("npmPublishJs") {
@@ -124,23 +87,9 @@ tasks.register<Exec>("npmPublishJs") {
     commandLine("npm", "publish", "--access", "public")
 }
 
-tasks.register<Exec>("npmPublishWasm") {
-    group = "publishing"
-    description = "Publish the Kotlin/Wasm library to npm as @glandais/vcyclist-elevation-wasm"
-    dependsOn("wasmJsBrowserProductionLibraryDistribution", copyReadmeToWasmPackage)
-    workingDir =
-        layout.buildDirectory
-            .dir("dist/wasmJs/productionLibrary")
-            .get()
-            .asFile
-    commandLine("npm", "publish", "--access", "public")
-}
-
 // See engine/build.gradle.kts for the rationale.
-listOf("jsBrowserProductionWebpack", "wasmJsBrowserProductionWebpack").forEach { name ->
-    tasks.matching { it.name == name }.configureEach {
-        mustRunAfter("${name.substringBefore("Browser")}ProductionLibraryCompileSync")
-    }
+tasks.matching { it.name == "jsBrowserProductionWebpack" }.configureEach {
+    mustRunAfter("jsProductionLibraryCompileSync")
 }
 
 // Propagate the `INTEGRATION` environment variable from the shell to KotlinJsTest tasks

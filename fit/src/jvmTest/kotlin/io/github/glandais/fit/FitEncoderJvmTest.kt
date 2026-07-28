@@ -206,7 +206,7 @@ class FitEncoderJvmTest {
     }
 
     @Test
-    fun `the Java SDK decodes what the JS and Wasm encoders produce`() {
+    fun `the Java SDK decodes what the JS encoder produces`() {
         // The interoperability claim in FitReferenceBytes' KDoc, verified from this side: the
         // little-endian file the JavaScript SDK writes is readable by the Java SDK, and yields
         // exactly the same values as the JVM's own big-endian output.

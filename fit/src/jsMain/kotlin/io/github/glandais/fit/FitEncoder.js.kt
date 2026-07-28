@@ -17,8 +17,8 @@ import kotlin.time.Instant
  * has one `Encoder.writeMesg(mesg)` taking a plain object whose `mesgNum` selects the message
  * and whose remaining keys are **profile field names** (`positionLat`, `totalElapsedTime`, …).
  * That is exactly why the `expect` in [FitEncoder] is coarse: there is nothing thinner to
- * factor out. Message numbers and enum wire values live in [FitMessageNumbers] so this file and
- * its Wasm twin cannot disagree about them.
+ * factor out. Message numbers and enum wire values live in [FitMessageNumbers] so this file
+ * reads them from one shared source rather than inlining its own copy.
  *
  * ## Units
  *

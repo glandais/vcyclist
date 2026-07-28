@@ -296,7 +296,7 @@ abs = 7e-12.
 
 ## Elevation (DEM) parity
 
-Five of the six decoder stacks are now measured. Only the TS browser path has no harness.
+Four of the five decoder stacks are now measured. Only the TS browser path has no harness.
 The TS Node path was non-functional until `elevation` 3.2.3 replaced node-canvas with sharp;
 it is now measured **as shipped**, and that first measurement is what produced divergence 4.
 
@@ -305,7 +305,6 @@ it is now measured **as shipped**, and that first measurement is what produced d
 | Kotlin JVM | TwelveMonkeys `imageio-webp` | **measured** — `:tools:parity:dumpElevation` resolves the 10 reference coordinates live |
 | Kotlin JS / Node | `@jsquash/webp` (WASM) | **measured** under `INTEGRATION=1` (`TileFetcherJsIntegrationTest`) |
 | Kotlin JS / browser | `createImageBitmap` + canvas | **measured** — reproduces the JVM RGBA digest byte-for-byte, see below |
-| Kotlin Wasm / browser | `createImageBitmap` + canvas | **measured** — same digest test, on a `wasmJsTest` source set that did not exist before |
 | TS Node | `sharp` (libvips + libwebp) since `elevation` 3.2.3 | **measured** — as shipped, no harness shim |
 | TS browser | `createImageBitmap` + canvas | **unmeasured** — no harness |
 
@@ -342,23 +341,21 @@ was non-functional in Node up to `elevation` 3.2.2.
 > byte-identical elevations to the shipped decoder on all 10 coordinates — so divergence 4 is
 > attributable to the Terrarium chain and not to either decoder.
 
-### The browser paths are now covered — byte-exactly
+### The browser path is now covered — byte-exactly
 
-Two gaps used to sit here: `elevation/src/` had no `wasmJsTest` source set at all (so the
-Kotlin/Wasm decode path had zero tests, not skipped ones), and on Kotlin/JS the gate
-`NodeIntegrationGate.kt` tested `process.env.INTEGRATION`, which is false on a browser test
-page — so `jsBrowserTest` skipped silently and reported green. Both are closed:
+The gap used to sit here: on Kotlin/JS the gate `NodeIntegrationGate.kt` tested
+`process.env.INTEGRATION`, which is false on a browser test page — so `jsBrowserTest` skipped
+silently and reported green. That is closed:
 
 - The gate is now `commonTest/…/IntegrationGate.kt` (`expect fun integrationEnabled()`) with
-  a per-target `actual`. The browser ones read a Karma-injected flag
+  a per-target `actual`. The browser one reads a Karma-injected flag
   (`elevation/karma.config.d/integration.js`), driven by the same `INTEGRATION=1` the Node
   and JVM paths already used. A skipped integration test now *prints* that it skipped.
-- `elevation/src/wasmJsTest/` exists.
 
 The assertion is deliberately not "the elevation looks plausible" — that would mask the exact
 corruption described below. `ReferenceTileDigestTest` freezes the SHA-256 of the decoded RGBA
 of one reference tile, measured on the JVM through TwelveMonkeys, and asserts every target
-reproduces it. **Both browser targets match bit-for-bit**, so `createImageBitmap` + canvas
+reproduces it. **The browser target matches bit-for-bit**, so `createImageBitmap` + canvas
 returns the same bytes as TwelveMonkeys on this tile in ChromeHeadless.
 
 Two limits on what that proves, which matter more than the result:
@@ -378,12 +375,11 @@ every `INTEGRATION=1` run red until it is re-measured (the command is in its KDo
 
 ### The concrete risk: silent RGB corruption, not an exception
 
-Both browser paths decode through `createImageBitmap(blob)` → `drawImage` → `getImageData`:
+The browser path decodes through `createImageBitmap(blob)` → `drawImage` → `getImageData`:
 
-- `elevation/src/wasmJsMain/kotlin/io/github/glandais/elevation/TileFetcher.wasmJs.kt:24`
 - `elevation/src/jsMain/kotlin/io/github/glandais/elevation/TileFetcher.js.kt:75` (browser branch)
 
-Neither passes an `ImageBitmapOptions`, so `premultiplyAlpha` and `colorSpaceConversion` are
+It does not pass an `ImageBitmapOptions`, so `premultiplyAlpha` and `colorSpaceConversion` are
 left at `"default"` — implementation's discretion. Terrarium packs elevation into the RGB
 bits (`ele = R*256 + G + B/256 - 32768`), so any premultiplication against a non-opaque alpha,
 or any colour-space transform of the RGB triple, changes the decoded metres with no error

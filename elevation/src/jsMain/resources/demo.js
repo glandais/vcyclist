@@ -2,7 +2,7 @@
 /* global L, Chart, gpxParser, FileReader */
 
 // Adapted from /elevation/demo.js — same UI, same library API, but `window.Elevation` is now
-// backed by the Kotlin/Wasm bundle (see ElevationJsApi.kt + the bootstrap script in index.html).
+// backed by the Kotlin/JS bundle (see ElevationJsApi.kt + the bootstrap script in index.html).
 
 // Initialize the map
 const map = L.map('map').setView([45.8, 8.6], 7);
@@ -11,7 +11,7 @@ L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
     attribution: '© OpenStreetMap contributors',
 }).addTo(map);
 
-// Initialize elevation provider (backed by Kotlin/Wasm)
+// Initialize elevation provider (backed by Kotlin/JS)
 const elevationProvider = new window.Elevation.ElevationProvider();
 
 // Elements

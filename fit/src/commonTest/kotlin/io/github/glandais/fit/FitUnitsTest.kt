@@ -6,7 +6,7 @@ import kotlin.test.assertTrue
 import kotlin.time.Instant
 
 /**
- * Pins the FIT wire encoding on all four targets. Every value here is checked against the FIT
+ * Pins the FIT wire encoding on all three targets. Every value here is checked against the FIT
  * profile rather than against our own implementation, so a refactor that silently changes a
  * scale is caught rather than blessed.
  */

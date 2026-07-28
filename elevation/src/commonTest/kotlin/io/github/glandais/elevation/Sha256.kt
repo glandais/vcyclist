@@ -4,7 +4,7 @@ package io.github.glandais.elevation
  * Minimal, dependency-free SHA-256 — test-only.
  *
  * `kotlin-test` has no multiplatform digest, and pulling in a crypto library just to compare two
- * byte arrays across four targets is not worth it. This is the textbook FIPS 180-4 implementation;
+ * byte arrays across three targets is not worth it. This is the textbook FIPS 180-4 implementation;
  * it is verified against the published test vectors in `Sha256Test`.
  */
 internal object Sha256 {

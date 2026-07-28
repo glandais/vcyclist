@@ -40,10 +40,10 @@ TypeScript library for elevation data.
 
 | Module | Purpose | Targets |
 |---|---|---|
-| **`:elevation`** | Terrarium tile fetch + DEM lookup + Haversine + Douglas-Peucker 3D + triangular smoother. See [`elevation/README.md`](elevation/README.md). | JVM, JS Node, JS browser, Wasm browser |
-| **`:gpx`** | Path model (36 fields × `DoubleArray`), resamplers, Douglas-Peucker simplifier, elevation steps, GPX I/O. Published to Maven Central; **not** published to npm — its JS output ships inside `@glandais/vcyclist-engine`. | JVM, JS Node, JS browser, Wasm browser |
-| **`:engine`** | Physics (4 resistive `PowerProvider`s + cyclist input + `MaxSpeedComputer` + `VirtualizeService`), `Enhancer` pipeline, JVM CLI, JS/Wasm façades. Re-exports `:gpx` via `api`, so `io.github.glandais.engine.path.*` and `…engine.gpx.*` stay importable from `:engine`. | JVM, JS Node, JS browser, Wasm browser |
-| **`:fit`** | Garmin FIT encoding. `FitCourse` model + unit conversions in commonMain; `expect object FitEncoder` with a JVM `actual` on `com.garmin:fit` and JS/Wasm `actual`s on `@garmin/fitsdk`. | JVM, JS Node, JS browser, Wasm browser |
+| **`:elevation`** | Terrarium tile fetch + DEM lookup + Haversine + Douglas-Peucker 3D + triangular smoother. See [`elevation/README.md`](elevation/README.md). | JVM, JS Node, JS browser |
+| **`:gpx`** | Path model (36 fields × `DoubleArray`), resamplers, Douglas-Peucker simplifier, elevation steps, GPX I/O. Published to Maven Central; **not** published to npm — its JS output ships inside `@glandais/vcyclist-engine`. | JVM, JS Node, JS browser |
+| **`:engine`** | Physics (4 resistive `PowerProvider`s + cyclist input + `MaxSpeedComputer` + `VirtualizeService`), `Enhancer` pipeline, JVM CLI, JS façades. Re-exports `:gpx` via `api`, so `io.github.glandais.engine.path.*` and `…engine.gpx.*` stay importable from `:engine`. | JVM, JS Node, JS browser |
+| **`:fit`** | Garmin FIT encoding. `FitCourse` model + unit conversions in commonMain; `expect object FitEncoder` with a JVM `actual` on `com.garmin:fit` and a JS `actual` on `@garmin/fitsdk`. | JVM, JS Node, JS browser |
 | **`:map`** | Static map rendering: Web Mercator projection, image framing, tile download + cache, PNG output (`java.awt` / `ImageIO`). **JVM-only.** No default tile source — see [`map/README.md`](map/README.md) for the usage-policy obligations. | JVM only |
 | **`:cli`** | Command-line tool (picocli). **JVM-only, not published as a library** — distributed as an executable jar. Replaces gpx2web's `gpxtools-cli`. | JVM only |
 | **`:codegen`** | Tiny build-time helper that regenerates `GeneratedPath.kt` + `PointFieldAccessors.kt` from `PointField` (run only when the field list changes). | JVM only |
@@ -58,13 +58,11 @@ command-line options specifically, see [`cli/README.md`](cli/README.md).
 
 ## Install
 
-### npm (Kotlin/JS or Kotlin/Wasm consumers)
+### npm (Kotlin/JS consumers)
 
 ```bash
 npm install @glandais/vcyclist-engine          # Kotlin/JS bundle
-npm install @glandais/vcyclist-engine-wasm     # Kotlin/Wasm bundle
 npm install @glandais/vcyclist-elevation       # Kotlin/JS bundle
-npm install @glandais/vcyclist-elevation-wasm  # Kotlin/Wasm bundle
 ```
 
 ### Gradle / Maven (JVM or KMP consumers)
@@ -72,13 +70,13 @@ npm install @glandais/vcyclist-elevation-wasm  # Kotlin/Wasm bundle
 ```kotlin
 // Gradle Kotlin DSL
 dependencies {
-    implementation("io.github.glandais:vcyclist-engine:1.0.0")    // pulls -jvm / -js / -wasm-js per target
+    implementation("io.github.glandais:vcyclist-engine:1.0.0")    // pulls -jvm / -js per target
     implementation("io.github.glandais:vcyclist-elevation:1.0.0")
 }
 ```
 
 Replace `1.0.0` by the latest version shown in the badges above. KMP consumers automatically
-get the platform-specific variant (`-jvm`, `-js`, `-wasm-js`) for their target.
+get the platform-specific variant (`-jvm`, `-js`) for their target.
 `vcyclist-gpx` (the `Path` model + GPX I/O) comes in transitively via `vcyclist-engine`, and
 can also be depended on alone if you only need parsing and resampling.
 
@@ -106,16 +104,14 @@ already have. Elevation correction is off unless you pass `--fix-elevation`, so 
 the network by default. Full usage, exit codes and the migration table from gpx2web's
 `gpxtools-cli` are in [`cli/README.md`](cli/README.md).
 
-### Try the browser demos (elevation only)
+### Try the browser demo (elevation only)
 
 ```bash
-# Kotlin/Wasm demo
-./gradlew :elevation:wasmJsBrowserDevelopmentRun
-# Kotlin/JS demo (sibling, same UI)
+# Kotlin/JS demo
 ./gradlew :elevation:jsBrowserDevelopmentRun
 ```
 
-Both demos share the [original TS demo](https://github.com/glandais/elevation) UI (Leaflet +
+The demo shares the [original TS demo](https://github.com/glandais/elevation) UI (Leaflet +
 Chart.js + GPX upload). See [`elevation/README.md`](elevation/README.md) for details.
 
 ### Use from Kotlin
@@ -136,11 +132,11 @@ suspend fun virtualize(xml: String): String {
 
 ### Use from JavaScript / TypeScript
 
-`generateTypeScriptDefinitions()` is enabled on both `js(IR)` and `wasmJs`, so you get a
-`.d.ts` next to the bundle in `build/dist/{js,wasmJs}/productionExecutable/vcyclist-engine.d.{ts,mts}`.
+`generateTypeScriptDefinitions()` is enabled on `js(IR)`, so you get a `.d.ts` next to the
+bundle in `build/dist/js/productionExecutable/vcyclist-engine.d.{ts,mts}`.
 
 The Kotlin/JS variant (`@glandais/vcyclist-engine`, `@glandais/vcyclist-elevation`) runs
-**in both browser and Node.js / Bun**. The Wasm variants (`*-wasm`) are browser-only.
+**in both browser and Node.js / Bun**.
 
 #### Getting at the exports
 
@@ -191,7 +187,7 @@ const { parseGpx, enhance, pathToFit } = engine;
 
 const out = await enhance(parseGpx(gpxXml), null);
 const fit = pathToFit(out, 'My route', Date.parse('2026-08-01T08:00:00Z'));
-// Kotlin/JS returns an Int8Array; the -wasm build returns a Uint8Array. Both are the same file.
+// Kotlin/JS returns an Int8Array containing the FIT file.
 ```
 
 FIT has no relative clock, so the start instant is mandatory. The output is a **Course** file
@@ -237,7 +233,7 @@ See [`demo/README.md`](demo/README.md) for the dev workflow and architecture.
 
 ```bash
 ./gradlew check                         # full build + all tests on all targets
-./gradlew :engine:allTests              # engine tests across JVM / JS Node / JS browser / Wasm browser
+./gradlew :engine:allTests              # engine tests across JVM / JS Node / JS browser
 ./gradlew :elevation:allTests           # elevation tests
 ./gradlew :elevation:jvmTest --tests '*Integration*' \
           -PINTEGRATION=1               # live HTTP tests against tiles.mapterhorn.com
@@ -254,7 +250,7 @@ vcyclist/
 │   ├── PLAN.md                  # task-by-task progress (Phases 1-2bis)
 │   ├── parity.md                # parity strategy vs the TS reference
 │   ├── elevation-integration.md # how to run live HTTP integration tests
-│   ├── kotlin-wasm-jvm-webp.md  # Kotlin/Wasm ↔ JS interop guide
+│   ├── kotlin-js-jvm-webp.md    # Kotlin/JS ↔ JS interop guide
 │   └── tasks/                   # one Markdown per implementation task (00-31, + bonus demos)
 ├── elevation/                   # :elevation KMP module
 ├── engine/                      # :engine KMP module (depends on :elevation)
@@ -273,11 +269,11 @@ vcyclist/
   `TileFetcher.js.kt` (browser path unchanged, Node path uses `globalThis.fetch` +
   `@jsquash/webp` WASM decoder loaded via lazy `eval('require')`), webpack externals to keep
   the browser bundle free of `@jsquash/webp`, `ElevationProvider` auto-instantiation in
-  `EngineJsApi.enhance` when `opts.fixElevation` is true (JS + Wasm façades), 6 jsTest classes
+  `EngineJsApi.enhance` when `opts.fixElevation` is true (JS façade), 6 jsTest classes
   gated by `INTEGRATION=1`.
 
-Total `:engine` test coverage : 32 test classes / ~326 commonTest cases / 4 targets =
-~1300 green executions, plus JVM-only smoke tests for the CLI and the full pipeline.
+Total `:engine` test coverage : 32 test classes / ~326 commonTest cases / 3 targets =
+~1000 green executions, plus JVM-only smoke tests for the CLI and the full pipeline.
 
 End-to-end smoke (after Phase 2bis) : sample.gpx (3569 source points, 130 km, ~4550 m gain)
 runs through the complete `Enhancer` pipeline in ~1.7 s on JVM, producing ~1000 simplified
@@ -288,7 +284,7 @@ output points covering ~128.6 km / ~5.3 h of simulated ride.
 - [`docs/PLAN.md`](docs/PLAN.md) — task-by-task plan with commit hashes for every step.
 - [`docs/tasks/`](docs/tasks/) — detailed Markdown spec for each task (00-31 + bonus demos).
 - [`docs/parity.md`](docs/parity.md) — TS↔Kotlin parity approach and tolerances.
-- [`docs/kotlin-wasm-jvm-webp.md`](docs/kotlin-wasm-jvm-webp.md) — Kotlin/Wasm ↔ JS interop
+- [`docs/kotlin-js-jvm-webp.md`](docs/kotlin-js-jvm-webp.md) — Kotlin/JS ↔ JS interop
   guide that underpins the `@JsExport` façades and the WebP tile decoding.
 - [`docs/publishing.md`](docs/publishing.md) — release flow (Maven Central + npm via
   semantic-release on push to `develop`).

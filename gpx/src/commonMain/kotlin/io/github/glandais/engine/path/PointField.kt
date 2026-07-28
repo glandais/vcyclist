@@ -5,7 +5,7 @@ package io.github.glandais.engine.path
  *
  * The ordinal of each entry is the field's index into the underlying `DoubleArray`
  * (laid out in task 11). The order **must not** change: it is part of the file format
- * (GPX extensions) and the wire format (future JS/Wasm DTOs).
+ * (GPX extensions) and the wire format (future JS DTOs).
  *
  * @property prop camelCase property name used in JSON serialization and code generation
  * @property unit physical unit (free-form string, matches TS `unit` field)

@@ -6,18 +6,16 @@ This document explains how the vcyclist artefacts ship to **Maven Central** and 
 
 | Registry | Artefact | Coordinates / name |
 |---|---|---|
-| Maven Central | `:engine` (jvm, js, wasm-js variants) | `io.github.glandais:vcyclist-engine:<version>` |
-| Maven Central | `:elevation` (jvm, js, wasm-js variants) | `io.github.glandais:vcyclist-elevation:<version>` |
-| Maven Central | `:gpx` (jvm, js, wasm-js variants) | `io.github.glandais:vcyclist-gpx:<version>` |
-| Maven Central | `:fit` (jvm, js, wasm-js variants) | `io.github.glandais:vcyclist-fit:<version>` |
+| Maven Central | `:engine` (jvm, js variants) | `io.github.glandais:vcyclist-engine:<version>` |
+| Maven Central | `:elevation` (jvm, js variants) | `io.github.glandais:vcyclist-elevation:<version>` |
+| Maven Central | `:gpx` (jvm, js variants) | `io.github.glandais:vcyclist-gpx:<version>` |
+| Maven Central | `:fit` (jvm, js variants) | `io.github.glandais:vcyclist-fit:<version>` |
 | Maven Central | `:map` (jvm only) | `io.github.glandais:vcyclist-map:<version>` |
 | npm | engine — Kotlin/JS | `@glandais/vcyclist-engine` |
-| npm | engine — Kotlin/Wasm | `@glandais/vcyclist-engine-wasm` |
 | npm | elevation — Kotlin/JS | `@glandais/vcyclist-elevation` |
-| npm | elevation — Kotlin/Wasm | `@glandais/vcyclist-elevation-wasm` |
 | GitHub Release | `:cli` executable jar | `vcyclist-cli-<version>-all.jar` |
 
-Five Maven Central artefacts, four npm packages, one release asset. `:fit` is **not** published
+Five Maven Central artefacts, two npm packages, one release asset. `:fit` is **not** published
 to npm — see below.
 
 `:codegen` is a build-time JVM helper and is **not** published.
@@ -27,7 +25,7 @@ nobody should compile against a command-line tool. Its distributable is the self
 produced by `./gradlew :cli:executableJar`, intended for attachment to the GitHub release.
 
 `:map` is published to Maven Central (`vcyclist-map`) but **not** to npm: it renders with
-`java.awt`, which has no JS or Wasm equivalent. It is a plain `kotlin-jvm` module rather than a
+`java.awt`, which has no JS equivalent. It is a plain `kotlin-jvm` module rather than a
 KMP one; the shared publishing configuration in the root `build.gradle.kts` applies to it
 unchanged (verified in g19 — `vcyclist-map-<version>.{jar,pom,module}` plus sources and javadoc).
 
@@ -50,7 +48,7 @@ Two facts that a previous version of this section got wrong, and that anyone re-
 question should have in front of them:
 
 - The Garmin dependency is **not** jvmMain-only. `fit/build.gradle.kts` declares
-  `npm("@garmin/fitsdk")` for both the JS and Wasm targets.
+  `npm("@garmin/fitsdk")` for the JS target too.
 - Because `:engine` does `api(project(":fit"))`, **every `npm install @glandais/vcyclist-engine`
   pulls `@garmin/fitsdk` in transitively**, whether or not the consumer ever writes a FIT file.
   Verified in g19 by installing the packed tarball into an empty project: npm resolved
@@ -60,10 +58,10 @@ That widens the reach — every engine consumer accepts Garmin's licence terms i
 does not change the conclusion, since it remains a coordinate rather than a copy.
 
 **Decided (g19): accepted as-is.** `@garmin/fitsdk` weighs 1.3 MB next to the engine bundle's
-3.2 MB, and the alternative — an `optionalDependency` plus a dynamic import in the JS and Wasm
-`FitEncoder` actuals, on the model of `@jsquash/webp` — buys that back at the cost of a refactor
-across three targets. Should the weight ever matter, that is the route: make the dependency
-optional and load it on the first `pathToFit` call, rather than removing the façade.
+3.2 MB, and the alternative — an `optionalDependency` plus a dynamic import in the JS
+`FitEncoder` actual, on the model of `@jsquash/webp` — buys that back at the cost of a refactor.
+Should the weight ever matter, that is the route: make the dependency optional and load it on
+the first `pathToFit` call, rather than removing the façade.
 
 It is documented here rather than left in a build file because it is a real obligation that
 someone installing `vcyclist-engine` for the physics alone would not expect.
@@ -73,16 +71,15 @@ matters to you, have the terms reviewed before the first release that includes `
 
 ### `:fit` on npm — decided: not published
 
-`:fit` declares **no `@JsExport` at all**, so `@glandais/vcyclist-fit` and
-`@glandais/vcyclist-fit-wasm` would ship a bundle with no reachable public API. The FIT façade
-(`pathToFit`) deliberately lives in `:engine` instead — see the comment in
-`engine/build.gradle.kts`, which explains that `Path` handles cannot cross a bundle boundary.
-The JS output of `:fit` already ships *inside* `@glandais/vcyclist-engine` as `vcyclist-fit.js`,
-exactly as `:gpx` does.
+`:fit` declares **no `@JsExport` at all**, so `@glandais/vcyclist-fit` would ship a bundle with
+no reachable public API. The FIT façade (`pathToFit`) deliberately lives in `:engine` instead —
+see the comment in `engine/build.gradle.kts`, which explains that `Path` handles cannot cross a
+bundle boundary. The JS output of `:fit` already ships *inside* `@glandais/vcyclist-engine` as
+`vcyclist-fit.js`, exactly as `:gpx` does.
 
-`:fit:npmPublishJs` / `:fit:npmPublishWasm` are therefore **not in `publishCmd`**. The Gradle
-tasks still exist, so re-adding them is a one-line edit if `:fit` ever grows a JS API of its own.
-No documented import path resolves to either package name, so nothing breaks by their absence.
+`:fit:npmPublishJs` is therefore **not in `publishCmd`**. The Gradle task still exists, so
+re-adding it is a one-line edit if `:fit` ever grows a JS API of its own. No documented import
+path resolves to that package name, so nothing breaks by its absence.
 
 `:fit` **is** published to Maven Central, where the JVM variant is fully functional.
 
@@ -96,15 +93,15 @@ mirror the workflow of the sibling projects (`elevation`, `virtual-cyclist`, `gp
    [Conventional Commits](https://www.conventionalcommits.org/) (`feat:`, `fix:`, …).
 2. Pull request is merged into `develop` (the default branch).
 3. The workflow `.github/workflows/release.yml` triggers on the `develop` push.
-4. The job runs `./gradlew check` (full tests on JVM + JS Node + JS browser + Wasm browser),
-   then `npx semantic-release` which :
+4. The job runs `./gradlew check` (full tests on JVM + JS Node + JS browser), then
+   `npx semantic-release` which :
    - analyses commits since the last tag,
    - bumps the version in `gradle.properties` via a `sed -i` in
      `@semantic-release/exec.prepareCmd`,
    - builds the CLI jar (`:cli:executableJar`),
    - publishes the five modules to Maven Central via `publishAndReleaseToMavenCentral`
      (vanniktech plugin, stages and immediately releases — no manual approval needed),
-   - publishes the four npm packages via `npmPublishJs` / `npmPublishWasm`,
+   - publishes the two npm packages via `npmPublishJs`,
    - generates/updates `CHANGELOG.md`,
    - creates a Git tag + GitHub Release, with the CLI jar attached as an asset,
    - commits the version + changelog back to `develop` with `[skip ci]`.
@@ -134,13 +131,10 @@ Before pushing to `develop`, you can rehearse the release locally :
 ```bash
 # 1. Confirm the build artefact paths used by binaries.library().
 ./gradlew :engine:jsBrowserProductionLibraryDistribution \
-          :engine:wasmJsBrowserProductionLibraryDistribution \
-          :elevation:jsBrowserProductionLibraryDistribution \
-          :elevation:wasmJsBrowserProductionLibraryDistribution
+          :elevation:jsBrowserProductionLibraryDistribution
 ls engine/build/dist/js/productionLibrary/
-ls engine/build/dist/wasmJs/productionLibrary/
 # If the directory layout differs from the assumption in build.gradle.kts,
-# adjust the workingDir of the npmPublishJs / npmPublishWasm tasks.
+# adjust the workingDir of the npmPublishJs task.
 
 # 2. Publish to the local Maven repo to inspect the POM and signatures.
 ./gradlew :engine:publishToMavenLocal :gpx:publishToMavenLocal :elevation:publishToMavenLocal
@@ -209,7 +203,7 @@ named imports that never worked; the snippets there were corrected in g19.
    `vcyclist-elevation` artefacts under the existing namespace requires no extra claim,
    only a valid Central Portal token (`CENTRAL_USERNAME` / `CENTRAL_TOKEN`).
 2. **npm scope** : ensure `@glandais` org access and that the user has publish rights on
-   the four package names (the namespace is shared with `@glandais/elevation` and
+   the two package names (the namespace is shared with `@glandais/elevation` and
    `@glandais/virtual-cyclist`, so the org already exists).
 3. **GitHub Secrets** : configure the four secrets above on the repo settings page.
 4. **Branch protection** : `develop` is the **default and only protected branch**. Require
@@ -228,16 +222,14 @@ deps (Kotlin/JS auto-propagates `npm("…", "x.y.z")` declarations) plus the `co
 { packageJson { customField(…) } }` block in `*/build.gradle.kts`. After running
 `./gradlew :elevation:jsBrowserProductionLibraryDistribution
 :engine:jsBrowserProductionLibraryDistribution` you can inspect them in
-`{elevation,engine}/build/dist/{js,wasmJs}/productionLibrary/package.json`.
+`{elevation,engine}/build/dist/js/productionLibrary/package.json`.
 
 Current runtime deps :
 
 | Package | `dependencies` | Notes |
 |---|---|---|
-| `@glandais/vcyclist-elevation` (JS) | `@jsquash/webp@1.4.0` | Used on Node.js / Bun for WebP decoding of Terrarium tiles. Loaded lazily via `eval('require')` so browser bundlers do not include it. |
-| `@glandais/vcyclist-elevation-wasm` | — | Browser-only ; tile decoding goes through `createImageBitmap` + canvas. |
+| `@glandais/vcyclist-elevation` (JS) | `@jsquash/webp@1.4.0` | Used on Node.js / Bun for WebP decoding of Terrarium tiles ; the browser branch decodes via `createImageBitmap` + canvas instead. Loaded lazily via `eval('require')` so browser bundlers do not include it. |
 | `@glandais/vcyclist-engine` (JS) | `@js-joda/core@3.2.0` + `@jsquash/webp@1.4.0` | `@js-joda/core` from `kotlinx-datetime`. `@jsquash/webp` is transitive via the `api(project(":elevation"))` dep. |
-| `@glandais/vcyclist-engine-wasm` | `@js-joda/core@3.2.0` | Same datetime dep as the JS variant ; no Node tile decoder needed (browser-only target). |
 
 Browser consumers : the `eval('require')('@jsquash/webp/decode.js')` call is opaque to
 webpack / Rollup / Vite static analyzers, so the package is installed in `node_modules` but
@@ -257,9 +249,6 @@ get it transparently.
 - **`npm publish` fails with `403 Forbidden`** — typically a name conflict or scope-access
   issue ; verify the package name and that the GitHub Actions OIDC trust relationship is
   set up on the npm `@glandais` org.
-- **The Wasm npm package is empty / missing the `.wasm` file** — the `binaries.library()`
-  output path for Kotlin/Wasm may differ across Kotlin minor versions ; re-list
-  `build/dist/wasmJs/productionLibrary/` and adjust the `workingDir` of `npmPublishWasm`.
 - **Central Portal indexes new artefacts ~30 min after publication** — be patient before
   retrying ; `./gradlew publishToMavenCentral` is idempotent but the search UI lags.
 

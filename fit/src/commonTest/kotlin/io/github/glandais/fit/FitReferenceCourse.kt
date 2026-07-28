@@ -6,7 +6,7 @@ import kotlin.time.Instant
 /**
  * The single [FitCourse] every target encodes in its tests.
  *
- * Having one definition shared by the JVM, JS and Wasm suites is what makes the cross-target
+ * Having one definition shared by the JVM and JS suites is what makes the cross-target
  * comparison meaningful: if each target built its own course, "the bytes differ" would never
  * distinguish an encoder bug from a fixture difference.
  *

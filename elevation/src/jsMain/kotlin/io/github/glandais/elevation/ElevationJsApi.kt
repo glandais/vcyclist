@@ -66,9 +66,8 @@ private fun coordsEle(
     return o.unsafeCast<CoordinatesElevationDto>()
 }
 
-// Mirrors the Kotlin/Wasm façade in src/wasmJsMain — same free-function shape so the demo's
-// JS shim (`new ElevationProvider(config)` etc.) is identical between backends. On Kotlin/JS
-// the ElevationProvider instance is returned directly (no JsReference handle needed: Kotlin/JS
+// Free-function shape so the demo's JS shim (`new ElevationProvider(config)` etc.) stays simple.
+// The ElevationProvider instance is returned directly (no JsReference handle needed: Kotlin/JS
 // classes are first-class JS objects and the demo treats them as opaque).
 
 @JsExport

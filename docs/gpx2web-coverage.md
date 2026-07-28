@@ -132,7 +132,7 @@ des convertisseurs ; vcyclist obtient la sécurité de type par la génération 
 | `read.GPXFileReader` | porté | `…engine.gpx.GpxParser` (`:gpx`) | Multi-cibles via xmlutil. |
 | `read.GpxXmlRepair` | porté | `…engine.gpx.GpxXmlRepair` (`:gpx`) | |
 | `write.GPXFileWriter` | porté | `…engine.gpx.GpxWriter` (`:gpx`) | |
-| `write.FitFileWriter` | porté | `…fit.FitEncoder` + `PathToFit` (`:fit`) | 4 cibles : SDK Java sur JVM, `@garmin/fitsdk` sur JS et Wasm. Produit un **Course**, pas une Activity. |
+| `write.FitFileWriter` | porté | `…fit.FitEncoder` + `PathToFit` (`:fit`) | 3 cibles : SDK Java sur JVM, `@garmin/fitsdk` sur JS Node et JS browser. Produit un **Course**, pas une Activity. (À l'origine 4 cibles avec Kotlin/Wasm ; la cible a été retirée depuis — Kotlin/Wasm n'est pas WASI et a besoin d'un runtime JS de toute façon, ce que Kotlin/JS couvre déjà.) |
 | `write.JsonFileWriter` | porté | `…engine.io.JsonWriter` (`:gpx`) | Forme du document différente — voir « Divergences ». |
 | `write.FileExporter` | remplacé | — (fonctions `write` directes) | Interface à une méthode pour trois writers ; vcyclist n'a pas de code qui les traite uniformément. |
 | `write.tabular.CSVFileWriter` | porté | `…engine.io.CsvWriter` (`:gpx`) | |
@@ -143,7 +143,7 @@ des convertisseurs ; vcyclist obtient la sécurité de type par la génération 
 
 **XLSX n'est pas porté.** L'export tabulaire de gpx2web sait écrire du XLSX via Apache POI, qui
 est JVM-only et pèse plusieurs mégaoctets — inacceptable dans un module qui doit compiler pour
-JS et Wasm. `--csv` couvre le besoin ; `--xlsx` existe encore dans la CLI, **uniquement** pour
+JS. `--csv` couvre le besoin ; `--xlsx` existe encore dans la CLI, **uniquement** pour
 répondre par un message qui explique, plutôt que par « unknown option ».
 
 ---
@@ -175,9 +175,9 @@ traduction ligne à ligne.
 | `GPXElevationFixer` | déjà couvert | `…engine.path.ElevationStep` (`:gpx`) | Étape `fixElevation` du pipeline. |
 | `mapterhorn.MapterhornElevationSource` | déjà couvert | `…elevation.ElevationCalculator` (`:elevation`) | |
 | `mapterhorn.MapterhornConfig` | déjà couvert | `…elevation.ElevationProviderConfig` (`:elevation`) | |
-| `mapterhorn.TileFetcher` | déjà couvert | `…elevation.TileFetcher` (`:elevation`) | `expect`/`actual` sur 4 cibles. |
-| `mapterhorn.HttpTileFetcher` | déjà couvert | `TileFetcher.jvm/js/wasmJs` (`:elevation`) | |
-| `mapterhorn.TerrariumDecoder` | déjà couvert | `…elevation.RawTile` (`:elevation`) | WebP décodé par TwelveMonkeys (JVM) ou `@jsquash/webp` (JS/Wasm). |
+| `mapterhorn.TileFetcher` | déjà couvert | `…elevation.TileFetcher` (`:elevation`) | `expect`/`actual` sur 3 cibles (JVM, JS Node, JS browser). |
+| `mapterhorn.HttpTileFetcher` | déjà couvert | `TileFetcher.jvm/js` (`:elevation`) | |
+| `mapterhorn.TerrariumDecoder` | déjà couvert | `…elevation.RawTile` (`:elevation`) | WebP décodé par TwelveMonkeys (JVM) ou `@jsquash/webp` (JS — un décodeur WASM tiers, pas la cible de compilation Kotlin/Wasm). |
 | `mapterhorn.TerrainTile` | déjà couvert | `…elevation.Tile` (`:elevation`) | |
 | `mapterhorn.TileCoord` | déjà couvert | `…elevation.Tiles` (`:elevation`) | |
 | `mapterhorn.TileLruCache` | déjà couvert | `…elevation.LruCache` (`:elevation`) | |

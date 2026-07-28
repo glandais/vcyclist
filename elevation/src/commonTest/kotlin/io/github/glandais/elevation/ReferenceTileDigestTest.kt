@@ -9,8 +9,8 @@ import kotlin.test.assertTrue
  * The cross-target byte-exactness test: every target must decode [ReferenceTile.URL] to the
  * **same** RGBA bytes as the JVM reference (see [ReferenceTile.RGBA_SHA256]).
  *
- * This lives in `commonTest`, so it runs on JVM, JS/Node, JS/browser (Karma + headless Chrome)
- * and Wasm/browser. It is deliberately **not** an "elevation looks plausible" assertion: a
+ * This lives in `commonTest`, so it runs on JVM, JS/Node and JS/browser (Karma + headless
+ * Chrome). It is deliberately **not** an "elevation looks plausible" assertion: a
  * plausibility check would happily pass while `createImageBitmap` premultiplied the alpha or
  * applied a colour-space conversion, either of which silently rewrites the low bits that carry
  * the `B/256` term of the Terrarium encoding.

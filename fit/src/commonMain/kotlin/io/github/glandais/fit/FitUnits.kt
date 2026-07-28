@@ -10,7 +10,7 @@ import kotlin.time.Instant
  * FIT stores most quantities as scaled integers with its own epoch, and getting any of it wrong
  * produces a file that *imports successfully* and then shows nonsense — a ride in 1989, or a
  * position in the Gulf of Guinea. Centralising the conversions here means the JVM and JS
- * encoders cannot drift apart, and [FitUnitsTest] pins the values on all four targets.
+ * encoders cannot drift apart, and [FitUnitsTest] pins the values on all three targets.
  *
  * **Not every constant is needed by every encoder.** The Java SDK's typed setters
  * (`setAltitude(Float)`, `setDistance(Float)`, `setSpeed(Float)`) already take real-world units

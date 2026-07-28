@@ -172,18 +172,17 @@ GPX types into `:gpx` changed no arithmetic.
   instead is divergence 4 in `docs/parity.md`: TS's `toPixel` floors before
   `ElevationCalculator` derives `dx`/`dy`, so its "bilinear" interpolation is a floor-pixel
   lookup — 8/10 coordinates diverge, up to 8.59 m, against a `~1e-9` bar.
-- ~~**The Kotlin browser decoders are unmeasured.**~~ **Closed.** `elevation/src/wasmJsTest/`
-  now exists, and the integration gate moved to `commonTest/…/IntegrationGate.kt` with a
-  Karma-injected flag for the browser targets (`elevation/karma.config.d/integration.js`), so
-  `INTEGRATION=1` reaches `jsBrowserTest` and `wasmJsBrowserTest`. `ReferenceTileDigestTest`
-  asserts every target reproduces the JVM's decoded-RGBA SHA-256; both browsers match
-  byte-for-byte. Skipped integration tests now print that they skipped.
+- ~~**The Kotlin browser decoder is unmeasured.**~~ **Closed.** The integration gate moved to
+  `commonTest/…/IntegrationGate.kt` with a Karma-injected flag for the browser target
+  (`elevation/karma.config.d/integration.js`), so `INTEGRATION=1` reaches `jsBrowserTest`.
+  `ReferenceTileDigestTest` asserts every target reproduces the JVM's decoded-RGBA SHA-256;
+  the browser matches byte-for-byte. Skipped integration tests now print that they skipped.
 - **Premultiplication remains unmeasured, despite the digest test.** The reference tile is
   fully opaque, and premultiplying by alpha `255` is the identity — so that test can only
-  catch a `colorSpaceConversion` regression, never a `premultiplyAlpha` one.
-  `TileFetcher.wasmJs.kt:24` and the browser branch of `TileFetcher.js.kt:75` still call
-  `createImageBitmap(blob)` with no `ImageBitmapOptions`, leaving both at `"default"` — the
-  implementation's choice. Terrarium packs elevation into the RGB bits
+  catch a `colorSpaceConversion` regression, never a `premultiplyAlpha` one. The browser
+  branch of `TileFetcher.js.kt:75` still calls `createImageBitmap(blob)` with no
+  `ImageBitmapOptions`, leaving it at `"default"` — the implementation's choice. Terrarium
+  packs elevation into the RGB bits
   (`ele = R*256 + G + B/256 - 32768`), so premultiplication against a non-opaque alpha yields
   wrong metres with no exception (one LSB of R is 256 m). Sampled tiles are opaque today
   (`VP8L alpha_is_used = 0` on four tiles; PIL alpha extrema `(255,255)` on

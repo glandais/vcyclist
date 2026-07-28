@@ -11,7 +11,7 @@ package io.github.glandais.elevation
  *
  * [RGBA_SHA256] is produced by the JVM decoder (TwelveMonkeys `imageio-webp` → `getRGB` →
  * packed RGBA) and frozen here. `ReferenceTileDigestTest` runs in `commonTest`, so **every**
- * target — JVM, JS/Node, JS/browser, Wasm/browser — must reproduce it byte for byte.
+ * target — JVM, JS/Node, JS/browser — must reproduce it byte for byte.
  *
  * A mismatch on a browser target is the signature of `createImageBitmap` applying
  * premultiplied alpha or a colour-space conversion, which would silently corrupt the

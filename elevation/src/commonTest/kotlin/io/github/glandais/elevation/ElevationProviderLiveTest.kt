@@ -6,9 +6,8 @@ import kotlin.test.Test
 import kotlin.test.assertTrue
 
 /**
- * End-to-end `ElevationProvider` check that runs on **every** target, including `wasmJs`, which
- * previously had no live coverage at all (the JVM and JS equivalents live in their own source
- * sets and never reached Kotlin/Wasm).
+ * End-to-end `ElevationProvider` check that runs on **every** target (JVM, JS/Node, JS/browser),
+ * so no target is missing live coverage.
  *
  * Deliberately small: the byte-exactness of the decode is asserted by [ReferenceTileDigestTest];
  * this only confirms the tile → pixel → Terrarium → bilinear chain assembles correctly on top of

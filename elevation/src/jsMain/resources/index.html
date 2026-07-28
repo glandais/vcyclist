@@ -14,7 +14,7 @@
                 <h1>vcyclist :elevation — Kotlin/JS demo</h1>
                 <div class="info">
                     Kotlin/JS port of @glandais/elevation, exercised through the same UI as the
-                    original TypeScript demo (sibling of the Kotlin/Wasm demo for comparison).
+                    original TypeScript demo (same UI, same library API, for comparison).
                     <a href="https://github.com/glandais/vcyclist" target="_blank" rel="noopener"
                         >🚀 View on GitHub</a
                     >
@@ -151,19 +151,19 @@
 
         <!--
             Kotlin/JS output: webpack UMD bundle that exposes `globalThis.elevation` synchronously
-            (no Wasm instantiation step). The shim below wraps the exported free functions in an
+            (no module instantiation step). The shim below wraps the exported free functions in an
             `ElevationProvider` class so demo.js sees the same `new ElevationProvider()` API as the
-            original TS demo and the sibling Kotlin/Wasm demo.
+            original TS demo.
         -->
         <script src="./elevation.js"></script>
         <script>
             (async () => {
                 try {
-                    // `await` on a non-Promise just resolves to the value — same shim works for
-                    // both the synchronous Kotlin/JS module and the Promise-wrapped Kotlin/Wasm one.
+                    // `await` on a non-Promise just resolves to the value — the Kotlin/JS module
+                    // is synchronous, but this keeps the shim tolerant of a Promise-wrapped bundle.
                     const mod = await globalThis.elevation;
                     // Kotlin/JS preserves the package namespace (`mod.io.github.glandais.elevation`);
-                    // Kotlin/Wasm exposes the @JsExport top-level functions directly on `mod`.
+                    // fall back to `mod` if a bundle ever exposes the @JsExport functions flat.
                     const lib = mod.io?.github?.glandais?.elevation ?? mod;
 
                     class ElevationProvider {

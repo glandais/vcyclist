@@ -20,8 +20,7 @@ private val isNode: Boolean =
 
 // Bypasses the kotlinx-browser-js `fetch(input, init)` declaration which has no default for
 // `init` and would serialise an empty `RequestInit()` as `{cache: null, ...}` — Chrome rejects
-// `null` on enum-typed fields (`cache`, `mode`, …). The Wasm target has a `init = null` default
-// so this is js-target-only plumbing. Used by `decodeBrowser`.
+// `null` on enum-typed fields (`cache`, `mode`, …). Used by `decodeBrowser`.
 private fun fetchUrlBrowser(url: String): Promise<Response> = js("fetch(url)").unsafeCast<Promise<Response>>()
 
 // Node: globalThis.fetch is native since Node 18 and Bun. Returns a Web `Response`.
@@ -82,7 +81,7 @@ private suspend fun decodeBrowser(url: String): RawTile {
         val data = ctx.getImageData(0.0, 0.0, bitmap.width.toDouble(), bitmap.height.toDouble())
         val src = data.data
         // Reinterpret Uint8ClampedArray as Int8Array — ByteArray at Kotlin/JS runtime IS Int8Array,
-        // so unsafeCast is zero-copy and equivalent to the wasm path's `toByteArray()` reinterpret.
+        // so unsafeCast is zero-copy.
         val int8 = Int8Array(src.buffer, src.byteOffset, src.byteLength)
         val rgba: ByteArray = int8.unsafeCast<ByteArray>()
         return RawTile(bitmap.width, bitmap.height, rgba)

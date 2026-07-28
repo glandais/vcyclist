@@ -10,7 +10,7 @@ import kotlin.test.assertFailsWith
  *
  * **JVM-only, deliberately** : these need a document that (a) fails outright on a strict parse
  * and (b) parses cleanly once [GpxXmlRepair] has run. [GpxFixtures.BARE_AMPERSAND_GPX] is that
- * document on the JVM, Kotlin/JS-Node and Wasm/browser `xmlutil` backends — all three reject a
+ * document on the JVM and Kotlin/JS-Node `xmlutil` backends — both reject a
  * bare `&` in text content as a syntax error, exactly like the strict XML 1.0 spec requires.
  *
  * The **Kotlin/JS browser** backend does not : it defers to the browser's native `DOMParser`,
@@ -19,11 +19,11 @@ import kotlin.test.assertFailsWith
  * already called out in `GpxParserTest`'s case 01 comment for mismatched closing tags. Since
  * that backend never throws on this input, cases C ("does parsing succeed after an automatic
  * repair") and D ("does disabling repair surface the original failure") cannot both be
- * expressed as one assertion true across all four targets — there is no failure to observe or
+ * expressed as one assertion true across all three targets — there is no failure to observe or
  * suppress in the browser. Pinning these two cases to `jvmTest` keeps the assertions strict and
  * meaningful instead of watering them down to "does not throw", which both backends already
  * satisfy trivially. [GpxXmlRepair] itself (the string transform) is still fully covered by
- * `GpxXmlRepairTest` on all four targets ; only this parser-retry integration is JVM-only.
+ * `GpxXmlRepairTest` on all three targets ; only this parser-retry integration is JVM-only.
  */
 class GpxXmlRepairParseTest {
     @Test

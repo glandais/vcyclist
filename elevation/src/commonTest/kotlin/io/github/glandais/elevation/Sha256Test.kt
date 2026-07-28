@@ -3,7 +3,7 @@ package io.github.glandais.elevation
 import kotlin.test.Test
 import kotlin.test.assertEquals
 
-/** FIPS 180-4 / NIST published vectors — offline, runs on all four targets. */
+/** FIPS 180-4 / NIST published vectors — offline, runs on all three targets. */
 class Sha256Test {
     private fun hex(s: String): String = Sha256.hex(s.encodeToByteArray())
 

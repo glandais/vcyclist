@@ -52,7 +52,7 @@ object GpxParser {
 
     private fun parseOnce(xml: String): GpxDocument {
         // Catches any Exception, not just XmlException: some backends (e.g. the kxml-based
-        // Kotlin/JS/Wasm reader on unambiguously non-XML input such as plain text) surface an
+        // Kotlin/JS reader on unambiguously non-XML input such as plain text) surface an
         // IllegalStateException instead. Our own IllegalArgumentException (missing/invalid
         // lat/lon) passes through unwrapped so its message stays precise.
         val reader =

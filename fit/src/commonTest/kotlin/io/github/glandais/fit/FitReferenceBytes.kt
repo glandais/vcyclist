@@ -7,8 +7,7 @@ package io.github.glandais.fit
  *
  * ## Why there are two constants and not one
  *
- * [WEB] is what Kotlin/JS and Kotlin/Wasm produce — **byte for byte identical to each other**,
- * which is the contract that keeps the two hand-written `actual`s from drifting.
+ * [WEB] is what Kotlin/JS produces, via `@garmin/fitsdk`.
  *
  * [JVM] differs, and the difference is entirely attributable to the two Garmin SDKs. It was
  * chased down field by field; what remains is:
@@ -32,7 +31,7 @@ package io.github.glandais.fit
  * lowercase hex.
  */
 object FitReferenceBytes {
-    /** Kotlin/JS and Kotlin/Wasm output. */
+    /** Kotlin/JS output. */
     val WEB: ByteArray =
         hex(
             "0e02d552050100002e4649541dd840000000000600010201028402028403048c" +

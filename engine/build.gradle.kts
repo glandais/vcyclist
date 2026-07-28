@@ -47,28 +47,6 @@ kotlin {
         }
     }
 
-    @OptIn(org.jetbrains.kotlin.gradle.ExperimentalWasmDsl::class)
-    wasmJs {
-        browser { testTask { useKarma { useChromeHeadless() } } }
-        binaries.executable()
-        binaries.library()
-        generateTypeScriptDefinitions()
-        compilations.named("main") {
-            packageJson {
-                customField("name", "@glandais/vcyclist-engine-wasm")
-                customField("publishConfig", mapOf("access" to "public"))
-                customField("license", "Apache-2.0")
-                customField(
-                    "repository",
-                    mapOf(
-                        "type" to "git",
-                        "url" to "https://github.com/glandais/vcyclist.git",
-                    ),
-                )
-            }
-        }
-    }
-
     sourceSets {
         commonMain.dependencies {
             implementation(libs.kotlinx.coroutines.core)
@@ -79,7 +57,7 @@ kotlin {
             // Transitive via `:gpx`, but kept explicit : `physics/` and `Enhancer` use
             // Coordinates directly.
             api(project(":elevation"))
-            // FIT export, exposed through `pathToFit` on the JS/Wasm facades (task g10).
+            // FIT export, exposed through `pathToFit` on the JS facade (task g10).
             //
             // The facade has to live here rather than in `:fit`'s own bundle: `:gpx` is not a
             // separate npm package (task g01 inlines it into `@glandais/vcyclist-engine`), so a
@@ -100,9 +78,6 @@ kotlin {
         jsMain.dependencies {
             implementation(libs.kotlinx.browser)
         }
-        wasmJsMain.dependencies {
-            implementation(libs.kotlinx.browser)
-        }
     }
 }
 
@@ -110,8 +85,8 @@ kotlin {
 // module in the root build.gradle.kts — see the `subprojects` block there.
 // npm publishing tasks.
 //
-// `binaries.library()` on `js(IR)` and `wasmJs` produces a distributable npm package under
-// `build/dist/{js,wasmJs}/productionLibrary/`. The package.json there is auto-generated from
+// `binaries.library()` on `js(IR)` produces a distributable npm package under
+// `build/dist/js/productionLibrary/`. The package.json there is auto-generated from
 // the `compilations["main"].packageJson { … }` customFields above (scoped name, license,
 // publishConfig.access=public, repository).
 //
@@ -121,12 +96,6 @@ val copyReadmeToJsPackage =
     tasks.register<Copy>("copyReadmeToJsPackage") {
         from(rootProject.layout.projectDirectory.file("README.md"))
         into(layout.buildDirectory.dir("dist/js/productionLibrary"))
-    }
-
-val copyReadmeToWasmPackage =
-    tasks.register<Copy>("copyReadmeToWasmPackage") {
-        from(rootProject.layout.projectDirectory.file("README.md"))
-        into(layout.buildDirectory.dir("dist/wasmJs/productionLibrary"))
     }
 
 tasks.register<Exec>("npmPublishJs") {
@@ -141,28 +110,14 @@ tasks.register<Exec>("npmPublishJs") {
     commandLine("npm", "publish", "--access", "public")
 }
 
-tasks.register<Exec>("npmPublishWasm") {
-    group = "publishing"
-    description = "Publish the Kotlin/Wasm library to npm as @glandais/vcyclist-engine-wasm"
-    dependsOn("wasmJsBrowserProductionLibraryDistribution", copyReadmeToWasmPackage)
-    workingDir =
-        layout.buildDirectory
-            .dir("dist/wasmJs/productionLibrary")
-            .get()
-            .asFile
-    commandLine("npm", "publish", "--access", "public")
-}
-
-// Gradle 9 strict validation catches that `*BrowserProductionWebpack` (from
+// Gradle 9 strict validation catches that `jsBrowserProductionWebpack` (from
 // binaries.executable()) reads `build/js/packages/<name>/` while
-// `*ProductionLibraryCompileSync` (from binaries.library()) writes there. We declare the
+// `jsProductionLibraryCompileSync` (from binaries.library()) writes there. We declare the
 // ordering explicitly so `./gradlew assemble` or any task graph that schedules both can
 // run them in the right order. Without this, Gradle 9 fails with an implicit-dependency
 // validation error.
-listOf("jsBrowserProductionWebpack", "wasmJsBrowserProductionWebpack").forEach { name ->
-    tasks.matching { it.name == name }.configureEach {
-        mustRunAfter("${name.substringBefore("Browser")}ProductionLibraryCompileSync")
-    }
+tasks.matching { it.name == "jsBrowserProductionWebpack" }.configureEach {
+    mustRunAfter("jsProductionLibraryCompileSync")
 }
 
 // Propagate the `INTEGRATION` environment variable from the shell to KotlinJsTest tasks

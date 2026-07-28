@@ -9,7 +9,7 @@ package io.github.glandais.elevation
  * - **JVM** — `System.getenv("INTEGRATION")` (or `-Dintegration=true`).
  * - **JS / Node** — `process.env.INTEGRATION`, propagated to the `KotlinJsTest` task by the
  *   `tasks.withType<KotlinJsTest>` block in `build.gradle.kts`.
- * - **JS / browser and Wasm / browser** — there is no `process` in a browser page. The Karma
+ * - **JS / browser** — there is no `process` in a browser page. The Karma
  *   *Node* process does see `process.env.INTEGRATION` (same Gradle propagation), and
  *   `karma.config.d/integration.js` copies it into `config.client.integration`, which Karma
  *   ships to the page as `window.__karma__.config.integration`.

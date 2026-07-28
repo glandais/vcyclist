@@ -43,7 +43,7 @@ import kotlin.time.Instant
 
 /**
  * JS-facing snapshot of a single path point. Read-only ; built lazily by [pointAt]. Field units
- * mirror the Kotlin/Wasm façade (degrees, meters, m/s, watts, epoch ms, slope ratio).
+ * are degrees, meters, m/s, watts, epoch ms, slope ratio.
  */
 external interface PointDto {
     val latitudeDeg: Double
@@ -199,10 +199,9 @@ private fun pointObj(
     return o.unsafeCast<PointDto>()
 }
 
-// Mirrors the Kotlin/Wasm façade in src/wasmJsMain — same free-function shape. On Kotlin/JS
-// the Path instance is returned directly (no JsReference handle needed: Kotlin/JS classes are
-// first-class JS objects, opaque to consumers who only reach into them through pointAt / size
-// helpers).
+// On Kotlin/JS the Path instance is returned directly (no JsReference handle needed: Kotlin/JS
+// classes are first-class JS objects, opaque to consumers who only reach into them through
+// pointAt / size helpers).
 
 @JsExport
 fun parseGpx(xml: String): Path = GpxParser.parse(xml).firstTrackAsPath()
@@ -540,8 +539,7 @@ fun pathToJson(
  * @param startTimeEpochMs absolute start instant in Unix epoch milliseconds. FIT has no relative
  *   clock, so this is mandatory — `Double` rather than `Long` to avoid a BigInt at the JS
  *   boundary, matching the convention [pathDurationMs] and [writeGpxAt] already use.
- * @return the complete FIT file. On Kotlin/JS a `ByteArray` surfaces as a JS `Int8Array`; the
- *   Wasm façade returns a `Uint8Array` instead — see its KDoc for why they differ.
+ * @return the complete FIT file. On Kotlin/JS a `ByteArray` surfaces as a JS `Int8Array`.
  */
 @JsExport
 fun pathToFit(
@@ -622,8 +620,8 @@ private fun Climb.toDto(): ClimbDto {
 fun detectClimbs(path: Path): Array<ClimbDto> = ClimbDetector.detect(path).map { it.toDto() }.toTypedArray()
 
 /**
- * Detect climbs with explicit parameters. Flat scalars rather than an options DTO so the
- * signature is identical on Kotlin/JS and Kotlin/Wasm — see the Wasm twin.
+ * Detect climbs with explicit parameters. Flat scalars rather than an options DTO to keep the
+ * JS boundary simple.
  */
 @JsExport
 fun detectClimbsWithOptions(

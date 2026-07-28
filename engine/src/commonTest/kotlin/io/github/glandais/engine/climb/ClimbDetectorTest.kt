@@ -255,7 +255,7 @@ class ClimbDetectorTest {
         // browser. `maxAnalysisPoints` bounds that. This checks the bound does not change the
         // answer in any way that matters, and that indices still address the caller's path.
         // Kept modest on purpose: the unbounded reference run below is the very O(n^2) cost this
-        // bound exists to avoid, and it has to finish inside the Wasm browser suite's 2 s budget.
+        // bound exists to avoid, and it has to finish inside the JS browser suite's 2 s budget.
         val dense = steadyClimb(n = 1_500, gainPerStepM = 0.3, stepM = 2.0)
         val full = ClimbDetector.detect(dense, ClimbOptions(maxAnalysisPoints = 1_500))
         val bounded = ClimbDetector.detect(dense, ClimbOptions(maxAnalysisPoints = 300))

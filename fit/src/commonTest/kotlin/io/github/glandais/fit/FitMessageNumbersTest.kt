@@ -6,7 +6,7 @@ import kotlin.test.assertEquals
 /**
  * Pins the global message numbers and enum wire values against the FIT profile.
  *
- * The Java SDK hides these behind typed constants, so only the JS and Wasm encoders read them —
+ * The Java SDK hides these behind typed constants, so only the JS encoder reads them —
  * which means a wrong value here would produce a file that encodes happily and then means
  * something else entirely (a `sport` of 1 is running, not cycling). Values were read out of
  * `@garmin/fitsdk@21.205.0`'s `Profile.MesgNum` and `Profile.types`.

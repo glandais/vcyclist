@@ -10,8 +10,8 @@ import kotlin.time.Instant
  * Convert a virtualized [Path] into a [FitCourse].
  *
  * Lives in commonMain deliberately: this is the only real logic in `:fit`, and writing it once
- * means the JVM, JS and Wasm encoders stay mechanical translations with nothing to disagree
- * about. See [FitEncoder] for why the `expect` was cut at this level.
+ * means the JVM and JS encoders stay mechanical translations with nothing to disagree about.
+ * See [FitEncoder] for why the `expect` was cut at this level.
  *
  * ## Field mapping
  *

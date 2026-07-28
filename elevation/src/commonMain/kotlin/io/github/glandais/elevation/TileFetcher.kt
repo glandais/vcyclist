@@ -8,7 +8,7 @@ package io.github.glandais.elevation
  *
  * Each target provides its own implementation:
  * - JVM: java.net.http.HttpClient + ImageIO (TwelveMonkeys WebP).
- * - Wasm/browser: fetch + createImageBitmap + canvas.
+ * - JS/browser: fetch + createImageBitmap + canvas.
  * - JS (Node): stub — sharp not wired yet.
  *
  * @throws IllegalStateException if HTTP status is not 2xx or decoding fails

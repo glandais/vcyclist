@@ -52,7 +52,7 @@ object Enhancer {
      *
      * Each path goes through [enhanceCourseDefault] **independently and sequentially**. The
      * sequential part is deliberate : [ElevationProvider] carries a shared tile cache whose
-     * thread-safety has not been audited, and the JS/Wasm targets are single-threaded anyway,
+     * thread-safety has not been audited, and the JS target is single-threaded anyway,
      * so there is nothing to gain and a data race to lose.
      */
     suspend fun enhanceCourses(

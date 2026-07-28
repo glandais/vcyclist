@@ -10,8 +10,8 @@ import kotlin.test.assertTrue
 /**
  * `commonTest` cannot embed a JSON parser (no multiplatform-portable one without a new
  * dependency), so these tests check the document shape via string assertions. The
- * `JSON.parse` acceptance test (case 9 of the task g07 matrix) lives in `jsTest` /
- * `wasmJsTest` — see `JsonWriterParseTest`.
+ * `JSON.parse` acceptance test (case 9 of the task g07 matrix) lives in `jsTest` —
+ * see `JsonWriterParseTest`.
  */
 class JsonWriterTest {
     // ---- 1. empty path : size 0, empty series ----------------------------------
