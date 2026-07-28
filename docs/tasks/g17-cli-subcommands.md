@@ -131,14 +131,68 @@ Cas de test (≥ 12) :
 
 ## Done when
 
-- [ ] `enhance` et `export` implémentées, options alignées sur `EnhanceOptions`
-- [ ] `--tile-url` obligatoire avec `--map`
-- [ ] Multi-fichiers : un échec n'interrompt pas les suivants
-- [ ] Codes de sortie stables et documentés
-- [ ] `--quiet`
-- [ ] `cli/README.md` avec la table de correspondance gpxtools-cli → vcyclist
-- [ ] ≥ 12 tests verts
-- [ ] `ktlintCheck` vert
+- [x] `enhance` et `export` implémentées, options alignées sur `EnhanceOptions`
+- [x] `--tile-url` obligatoire avec `--map`
+- [x] Multi-fichiers : un échec n'interrompt pas les suivants
+- [x] Codes de sortie stables et documentés
+- [x] `--quiet`
+- [x] `cli/README.md` avec la table de correspondance gpxtools-cli → vcyclist
+- [x] 24 tests verts (39 au total sur `:cli`)
+- [x] `ktlintCheck` vert
+
+## Résultat
+
+**Un bug silencieux trouvé par un test de bout en bout, pas par relecture : les options
+`negatable` de picocli ne faisaient rien.** Avec un `Boolean` non-nullable, `negatable = true`
+**bascule la valeur initiale** : partant de `true`, `--no-virtualize` la met à… `true`, et
+`--virtualize` la met à `false`. Exactement l'inverse de l'attendu, et sans le moindre message.
+Le premier jet a donc livré quatre drapeaux inertes ; `--no-virtualize` produisait un résultat
+identique au défaut.
+
+Correction : déclarer ces champs en `Boolean?` (absent → `null`, `--x` → `true`, `--no-x` →
+`false`) et appliquer le vrai défaut dans `pipelineOptions()`. Le cas 06b vérifie les trois
+états de chaque drapeau, pour qu'une régression échoue ici plutôt que de produire une sortie
+mystérieusement identique.
+
+**`process` + `virtualize` → une seule commande `enhance`.** Les deux commandes gpx2web se
+recouvraient presque entièrement, et vcyclist n'a qu'un pipeline `Enhancer` : reproduire la
+distinction aurait inventé une séparation que le code ne fait pas. Consigné dans la table de
+correspondance de `cli/README.md`.
+
+**`--xlsx` répond au lieu de disparaître.** L'option est déclarée `hidden` et son seul effet est
+d'expliquer que XLSX n'est pas porté et de renvoyer vers `--csv`. Un utilisateur de gpx2web qui
+la tape apprend qu'elle a été abandonnée, au lieu de se demander s'il a fait une faute de frappe.
+
+**Multi-fichiers.** Un échec n'interrompt pas le lot : tout ce qui est traitable est traité, les
+échecs sont récapitulés à la fin et le code de sortie est 70. Avec une seule entrée, `--csv
+out.csv` écrit bien `out.csv` ; avec plusieurs, la cible devient un **dossier** et les sorties
+sont nommées d'après leur entrée — sinon chaque fichier écraserait le précédent.
+
+**Codes de sortie identiques à ceux d'`EngineCli`** (64 / 66 / 70), pour qu'un script existant
+survive au remplacement de g18. Vérifié par un test, et affichés dans `--help` via
+`exitCodeList`.
+
+**Vérifications de bout en bout, sorties réellement validées** (et non simplement « le fichier
+existe ») :
+
+| Sortie | Contrôle |
+|---|---|
+| GPX | reparsé, 1 piste, `<time>` absolu = `2026-08-01T08:00:00Z` |
+| CSV | 43 lignes + en-tête pour 43 points, en-tête avec unités |
+| JSON | parsé par `json.load`, `size = 43` |
+| FIT | décodé par **fitdecode** (implémentation tierce) en CRC strict : 48 messages, `course.name = stelvio`, `sport = cycling` |
+| `export --elevation-map` | PNG 194×96 écrit depuis de vraies données DEM |
+| `export --map` sans `--tile-url` | refusé avec le motif (politique d'usage), pas un « argument manquant » |
+
+**Waypoints préservés** à travers `enhance` (cas 16) — confirme que le travail de g03 est bien
+atteignable depuis le CLI.
+
+**Une hypothèse de test corrigée en cours de route :** j'avais écrit que `--no-virtualize`
+laisserait la vitesse à zéro. Faux — `computeDerivedData` dérive la vitesse des horodatages
+enregistrés, donc un chemin non virtualisé a des vitesses. Ce que la virtualisation remplace,
+c'est la **chronologie**. L'assertion porte désormais là-dessus.
+
+**Validation :** `./gradlew check` + `ktlintCheck` verts. `:cli` = 39 tests, aucun accès réseau.
 
 ## Notes
 

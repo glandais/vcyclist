@@ -59,7 +59,7 @@ cœur (`:elevation`, `:gpx`, `:engine`, `:fit`) reste compilable sur les 4 cible
 | g15 | `SRTMMapProducer` — carte hypsométrique PNG | `:map` | ✅ |
 | **— Phase G : CLI —** | | | |
 | g16 | Bootstrap picocli + mixins | `:cli` | ✅ |
-| g17 | Sous-commandes `process` / `virtualize` / `export` | `:cli` | ⬜ |
+| g17 | Sous-commandes `enhance` / `export` | `:cli` | ✅ |
 | g18 | Retrait d'`EngineCli` + documentation | `:cli` `:engine` | ⬜ |
 | **— Phase H : clôture —** | | | |
 | g19 | Publication des nouveaux artefacts (npm + Maven Central) | tous | ⬜ |
