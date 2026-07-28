@@ -29,6 +29,15 @@ kotlin {
         // bundle, so consumers keep installing a single package. See docs/publishing.md.
     }
 
+    @OptIn(org.jetbrains.kotlin.gradle.ExperimentalWasmDsl::class)
+    wasmWasi {
+        wasmtime()
+        // Standalone .wasm reactor module (POC): `_initialize` + the `@WasmExport` façade in
+        // `src/wasmWasiMain/.../wasi/GpxWasiApi.kt`, instantiable from any WASI runtime
+        // (wasmtime CLI, wasmtime-py, WasmEdge…) with no JS host.
+        binaries.executable()
+    }
+
     sourceSets {
         commonMain.dependencies {
             implementation(libs.kotlinx.coroutines.core)
