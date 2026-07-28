@@ -65,6 +65,22 @@ ce plan, 4 cibles avec Kotlin/Wasm ; la cible a depuis été retirée du projet)
 | **— Phase H : clôture —** | | | |
 | g19 | Publication des nouveaux artefacts (npm + Maven Central) | tous | ✅ |
 | g20 | Matrice de correspondance gpx2web → vcyclist | docs | ✅ |
+| **— Phase I : retours de migration —** | | | |
+| g21 | `TileFetcher` — séparer téléchargement et décodage | `:elevation` | ⬜ |
+| g22 | Ponts JVM `Blocking` / `Async` pour les API `suspend` | `:gpx` `:engine` `:elevation` | ⬜ |
+| g23 | Option d'écriture des `<extensions>` GPX | `:gpx` `:cli` | ⬜ |
+| g24 | Lecture / écriture des GPX `<rte>` / `<rtept>` | `:gpx` | ⬜ |
+| g25 | FIT multi-`Path` + contrat de timestamp | `:fit` `:cli` | ⬜ |
+| g26 | Port de `GPXDataComputer.getWind` | `:engine` | ⬜ |
+| g27 | `@JvmOverloads` sur l'API publique | tous | ⬜ |
+
+La **phase I** n'était pas au plan initial : elle rassemble les points bloquants remontés par la
+première migration réelle d'un projet consommateur (appelant **Java**) de gpx2web vers vcyclist.
+Cinq des sept fiches (g21, g22, g23, g25, g27) ne comblent pas un trou fonctionnel mais un trou
+d'**appelabilité** — l'API était juste, elle n'était pas utilisable sans réécrire du code interne
+ou du boilerplate. Les deux autres sont des écarts de parité constatés à l'usage : `<rte>`
+(g24, lu par gpx2web, silencieusement ignoré ici) et `getWind` (g26, dont le refus de portage
+reposait sur un « aucun consommateur » démenti depuis).
 
 > g09 a livré `@garmin/fitsdk` sur JS **et** Kotlin/Wasm. La cible Kotlin/Wasm a depuis été
 > retirée du projet (Kotlin/Wasm n'est pas WASI et a de toute façon besoin d'un runtime JS, ce
@@ -92,7 +108,7 @@ normative : si l'un d'eux redevient nécessaire, il faut une nouvelle tâche.
 |---|---|
 | `virtual/power/cyclist/OptimalSpeedService` + `OptimalSpeeds` | Abandonné (décision produit). |
 | Export XLSX (`ProcessCommand --xlsx`) | Le CSV couvre le besoin tableur ; Apache POI est JVM-only et lourd. |
-| `util/GPXDataComputer` (`isCrossing`, `getWind`) | Aucun consommateur identifié hors webapp. |
+| ~~`util/GPXDataComputer` (`isCrossing`, `getWind`)~~ | ~~Aucun consommateur identifié hors webapp.~~ **Réouvert** : `getWind` est porté par **g26** (le consommateur existe, il est apparu à la migration). Le sort d'`isCrossing` est tranché au démarrage de cette fiche. |
 | `data/FastTimeIndex` | Index de recherche par temps, utilisé uniquement côté webapp. |
 | `virtual/StartTimeProvider` + dépendance `timeshape` | Remplacé par un `Instant` explicite (g05) ; ~50 Mo de données de fuseaux pour un défaut « demain 8 h ». |
 | `data/values/**` (`PropertyKey`, `PropertyKeys`, `Unit`, `Converters`) | Remplacé par `PointField` (nom + unité + catégorie déjà portés). |
@@ -150,6 +166,9 @@ les divergences de comportement assumées et les options pour le sort de la weba
 - **F est indépendante** — ne dépend que de `Path`, donc de g01.
 - **G dépend de C, D et F** (le CLI expose tous les formats de sortie).
 - **H clôture.**
+- **I vient après H** et ses sept fiches sont largement parallélisables, à deux contraintes
+  près : **g27 en dernier** (il annote des signatures que g23, g24 et g25 modifient) et **g23
+  avant g24** (les deux touchent `GpxWriter.kt`).
 
 ## Workflow
 
@@ -181,3 +200,7 @@ Chemins relatifs à `../gpx2web/gpx/src/main/java/io/github/glandais/gpx/` :
 | g11 | `climb/*.java`, `util/Simplifier.java`, `util/Vector.java` |
 | g13-g15 | `map/*.java`, `util/MagicPower2MapSpace.java` |
 | g16-g18 | `../gpxtools-cli/src/main/java/io/github/glandais/**` |
+| g23 | `io/write/GPXFileWriter.java` — paramètre `boolean extensions` (lignes 83, 128, 153) |
+| g24 | `io/read/GPXFileReader.java` (lignes 150-175), `data/GPXPathType.java` |
+| g25 | `io/write/FitFileWriter.java` — boucle sur `gpx.paths()`, `EventMesg` (lignes 25-70) |
+| g26 | `util/GPXDataComputer.java` (`getWind`, `getWindUnscaled`), `util/Vector.java` |
