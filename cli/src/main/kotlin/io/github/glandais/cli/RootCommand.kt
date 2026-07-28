@@ -1,5 +1,7 @@
 package io.github.glandais.cli
 
+import io.github.glandais.cli.command.EnhanceCommand
+import io.github.glandais.cli.command.ExportCommand
 import picocli.CommandLine
 import java.util.Properties
 
@@ -14,7 +16,7 @@ import java.util.Properties
     mixinStandardHelpOptions = true,
     versionProvider = BuildVersionProvider::class,
     description = ["Turn GPS traces into physics-aware virtualized rides."],
-    subcommands = [CommandLine.HelpCommand::class],
+    subcommands = [EnhanceCommand::class, ExportCommand::class, CommandLine.HelpCommand::class],
 )
 class RootCommand : Runnable {
     @CommandLine.Spec

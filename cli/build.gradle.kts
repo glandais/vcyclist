@@ -11,6 +11,9 @@ dependencies {
     implementation(project(":engine"))
     implementation(project(":map"))
     implementation(libs.picocli)
+    // `runBlocking` around the engine's suspend API: this is a JVM-only application and the
+    // pipeline is synchronous from the CLI's point of view.
+    implementation(libs.kotlinx.coroutines.core)
     testImplementation(kotlin("test"))
 }
 
