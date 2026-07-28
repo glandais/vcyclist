@@ -8,6 +8,7 @@ ktlint = "14.2.0"
 vanniktech-publish = "0.37.0"
 node-gradle = "7.1.0"
 garmin-fit = "21.205.0"
+picocli = "4.7.7"
 
 [libraries]
 kotlinx-coroutines-core = { module = "org.jetbrains.kotlinx:kotlinx-coroutines-core", version.ref = "coroutines" }
@@ -17,6 +18,7 @@ xmlutil-core = { module = "io.github.pdvrieze.xmlutil:core", version.ref = "xmlu
 xmlutil-serialization = { module = "io.github.pdvrieze.xmlutil:serialization", version.ref = "xmlutil" }
 imageio-webp = { module = "com.twelvemonkeys.imageio:imageio-webp", version.ref = "imageio-webp" }
 garmin-fit = { module = "com.garmin:fit", version.ref = "garmin-fit" }
+picocli = { module = "info.picocli:picocli", version.ref = "picocli" }
 
 [plugins]
 kotlin-multiplatform = { id = "org.jetbrains.kotlin.multiplatform", version.ref = "kotlin" }

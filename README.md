@@ -42,6 +42,7 @@ TypeScript library for elevation data.
 | **`:engine`** | Physics (4 resistive `PowerProvider`s + cyclist input + `MaxSpeedComputer` + `VirtualizeService`), `Enhancer` pipeline, JVM CLI, JS/Wasm façades. Re-exports `:gpx` via `api`, so `io.github.glandais.engine.path.*` and `…engine.gpx.*` stay importable from `:engine`. | JVM, JS Node, JS browser, Wasm browser |
 | **`:fit`** | Garmin FIT encoding. `FitCourse` model + unit conversions in commonMain; `expect object FitEncoder` with a JVM `actual` on `com.garmin:fit` and JS/Wasm `actual`s on `@garmin/fitsdk`. | JVM, JS Node, JS browser, Wasm browser |
 | **`:map`** | Static map rendering: Web Mercator projection, image framing, tile download + cache, PNG output (`java.awt` / `ImageIO`). **JVM-only.** No default tile source — see [`map/README.md`](map/README.md) for the usage-policy obligations. | JVM only |
+| **`:cli`** | Command-line tool (picocli). **JVM-only, not published as a library** — distributed as an executable jar. Replaces gpx2web's `gpxtools-cli`. | JVM only |
 | **`:codegen`** | Tiny build-time helper that regenerates `GeneratedPath.kt` + `PointFieldAccessors.kt` from `PointField` (run only when the field list changes). | JVM only |
 
 ## Install
