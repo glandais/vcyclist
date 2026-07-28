@@ -61,11 +61,13 @@ kotlin {
             implementation(kotlin("test"))
             implementation(libs.kotlinx.coroutines.test)
         }
-        // Tests that assert *decoded* pixels, compiled only into the targets that own a WebP
-        // decoder. wasmWasi stubs `decodeTileBytes` (task w01), so these cannot pass there ; the
-        // stub's own contract is pinned by `wasmWasiTest/TileFetcherStubTest`. Same
-        // single-file-two-compilations trick as `commonTestFixtures` in gpx/build.gradle.kts —
-        // KMP has no `java-test-fixtures`, and duplicating 200 lines of assertions is worse.
+        // One test, compiled into the two targets that have a tile *transport*. It used to hold
+        // the seven decode tests too, exiled by w01 because wasmWasi stubbed `decodeTileBytes`;
+        // w11 gave that target a pure-Kotlin decoder and they went back to `commonTest`. What
+        // stays here reaches `fetchAndDecodeTile`, hence the `vcyclist.fetch_tile` host import,
+        // which the KGP runner cannot supply — and reachability is static, so an `INTEGRATION`
+        // gate would not save the suite. Same single-file-two-compilations trick as
+        // `commonTestFixtures` in gpx/build.gradle.kts.
         jvmTest { kotlin.srcDir("src/decodingTest/kotlin") }
         jsTest { kotlin.srcDir("src/decodingTest/kotlin") }
         jvmMain.dependencies {

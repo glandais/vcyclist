@@ -12,20 +12,19 @@ import kotlin.test.fail
  * exposed so a caller can own the transport (disk cache, object store, bundled tiles) without
  * reimplementing the decoder.
  *
- * These tests run **offline**, which the pre-g21 decode tests could not: they went through a
- * `data:` URL, which the JVM's `HttpClient` does not support. Bytes have no such problem — which
- * is the point of the split.
+ * These tests run **offline on all four targets**, which the pre-g21 decode tests could not:
+ * they went through a `data:` URL, which the JVM's `HttpClient` does not support. Bytes have no
+ * such problem — which is the point of the split.
  *
- * ## Why this file is not in `commonTest`
+ * ## They were exiled, and they came back
  *
- * Task w01 added the `wasmWasi` target, where `decodeTileBytes` is a stub that throws (no WebP
- * decoder under WASI — see `TileFetcher.wasmWasi.kt` and `TileFetcherStubTest`). Everything here
- * asserts *decoded pixels*, so on that target it can only fail. Rather than lose the coverage or
- * keep seven permanent reds in CI, the file lives in `src/decodingTest/kotlin`, a source
- * directory added to the `jvmTest` and `jsTest` compilations by `elevation/build.gradle.kts` —
- * the two targets that actually decode. The coverage on JVM and JS is unchanged, byte for byte.
+ * Task w01 moved this file to `src/decodingTest` because `decodeTileBytes` was a stub on
+ * wasmWasi: the target had no WebP decoder, so seven tests asserting decoded pixels could only
+ * fail there. Task w11 wrote that decoder in `commonMain`, in pure Kotlin, and they belong in
+ * `commonTest` again — where they now assert the *same* decoder on JVM, JS and wasmWasi alike.
  *
- * Move it back to `commonTest` once task w11 lands a pure-Kotlin VP8L decoder.
+ * One test did not come back: the composition check against a live tile, which reaches
+ * `fetchAndDecodeTile` and therefore the host import. See `TileFetchCompositionTest`.
  */
 class TileDecodeSplitTest {
     @Test
@@ -100,29 +99,6 @@ class TileDecodeSplitTest {
                 message.contains("https://host/9/1/2.webp"),
                 "error must name the source, was: $message",
             )
-        }
-
-    /**
-     * The contract of the split, on a real tile over the network: whatever shortcut a target
-     * takes inside [fetchAndDecodeTile], it must land on the same bytes as the two halves called
-     * in sequence. Gated on `INTEGRATION=1` so `./gradlew check` stays offline.
-     */
-    @Test
-    fun `fetchAndDecode equals fetch then decode on the reference tile`() =
-        runTest {
-            if (skipIfOffline("TileDecodeSplitTest")) return@runTest
-
-            val composed = decodeTileBytes(fetchTileBytes(ReferenceTile.URL), ReferenceTile.URL)
-            val direct = fetchAndDecodeTile(ReferenceTile.URL)
-
-            assertEquals(direct.width, composed.width, "width")
-            assertEquals(direct.height, composed.height, "height")
-            assertEquals(
-                Sha256.hex(direct.rgba),
-                Sha256.hex(composed.rgba),
-                "the composition must be byte-identical to the direct path",
-            )
-            assertEquals(ReferenceTile.RGBA_SHA256, Sha256.hex(composed.rgba), "frozen reference digest")
         }
 
     /**

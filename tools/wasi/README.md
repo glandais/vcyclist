@@ -51,8 +51,10 @@ cd tools/wasi && python3 -m unittest discover -s . -p 'test_*.py' -v
   JVM, à 0,5 % ; `vcEnhanceWithCourse` (400 W sur 65 kg bat 120 W sur 90 kg) ; l'entrée n'est
   jamais modifiée.
 - **Exports** : CSV, JSON colonne, cols, vent dominant, waypoints.
-- **Élévation** : géométrie de tuile, configuration refusée si absurde, chemin « pas de DEM »
-  (0 m, pas −32768), et sous `INTEGRATION=1` la correction par de vraies tuiles Mapterhorn.
+- **Élévation** : géométrie de tuile, format déclaré et validé, configuration refusée si absurde,
+  chemin « pas de DEM » (0 m, pas −32768), et sous `INTEGRATION=1` la correction par de vraies
+  tuiles Mapterhorn — **dans les deux formats**, `rgba` (l'hôte décode avec Pillow) et `webp`
+  (l'hôte ne fait qu'un GET, le module décode), dont les profils doivent être identiques au bit.
 - **Compatibilité runtime** : `wasmtime` en ligne de commande doit échouer sur un **import
   manquant** — pas sur « proposal non supporté » ni « module invalide ». C'est ce test qui
   attrapera une montée de Kotlin ou de wasmtime qui casse le format.

@@ -4,3 +4,7 @@ build/
 .idea/
 *.iml
 node_modules/
+
+# Python bytecode from the WASI reference host (tools/wasi)
+__pycache__/
+*.pyc

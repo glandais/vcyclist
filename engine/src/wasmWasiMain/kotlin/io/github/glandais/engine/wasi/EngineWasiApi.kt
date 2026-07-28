@@ -540,8 +540,13 @@ private var elevationConfig: ElevationProviderConfig =
     ElevationProviderConfig(tileUrlTemplate = HostTileSource.URL_TEMPLATE)
 
 /**
- * Configure DEM tiles: `{"zoomLevel":12,"tileSize":512,"cacheSize":100}`, any subset, `0` for
- * the defaults. Returns [WasiAbi.VERSION] on success, or a negative error code.
+ * Configure DEM tiles: `{"zoomLevel":12,"tileSize":512,"cacheSize":100,"tileFormat":"rgba"}`,
+ * any subset, `0` for the defaults. Returns [WasiAbi.VERSION] on success, or a negative code.
+ *
+ * `tileFormat` says what the host writes in `fetch_tile`. `"rgba"` (the default) is decoded
+ * pixels, the original contract. `"webp"` means the **bytes as downloaded**: since task w11 the
+ * module carries its own lossless-WebP decoder, so a host in that mode needs an HTTP client and
+ * nothing else — no image library. Anything else is [WasiAbi.ERR_INVALID_ARGUMENT].
  *
  * Sticky, and read at the next `fixElevation`. Separate from the enhance options on purpose:
  * those mirror the JS `EnhanceOptionsDto` field for field, and hanging a tile configuration off
@@ -554,7 +559,15 @@ private var elevationConfig: ElevationProviderConfig =
 fun vcSetElevationConfig(jsonLen: Int): Int =
     guarded {
         val json = readOptions(jsonLen)
-        json?.requireOnly(setOf("zoomLevel", "tileSize", "cacheSize"))
+        json?.requireOnly(setOf("zoomLevel", "tileSize", "cacheSize", "tileFormat"))
+        val format =
+            when (val requested = json?.string("tileFormat", "rgba") ?: "rgba") {
+                "rgba" -> HostTileSource.TileFormat.RGBA
+                "webp" -> HostTileSource.TileFormat.WEBP
+                else -> throw IllegalArgumentException(
+                    "unknown tileFormat '$requested' — expected rgba (decoded pixels) or webp (the file as downloaded)",
+                )
+            }
         val defaults = ElevationProviderConfig()
         val config =
             ElevationProviderConfig(
@@ -569,6 +582,7 @@ fun vcSetElevationConfig(jsonLen: Int): Int =
         ElevationProvider(config, fetcher = hostTileFetcher())
         elevationConfig = config
         HostTileSource.tileSize = config.tileSize
+        HostTileSource.tileFormat = format
         WasiAbi.VERSION
     }
 
@@ -576,13 +590,17 @@ fun vcSetElevationConfig(jsonLen: Int): Int =
  * What the host must be ready to write when `fetch_tile` is called:
  *
  * ```json
- * {"tileSize":512,"bytesPerPixel":4,"expectedBytes":1048576,
- *  "layout":"RGBA","encoding":"terrarium","zoomLevel":12}
+ * {"tileSize":512,"bytesPerPixel":4,"expectedBytes":1048576,"layout":"RGBA",
+ *  "encoding":"terrarium","zoomLevel":12,"tileFormat":"rgba"}
  * ```
  *
- * The same number arrives as the `cap` argument of every `fetch_tile` call, so a host can also
- * simply trust `cap`; this export exists so it can allocate once, up front, and validate that it
- * and the guest agree.
+ * `expectedBytes` also arrives as the `cap` argument of every `fetch_tile` call, so a host can
+ * simply trust `cap`; this export exists so it can allocate once, up front, and check that it and
+ * the guest agree.
+ *
+ * In `"webp"` mode `expectedBytes` is the size of the *buffer offered*, not of the answer: the
+ * host writes however many bytes the compressed file has and returns that count. `layout` and
+ * `encoding` then describe what the module will decode the file into, not what the host sends.
  */
 @WasmExport
 fun vcTileGeometryJson(): Int =
@@ -595,6 +613,7 @@ fun vcTileGeometryJson(): Int =
                 "layout" to jsonString("RGBA"),
                 "encoding" to jsonString("terrarium"),
                 "zoomLevel" to elevationConfig.zoomLevel.toString(),
+                "tileFormat" to jsonString(HostTileSource.tileFormat.name.lowercase()),
             ),
         )
     }

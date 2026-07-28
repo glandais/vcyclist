@@ -2,6 +2,7 @@ package io.github.glandais.elevation
 
 import kotlinx.coroutines.test.runTest
 import kotlin.test.Test
+import kotlin.test.assertContentEquals
 import kotlin.test.assertEquals
 import kotlin.test.assertFailsWith
 import kotlin.test.assertTrue
@@ -34,16 +35,42 @@ class TileFetcherStubTest {
         }
 
     @Test
-    fun `decodeTileBytes stays unavailable, names its tile and the task that would fix it`() =
+    fun `decodeTileBytes works here since w11, with no host involved`() =
+        runTest {
+            // The claim this file made until w11 was that decoding was impossible on this target.
+            // It is not any more: the VP8L decoder is `commonMain` Kotlin, so wasmWasi reads a
+            // WebP exactly like the JVM does — which is what lets a host send raw bytes.
+            val tile = decodeTileBytes(InlineWebpFixture.BYTES, "inline://fixture.webp")
+
+            assertEquals(InlineWebpFixture.WIDTH, tile.width, "width")
+            assertEquals(InlineWebpFixture.HEIGHT, tile.height, "height")
+            assertContentEquals(InlineWebpFixture.EXPECTED_RGBA, tile.rgba, "decoded pixels")
+        }
+
+    @Test
+    fun `a file that is not lossless WebP fails with its fourcc named`() =
         runTest {
             val message =
-                assertFailsWith<UnsupportedOperationException> {
-                    decodeTileBytes(ByteArray(8), "https://host/9/1/2.webp")
+                assertFailsWith<IllegalStateException> {
+                    decodeTileBytes(ByteArray(64) { 0x7A }, "https://host/9/1/2.webp")
                 }.message ?: ""
 
             assertTrue(message.contains("https://host/9/1/2.webp"), "must name the source tile, was: $message")
-            assertTrue(message.contains("w11"), "must name the pure-Kotlin decoder task, was: $message")
         }
+
+    @Test
+    fun `the host can send raw WebP instead of pixels`() {
+        val previous = HostTileSource.tileFormat
+        try {
+            HostTileSource.tileFormat = HostTileSource.TileFormat.WEBP
+            assertEquals(HostTileSource.TileFormat.WEBP, HostTileSource.tileFormat)
+            // The buffer offered stays the decoded size: the guest cannot know a compressed size
+            // in advance, and a tile that compresses larger than its own pixels does not exist.
+            assertEquals(HostTileSource.decodedTileBytes, HostTileSource.tileBytes)
+        } finally {
+            HostTileSource.tileFormat = previous
+        }
+    }
 
     @Test
     fun `the host URL template round-trips through TileManager's substitution`() {

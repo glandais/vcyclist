@@ -75,8 +75,35 @@ object HostTileSource {
             field = value
         }
 
-    /** Bytes one tile occupies — what the guest passes as `cap`. */
-    val tileBytes: Int get() = tileSize * tileSize * BYTES_PER_PIXEL
+    /** Bytes one decoded tile occupies. */
+    val decodedTileBytes: Int get() = tileSize * tileSize * BYTES_PER_PIXEL
+
+    /**
+     * What the host sends through `fetch_tile`.
+     *
+     * `RGBA` is the original contract of task w05 and stays the default, so no host that already
+     * works has to change anything. `WEBP` arrived with task w11, when the module grew a
+     * pure-Kotlin VP8L decoder: a host in that mode answers with the **bytes it downloaded**, and
+     * needs no image library at all — one HTTP GET is the whole implementation.
+     *
+     * An explicit setting rather than sniffing the payload: a WebP file happens to be smaller
+     * than a decoded tile *today*, but deciding by length would silently misread the day it is
+     * not, and a misread tile is wrong elevations rather than an error.
+     */
+    enum class TileFormat { RGBA, WEBP }
+
+    /** How the host answers `fetch_tile`. Set through the ABI's `vcSetElevationConfig`. */
+    var tileFormat: TileFormat = TileFormat.RGBA
+
+    /**
+     * The buffer size the guest offers `fetch_tile`, i.e. its `cap` argument.
+     *
+     * In `WEBP` mode the guest cannot know the compressed size in advance, so it offers the
+     * decoded size, which is a generous upper bound: lossless WebP of a DEM tile runs at roughly
+     * a third of it, and a "compressed" file larger than its own pixels would be a pathological
+     * encoder rather than a tile.
+     */
+    val tileBytes: Int get() = decodedTileBytes
 }
 
 /**
@@ -138,22 +165,27 @@ internal fun seaLevelTile(tileSize: Int): RawTile {
 private suspend fun fetchFromHost(tc: TileCoordinates): RawTile {
     val size = HostTileSource.tileSize
     val cap = HostTileSource.tileBytes
+    val webp = HostTileSource.tileFormat == HostTileSource.TileFormat.WEBP
     var written = 0
-    val rgba = ByteArray(cap)
+    var payload = ByteArray(0)
     withScopedMemoryAllocator { allocator ->
         val buf = allocator.allocate(cap)
         written = fetchTile(tc.z, tc.x, tc.y, buf.address.toInt(), cap)
-        if (written == cap) {
-            for (i in 0 until cap) {
-                rgba[i] = (buf + i).loadByte()
+        if (written > 0) {
+            require(written <= cap) {
+                "host fetch_tile(${tc.z}/${tc.x}/${tc.y}) wrote $written bytes into a $cap-byte buffer"
             }
+            // Exactly `written` bytes: in WEBP mode the tile is far smaller than the buffer, and
+            // copying the whole buffer would hand the decoder a file with megabytes of trailing
+            // garbage.
+            payload = ByteArray(written) { i -> (buf + i).loadByte() }
         }
     }
-    return when (written) {
-        cap -> RawTile(size, size, rgba)
-        0 -> seaLevelTile(size)
-        else -> throw IllegalStateException(
-            "host fetch_tile(${tc.z}/${tc.x}/${tc.y}) returned $written, expected $cap or 0",
-        )
+    if (written == 0) return seaLevelTile(size)
+    if (webp) return decodeTileBytes(payload, "host://${tc.z}/${tc.x}/${tc.y}")
+    check(written == cap) {
+        "host fetch_tile(${tc.z}/${tc.x}/${tc.y}) returned $written, expected $cap decoded bytes or 0 " +
+            "(set tileFormat to \"webp\" if the host means to send the compressed file)"
     }
+    return RawTile(size, size, payload)
 }

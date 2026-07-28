@@ -20,7 +20,8 @@ from pathlib import Path
 import fixtures
 from host import (ERR_INVALID_ARGUMENT, ERR_UNKNOWN_HANDLE, ERR_UNSUPPORTED,
                   ROUTES_ONLY, SEGMENTS, TRACKS_AND_ROUTES, TRACKS_ONLY,
-                  VcyclistHost, WasiCallFailed, http_tile_source)
+                  VcyclistHost, WasiCallFailed, http_tile_source,
+                  raw_webp_tile_source)
 
 WASM = fixtures.REPO_ROOT / "engine/build/wasm/vcyclist-engine.wasm"
 
@@ -373,6 +374,16 @@ class ElevationTest(HostTestCase):
         self.assertEqual(11, geometry["zoomLevel"])
         self.assertEqual(256 * 256 * 4, geometry["expectedBytes"])
 
+    def test_the_tile_format_is_reported_and_validated(self):
+        self.assertEqual("rgba", self.host.tile_geometry()["tileFormat"], "the default is unchanged")
+
+        self.host.set_elevation_config({"tileFormat": "webp"})
+        self.assertEqual("webp", self.host.tile_geometry()["tileFormat"])
+
+        with self.assertRaises(WasiCallFailed) as raised:
+            self.host.set_elevation_config({"tileFormat": "png"})
+        self.assertIn("png", raised.exception.message)
+
     def test_an_impossible_configuration_is_refused_immediately(self):
         with self.assertRaises(WasiCallFailed):
             self.host.set_elevation_config({"tileSize": 300})       # not a power of two
@@ -399,6 +410,32 @@ class ElevationTest(HostTestCase):
             # so the assertion is that the profile is plausible and *not* the input verbatim.
             self.assertTrue(all(2000 < v < 3000 for v in after), (min(after), max(after)))
             self.assertNotEqual(before[: len(after)], after[: len(before)])
+
+
+    def test_raw_webp_tiles_give_the_same_profile_as_decoded_ones(self):
+        """The point of task w11, end to end: a host with no image library gets the same answer.
+
+        Same trace, same tiles, two modes — `rgba`, where the host decodes with Pillow, and
+        `webp`, where it hands over the bytes it downloaded and the module decodes them itself.
+        The two elevation profiles must be identical to the bit, since the same libwebp-produced
+        file goes through two decoders that agree byte for byte (`Vp8lAgainstImageIoTest`).
+        """
+        if not integration_enabled():
+            self.skipTest("set INTEGRATION=1 to download DEM tiles")
+
+        options = {"fixElevation": True, "virtualizeTrack": False, "computeMaxSpeeds": False}
+        gpx = fixtures.STELVIO_GPX.read_bytes()
+        profiles = {}
+        for mode, source in (("rgba", http_tile_source()), ("webp", raw_webp_tile_source())):
+            with VcyclistHost(str(WASM), tile_source=source) as host:
+                host.set_elevation_config({"tileFormat": mode})
+                handle = host.parse_gpx(gpx)
+                enhanced = host.enhance(handle, options)
+                profiles[mode] = host.field_values(enhanced, host.field_index("elevation"))
+                self.assertGreater(host.tiles_served, 0, f"{mode}: no tile was fetched")
+
+        self.assertEqual(profiles["rgba"], profiles["webp"],
+                         "the module's own decoder disagrees with the host's")
 
 
 if __name__ == "__main__":

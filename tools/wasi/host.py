@@ -118,15 +118,23 @@ class VcyclistHost:
         self._captured = bytes(caller.get("memory").read(caller, ptr, ptr + length))
 
     def _fetch_tile(self, caller, zoom: int, x: int, y: int, ptr: int, cap: int) -> int:
+        """Write one tile and return how many bytes were written; 0 means "no tile here".
+
+        `cap` is the buffer the guest offers. In the default `rgba` mode the answer must fill it
+        exactly — decoded pixels have a known size. In `webp` mode (task w11) the host returns the
+        compressed file, which is a fraction of that, and the count is what tells the guest how
+        much of the buffer to read. Over-running the buffer is the host's bug, so it is caught
+        here rather than by the guest.
+        """
         data = self._tile_source(zoom, x, y, cap)
         if data is None:
             self.tiles_absent += 1
             return 0
-        if len(data) != cap:
-            raise AssertionError(f"tile {zoom}/{x}/{y}: {len(data)} bytes, guest expected {cap}")
+        if len(data) > cap:
+            raise AssertionError(f"tile {zoom}/{x}/{y}: {len(data)} bytes into a {cap}-byte buffer")
         caller.get("memory").write(caller, data, ptr)
         self.tiles_served += 1
-        return cap
+        return len(data)
 
     # ── Calling conventions ───────────────────────────────────────────────────────────────
 
@@ -304,13 +312,41 @@ class VcyclistHost:
         self.release_all()
 
 
+def raw_webp_tile_source(url_template: str = "https://tiles.mapterhorn.com/{z}/{x}/{y}.webp",
+                         user_agent: str = "vcyclist-wasi-harness/1.0") -> TileSource:
+    """The whole host side of `fixElevation`, once the module decodes WebP itself (task w11).
+
+    One HTTP GET. No image library, no Pillow, no decoding — the bytes as they came off the wire.
+    Requires `vcSetElevationConfig({"tileFormat": "webp"})`; in the default `rgba` mode the guest
+    would take these bytes for pixels.
+    """
+    import urllib.request
+
+    cache: dict = {}
+
+    def fetch(zoom: int, x: int, y: int, expected_bytes: int):
+        key = (zoom, x, y)
+        if key not in cache:
+            url = url_template.format(z=zoom, x=x, y=y)
+            request = urllib.request.Request(url, headers={"User-Agent": user_agent})
+            try:
+                with urllib.request.urlopen(request, timeout=30) as response:
+                    cache[key] = response.read()
+            except Exception:                       # noqa: BLE001 — the host decides what absent means
+                cache[key] = None
+        return cache[key]
+
+    return fetch
+
+
 def http_tile_source(url_template: str = "https://tiles.mapterhorn.com/{z}/{x}/{y}.webp",
                      user_agent: str = "vcyclist-wasi-harness/1.0") -> TileSource:
-    """A real tile source: download the WebP, decode it, hand back RGBA.
+    """A real tile source in the original `rgba` mode: download, decode, hand back pixels.
 
-    This is the half of `fixElevation` that lives outside the module, and it is three lines of a
-    library every language already has. `Pillow` is imported lazily so the offline tests need
-    neither it nor a network.
+    Kept because it is the mode a host on an older module must use, and because it proves the two
+    modes agree. Since task w11, [raw_webp_tile_source] does the same job without an image
+    library at all. `Pillow` is imported lazily so the offline tests need neither it nor a
+    network.
 
     The `User-Agent` is not decoration: the tile server answers 403 to Python's default one.
     """

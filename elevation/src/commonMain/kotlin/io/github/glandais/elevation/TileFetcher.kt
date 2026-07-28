@@ -26,6 +26,15 @@ expect suspend fun fetchTileBytes(url: String): ByteArray
  * - JVM: ImageIO (TwelveMonkeys for WebP), on [kotlinx.coroutines.Dispatchers.IO].
  * - JS (browser): `createImageBitmap` + canvas `getImageData`.
  * - JS (Node/Bun): the `@jsquash/webp` WASM decoder.
+ * - wasmWasi: the pure-Kotlin VP8L decoder of `webp/` (task w11), since the target has neither.
+ *
+ * The three platform decoders **stay**, and that is a decision rather than an omission. The
+ * Kotlin decoder is `commonMain`, so uniformising on it would be less code to maintain — but it
+ * would replace two decoders that are hardware-accelerated, battle-tested and already shipping
+ * with one written last week, on the two targets that are actually published to consumers. The
+ * gain would be maintenance, the risk would be everyone's elevations. It is exercised on all
+ * four targets by its own tests, and checked against TwelveMonkeys on a real tile
+ * (`Vp8lAgainstImageIoTest`); if it holds for a few releases, revisiting is cheap.
  *
  * @throws IllegalStateException if the bytes cannot be decoded
  */

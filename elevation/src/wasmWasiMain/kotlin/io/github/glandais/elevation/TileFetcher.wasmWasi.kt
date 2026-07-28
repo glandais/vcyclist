@@ -1,5 +1,7 @@
 package io.github.glandais.elevation
 
+import io.github.glandais.elevation.webp.Vp8lDecoder
+
 /**
  * WASI has no standardized HTTP client, so raw tile bytes cannot be fetched here. Task w05 moves
  * the whole transport to the host instead: see [HostTileSource], which returns tiles already
@@ -12,18 +14,37 @@ actual suspend fun fetchTileBytes(url: String): ByteArray =
     )
 
 /**
- * Still unavailable, and deliberately so: the host sends **decoded** pixels, so nothing on this
- * target ever needs to read a WebP. A pure-Kotlin VP8L decoder (task w11) would make this real
- * and the host import optional.
+ * Real since task w11: the pure-Kotlin VP8L decoder of `webp/`, so this target reads a WebP
+ * without help from anyone.
+ *
+ * That is what lets a host serve **raw tile bytes** — one HTTP GET, no image library — instead of
+ * decoded RGBA (see [HostTileSource] and the `tileFormat` option). The decoder is `commonMain`,
+ * tested on all four targets, and checked byte for byte against TwelveMonkeys on a real
+ * Mapterhorn tile in `Vp8lAgainstImageIoTest`.
+ *
+ * Only **lossless** WebP is supported; a lossy `VP8 ` or an extended `VP8X` file throws with its
+ * fourcc named. Mapterhorn serves VP8L, verified on a live tile at the time of writing.
  */
 actual suspend fun decodeTileBytes(
     bytes: ByteArray,
     sourceUrl: String,
 ): RawTile =
-    throw UnsupportedOperationException(
-        "decodeTileBytes is not available on wasmWasi (no WebP decoder — task w11); the host " +
-            "sends decoded RGBA instead, see HostTileSource. Source: $sourceUrl",
-    )
+    try {
+        // `decode` then repack, rather than `decode` plus `decodeToRgba`: the latter would decode
+        // the whole megapixel a second time to learn what the first pass already knows.
+        val image = Vp8lDecoder.decode(bytes)
+        val rgba = ByteArray(image.argb.size * 4)
+        for (i in image.argb.indices) {
+            val argb = image.argb[i]
+            rgba[i * 4] = ((argb shr 16) and 0xFF).toByte()
+            rgba[i * 4 + 1] = ((argb shr 8) and 0xFF).toByte()
+            rgba[i * 4 + 2] = (argb and 0xFF).toByte()
+            rgba[i * 4 + 3] = ((argb shr 24) and 0xFF).toByte()
+        }
+        RawTile(image.width, image.height, rgba)
+    } catch (t: Throwable) {
+        throw IllegalStateException("failed to decode $sourceUrl as lossless WebP: ${t.message}", t)
+    }
 
 /**
  * Unavailable **on purpose**, even though [HostTileSource] could serve it.
