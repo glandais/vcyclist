@@ -97,7 +97,7 @@ Modifiés :
 
 ```bash
 ./gradlew :gpx:jvmTest :engine:jvmTest :elevation:jvmTest
-./gradlew check          # les 4 cibles : rien ne doit avoir fui dans commonMain
+./gradlew check          # les 3 cibles : rien ne doit avoir fui dans commonMain
 ./gradlew ktlintCheck
 ```
 
@@ -109,7 +109,7 @@ Modifiés :
 | 4 | `enhanceCourseAsync(…).cancel(true)` | coroutine annulée, aucun thread résiduel |
 | 5 | Provider qui lève | `Blocking` propage l'exception ; `Async` complète exceptionnellement |
 | 6 | Appel `Async` avec dispatcher explicite | s'exécute bien dessus (assertion sur le nom du thread) |
-| 7 | `./gradlew :engine:jsNodeTest` et `wasmJsBrowserTest` | inchangés — rien de JVM n'a fui en commonMain |
+| 7 | `./gradlew :engine:jsNodeTest` et `:engine:jsBrowserTest` | inchangés — rien de JVM n'a fui en commonMain |
 
 ## Done when
 
@@ -123,7 +123,7 @@ Modifiés :
 ## Notes
 
 - **Pourquoi ne pas dé-suspendre l'API.** `fixElevation` fait des I/O réseau ; la rendre
-  bloquante en commonMain serait un recul pour les cibles JS et Wasm, où il n'existe pas de
+  bloquante en commonMain serait un recul pour les cibles JS, où il n'existe pas de
   `runBlocking`. Le pont JVM est la seule réponse correcte.
 - **Périmètre.** `smoothElevation`, `PathSimplifier`, les resamplers et tout `:fit` sont déjà
   synchrones : rien à faire pour eux.

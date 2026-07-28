@@ -20,13 +20,13 @@ toutes les fixtures FIT partent d'un path virtualisé.
 
 ## Depends on
 
-- `g08`-`g10` (module `:fit`, encodeurs des 3 cibles, round-trip)
+- `g08`-`g10` (module `:fit`, encodeurs JVM et JS, round-trip)
 - `g05` (`startTime` explicite)
 
 ## Inputs
 
 - `fit/src/commonMain/…/{PathToFit,FitCourse,FitEncoder,FitUnits,FitMessageNumbers}.kt`
-- `fit/src/{jvmMain,jsMain,wasmJsMain}/…/FitEncoder.*.kt`
+- `fit/src/{jvmMain,jsMain}/…/FitEncoder.*.kt`
 - `../gpx2web/…/io/write/FitFileWriter.java` — référence (boucle sur les paths, `EventMesg`)
 - `gpx/src/commonMain/…/gpx/GpxToPath.kt` — la source du `time(i)` absolu
 - `engine/src/commonMain/…/physics/VirtualizeService.kt` — KDoc de l'invariant `time(0) = 0`
@@ -78,14 +78,13 @@ appelants et les tests existants.
 
 ### 3. (b) Encodeurs — **le point de risque**
 
-`FitEncoder` doit désormais émettre les `EventMesg`. **Vérifier la faisabilité sur les trois
-cibles avant de figer le modèle** : `com.garmin:fit` expose `EventMesg` (utilisé tel quel par
-gpx2web), `@garmin/fitsdk` expose les mêmes messages par nom côté `Encoder`, mais c'est là que
-la parité JVM / JS / Wasm peut se rompre — et c'est cette parité que garantit le test de
-round-trip de g10.
+`FitEncoder` doit désormais émettre les `EventMesg`. **Vérifier la faisabilité des deux côtés
+avant de figer le modèle** : `com.garmin:fit` expose `EventMesg` (utilisé tel quel par gpx2web),
+`@garmin/fitsdk` expose les mêmes messages par nom côté `Encoder`, mais c'est là que la parité
+JVM / JS peut se rompre — et c'est cette parité que garantit le test de round-trip de g10.
 
 Si `@garmin/fitsdk` ne permet pas d'écrire les `EventMesg` proprement, deux issues acceptables,
-à trancher et documenter : les omettre partout (y compris JVM, pour préserver la parité), ou
+à trancher et documenter : les omettre des deux côtés (y compris JVM, pour préserver la parité), ou
 livrer le multi-lap sans les events. **Ne pas** livrer des sorties divergentes selon la cible.
 
 Ordre d'écriture, calqué sur `FitFileWriter.java` : `FileId`, `Course`, tous les `Lap`, puis
@@ -117,7 +116,7 @@ Le `require(size > 0)` actuel devient : liste non vide **et** aucun path vide.
 Modifiés :
 
 - `fit/src/commonMain/…/{PathToFit,FitCourse,FitEncoder}.kt`
-- `fit/src/{jvmMain,jsMain,wasmJsMain}/…/FitEncoder.*.kt`
+- `fit/src/{jvmMain,jsMain}/…/FitEncoder.*.kt`
 - `cli/src/main/kotlin/…/command/ExportCommand.kt` — écrire tous les paths dans un seul FIT
 - `docs/gpx2web-coverage.md` — ligne `FitFileWriter`
 
@@ -142,7 +141,7 @@ Créés :
 | 5 | 3 paths, `interPathGap = ZERO` | 3 laps, records contigus, timestamps monotones |
 | 6 | 3 paths, `interPathGap = 5 min` | trou de 300 s entre chaque bloc |
 | 7 | Events | `START` par path, `STOP` sauf le dernier en `STOP_ALL` |
-| 8 | Round-trip encode → décode multi-path, JVM + JS + Wasm | laps, records et events identiques sur les 3 cibles |
+| 8 | Round-trip encode → décode multi-path, JVM + JS | laps, records et events identiques sur les 3 cibles de test |
 | 9 | Accesseurs `records` / `lap` de compatibilité | inchangés pour un course mono-segment |
 | 10 | `lap` sur un course multi-segment | lève (`single()`), message clair |
 | 11 | Liste vide, ou contenant un path vide | `IllegalArgumentException` |
@@ -154,8 +153,8 @@ Créés :
 - [ ] Sortie inchangée pour tous les paths virtualisés (cas 1 vérifié par comparaison exacte)
 - [ ] `FitSegment` + accesseurs de compatibilité
 - [ ] `List<Path>.toFitCourse` / `toFitBytes` avec un lap et des events par path
-- [ ] Faisabilité des `EventMesg` tranchée et **identique sur les 3 cibles**
-- [ ] Round-trip vert sur JVM, JS et Wasm
+- [ ] Faisabilité des `EventMesg` tranchée et **identique sur les deux encodeurs**
+- [ ] Round-trip vert sur JVM, JS Node et JS navigateur
 - [ ] CLI `export --fit` écrit tous les paths
 - [ ] `./gradlew check` + `ktlintCheck` verts
 

@@ -95,8 +95,8 @@ d'exemple comment passer du vecteur au `WindProviderConstant`, ce qui est le vra
 ### 5. Façade JS
 
 Optionnelle, à évaluer selon le besoin de la démo. Si retenue :
-`@JsExport fun dominantHeadwind(path: Path): DoubleArray?` sur `jsMain` **et** `wasmJsMain`, en
-miroir strict — voir [`docs/kotlin-wasm-jvm-webp.md`](../kotlin-wasm-jvm-webp.md). À défaut de
+`@JsExport fun dominantHeadwind(path: Path): DoubleArray?` sur `jsMain` — voir
+[`docs/kotlin-js-jvm-webp.md`](../kotlin-js-jvm-webp.md). À défaut de
 besoin identifié, s'abstenir : une façade non utilisée est une surface à maintenir.
 
 ## Outputs
@@ -131,7 +131,7 @@ Modifiés :
 | 9 | Norme du résultat | 1.0 à 1e-9 près |
 | 10 | Agrégat sur 2 paths opposés | ~`null` ou vecteur de norme négligeable, documenté |
 | 11 | Écart d'azimut vs référence Java sur une fixture réelle | < 1° |
-| 12 | Le même calcul sur les 4 cibles | écart < 1e-9 (tolérance trig, cf. `CLAUDE.md`) |
+| 12 | Le même calcul sur les 3 cibles | écart < 1e-9 (tolérance trig, cf. `CLAUDE.md`) |
 
 ## Done when
 

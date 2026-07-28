@@ -94,7 +94,7 @@ Créés :
 ## Validation
 
 ```bash
-./gradlew check          # les 4 cibles : l'annotation doit être neutre hors JVM
+./gradlew check          # les 3 cibles : l'annotation doit être neutre hors JVM
 ./gradlew ktlintCheck
 javap -p build/classes/kotlin/jvm/main/io/github/glandais/engine/path/PathSimplifier.class
 ```
@@ -107,7 +107,7 @@ javap -p build/classes/kotlin/jvm/main/io/github/glandais/engine/path/PathSimpli
 | 4 | `new ElevationProvider()` depuis Java | config par défaut |
 | 5 | `path.toFitBytes(name, startTime)` depuis Java | identique à la forme avec `sport` |
 | 6 | `javap` sur 3 classes P0 | les surcharges générées sont présentes |
-| 7 | `:engine:jsNodeTest`, `:engine:wasmJsBrowserTest` | inchangés — annotation neutre hors JVM |
+| 7 | `:engine:jsNodeTest`, `:engine:jsBrowserTest` | inchangés — annotation neutre hors JVM |
 | 8 | Aucun test Kotlin existant modifié | diff limité aux annotations et aux nouveaux fichiers |
 
 ## Done when
