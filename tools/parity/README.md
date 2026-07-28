@@ -49,10 +49,14 @@ the JVM, `sharp` in the TS reference since `elevation` 3.2.3 — with no substit
 | Mode | What it measures |
 |---|---|
 | `as-is` | Both implementations exactly as they ship. **Not reproducible run to run** — `VirtualizeService.ts:67` seeds its clock from `new Date()`. |
-| `clock-pinned` | The TS wall-clock read is pinned to epoch 0, isolating the ports from that one defect. **This is the mode to use when judging port fidelity.** |
+| `clock-pinned` | The TS simulation clock is pinned to epoch 0, isolating the ports from that one defect. **This is the mode to use when judging port fidelity.** |
 
-Pinning the clock does not modify the reference library; it controls an ambient input the
-library reads (see `withZeroClock` in `ts/pipelineDump.ts`).
+Pinning the clock does not modify the reference library: since `virtual-cyclist` 1.3.0 it is
+a **supported parameter** — `VirtualizeService.virtualizeTrack(course, startTime)`, also
+reachable as `EnhanceOptions.startTime`. The harness used to monkey-patch `globalThis.Date`
+instead; that hack is gone, and the pinned mode now exercises the shipped API exactly as a
+caller would. Verified behaviour-preserving: all 8 stage dumps are byte-identical to the
+patched-`Date` run.
 
 ## Running one piece at a time
 

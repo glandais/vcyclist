@@ -52,36 +52,22 @@ function flag(name: string): boolean {
 }
 
 /**
- * Run `fn` with the wall clock pinned to epoch 0.
+ * Simulation start timestamp used by `clock-pinned` mode.
  *
- * `VirtualizeService.ts:67` seeds the simulation clock with `new Date().getTime()`, so the
- * TS time axis starts around 1.785e12 ms, where float64 quantises to 2.44e-4 ms — about
- * 2.1e6 times coarser than Kotlin's axis, which starts at 0. That alone shifts `dt`,
- * `speed` and every power field by ~1e-7 relative from the very first point, and gives
- * `PointPerSecond` a different sub-second phase to snap to.
+ * `VirtualizeService.ts` defaults its simulation clock to `new Date().getTime()`, so the TS
+ * time axis starts around 1.785e12 ms, where float64 quantises to 2.44e-4 ms — about 2.1e6
+ * times coarser than Kotlin's axis, which starts at 0. That alone shifts `dt`, `speed` and
+ * every power field by ~1e-7 relative from the very first point, and gives `PointPerSecond`
+ * a different sub-second phase to snap to. Without pinning, the measurement only ever
+ * reproduces the TS clock defect (divergence 1 in docs/parity.md).
  *
- * Pinning the clock does not modify the reference library (which stays read-only); it
- * controls an *ambient input* it reads, so the ports can be compared on their own merits.
- * Without this the measurement only ever reproduces the TS clock defect.
+ * Since `virtual-cyclist` 1.3.0 (`8532ba0`, *feat: allow custom start time for track
+ * virtualization*) this is a **supported parameter** — `virtualizeTrack(course, startTime)`,
+ * also reachable as `EnhanceOptions.startTime`. The harness used to monkey-patch `globalThis
+ * .Date` instead; that is gone. Nothing ambient is overridden any more, and the pinned mode
+ * now exercises the shipped API exactly as a caller would.
  */
-function withZeroClock<T>(fn: () => T): T {
-    const RealDate = globalThis.Date;
-    class ZeroDate extends RealDate {
-        constructor(...a: unknown[]) {
-            if (a.length === 0) super(0);
-            else super(...(a as ConstructorParameters<typeof Date>));
-        }
-        static now(): number {
-            return 0;
-        }
-    }
-    (globalThis as Record<string, unknown>).Date = ZeroDate;
-    try {
-        return fn();
-    } finally {
-        (globalThis as Record<string, unknown>).Date = RealDate;
-    }
-}
+const PINNED_START_MS = 0;
 
 let stageIndex = 0;
 let timeOrigin = 0;
@@ -159,8 +145,9 @@ async function main(): Promise<void> {
     MaxSpeedComputer.computeMaxSpeeds(courseWithPath); // mutates `path` in place
     dump(outDir, 'maxspeed', path);
 
-    const virtualize = () => VirtualizeService.virtualizeTrack(courseWithPath);
-    path = zeroClock ? withZeroClock(virtualize) : virtualize();
+    // `undefined` lets the library apply its own `new Date()` default, which is exactly what
+    // `as-is` mode is meant to measure.
+    path = VirtualizeService.virtualizeTrack(courseWithPath, zeroClock ? PINNED_START_MS : undefined);
     dump(outDir, 'virtualize', path);
 
     path = PointPerSecond.computeOnePointPerSecond(path);
