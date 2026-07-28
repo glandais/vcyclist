@@ -1,3 +1,79 @@
+# [2.0.0](https://github.com/glandais/vcyclist/compare/v1.2.1...v2.0.0) (2026-07-28)
+
+
+* feat(cli)!: remove EngineCli in favour of the :cli module (gpx2web task g18) ([91a5dd2](https://github.com/glandais/vcyclist/commit/91a5dd2e4a32ebf6dd4fbe55cbca359b902f2ea7))
+
+
+### Bug Fixes
+
+* **engine:** honour a genuine 0 °C reading in RhoProviderEstimate ([b74096e](https://github.com/glandais/vcyclist/commit/b74096e4b8e545ddf922707a18016bf9b37481a5))
+* **fit:** keep a genuine zero sensor reading instead of dropping it ([1d0d3e4](https://github.com/glandais/vcyclist/commit/1d0d3e41149d8fb61001954a10c47a1f3b6f2423))
+* **gpx:** keep predefined XML entities when reading element text ([47b1512](https://github.com/glandais/vcyclist/commit/47b1512f59a5c256cc61f1449112c6a4a3e673e6))
+* **gpx:** write NaN for an absent GPX sensor instead of leaving it 0.0 ([f3eec22](https://github.com/glandais/vcyclist/commit/f3eec22b614b6028b9e3fdf73c7dcfaa5aeb6b86))
+
+
+### Features
+
+* **build:** wire publication for the new modules (gpx2web task g19) ([27271b1](https://github.com/glandais/vcyclist/commit/27271b1ccebaf2bf70b763f797a58d50974369e4))
+* **cli:** add the enhance and export subcommands (gpx2web task g17) ([f8e497f](https://github.com/glandais/vcyclist/commit/f8e497feff171c3c41b7caa75ae51ea1dd6b936d))
+* **cli:** bootstrap the picocli CLI module with shared mixins (gpx2web task g16) ([340117c](https://github.com/glandais/vcyclist/commit/340117c819451268620e6f061814d27f35c07964))
+* **engine:** expose climb detection to JS/Wasm and show it in the demo (gpx2web task g12) ([a1a074a](https://github.com/glandais/vcyclist/commit/a1a074a4fdfe54f6cb99f80cfd410fb3f01acf09))
+* **engine:** port gpx2web's climb detector (gpx2web task g11) ([5fdb257](https://github.com/glandais/vcyclist/commit/5fdb25789e55c0d5956e0898046f40b0539a2a05))
+* **fit:** bootstrap the :fit module with its JVM encoder (gpx2web task g08) ([9247dd4](https://github.com/glandais/vcyclist/commit/9247dd43b51ffea76761982bd55bc8bea849db1b)), closes [hi#level](https://github.com/hi/issues/level)
+* **fit:** convert Path to FitCourse and validate the round-trip (gpx2web task g10) ([f3bce12](https://github.com/glandais/vcyclist/commit/f3bce1298db90e0ae5bfc7d9ecf2fbdfda454a44))
+* **fit:** implement the JS and Wasm encoders on @garmin/fitsdk (gpx2web task g09) ([f7813d6](https://github.com/glandais/vcyclist/commit/f7813d68daa5a2c435c89cf8e566f4c96fe8a449))
+* **gpx:** add a CSV writer for the 36 PointField columns (gpx2web task g06) ([3848e99](https://github.com/glandais/vcyclist/commit/3848e99fbc72c1e1336353532d87bdff1d99f21a))
+* **gpx:** add a JSON writer for Path data (gpx2web task g07) ([37790ee](https://github.com/glandais/vcyclist/commit/37790eeb59fa745c5b6093de0f4d763f9d106307))
+* **gpx:** add an explicit startTime for absolute timestamps (gpx2web task g05) ([90ea8e0](https://github.com/glandais/vcyclist/commit/90ea8e0b1d922b959c1acf947ad99d9a6ae6a22a))
+* **gpx:** parse, enhance and write multi-track / multi-segment GPX (gpx2web task g02) ([9e0ff77](https://github.com/glandais/vcyclist/commit/9e0ff7787d467d5873e21d08ec636d37e8584f12))
+* **gpx:** parse, preserve and write GPX waypoints (gpx2web task g03) ([2ee494c](https://github.com/glandais/vcyclist/commit/2ee494c2ea4cb477881e38c6772347337ebcd9e4))
+* **gpx:** repair malformed GPX XML before parsing (gpx2web task g04) ([8993d58](https://github.com/glandais/vcyclist/commit/8993d58cf9f8921f9120d4c2decca625e19dc602))
+* **map:** add the JVM-only :map module with projection and framing (gpx2web task g13) ([2735e6a](https://github.com/glandais/vcyclist/commit/2735e6aa08508f0a68ba54660be8b61b01bc1e7a))
+* **map:** download, cache and render tile backgrounds (gpx2web task g14) ([9105cce](https://github.com/glandais/vcyclist/commit/9105cce52577ab0f1d51ad1103f8761e00c9946f))
+* **map:** render hypsometric terrain maps from DEM data (gpx2web task g15) ([eed2456](https://github.com/glandais/vcyclist/commit/eed245652027f5690977ee64a2c9ed08630aae41))
+
+
+### BREAKING CHANGES
+
+* `io.github.glandais.engine.EngineCli` is removed from the published
+`vcyclist-engine` JVM artefact, along with the `:engine:run` Gradle task. The replacement is the
+`:cli` module: `vcyclist enhance <in> --gpx <out>` covers what it did, with identical exit codes
+(64/66/70) so existing scripts keep working.
+
+The coverage table came first, and it earned its keep. Enumerating every gpxtools-cli option
+turned up two with no vcyclist equivalent, which a straight deletion would have silently lost:
+
+- `process --gpx-power` — replay the recorded power instead of the constant. vcyclist already had
+  PowerProviderFromData; the CLI just never exposed it. Now `enhance --gpx-power`, same name.
+- `export --gpx` — re-write the GPX. Now `export --gpx`, same name.
+
+One mapping is inverted and worth knowing: `process --gpx-elevation` asserts the file's elevation
+is already good, i.e. do not correct it. That is vcyclist's default, and the explicit form is
+`--no-fix-elevation`.
+
+Four options were renamed, each for a reason recorded in cli/README.md: `--start` to
+`--start-time` (symmetry with export), `--map-srtm` to `--elevation-map` ("srtm" named a data
+source, not the hypsometric output it actually produces), and `--map-tile-url` / `--map-width` /
+`--map-height` shortened since they are unambiguous inside `export`.
+
+FullPipelineSmokeTest is kept, so :engine retains full-pipeline coverage without the CLI. The
+only remaining EngineCli mentions in code are three comments explaining the replacement.
+
+CI now smokes the packaged jar: build it, run --help and --version, then run a full enhance from
+a different working directory and check all four outputs are non-empty and the FIT carries its
+".FIT" marker. The CLI is the only consumer that crosses :gpx -> :engine -> :fit -> :map in one
+go, so it doubles as the repo's best integration test, and a fat jar that builds but cannot run
+is the classic failure this catches. The step was replayed locally before committing.
+
+On the version: removing a public class from a published artefact is formally breaking, even
+though real usage is almost certainly nil — "almost certainly nil" is not a semver argument. The
+`!` will make semantic-release cut a major on merge to develop. Nothing fires from this branch,
+so the commit type can still be amended if the version decision should be grouped with g19.
+
+check + ktlintCheck green.
+
+Co-Authored-By: Claude Opus 5 (1M context) <noreply@anthropic.com>
+
 ## [1.2.1](https://github.com/glandais/vcyclist/compare/v1.2.0...v1.2.1) (2026-07-20)
 
 
