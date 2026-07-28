@@ -97,7 +97,7 @@ All three, in module `"vcyclist"`:
 |---|---|---|
 | `read_input` | `(ptr: i32, cap: i32) -> i32` | write up to `cap` bytes of the staged payload at `ptr`, return how many were written |
 | `write_output` | `(ptr: i32, len: i32) -> ()` | copy `len` bytes from `ptr`; the memory is gone when the call returns |
-| `fetch_tile` | `(zoom: i32, x: i32, y: i32, ptr: i32, cap: i32) -> i32` | write one DEM tile at `ptr` and return `cap`; return `0` for "no tile here"; anything else is a host failure (§8) |
+| `fetch_tile` | `(zoom: i32, x: i32, y: i32, ptr: i32, cap: i32) -> i32` | write one DEM tile at `ptr` and return how many bytes; `0` means "no tile here"; more than `cap` is a host failure (§8) |
 
 **All three are mandatory**, including `fetch_tile` for a host that will never correct an
 elevation: Wasm imports are resolved at instantiation, so one missing means the module does not
@@ -249,18 +249,36 @@ survives.
 
 ## 8. Elevation: the host serves the tiles
 
-WASI has neither an HTTP client nor an image decoder, so `fixElevation` is the one step that
-needs the host. The module asks for a tile by `zoom/x/y`; the host answers with **decoded RGBA
-pixels**, not a WebP — decoding is exactly what a small host does not want to reimplement, and
-every language has an image library one line away (`Pillow`, Go's `image`, the `image` crate).
+WASI has no HTTP client, so `fixElevation` is the one step that needs the host. The module asks
+for a tile by `zoom/x/y` and the host answers, in one of two formats — set with
+`vcSetElevationConfig`, reported by `vcTileGeometryJson`:
+
+| `tileFormat` | The host writes | Needs |
+|---|---|---|
+| `"rgba"` (default) | decoded pixels, exactly `expectedBytes` of them | an image library |
+| `"webp"` | **the file as downloaded**, and returns its length | an HTTP client, nothing else |
+
+`"webp"` exists because the module carries its own lossless-WebP decoder (pure Kotlin, checked
+byte for byte against the JVM's on a real tile). In that mode a host is one `GET` — no Pillow, no
+`image` crate, no decoding at all. `"rgba"` remains the default so that hosts written against the
+earlier contract keep working unchanged.
+
+The format is declared rather than sniffed: a WebP file is smaller than a decoded tile today, but
+deciding by length would misread the day it is not, and a misread tile is wrong elevations rather
+than an error.
+
+The rest of this section describes the pixels — what the host sends in `"rgba"` mode, and what
+the module decodes the file into in `"webp"` mode.
 
 ```json
 // vcTileGeometryJson
 {"tileSize": 512, "bytesPerPixel": 4, "expectedBytes": 1048576,
- "layout": "RGBA", "encoding": "terrarium", "zoomLevel": 12}
+ "layout": "RGBA", "encoding": "terrarium", "zoomLevel": 12, "tileFormat": "rgba"}
 ```
 
-- `expectedBytes` is the `cap` the guest passes, so a host can also just trust `cap`.
+- `expectedBytes` is the `cap` the guest passes, so a host can also just trust `cap`. In
+  `"webp"` mode it is the size of the buffer **offered**, not of the answer: write the file and
+  return its length.
 - **RGBA**, 4 bytes per pixel, row-major from the top-left. Only R, G and B are read; alpha may
   be anything. Elevation is Terrarium: `(r × 256 + g + b / 256) − 32768` meters.
 - Returning **`0`** means "no tile here" — sea, outside coverage, a failed download, whatever the
@@ -271,7 +289,8 @@ every language has an image library one line away (`Pillow`, Go's `image`, the `
 Tile requests arrive **one at a time**, in the middle of a `vcEnhance` call. That is also why the
 re-entrancy rule of §4 matters here: do not call back into the module from `fetch_tile`.
 
-`vcSetElevationConfig` takes `{"zoomLevel": 12, "tileSize": 512, "cacheSize": 100}`, any subset.
+`vcSetElevationConfig` takes `{"zoomLevel": 12, "tileSize": 512, "cacheSize": 100,
+"tileFormat": "rgba"}`, any subset.
 It is validated on the spot — a tile size that is not a power of two, or a zoom outside 0..15, is
 `-3` right there rather than three calls later — and it is sticky for the instance.
 
@@ -405,8 +424,9 @@ Three things have no JS counterpart: `vcAbiVersion`, `vcSetElevationConfig`,
   runs under WASI. `vcPathToFit` exists so the answer is a code you can act on rather than a
   missing symbol; a pure-Kotlin encoder is task w12. Everything upstream — the `Path` →
   `FitCourse` conversion — works here, so a host that has an encoder can do the last step itself.
-- **No tile decoding.** The host decodes (§8). A pure-Kotlin VP8L decoder (task w11) would make
-  `fetch_tile` optional rather than mandatory.
+- **Only lossless WebP.** The module's own decoder (task w11) reads VP8L, which is what the
+  reference DEM serves. A lossy `VP8 ` or extended `VP8X` file is refused with its fourcc named;
+  a host facing one must decode it itself and use `"rgba"` mode.
 - **No Component Model / WIT.** Core module, custom imports. Wrapping it with `wit-component` on
   the host side is possible and not something this project does.
 - **No concurrency.** One instance, one caller, tiles fetched one at a time.
