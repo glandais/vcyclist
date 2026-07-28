@@ -144,30 +144,33 @@ hand-writing a `Continuation`, so each of them has a JVM bridge in two shapes:
 
 ```java
 import io.github.glandais.elevation.ElevationProvider;
-import io.github.glandais.elevation.ElevationProviderConfig;
+import io.github.glandais.elevation.ElevationProviderJvm;
 import io.github.glandais.engine.EnhancerJvm;
-import io.github.glandais.engine.gpx.GpxParser;
+import io.github.glandais.engine.gpx.GpxParserJvm;
 import io.github.glandais.engine.gpx.GpxToPathKt;
-import io.github.glandais.engine.gpx.GpxWriter;
+import io.github.glandais.engine.gpx.GpxWriterJvm;
 import io.github.glandais.engine.path.Path;
 
 String xml = Files.readString(java.nio.file.Path.of("route.gpx"));
-Path input = GpxToPathKt.firstTrackAsPath(GpxParser.INSTANCE.parse(xml, true));
+Path input = GpxToPathKt.firstTrackAsPath(GpxParserJvm.parse(xml));
 
 // Physics only, nothing touches the network:
 Path enhanced = EnhancerJvm.enhanceCourseDefaultBlocking(input);
 
 // Or with elevation correction, off the calling thread:
-ElevationProvider provider = new ElevationProvider(new ElevationProviderConfig(...));
+ElevationProvider provider = ElevationProviderJvm.newElevationProvider();
 CompletableFuture<Path> future = EnhancerJvm.enhanceCourseDefaultAsync(input, provider);
 
-// Kotlin defaults are not usable from Java, so every parameter is spelled out — including
-// `writeExtensions` (true = keep power / heart rate / cadence, the default on the Kotlin side).
-String out = GpxWriter.INSTANCE.write(enhanced, "virtualized", null, null, true);
+String out = GpxWriterJvm.write(enhanced);
 ```
 
-The bridges are `ElevationStepJvm` (`:gpx`), `EnhancerJvm` (`:engine`) and
-`ElevationProviderJvm` (`:elevation`).
+**Every entry point has a `…Jvm` twin**, in the same package as the Kotlin original:
+`GpxParserJvm`, `GpxWriterJvm`, `GpxFromPathJvm`, `GpxModelJvm`, `PathSimplifierJvm`,
+`ElevationStepJvm`, `TabularWritersJvm` (`:gpx`), `ElevationProviderJvm`, `TileFetcherJvm`
+(`:elevation`), `EnhancerJvm`, `EngineModelJvm`, `ClimbDetectorJvm` (`:engine`), `PathToFitJvm`
+(`:fit`), `MapFactoriesJvm` (`:map`). They exist for two reasons: Kotlin default arguments are
+invisible to Java, and `@JvmOverloads` cannot be used on the common source sets where the API
+lives. Call them and every optional parameter becomes optional again.
 
 - `…Blocking` parks the calling thread. **Never call it from a UI thread, from inside a
   coroutine, or from a thread of the executor you passed** — the first two freeze the caller,

@@ -100,6 +100,7 @@ class SrtmMapProducer(
      * @param maxSize largest image dimension in pixels.
      * @param margin padding around the track's bounds, as a ratio (`0.1` = 10 %).
      */
+    @JvmOverloads
     fun createSrtmMap(
         file: File,
         paths: List<Path>,

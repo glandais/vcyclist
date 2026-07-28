@@ -30,7 +30,7 @@ object EngineConstants {
     const val DEFAULT_CYCLIST_POWER_W: Double = 280.0
     const val DEFAULT_MAX_BRAKE_G: Double = 0.6
     const val DEFAULT_MAX_LEAN_ANGLE_DEG: Double = 35.0
-    val DEFAULT_MAX_LEAN_ANGLE_RAD: Double = DEFAULT_MAX_LEAN_ANGLE_DEG * PI / 180.0
+    const val DEFAULT_MAX_LEAN_ANGLE_RAD: Double = DEFAULT_MAX_LEAN_ANGLE_DEG * PI / 180.0
     const val DEFAULT_MAX_SPEED_KMH: Double = 100.0
 
     // ---- Aerodynamics ---------------------------------------------------------

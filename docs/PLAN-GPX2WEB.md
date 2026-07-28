@@ -72,7 +72,7 @@ ce plan, 4 cibles avec Kotlin/Wasm ; la cible a depuis été retirée du projet)
 | g24 | Lecture / écriture des GPX `<rte>` / `<rtept>` | `:gpx` | ✅ |
 | g25 | FIT multi-`Path` + contrat de timestamp | `:fit` `:cli` | ✅ |
 | g26 | Port de `GPXDataComputer.getWind` | `:engine` | ✅ |
-| g27 | Façade JVM (ex-`@JvmOverloads`) sur l'API publique | tous | ⬜ |
+| g27 | Façade JVM (ex-`@JvmOverloads`) sur l'API publique | tous | ✅ |
 | **— Phase J : suites de la phase I —** | | | |
 | g28 | CSV / JSON : écrire toutes les pistes, pas la première | `:cli` | ⬜ |
 | g29 | Rattrapage de la façade JS sur g23, g24 et g25 | `:engine` | ⬜ |

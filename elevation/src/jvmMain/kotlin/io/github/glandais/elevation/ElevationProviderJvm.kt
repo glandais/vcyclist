@@ -1,16 +1,3 @@
-@file:JvmName("ElevationProviderJvm")
-
-package io.github.glandais.elevation
-
-import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.SupervisorJob
-import kotlinx.coroutines.asCoroutineDispatcher
-import kotlinx.coroutines.future.future
-import kotlinx.coroutines.runBlocking
-import java.util.concurrent.CompletableFuture
-import java.util.concurrent.Executor
-
 /**
  * Blocking and `CompletableFuture` bridges over [ElevationProvider]'s suspending API (task g22).
  *
@@ -38,6 +25,54 @@ import java.util.concurrent.Executor
  * implementation detail of this library. `null` (the default) means `Dispatchers.IO`, the right
  * pool for the network-bound work these functions do.
  */
+@file:JvmName("ElevationProviderJvm")
+
+package io.github.glandais.elevation
+
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.asCoroutineDispatcher
+import kotlinx.coroutines.future.future
+import kotlinx.coroutines.runBlocking
+import java.util.concurrent.CompletableFuture
+import java.util.concurrent.Executor
+
+/**
+ * Java-callable factories for the provider and its configuration (task g27).
+ *
+ * `new ElevationProvider()` does not compile from Java: both constructor parameters are Kotlin
+ * defaults, and the second is a `suspend` function type that has no Java literal at all. These
+ * factories give the two forms a Java caller can actually want — all defaults, or a custom
+ * configuration — and deliberately stop there: injecting a fetcher means writing a suspending
+ * lambda, which is Kotlin's job.
+ */
+fun newElevationProvider(): ElevationProvider = ElevationProvider()
+
+fun newElevationProvider(config: ElevationProviderConfig): ElevationProvider = ElevationProvider(config)
+
+@JvmOverloads
+fun elevationProviderConfig(
+    zoomLevel: Int = 12,
+    cacheSize: Int = 100,
+    tileUrlTemplate: String = "https://tiles.mapterhorn.com/{z}/{x}/{y}.webp",
+    tileSize: Int = 512,
+): ElevationProviderConfig =
+    ElevationProviderConfig(
+        zoomLevel = zoomLevel,
+        cacheSize = cacheSize,
+        tileUrlTemplate = tileUrlTemplate,
+        tileSize = tileSize,
+    )
+
+/** `new LatLon(lat, lon)` does not compile from Java: `elevation` is a Kotlin default. */
+@JvmOverloads
+fun latLon(
+    latitude: Double,
+    longitude: Double,
+    elevation: Double? = null,
+): LatLon = LatLon(latitude, longitude, elevation)
+
 @JvmOverloads
 fun ElevationProvider.getElevationBlocking(
     latitude: Double,

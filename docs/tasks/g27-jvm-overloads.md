@@ -142,13 +142,82 @@ javap -p build/classes/kotlin/jvm/main/io/github/glandais/engine/path/PathSimpli
 
 ## Done when
 
-- [ ] Forme de façade `jvmMain` tranchée sur un cas témoin (surcharges explicites vs `@JvmOverloads` délégant)
-- [ ] P0 et P1 annotés ; P2 annoté ou explicitement reporté avec motif
-- [ ] Exclusions techniques listées dans « Résultat »
-- [ ] `JavaInteropTest.java` + `FitJavaInteropTest.java` verts
-- [ ] Question du `Builder` d'`EnhanceOptions` tranchée sur la base d'un besoin constaté
-- [ ] Aucun corps de fonction modifié
-- [ ] `./gradlew check` + `ktlintCheck` verts
+- [x] Forme de façade `jvmMain` tranchée sur un cas témoin (surcharges explicites vs `@JvmOverloads` délégant)
+- [x] P0 et P1 couverts ; P2 couvert (`:map`), `Enhancer` déjà fait en g22
+- [x] Exclusions techniques listées dans « Résultat »
+- [x] `JavaInteropTest.java` + `FitJavaInteropTest.java` verts
+- [x] Question du `Builder` d'`EnhanceOptions` tranchée sur la base d'un besoin constaté
+- [x] Aucun corps de fonction modifié
+- [x] `./gradlew check` + `ktlintCheck` verts
+
+## Résultat
+
+### Forme retenue
+
+Un fichier `…Jvm.kt` par type source, en `jvmMain`, même package, `@file:JvmName`, contenant des
+fonctions **top-level** annotées `@JvmOverloads` qui délèguent. Vérifié sur un témoin
+(`GpxWriterJvm`) avant de dérouler : `javap` montre bien l'échelle de surcharges attendue, de
+`write(Path)` à `write(Path, String, String, Instant, boolean)`.
+
+C'est la forme la plus courte des deux envisagées — une déclaration par cible au lieu d'une
+échelle écrite à la main — et elle prolonge la convention posée par g22 (`ElevationProviderJvm`,
+`ElevationStepJvm`, `EnhancerJvm`), qui devient donc la convention unique pour toute la surface
+Java du projet.
+
+### Ce qui est couvert
+
+| Module | Fichiers |
+|---|---|
+| `:gpx` | `GpxParserJvm`, `GpxWriterJvm`, `GpxFromPathJvm`, `GpxModelJvm`, `PathSimplifierJvm`, `TabularWritersJvm`, + `smoothElevation` ajouté à `ElevationStepJvm` |
+| `:elevation` | `TileFetcherJvm` (bridges + défaut de `sourceUrl`), + factories `newElevationProvider` / `elevationProviderConfig` / `latLon` dans `ElevationProviderJvm` |
+| `:engine` | `EngineModelJvm` (`bike`, `cyclist`, `enhanceOptions`, `simplifyPathOptions`), `ClimbDetectorJvm` |
+| `:fit` | `PathToFitJvm` |
+| `:map` | `@JvmOverloads` **direct** sur `MapImage.ofMaxSize` / `ofZoom` / `ofSize`, `TileMapProducer.createTileMap`, `SrtmMapProducer.createSrtmMap` ; `MapFactoriesJvm` pour les constructeurs |
+
+`Enhancer` n'apparaît pas : g22 l'avait déjà couvert, `@JvmOverloads` compris.
+
+### Trois découvertes, dont deux pièges
+
+1. **Une façade peut masquer l'original.** La première version de `GpxFromPathJvm` exposait
+   `pathsToGpxDocument(paths, name, trackNames, waypoints, startTime)` — mêmes nom, package et
+   signature que la fonction commune. Résultat : pour tout appelant **Kotlin** compilé sur la
+   cible JVM, la résolution choisissait la façade, qui s'appelait elle-même. `GpxWriterTest`
+   case 24 est mort sur un `StackOverflowError`. Renommée en `toGpxDocument`, surchargée sur le
+   type du receveur. Consigné dans `CLAUDE.md`.
+2. **`@JvmOverloads` sur un constructeur coûte cher en diff.** ktlint impose alors de passer le
+   constructeur à la ligne, ce qui ré-indente tout le corps de la classe : mesuré à **~1 000
+   lignes** de bruit pour quatre annotations dans `:map`. Les fonctions n'ont pas ce problème.
+   D'où `MapFactoriesJvm` pour les quatre classes concernées, et l'annotation directe partout
+   ailleurs.
+3. **`val` dans un `object` est illisible depuis Java** : `MathConstants.INSTANCE.getDEG_TO_RAD()`.
+   Trouvé en écrivant `FitJavaInteropTest`, qui ne compilait pas. `DEG_TO_RAD`, `RAD_TO_DEG` et
+   `DEFAULT_MAX_LEAN_ANGLE_RAD` sont passés en `const val` — trois `public static final double`
+   côté Java, aucun changement côté Kotlin.
+
+### Ce qui n'est pas couvert, et pourquoi
+
+- **`FitRecord` / `FitLap` / `FitCourse`** : constructeurs à défauts, mais un appelant Java qui
+  assemble un `FitRecord` à la main court-circuite `PathToFit`, c'est-à-dire toute la logique du
+  module. Pas de factory tant que ce cas d'usage n'existe pas.
+- **`ElevationProvider(config, fetcher)`** : le second paramètre est un `suspend (String) ->
+  RawTile`, qui n'a pas de littéral Java. Les factories couvrent les deux formes atteignables ;
+  injecter un fetcher reste du ressort de Kotlin.
+- **`copy()` des data classes** : jamais couvert par `@JvmOverloads`, ni par une factory. La fiche
+  demandait de trancher la question du `Builder` d'`EnhanceOptions` **sur la base d'un besoin
+  constaté** : aucun ne l'est à ce jour, donc pas de `Builder`. La factory `enhanceOptions(...)`
+  couvre la construction ; c'est la modification d'une instance existante qui reste verbeuse.
+- **`GeneratedPath.kt`** : hors périmètre comme prévu (code généré, accesseurs).
+
+### Vérification
+
+- **13 tests en source Java** : `JavaInteropTest` (9, `:gpx`) et `FitJavaInteropTest` (4, `:fit`),
+  plus les 15 de g22 qui continuent de passer. Chaque test compare la **forme courte** à la forme
+  longue explicite, de sorte qu'une façade qui passerait un défaut différent échouerait ici.
+- `ReadmeJavaSnippetTest` (g22) a été mis à jour : le snippet Java du `README.md` passe par les
+  façades et perd ses trois `null` de remplissage — c'est la démonstration la plus directe du
+  gain.
+- `./gradlew check` + `ktlintCheck` verts. Aucun corps de fonction commune modifié : le diff sur
+  `commonMain` se limite à trois `val` → `const val`.
 
 ## Notes
 

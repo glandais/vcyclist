@@ -129,6 +129,7 @@ class MapImage private constructor(
          * The zoom is found by stepping up until one dimension would exceed [maxSize], then
          * backing off one level — so the result is the most detailed zoom that still fits.
          */
+        @JvmOverloads
         fun ofMaxSize(
             paths: List<Path>,
             margin: Double = 0.0,
@@ -156,6 +157,7 @@ class MapImage private constructor(
          * bounds, so it can be large — this is the mode a caller uses when the zoom level, not
          * the output size, is what matters.
          */
+        @JvmOverloads
         fun ofZoom(
             paths: List<Path>,
             margin: Double = 0.0,
@@ -172,6 +174,7 @@ class MapImage private constructor(
          * Frame [paths] into an image of exactly [width] × [height] pixels, with [margin]
          * padding, choosing the deepest zoom at which the padded bounds still fit.
          */
+        @JvmOverloads
         fun ofSize(
             paths: List<Path>,
             margin: Double = 0.0,

@@ -2,9 +2,9 @@ package io.github.glandais.engine;
 
 import static org.junit.Assert.assertTrue;
 
-import io.github.glandais.engine.gpx.GpxParser;
+import io.github.glandais.engine.gpx.GpxParserJvm;
 import io.github.glandais.engine.gpx.GpxToPathKt;
-import io.github.glandais.engine.gpx.GpxWriter;
+import io.github.glandais.engine.gpx.GpxWriterJvm;
 import io.github.glandais.engine.path.Path;
 import org.junit.Test;
 
@@ -25,9 +25,9 @@ public class ReadmeJavaSnippetTest {
                         + "  </trkseg></trk>\n"
                         + "</gpx>";
 
-        Path input = GpxToPathKt.firstTrackAsPath(GpxParser.INSTANCE.parse(xml, true));
+        Path input = GpxToPathKt.firstTrackAsPath(GpxParserJvm.parse(xml));
         Path enhanced = EnhancerJvm.enhanceCourseDefaultBlocking(input);
-        String out = GpxWriter.INSTANCE.write(enhanced, "virtualized", null, null, true);
+        String out = GpxWriterJvm.write(enhanced);
 
         assertTrue(out.contains("<trk>"));
     }

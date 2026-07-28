@@ -60,6 +60,7 @@ class TileMapProducer(
      *
      * @param colors one colour per path, cycled if there are more paths than colours.
      */
+    @JvmOverloads
     fun createTileMap(
         file: File,
         paths: List<Path>,

@@ -245,6 +245,26 @@ TS side per the checklist at the end of `docs/parity.md`.
    and the Enhancer.
 4. Add tests in `engine/src/commonTest/.../physics/` covering the formula at sentinel inputs.
 
+### Adding a public function with default arguments
+
+Kotlin defaults do not exist for Java callers, and **`@JvmOverloads` cannot be resolved from a
+common source set** (verified on Kotlin 2.3.21 in task g23). So a `commonMain` API with defaults
+is only reachable from Java in its longest form.
+
+The convention (task g27): a `…Jvm` facade file in `jvmMain`, same package, `@file:JvmName`, whose
+top-level functions carry `@JvmOverloads` and delegate. Two traps found while writing them:
+
+- **Never give a facade function the same name *and* signature as the common one.** Same package
+  means it shadows the original for Kotlin callers compiled against that source set — and calls
+  itself. `GpxFromPathJvm.toGpxDocument` is named that way because the first attempt was called
+  `pathsToGpxDocument` and blew the stack.
+- **`@JvmOverloads` on a constructor** forces ktlint to move it to its own line, which re-indents
+  the whole class body. Fine for a small class, a thousand lines of churn for a big one — prefer a
+  factory function in that case (see `MapFactoriesJvm`).
+
+A `val` in an `object` reaches Java as `Xxx.INSTANCE.getFoo()`; make it `const val` when it is a
+compile-time constant.
+
 ### Adding a public `suspend` function
 
 Anything `suspend` on the public surface needs a JVM bridge, or Java consumers cannot call it at

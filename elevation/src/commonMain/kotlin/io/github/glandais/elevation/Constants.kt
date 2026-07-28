@@ -20,11 +20,17 @@ object EarthConstants {
 }
 
 object MathConstants {
-    /** Degrees → radians factor */
-    val DEG_TO_RAD: Double = PI / 180.0
+    /**
+     * Degrees → radians factor.
+     *
+     * `const` rather than `val`, since task g27: a plain `val` in an `object` reaches Java only
+     * as `MathConstants.INSTANCE.getDEG_TO_RAD()`, which is not something anyone writes. As a
+     * compile-time constant it is a `public static final double`.
+     */
+    const val DEG_TO_RAD: Double = PI / 180.0
 
-    /** Radians → degrees factor */
-    val RAD_TO_DEG: Double = 180.0 / PI
+    /** Radians → degrees factor. `const` for the same reason as [DEG_TO_RAD]. */
+    const val RAD_TO_DEG: Double = 180.0 / PI
 }
 
 object AlgorithmConstants {
