@@ -21,9 +21,13 @@ jobs:
       # `setup-gradle` has no `cache-extra-paths`; its `gradle-home-cache-includes` would work
       # (the directory is inside Gradle User Home) but folds wasmtime into a key that does not
       # track the Kotlin version. A dedicated entry is both correctly keyed and legible in the
-      # log — which matters, because this step is on probation: locally the cold download takes
-      # **2.5 s**, and a 64 MB cache restore is not obviously faster than that. Compare the two
-      # numbers on the first CI runs (task w02) and delete this step if the cache does not win.
+      # log, which is how w02 measured it: 16 MB compressed, restored in 2 s, against a download
+      # KGP does itself in ~2.5 s. Near enough a wash, kept because a restore cannot be slower.
+      #
+      # Do not expect it on a fresh PR. Actions caches are scoped per ref and this workflow only
+      # runs on `pull_request`, so nothing ever writes an entry on `develop`: a PR gets a hit
+      # from its *second* run onwards. Adding a `push:` trigger on develop would fix that, at
+      # the price of a full duplicate `check` per merge — not worth it for 2.5 s.
       - name: Cache the wasmtime runtime KGP provisions
         uses: actions/cache@v6
         with:
