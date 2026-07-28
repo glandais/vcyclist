@@ -265,6 +265,11 @@ top-level functions carry `@JvmOverloads` and delegate. Two traps found while wr
 A `val` in an `object` reaches Java as `Xxx.INSTANCE.getFoo()`; make it `const val` when it is a
 compile-time constant.
 
+**No `kotlin.jvm.*` annotation resolves from a common source set** — `@JvmOverloads` (g23),
+`@JvmStatic` (g33), and expect the same of the rest of the family. Don't test them one at a time:
+if the declaration lives in `commonMain`, the answer is a `…Jvm` facade, whatever the annotation
+would have done.
+
 ### Adding a public `suspend` function
 
 Anything `suspend` on the public surface needs a JVM bridge, or Java consumers cannot call it at

@@ -7,6 +7,7 @@ import static org.junit.Assert.assertTrue;
 
 import io.github.glandais.elevation.LatLonElevation;
 import io.github.glandais.elevation.Vector3D;
+import java.util.ArrayList;
 import java.util.List;
 import org.junit.Test;
 
@@ -22,7 +23,7 @@ import org.junit.Test;
 public class PathWindJavaTest {
 
     private static Path meridian(double startLat, double stepDeg) {
-        List<LatLonElevation> coordinates = new java.util.ArrayList<>();
+        List<LatLonElevation> coordinates = new ArrayList<>();
         for (int i = 0; i < 20; i++) {
             coordinates.add(new LatLonElevation(startLat + (i * stepDeg), 5.0, 100.0));
         }

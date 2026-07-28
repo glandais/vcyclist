@@ -117,12 +117,25 @@ class Path(
      * real recording does not always have: a head unit that resyncs its clock mid-ride, or two
      * traces concatenated out of order, both step backwards. A consumer facing such a file has
      * only bad options — reject the import, or hand-rebuild the path through
-     * [Path.fromCoordinates] and lose everything that is not a coordinate. This is the third one:
-     * the geometry is kept, the clock is dropped, and the result encodes as a course, which is
-     * what an un-timed route produces anyway.
+     * [Path.fromCoordinates] and lose everything that is not a coordinate. This is the third one.
      *
-     * Only [PointField.TIME] is cleared. Fields a simulation may have derived *from* time (speed,
-     * power) are left alone — this answers "make it encodable", not "make it un-simulated".
+     * ## What survives, and what does not
+     *
+     * [PointField.TIME] is set to `0.0` on every point, then [computeDerivedData] runs. That
+     * recomputes the whole time-derived family, so **`speed`, `dt`, `elapsed` and `durationMs` all
+     * come back as zero** — `computeDerivedData` reads speed off the clock, and there is no longer
+     * a clock. Geometry (position, elevation, `distance`, `grade`, `bearing`) is preserved exactly,
+     * and fields no derivation touches — power, heart rate, cadence, temperature — are carried
+     * through untouched.
+     *
+     * ## What the result is
+     *
+     * A **route**, not a recording. Encoded to FIT, every record carries the same timestamp
+     * ([startTime][io.github.glandais.fit.toFitCourse]), the lap's elapsed time is `0` and its
+     * max speed is `0`; the positions and cumulative distances are intact. That is what an un-timed
+     * GPX produces too, and it is the honest outcome: a path whose clock was rejected has no
+     * speeds to report. If the ride's speeds matter more than encodability, fix the timestamps
+     * upstream instead of calling this.
      */
     fun withoutTime(): Path {
         val out = copy()
