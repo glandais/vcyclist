@@ -39,6 +39,11 @@ dep). `npm install --no-save` populates the gitignored `node_modules/` without t
 Roughly 6-8 minutes and **~1.5 GB of dumps** for the 7 sample GPX files in both modes.
 Keep the output root off `/tmp` if `/tmp` is a tmpfs. Nothing is written into any repo.
 
+The last block is the **elevation (DEM) sweep**, which unlike the pipeline sweep **needs
+network**: it resolves the 10 `ELEVATION_COORDS` on both sides against live Terrarium tiles
+and writes `reports/elevation.txt`. It exercises each side's own decoder — TwelveMonkeys on
+the JVM, `sharp` in the TS reference since `elevation` 3.2.3 — with no substitution.
+
 ### The two modes
 
 | Mode | What it measures |
@@ -97,6 +102,7 @@ the comparison, and so a 68 k-point stage costs ~20 MB instead of ~200 MB.
 | `inspect.py` | Side-by-side raw values for a field over an index range — the tool to reach for once `compare.py` has localised a divergence |
 | `summarize.py` | Aggregates the per-fixture JSON reports into the cross-fixture tables in `docs/parity.md` |
 | `compare-units.py` | Diffs the two flat maps from the unit-level runners |
+| `ts/liveElevation.ts` + `:tools:parity:dumpElevation` | DEM sweep: the same 10 `ELEVATION_COORDS` resolved live through each side's own WebP decoder. Run by `run-all.sh`; needs network |
 
 ## Tolerance model
 
@@ -144,11 +150,45 @@ GPX types into `:gpx` changed no arithmetic.
 
 ## Known gaps
 
-- **The TS Node elevation path cannot decode the current tiles.** `node-canvas` 3.2.3
-  rejects the lossless WebP that `tiles.mapterhorn.com` serves (`Unsupported image type`),
-  so no TS↔Kotlin elevation comparison is possible through Node. Reproduce with
+- ~~**The TS Node elevation path cannot decode WebP at all.**~~ **Fixed in `elevation`
+  3.2.3** — see the closing note on this entry. Diagnosis retained: not "rejects the lossless
+  variant" — `node-canvas` 3.2.3 links no libwebp: `ldd
+  ../elevation/node_modules/canvas/build/Release/canvas.node | grep -i webp` matches nothing
+  (30 other `.so`s are listed: cairo, libpng16, libjpeg.62, libgif.7, librsvg, pango …), and
+  `strings … | grep -ci webp` is `0`. Its exports carry `PNGStream`, `JPEGStream`,
+  `PDFStream`, `jpegVersion`, `gifVersion` — nothing WebP. `loadImage` then fails with
+  cairo's generic `Unsupported image type`. Reproduce with
   `node -e "require('canvas').loadImage(require('fs').readFileSync('tile.webp'))"`.
-- **Browser WebP decoders are unmeasured.** `:elevation`'s integration gate is
-  `typeof process !== 'undefined' && process.env.INTEGRATION === '1'`; `process` does not
-  exist in a browser, so those tests are silently skipped on the browser targets. Measuring
-  `createImageBitmap` against TwelveMonkeys needs a browser harness that does not exist yet.
+  There is no PNG fallback either: `https://tiles.mapterhorn.com/12/2094/1467.png` is
+  **404** while the `.webp` is `200 image/webp` (335 460 B, `RIFF`/`WEBP`/`VP8L`, 512×512).
+  So no TS↔Kotlin elevation comparison is possible through Node, and TS `fixElevation=true`
+  is non-functional there.
+  **Fixed in `elevation` 3.2.3** (`33c7ecc`): node-canvas is replaced by `sharp` for the
+  decode. The sweep now runs against the shipped chain with no harness shim. What it found
+  instead is divergence 4 in `docs/parity.md`: TS's `toPixel` floors before
+  `ElevationCalculator` derives `dx`/`dy`, so its "bilinear" interpolation is a floor-pixel
+  lookup — 8/10 coordinates diverge, up to 8.59 m, against a `~1e-9` bar.
+- ~~**The Kotlin browser decoders are unmeasured.**~~ **Closed.** `elevation/src/wasmJsTest/`
+  now exists, and the integration gate moved to `commonTest/…/IntegrationGate.kt` with a
+  Karma-injected flag for the browser targets (`elevation/karma.config.d/integration.js`), so
+  `INTEGRATION=1` reaches `jsBrowserTest` and `wasmJsBrowserTest`. `ReferenceTileDigestTest`
+  asserts every target reproduces the JVM's decoded-RGBA SHA-256; both browsers match
+  byte-for-byte. Skipped integration tests now print that they skipped.
+- **Premultiplication remains unmeasured, despite the digest test.** The reference tile is
+  fully opaque, and premultiplying by alpha `255` is the identity — so that test can only
+  catch a `colorSpaceConversion` regression, never a `premultiplyAlpha` one.
+  `TileFetcher.wasmJs.kt:24` and the browser branch of `TileFetcher.js.kt:75` still call
+  `createImageBitmap(blob)` with no `ImageBitmapOptions`, leaving both at `"default"` — the
+  implementation's choice. Terrarium packs elevation into the RGB bits
+  (`ele = R*256 + G + B/256 - 32768`), so premultiplication against a non-opaque alpha yields
+  wrong metres with no exception (one LSB of R is 256 m). Sampled tiles are opaque today
+  (`VP8L alpha_is_used = 0` on four tiles; PIL alpha extrema `(255,255)` on
+  `12/2094/1467.webp`) — a property of the current tiles, not a guarantee of the API. Closing
+  this needs a fixture with a real alpha plane. Coverage is also ChromeHeadless/Linux only.
+- **CORS is not the blocker for a browser harness.** `curl -D - -H 'Origin:
+  http://localhost:9876' https://tiles.mapterhorn.com/12/2094/1467.webp` returns `HTTP/2 200`
+  with `access-control-allow-origin: *`, so a Karma page can fetch real tiles.
+- **Do not use the ±1 m band as the decoder tolerance.** ±1 m is Terrarium tile resolution
+  (noise between data sources). Between two decoders on the *same* tile bytes the bar is
+  ~`1e-9`, per the KDoc of `src/main/kotlin/io/github/glandais/parity/ElevationDump.kt`:
+  "a metre-scale gap would mean a decode or bilinear-interpolation bug, not tile noise".

@@ -7,7 +7,8 @@ The Kotlin `:gpx` / `:engine` / `:elevation` modules are a port of the TypeScrip
 numerical relationship between the two implementations, the divergences found, and the
 parity strategy that follows from them.
 
-Measured 2026-07-27 against `virtual-cyclist` @ `develop` and `elevation` 3.2.2, on all
+Measured 2026-07-27 against `virtual-cyclist` @ `develop` and `elevation` 3.2.2 (the
+elevation section re-measured 2026-07-28 against `elevation` 3.2.3), on all
 7 sample GPX files, stage by stage across the whole `Enhancer` pipeline.
 
 The harness is committed in [`tools/parity/`](../tools/parity/README.md) and is
@@ -32,8 +33,10 @@ under, divergence #1 below.
 
 **The Kotlin port is numerically faithful.** Every pipeline stage up to and including
 `MaxSpeedComputer` matches at ULP level on all 7 fixtures, with identical point counts.
-The three differences found downstream are all **explained, and in two of three cases the
-Kotlin behaviour is the correct one**.
+Four divergences are documented below; all are **explained, and in three of four the Kotlin
+behaviour is the correct one**. Divergence 4 concerns the DEM path, which the `Enhancer`
+pipeline sweep does not exercise (`fixElevation=false`), so it does not affect any figure in
+this section.
 
 ### Point counts, all 7 fixtures (TS / Kotlin)
 
@@ -124,35 +127,134 @@ accounts for the aggregate differences:
 | sample | 1.88 m | 0 ms |
 | sports-tracker | 1.99 m | 1000 ms |
 | stelvio | 1.91 m | 1000 ms |
-| strava | 1.64 m | 1000 ms |
+| strava | 1.63 m | 1000 ms |
 
 Every distance delta is one ~2 m `PointPerDistance` segment, and every duration delta is
 exactly one 1 Hz sample. Kotlin simulates the final point, so its time axis stays dense and
 monotonic — see the "don't disable the timestamp-monotonicity invariant" note in
 `CLAUDE.md`.
 
-### 3. Unset fields: `NaN` (TS) vs `0.0` (Kotlin) — structural, with one real consequence
+### 3. Unset sensor fields: `NaN` (TS) vs `0.0` (Kotlin) — **fixed**
 
-TS `EMPTY_POINT` initialises every unset numeric field to `NaN`; Kotlin's `Path` is backed
-by a zero-initialised `DoubleArray`. On a GPX carrying no temperature/power/cadence, ~20 of
-36 fields differ in NaN-ness on **every point**, from `00-parsed` onwards.
+**TS has two conventions, not one.** Its backing store is zero-initialised, exactly like
+Kotlin's:
 
-This is benign for fields the pipeline overwrites, and the port already accommodates both
-conventions — but not identically:
+```ts
+// AbstractPath.ts:69
+this.chunks.push(new Float64Array(this.CHUNK_SIZE * FIELDS_PER_POINT));
+```
+
+`EMPTY_POINT` — the all-`NaN` literal in `Point.ts` — only reaches the store through
+`GPXParser.ts:104` (`{ ...EMPTY_POINT }` → `addPoint`, which writes all 36 slots, `NaN`
+included). So **parser-created points carry `NaN` on unset fields, while every point a
+resampler creates** (`PointPerDistance`, `PointPerSecond`, `PathSimplifier` — i.e. stages
+`01` through `07`) **lands on raw zeroed memory and reads `0.0`.**
+
+Kotlin's zero-initialised `DoubleArray` matched the second convention and not the first. The
+harness sizes it: before the fix, `temperature` / `cadence` / `heartRate` / `pInputPower`
+accounted for 1 278 402 of the 1 774 326 NaN-mismatched values across the 7 fixtures — 72 %
+of the total.
+
+The port papered over it with `== 0.0` sentinels, which do not agree with TS:
 
 ```ts
 // RhoProviderEstimate.ts
 const temperatureC = isNaN(providedTemp) ? 15 : providedTemp;
 ```
 ```kotlin
-// RhoProvider.kt
+// RhoProvider.kt — before the fix
 val temperatureC = if (providedTemp.isNaN() || providedTemp == 0.0) 15.0 else providedTemp
 ```
 
-**A genuine 0 °C reading is treated as "missing" by Kotlin and replaced with 15 °C**, while
-TS honours it. A winter ride recording 0 °C therefore gets a ~5.5 % air-density error. This
-is a real, if minor, Kotlin-side bug. It is *reported, not fixed*, per the scope of the
-parity exercise.
+A genuine 0 °C reading was treated as "missing" and replaced with 15 °C, giving a winter
+ride a ~5.5 % air-density error. The same sentinel dropped a 0 rpm (freewheeling) cadence
+and a 0 W sample from the GPX and FIT writers.
+
+**Resolution — mirror both TS conventions.** The backing array stays zero-initialised, and
+`GpxToPath` writes `Double.NaN` explicitly for the sensor fields the source GPX did not
+carry (`temperature`, `pInputPower`, `heartRate`, `cadence`). Absence is now a value, so
+every `== 0.0` sentinel could go:
+
+- `RhoProvider.kt` — falls back to 15 °C on `NaN` only.
+- `GpxFromPath.kt` — heart rate / cadence / temperature / power emitted whenever not `NaN`;
+  a `NaN` `time(i)` emits no `<time>` at all, matching `GPXWriter.ts`'s `!isNaN` guard
+  (it would otherwise throw on `roundToLong`).
+- `PathToFit.kt` — `optionalSensor()` guards on `NaN` only. `pComputedPower` keeps a
+  `== 0.0` guard under a separate `optionalComputed()`: it is a *computed* field, so nothing
+  ever marks it absent, and a path that skipped `VirtualizeService` would otherwise encode a
+  flat 0 W line.
+
+Measured effect (`clock-pinned`, 7 fixtures): those four fields drop to **0** mismatched
+values and **no other field moves**, total 1 774 326 → 495 924. Verdict census
+`EXACT` 748 → 891, `NAN-MISMATCH` 349 → 173.
+
+Two aggregates also shifted, both **towards** TS — `movescount` `elevationGain`
+504.907138 → 504.906451 (TS: 504.906035) and `strava` 630.922769 → 630.922922 (TS:
+630.922960). Cause: `movescount` and `strava` carry `<atemp>` on most points but not the
+leading ones. Kotlin used to read `0.0` there and `PointPerDistance` interpolated a
+fabricated `0 → 20.8 °C` ramp into `RhoProviderEstimate`; TS interpolated `NaN → NaN` and
+fell back to 15 °C. The two now agree.
+
+The remaining `00-parsed` mismatches (154) are the mirror image, and are the accepted cost:
+TS's parser NaN-fills the *computed* slots too (`wind*`, `p*`, `radius`, …) where Kotlin
+reads `0.0`. Aligning those would re-break stages `01`–`07`, per the warning below.
+
+> **A blanket NaN-init is the wrong fix, and the harness proves it.** Filling the whole
+> `DoubleArray` with `NaN` clears the 1.28 M sensor mismatches but breaks the resampler
+> convention: every computed field (`wind*`, `p*`, `radius`, `speedMax*`, `aeroCoef`,
+> `virtSpeedCurrent`) jumps from ~22 k to 235 k–476 k mismatched values, because TS reads
+> `0.0` there and Kotlin would read `NaN`. Measured totals: 1 774 326 → **7 418 811**. Stage
+> `00-parsed` improves (176 → 7) at the cost of all seven downstream stages (e.g. `01-ppd-30`
+> 29 → 154). Don't "simplify" this to one convention.
+
+### 4. TS elevation "bilinear interpolation" is a floor-pixel lookup (TS defect)
+
+`elevation`'s `ElevationProvider` documents and advertises bilinear interpolation from the
+four neighbouring DEM pixels. It computes a nearest-pixel lookup instead. The four-tap sum is
+present, fetched, and then multiplied by zero.
+
+`ElevationFunctions.ts:124-125` — `toPixel` already floors:
+
+```ts
+const x = Math.floor((tile.xFloat - tile.x) * tileSize);
+const y = Math.floor((tile.yFloat - tile.y) * tileSize);
+```
+
+`ElevationCalculator.ts:52-58` — then derives the sub-pixel offsets from those integers:
+
+```ts
+const x0 = Math.floor(pixelFloat.x);   // pixelFloat.x is already an integer
+const dx = pixelFloat.x - x0;          // therefore always exactly 0
+```
+
+So the weights collapse to `(1-dx)(1-dy) = 1` on `p00` and `0` on `p10`/`p01`/`p11`. The
+fractional position needed for the interpolation is discarded one call before it is used.
+
+Measured on the 10 `ELEVATION_COORDS` against `elevation` 3.2.3 as shipped — the first run
+possible at all, since the TS Node decoder had to be repaired first:
+
+| | |
+|---|---|
+| coordinates bit-identical | **2 / 10** |
+| max abs delta | **8.5947 m** (`elevation.5` — TS 2717.13, Kotlin 2708.5352887058) |
+| max rel delta | **6.41e-02** (`elevation.7` — TS 8.5, Kotlin 9.0819060612) |
+| bar per `ElevationDump.kt` | `~1e-9` |
+
+Independent corroboration without any tolerance argument: `ELEVATION_COORDS[2]` and `[3]` are
+~2 m apart and TS returns the *identical* value `2759.23` for both — the signature of a
+pixel-snapped lookup, not of interpolation. (`Tile.ts:50` also rounds to 2 decimals, which is
+a separate, smaller quantisation.)
+
+The Kotlin port already diverges here deliberately, and says so —
+`elevation/…/ElevationCalculator.kt:10-13` keeps the true fractional position from
+`toPixelFloat` and notes that the TS original degenerates into nearest-neighbour. What was
+missing was the measurement. **Kotlin is correct; this is a TS defect**, like divergences 1
+and 2.
+
+Consequence for anyone repairing the TS Node decoder: fixing the decoder alone will *not*
+bring the two sides to `1e-9`. A Definition of Done phrased as "the ten values agree to
+~1e-9 once a working decoder lands" is unreachable — `toPixel`/`dx` must be fixed too, or the
+criterion relaxed to the floor-pixel semantics.
 
 ## How to read a residual divergence
 
@@ -174,23 +276,126 @@ abs = 7e-12.
 
 ## Elevation (DEM) parity
 
-Only partially measurable today.
+Five of the six decoder stacks are now measured. Only the TS browser path has no harness.
+The TS Node path was non-functional until `elevation` 3.2.3 replaced node-canvas with sharp;
+it is now measured **as shipped**, and that first measurement is what produced divergence 4.
 
-- **Kotlin JVM (TwelveMonkeys)** — works live; 10 reference coordinates resolved via
-  `:tools:parity:dumpElevation`.
-- **Kotlin JS/Node (`@jsquash/webp`)** — works live; gated integration tests pass with
-  `INTEGRATION=1`.
-- **TS Node (`node-canvas`)** — **broken**. `node-canvas` 3.2.3 rejects the lossless WebP
-  served by `tiles.mapterhorn.com` with `Unsupported image type`, reproducible outside the
-  library. The TS reference therefore cannot fetch elevation in Node at all, so no TS↔Kotlin
-  elevation comparison is possible through that path. This also means TS `fixElevation=true`
-  is non-functional in Node.
-- **Browser (`createImageBitmap`, both TS and Kotlin/Wasm)** — **unmeasured**. The
-  `:elevation` integration gate tests `typeof process !== 'undefined' && process.env.INTEGRATION`,
-  which is never true in a browser, so those tests are silently skipped on browser targets.
+| Runtime | Decoder | State |
+|---|---|---|
+| Kotlin JVM | TwelveMonkeys `imageio-webp` | **measured** — `:tools:parity:dumpElevation` resolves the 10 reference coordinates live |
+| Kotlin JS / Node | `@jsquash/webp` (WASM) | **measured** under `INTEGRATION=1` (`TileFetcherJsIntegrationTest`) |
+| Kotlin JS / browser | `createImageBitmap` + canvas | **measured** — reproduces the JVM RGBA digest byte-for-byte, see below |
+| Kotlin Wasm / browser | `createImageBitmap` + canvas | **measured** — same digest test, on a `wasmJsTest` source set that did not exist before |
+| TS Node | `sharp` (libvips + libwebp) since `elevation` 3.2.3 | **measured** — as shipped, no harness shim |
+| TS browser | `createImageBitmap` + canvas | **unmeasured** — no harness |
 
-Closing these two gaps needs a browser-side harness; until then the ±1 m Terrarium band in
-the table below is the operative tolerance for elevation, not a measured 1e-9 agreement.
+### node-canvas cannot decode WebP at all
+
+The earlier diagnosis in this document ("rejects the *lossless* WebP") was wrong, and it
+mattered: it suggested a lossy/lossless distinction and therefore a server-side workaround.
+`node-canvas` 3.2.3 links **no libwebp whatsoever**, so it decodes no WebP of any kind.
+Observed in `../elevation/node_modules/canvas/build/Release/canvas.node`:
+
+- `ldd` lists 30 shared objects — pixman, cairo, libpng16, libjpeg.62, libgif.7, librsvg,
+  pango, harfbuzz, freetype, glib … — and **no `libwebp`**; `ldd … | grep -i webp` exits 1.
+  `strings … | grep -ci webp` returns `0`, so there is no statically-linked copy either.
+- The module's exports are `Canvas, Context2d, …, PNGStream, PDFStream, JPEGStream, …,
+  cairoVersion, jpegVersion, gifVersion, freetypeVersion, rsvgVersion, pangoVersion` —
+  a stream and a version probe per supported codec, none for WebP.
+- `loadImage(fs.readFileSync('tile.webp'))` fails with `Unsupported image type`. That is
+  cairo's generic "no loader matched the magic bytes", not a lossless-specific rejection.
+
+There is no PNG fallback to switch to: `curl -o /dev/null -w '%{http_code}'
+https://tiles.mapterhorn.com/12/2094/1467.png` → **404**, while the `.webp` variant returns
+`200 image/webp`, 335 460 bytes, `RIFF`/`WEBP`/`VP8L` (512×512). So TS `fixElevation=true`
+was non-functional in Node up to `elevation` 3.2.2.
+
+> **Fixed upstream in `elevation` 3.2.3** (`33c7ecc`, *fix: decode WebP tiles in Node.js with
+> sharp*): the node-canvas decode is replaced by `sharp` (libvips + libwebp), fetching the
+> tile bytes and decoding straight to raw RGBA with no canvas round-trip — unpremultiplied,
+> no colour management, no resample, with a guard that fails loudly rather than returning
+> silently wrong metres. `node-canvas` is kept only for `ImageData`. The paragraphs above are
+> retained as the diagnosis, not as the current state.
+>
+> The harness carries **no decoder shim**: the sweep exercises the shipped chain. An earlier
+> substitution used to obtain a first reading was removed once 3.2.3 landed, and produced
+> byte-identical elevations to the shipped decoder on all 10 coordinates — so divergence 4 is
+> attributable to the Terrarium chain and not to either decoder.
+
+### The browser paths are now covered — byte-exactly
+
+Two gaps used to sit here: `elevation/src/` had no `wasmJsTest` source set at all (so the
+Kotlin/Wasm decode path had zero tests, not skipped ones), and on Kotlin/JS the gate
+`NodeIntegrationGate.kt` tested `process.env.INTEGRATION`, which is false on a browser test
+page — so `jsBrowserTest` skipped silently and reported green. Both are closed:
+
+- The gate is now `commonTest/…/IntegrationGate.kt` (`expect fun integrationEnabled()`) with
+  a per-target `actual`. The browser ones read a Karma-injected flag
+  (`elevation/karma.config.d/integration.js`), driven by the same `INTEGRATION=1` the Node
+  and JVM paths already used. A skipped integration test now *prints* that it skipped.
+- `elevation/src/wasmJsTest/` exists.
+
+The assertion is deliberately not "the elevation looks plausible" — that would mask the exact
+corruption described below. `ReferenceTileDigestTest` freezes the SHA-256 of the decoded RGBA
+of one reference tile, measured on the JVM through TwelveMonkeys, and asserts every target
+reproduces it. **Both browser targets match bit-for-bit**, so `createImageBitmap` + canvas
+returns the same bytes as TwelveMonkeys on this tile in ChromeHeadless.
+
+Two limits on what that proves, which matter more than the result:
+
+- **It cannot detect premultiplication.** The reference tile is fully opaque (alpha `255`
+  everywhere), and premultiplying by `255` is the identity map. So the digest test can only
+  catch a `colorSpaceConversion` regression; the `premultiplyAlpha` branch is untestable by
+  construction with this fixture. The honest statement is that premultiplication is a no-op
+  on today's opaque tiles — *not* that Chrome does not premultiply. `ImageBitmapOptions` is
+  still not passed at either call site, and that decision rests on tile properties rather
+  than on the API contract.
+- It covers ChromeHeadless on Linux only. Firefox and Safari are unmeasured.
+
+`ReferenceTile.RGBA_SHA256` is a live-network fixture: an upstream re-render of the tile turns
+every `INTEGRATION=1` run red until it is re-measured (the command is in its KDoc).
+`./gradlew check` stays offline and is unaffected.
+
+### The concrete risk: silent RGB corruption, not an exception
+
+Both browser paths decode through `createImageBitmap(blob)` → `drawImage` → `getImageData`:
+
+- `elevation/src/wasmJsMain/kotlin/io/github/glandais/elevation/TileFetcher.wasmJs.kt:24`
+- `elevation/src/jsMain/kotlin/io/github/glandais/elevation/TileFetcher.js.kt:75` (browser branch)
+
+Neither passes an `ImageBitmapOptions`, so `premultiplyAlpha` and `colorSpaceConversion` are
+left at `"default"` — implementation's discretion. Terrarium packs elevation into the RGB
+bits (`ele = R*256 + G + B/256 - 32768`), so any premultiplication against a non-opaque alpha,
+or any colour-space transform of the RGB triple, changes the decoded metres with no error
+raised: no exception, just wrong elevation. A one-LSB change in R is 256 m.
+
+The tiles sampled so far are opaque — `VP8L` header `alpha_is_used = 0` on the four tiles
+checked, and PIL reports alpha extrema `(255, 255)` on `12/2094/1467.webp` — which makes
+premultiplication a no-op *for those bytes*. Nothing in the code depends on that being true:
+it is a property of today's tiles, not of the API contract. The digest test above inherits
+that limitation rather than removing it; pinning the `premultiplyAlpha` behaviour down needs
+a fixture with a real alpha plane, which no Terrarium tile has provided so far.
+
+The browser harness was not blocked by CORS: `curl -D - -H 'Origin: http://localhost:9876'
+https://tiles.mapterhorn.com/12/2094/1467.webp` returns `HTTP/2 200` with
+`access-control-allow-origin: *`, so a Karma test page fetches real tiles directly.
+
+### Two different tolerances, not one
+
+The `±1 m` band in the tolerance table below is **Terrarium tile resolution** — noise between
+different elevation data sources. It is *not* the acceptance bar between two decoders. The
+requirement there is ~`1e-9`, as the KDoc of
+`tools/parity/src/main/kotlin/io/github/glandais/parity/ElevationDump.kt` already states:
+
+> On the same decoded tile the two must agree to ~1e-9, not to the ±1 m Terrarium
+> resolution : a metre-scale gap would mean a decode or bilinear-interpolation bug, not
+> tile noise.
+
+Reading the `±1 m` band as the elevation-decoder tolerance would accept an 80 cm disagreement
+between two decoders reading identical bytes — which would be a bug, not noise. The four
+Kotlin stacks now clear a stricter bar than `1e-9`: they agree on the raw RGBA *bytes*. The
+`~1e-9` figure is the bar the TS↔Kotlin comparison must be held to once the TS Node decoder
+lands — and divergence 4 below is what it caught the first time it could be run at all.
 
 ## Parity strategy for the test suite
 
