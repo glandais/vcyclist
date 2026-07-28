@@ -30,12 +30,11 @@ kotlin {
     }
 
     @OptIn(org.jetbrains.kotlin.gradle.ExperimentalWasmDsl::class)
+    // Library target only. The POC façade `GpxWasiApi` and the `binaries.executable()` that
+    // linked it are gone (task w03): the single standalone `.wasm` is `:engine`'s, built from
+    // `EngineWasiApi`. The target itself stays — `:engine` cannot compile for WASI without it.
     wasmWasi {
         wasmtime()
-        // Standalone .wasm reactor module (POC): `_initialize` + the `@WasmExport` façade in
-        // `src/wasmWasiMain/.../wasi/GpxWasiApi.kt`, instantiable from any WASI runtime
-        // (wasmtime CLI, wasmtime-py, WasmEdge…) with no JS host.
-        binaries.executable()
     }
 
     sourceSets {
