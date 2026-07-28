@@ -70,7 +70,7 @@ reste intact.
 | # | Tâche | Module | État |
 |---|---|---|---|
 | **— Phase A : la cible sur tout le cœur —** | | | |
-| w01 | Étendre `wasmWasi` à `:fit` et `:engine`, stub FIT, sort des 7 tests WebP | `:fit` `:engine` `:elevation` | ⬜ |
+| w01 | Étendre `wasmWasi` à `:fit` et `:engine`, stub FIT, sort des 7 tests WebP | `:fit` `:engine` `:elevation` | ✅ |
 | w02 | CI : `wasmWasiWasmtimeTest` dans `check` + cache wasmtime | build | ⬜ |
 | **— Phase B : ABI et façade —** | | | |
 | w03 | `EngineWasiApi` — ABI v1 figée, absorption du POC `GpxWasiApi` | `:engine` `:gpx` | ⬜ |
