@@ -104,18 +104,93 @@ d'entrée au re-parse. Un aller-retour `COMPUTED` transforme donc une valeur sim
 
 ## Done when
 
-- [ ] Comportement de la référence TS et de gpx2web établi
-- [ ] Option tranchée et justifiée dans la fiche
-- [ ] KDoc de `toGpxTrack` disant quel champ il écrit et pourquoi
-- [ ] Défaut préservant le comportement actuel
-- [ ] Le cas 5 (blanchiment de la puissance simulée au round-trip) documenté
-- [ ] `./gradlew check` + `ktlintCheck` verts
+- [x] Comportement de la référence TS et de gpx2web établi
+- [x] Option tranchée et justifiée dans la fiche
+- [x] KDoc de `toGpxTrack` disant quel champ il écrit et pourquoi
+- [x] Défaut préservant le comportement actuel
+- [x] Le cas 5 (blanchiment de la puissance simulée au round-trip) documenté
+- [x] `./gradlew check` + `ktlintCheck` verts
+
+## Résultat
+
+### Étape 1 : les deux références **ne font pas la même chose**
+
+- **`virtual-cyclist` (TS)** écrit `pInputPower` : `GPXWriter.ts:197` garde sur
+  `!isNaN(trackPoint.pInputPower)`. Sa simulation n'écrit jamais dans ce champ. Sortie = puissance
+  d'entrée uniquement — exactement le comportement actuel de vcyclist.
+- **gpx2web** écrit la puissance **simulée**, mais pas par choix : il n'a qu'un seul emplacement
+  `power` (`PropertyKeys.power`), rempli à la lecture par `GPXFileReader:255` puis **écrasé** par
+  `VirtualizeService:99` (`newPoints.get(i).setPower(cyclistPower)`). Le writer, lui, sérialise
+  aveuglément tout ce que `Point.getGpxData()` contient.
+
+L'écart entre les deux références n'est donc pas un désaccord de conception mais une conséquence
+de modèles de données différents : gpx2web ne *peut pas* distinguer les deux puissances, vcyclist
+et le port TS le peuvent.
+
+### Étape 2 : option C retenue
+
+`enum class GpxPowerSource { INPUT, COMPUTED, COMPUTED_OR_INPUT }`, paramètre sur
+`toGpxTrack` / `toGpxDocument` / `pathsToGpxDocument`, **défaut `INPUT`**.
+
+La recommandation de la fiche est suivie : écrire une donnée simulée dans un format que tout
+l'écosystème lit comme un enregistrement est une décision qui doit être demandée, pas subie. Le
+défaut préserve la parité TS et le comportement d'avant g30.
+
+**Où le paramètre est posé — et où il ne l'est pas.** `powerSource` est sur les fonctions de
+*conversion*, pas sur `GpxWriter.write`. Choisir quelle puissance porte le document est une
+question de conversion `Path` → modèle GPX ; le writer, lui, sérialise un document déjà constitué.
+Ce découpage a un effet de bord utile : il évite d'ajouter un troisième paramètre optionnel à
+`GpxWriter.write`, seuil au-delà duquel g23 s'était engagée à refactorer en objet d'options. Un
+appelant qui veut la puissance simulée écrit
+`GpxWriter.write(path.toGpxDocument(powerSource = COMPUTED))`.
+
+### Détection d'absence : `0.0` compte comme absent pour la puissance calculée
+
+`pInputPower` est `NaN` quand le fichier n'avait pas de `<power>` — test d'absence simple.
+`pComputedPower` est écrit par le pipeline dans un emplacement initialisé à zéro, et
+`PowerComputer` y stocke légitimement `0.0` au point 0 et sur tout point en roue libre. Un path
+jamais simulé est donc **tout à zéro**, indiscernable par la valeur seule d'une descente simulée.
+`COMPUTED` traite donc `0.0` comme absent — même arbitrage que `PathToFit`, et pour la même
+raison : une ligne plate à 0 W est pire que pas de ligne. Le cas de test 04 le fige.
+
+### CLI
+
+`--gpx-power-source <input|computed|computed-or-input>` sur `enhance`. **Le nom a dû changer** :
+`--gpx-power` existait déjà, avec un sens opposé — il fait *entrer* la puissance enregistrée dans
+la simulation (`PowerProviderFromData`) au lieu du modèle du cycliste. picocli refuse la collision
+et l'a signalée immédiatement, ce qui est la bonne façon de l'apprendre. Les deux options sont
+documentées côte à côte dans `cli/README.md`, avec la mise en garde.
+
+La valeur est validée **dans `call()`**, à côté de `--start-time` : une faute de frappe est une
+erreur d'usage (code 64), pas une erreur d'exécution, et elle ne doit pas être découverte après
+que la moitié du lot a été écrite.
+
+### Étape 4 : les autres champs
+
+Vérifié : `heartRate`, `cadence` et `temperature` n'ont **pas** de double simulé. Le pipeline les
+recopie, aucune étape ne les recalcule. `pInputPower` / `pComputedPower` est le seul couple, donc
+la décision ne se généralise pas — rien d'autre à traiter.
+
+### Vérification
+
+- 10 cas dans `GpxPowerSourceTest` (commonTest) × 3 cibles, plus 3 cas CLI (22-24).
+- Le cas 08 reproduit exactement la situation qui a fait remonter le problème en g23 (trace
+  enhancée sans capteurs) et vérifie les deux comportements.
+- Le cas 10 fige le **blanchiment** : un `<power>` simulé relu redevient un `pInputPower`, c'est-à-dire
+  une donnée d'apparence mesurée. Inhérent au format, non corrigeable, et c'est la raison
+  principale pour laquelle `INPUT` reste le défaut.
+- `./gradlew check` + `ktlintCheck` verts.
 
 ## Notes
 
 - **Comment le trou a été trouvé** : en écrivant un test CLI pour g23, qui affirmait qu'un GPX
   enhancé contient `<power>`. Il échouait, pour cette raison. Le test a été adapté (fixture avec
   capteurs en entrée) et le constat noté dans les *Notes* de g23.
+- **Le point 0 n'a jamais de `<power>` en mode `COMPUTED`.** `PowerComputer` y écrit `0.0` par
+  construction (il n'y a pas d'intervalle précédent d'où tirer une puissance), et `0.0` compte
+  comme absent. Invisible sur une trace normale, très visible sur une sortie fortement simplifiée
+  à deux points — constaté au smoke CLI. Ce n'est pas un défaut de g30 mais une propriété du
+  champ ; la contourner supposerait d'inventer une valeur pour le premier point.
 - **Ne pas confondre avec l'absence d'extensions.** `--no-extensions` (g23) est un choix de
   l'utilisateur ; ici il s'agit de ce que le writer met dans les extensions **quand elles sont
   demandées**. Les deux réglages sont orthogonaux.

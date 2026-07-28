@@ -422,4 +422,43 @@ class EnhanceCommandTest {
         assertEquals(2, messages.lapMesgs.size, "one lap per track")
         assertEquals(4, messages.eventMesgs.size, "a START and a STOP per track")
     }
+
+    @Test
+    fun `case 22 — by default the enhanced GPX carries no simulated power`() {
+        val input = gpxFixture()
+        val output = File(work, "default.gpx")
+        assertEquals(0, run("enhance", input.path, "--gpx", output.path).code)
+
+        // The trace has no <power> in, and the default writes what the file said: nothing.
+        assertTrue(!output.readText().contains("<power>"), output.readText())
+    }
+
+    @Test
+    fun `case 23 — --gpx-power-source computed writes the simulated power`() {
+        val input = gpxFixture()
+        val output = File(work, "computed.gpx")
+
+        assertEquals(0, run("enhance", input.path, "--gpx", output.path, "--gpx-power-source", "computed").code)
+
+        val xml = output.readText()
+        assertContains(xml, "<power>")
+        val powers =
+            GpxParser
+                .parse(xml)
+                .tracks
+                .first()
+                .points
+                .mapNotNull { it.powerW }
+        assertTrue(powers.isNotEmpty(), "expected simulated power on the points")
+        assertTrue(powers.all { it > 0.0 }, "simulated power should be positive: $powers")
+    }
+
+    @Test
+    fun `case 24 — a bad --gpx-power-source value is refused, not ignored`() {
+        val input = gpxFixture()
+        val result = run("enhance", input.path, "--gpx", File(work, "x.gpx").path, "--gpx-power-source", "simulated")
+
+        assertEquals(ExitCodes.USAGE, result.code)
+        assertContains(result.err, "--gpx-power-source")
+    }
 }

@@ -24,6 +24,7 @@ vcyclist enhance route.gpx --gpx out.gpx --csv out.csv --start-time 2026-08-01T0
 | `--fit <file>` | Garmin FIT course — **requires `--start-time`** |
 | `--start-time <ISO-8601>` | absolute instant of the first point |
 | `--no-extensions` | write a bare GPX: no `<extensions>`, so no power, heart rate, cadence or temperature |
+| `--gpx-power-source <input\|computed\|computed-or-input>` | which power the written GPX carries (default `input`) |
 | `--[no-]fix-elevation` | DEM elevation correction (off by default; downloads tiles) |
 | `--[no-]virtualize` | physics simulation (on) |
 | `--[no-]simplify`, `--simplify-tolerance <m>` | Douglas-Peucker (on, 10 m) |
@@ -48,6 +49,23 @@ means accepting its usage policy. See [`../map/README.md`](../map/README.md).
 Framing: `--max-size` (default), or `--width`/`--height`, or `--zoom`; plus `--margin`.
 
 `--no-extensions` applies to `--gpx` here too.
+
+### Which power ends up in the GPX (`--gpx-power-source`)
+
+A `Path` carries two powers: the one read from the source file (`pInputPower`) and the one the
+simulation reconstructs (`pComputedPower`). Only one fits in `<power>`.
+
+The default, `input`, writes what the file said — nothing invented, and a trace without a power
+meter comes back out without one. `computed` writes the simulation's output, which is what the
+FIT export does. `computed-or-input` prefers the simulation and falls back point by point.
+
+Two things worth knowing before choosing `computed`: `<power>` carries no provenance, so
+re-reading the file turns the simulated value into a measured-looking one; and the two reference
+implementations disagree — the TypeScript one writes the input power, gpx2web ends up writing the
+simulated one.
+
+**Not to be confused with `--gpx-power`**, which is about the simulation's input: it replays the
+recorded power instead of applying the rider model.
 
 ### Bare GPX (`--no-extensions`)
 

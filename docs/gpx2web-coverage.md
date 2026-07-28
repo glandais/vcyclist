@@ -271,6 +271,23 @@ l'altitude), qui n'a pas d'équivalent gpx2web.
 Ces écarts sont **assumés et testés**. Ils sont réunis ici pour que personne ne les découvre en
 production.
 
+### La puissance écrite dans le GPX est celle du fichier source (g30)
+
+`toGpxTrack` écrit `pInputPower` — ce que le `<power>` du fichier d'entrée disait — et non la
+puissance reconstruite par la simulation. gpx2web écrit la puissance **simulée**, non par choix
+mais par construction : il n'a qu'un seul emplacement `power`, et `VirtualizeService.java:99`
+écrase la valeur lue par celle du cycliste simulé. La référence TypeScript, elle, écrit bien
+`pInputPower` (`GPXWriter.ts`).
+
+vcyclist suit la référence TS **par défaut** et rend le comportement gpx2web atteignable :
+`toGpxTrack(powerSource = GpxPowerSource.COMPUTED)`, ou `--gpx-power-source computed` au CLI.
+Écrire une donnée simulée dans un format que tout l'écosystème lit comme un enregistrement est une
+décision qui revient à l'appelant. À noter : `<power>` ne porte aucune provenance, donc un
+aller-retour transforme une puissance simulée en puissance « mesurée ».
+
+Le FIT, lui, exporte toujours `pComputedPower` : c'est le format d'un parcours simulé, et
+`P_INPUT_POWER` y décrirait une autre sortie.
+
 ### Segments concaténés par défaut (g02)
 
 `tracksAsPaths()` renvoie **un `Path` par `<trk>`**, segments concaténés. gpx2web produit un

@@ -18,7 +18,8 @@ fun toGpxTrack(
     name: String? = null,
     type: String? = "cycling",
     startTime: Instant? = null,
-): GpxTrack = path.toGpxTrack(name, type, startTime)
+    powerSource: GpxPowerSource = GpxPowerSource.INPUT,
+): GpxTrack = path.toGpxTrack(name, type, startTime, powerSource)
 
 @JvmOverloads
 fun toGpxDocument(
@@ -26,7 +27,8 @@ fun toGpxDocument(
     name: String = "noname",
     trackName: String? = null,
     startTime: Instant? = null,
-): GpxDocument = path.toGpxDocument(name, trackName, startTime)
+    powerSource: GpxPowerSource = GpxPowerSource.INPUT,
+): GpxDocument = path.toGpxDocument(name, trackName, startTime, powerSource)
 
 /**
  * Multi-path form. Named `toGpxDocument`, not `pathsToGpxDocument`: a same-package facade with
@@ -42,6 +44,7 @@ fun toGpxDocument(
     trackNames: List<String>? = null,
     waypoints: List<GpxWaypoint> = emptyList(),
     startTime: Instant? = null,
+    powerSource: GpxPowerSource = GpxPowerSource.INPUT,
 ): GpxDocument =
     io.github.glandais.engine.gpx.pathsToGpxDocument(
         paths,
@@ -49,4 +52,5 @@ fun toGpxDocument(
         trackNames = trackNames,
         waypoints = waypoints,
         startTime = startTime,
+        powerSource = powerSource,
     )

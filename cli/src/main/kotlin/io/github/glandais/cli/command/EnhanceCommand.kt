@@ -11,7 +11,9 @@ import io.github.glandais.engine.EnhanceOptions
 import io.github.glandais.engine.Enhancer
 import io.github.glandais.engine.SimplifyPathOptions
 import io.github.glandais.engine.gpx.GpxParser
+import io.github.glandais.engine.gpx.GpxPowerSource
 import io.github.glandais.engine.gpx.GpxWriter
+import io.github.glandais.engine.gpx.pathsToGpxDocument
 import io.github.glandais.engine.gpx.tracksAsPaths
 import io.github.glandais.engine.io.CsvWriter
 import io.github.glandais.engine.io.JsonWriter
@@ -81,6 +83,16 @@ class EnhanceCommand : Callable<Int> {
         description = ["Write a Garmin FIT course. Requires --start-time: FIT has no relative clock."],
     )
     var fitOut: File? = null
+
+    @field:CommandLine.Option(
+        names = ["--gpx-power-source"],
+        description = [
+            "Which power the written GPX carries: input (what the source file said, the",
+            "default), computed (what the simulation produced), or computed-or-input.",
+            "Unrelated to --gpx-power, which feeds the recorded power *into* the simulation.",
+        ],
+    )
+    var gpxPowerSource: String = "input"
 
     @field:CommandLine.Option(
         names = ["--no-extensions"],
@@ -179,6 +191,13 @@ class EnhanceCommand : Callable<Int> {
             )
             return ExitCodes.USAGE
         }
+        val power =
+            parsePowerSource(gpxPowerSource) ?: run {
+                spec.commandLine().err.println(
+                    "--gpx-power-source is not one of input, computed, computed-or-input: $gpxPowerSource",
+                )
+                return ExitCodes.USAGE
+            }
         val start =
             startTime?.let {
                 runCatching { Instant.parse(it) }.getOrElse { _ ->
@@ -201,7 +220,7 @@ class EnhanceCommand : Callable<Int> {
         for (input in inputs) {
             // One bad file must not abort the batch — the others are still worth processing, and
             // the caller learns about every failure at the end rather than the first one only.
-            runCatching { processOne(input, inputs.size, options, start) }
+            runCatching { processOne(input, inputs.size, options, start, power) }
                 .onFailure { failures.add("${input.path}: ${it.message ?: it::class.simpleName}") }
         }
 
@@ -230,6 +249,7 @@ class EnhanceCommand : Callable<Int> {
         inputCount: Int,
         options: EnhanceOptions,
         start: Instant?,
+        powerSource: GpxPowerSource,
     ) {
         val out = spec.commandLine().out
         if (!quiet) out.println("Reading ${input.path}")
@@ -265,11 +285,15 @@ class EnhanceCommand : Callable<Int> {
             file.absoluteFile.parentFile?.mkdirs()
             file.writeText(
                 GpxWriter.write(
-                    enhanced,
-                    name = input.nameWithoutExtension,
-                    trackNames = enhanced.indices.map { if (enhanced.size == 1) "virtualized" else "virtualized-${it + 1}" },
-                    waypoints = document.waypoints,
-                    startTime = start,
+                    pathsToGpxDocument(
+                        enhanced,
+                        name = input.nameWithoutExtension,
+                        trackNames =
+                            enhanced.indices.map { if (enhanced.size == 1) "virtualized" else "virtualized-${it + 1}" },
+                        waypoints = document.waypoints,
+                        startTime = start,
+                        powerSource = powerSource,
+                    ),
                     writeExtensions = !noExtensions,
                 ),
             )
@@ -285,6 +309,25 @@ class EnhanceCommand : Callable<Int> {
             if (!quiet) out.println("  wrote ${file.path}")
         }
     }
+
+    /**
+     * `--gpx-power-source` → [GpxPowerSource], `null` when the value is not one of the three.
+     *
+     * Validated in [call] alongside `--start-time`, before any file is read: a bad value is a
+     * usage error (exit 64), not a runtime one, and it must not be discovered after half the
+     * batch has been written.
+     *
+     * The option name deliberately differs from the pre-existing `--gpx-power`, which concerns
+     * the simulation's *input* (replay the recorded power instead of the rider model). picocli
+     * refuses the collision outright, which is how the clash was found.
+     */
+    private fun parsePowerSource(value: String): GpxPowerSource? =
+        when (value.lowercase()) {
+            "input" -> GpxPowerSource.INPUT
+            "computed" -> GpxPowerSource.COMPUTED
+            "computed-or-input" -> GpxPowerSource.COMPUTED_OR_INPUT
+            else -> null
+        }
 
     private fun writeText(
         file: File,
