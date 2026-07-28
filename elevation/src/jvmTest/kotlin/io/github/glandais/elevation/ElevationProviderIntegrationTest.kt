@@ -15,22 +15,15 @@ import kotlin.test.assertTrue
  *   INTEGRATION=1 ./gradlew :elevation:jvmTest --tests '*ElevationProviderIntegrationTest*' --rerun-tasks
  */
 class ElevationProviderIntegrationTest {
-    private fun integrationEnabled(): Boolean = System.getenv("INTEGRATION") == "1" || System.getProperty("integration") == "true"
-
-    private fun skipIfOffline(): Boolean {
-        if (!integrationEnabled()) {
-            println("[skipped: set INTEGRATION=1 to run live HTTP integration tests]")
-            return true
-        }
-        return false
-    }
+    // The gate itself lives in commonTest (`IntegrationGate.kt`) so every target shares it.
+    private fun skipped(): Boolean = skipIfOffline("ElevationProviderIntegrationTest")
 
     private fun newProvider(cacheSize: Int = 16): ElevationProvider = ElevationProvider(ElevationProviderConfig(cacheSize = cacheSize))
 
     @Test
     fun `Mont Blanc altitude is close to 4805 m`() =
         runTest {
-            if (skipIfOffline()) return@runTest
+            if (skipped()) return@runTest
             val provider = newProvider()
             val ele = provider.getElevation(45.8326, 6.8652)
             assertTrue(
@@ -42,7 +35,7 @@ class ElevationProviderIntegrationTest {
     @Test
     fun `Dead Sea shore altitude is close to -430 m`() =
         runTest {
-            if (skipIfOffline()) return@runTest
+            if (skipped()) return@runTest
             val provider = newProvider()
             val ele = provider.getElevation(31.5, 35.5)
             assertTrue(
@@ -54,7 +47,7 @@ class ElevationProviderIntegrationTest {
     @Test
     fun `Death Valley Badwater Basin altitude is close to -85 m`() =
         runTest {
-            if (skipIfOffline()) return@runTest
+            if (skipped()) return@runTest
             val provider = newProvider()
             val ele = provider.getElevation(36.250, -116.832)
             assertTrue(
@@ -66,7 +59,7 @@ class ElevationProviderIntegrationTest {
     @Test
     fun `second call to same coords is served from cache`() =
         runTest {
-            if (skipIfOffline()) return@runTest
+            if (skipped()) return@runTest
 
             var httpCalls = 0
             val countingFetcher: suspend (String) -> RawTile = { url ->
@@ -99,7 +92,7 @@ class ElevationProviderIntegrationTest {
 
     @Test
     fun `default attribution targets mapterhorn`() {
-        if (skipIfOffline()) return
+        if (skipped()) return
         val provider = newProvider()
         val attr = provider.attribution
         assertTrue("mapterhorn" in attr.text.lowercase(), "attribution text: ${attr.text}")
@@ -109,7 +102,7 @@ class ElevationProviderIntegrationTest {
     @Test
     fun `getElevationsAlong on a small Alpine path returns a densified profile`() =
         runTest {
-            if (skipIfOffline()) return@runTest
+            if (skipped()) return@runTest
             val provider = newProvider()
 
             val path =
