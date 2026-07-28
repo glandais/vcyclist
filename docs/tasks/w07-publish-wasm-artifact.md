@@ -65,10 +65,10 @@ hôte.
 
 ## Validation
 
-- [ ] `./gradlew publishToMavenLocal` dépose `vcyclist-engine-<v>-wasi.wasm` dans `~/.m2`.
-- [ ] Un projet consommateur résout cette dépendance et instancie le binaire.
+- [x] `./gradlew publishToMavenLocal` dépose `vcyclist-engine-<v>-wasi.wasm` dans `~/.m2`.
+- [x] Un projet consommateur résout cette dépendance et instancie le binaire.
 - [ ] Une release de test (ou un `workflow_dispatch` à blanc) attache les deux assets.
-- [ ] Le sha256 publié correspond au binaire publié.
+- [x] Le sha256 publié correspond au binaire publié.
 
 ## Done when
 
@@ -80,3 +80,52 @@ hôte.
 Ne pas publier depuis une Beta du compilateur (`kotlin-wasm-wasi.md` §4) : w08 est un
 prérequis dur de la première publication réelle, même si toute la plomberie de cette fiche peut
 être écrite et testée en local avant.
+
+## État : plomberie livrée, publication en attente de w08
+
+**Kotlin 2.4.20 n'est pas sortie** — Maven Central s'arrête à `2.4.20-Beta2`, pas même une RC. La
+règle de `kotlin-wasm-wasi.md` §4 tient : rien ne se publie depuis une Beta. Cette fiche livre
+donc tout sauf le geste final, comme ses propres Notes l'y autorisent. La case restante — une
+vraie release attachant les assets — se cochera au premier passage sur `develop` après w08 ; c'est
+le seul point que je ne peux pas vérifier sans publier pour de bon.
+
+### Ce qui a été fait
+
+**Maven Central**, sur la publication `kotlinMultiplatform` et non `jvm` : c'est la coordonnée
+sans suffixe de cible (`vcyclist-engine`, pas `vcyclist-engine-jvm`), et un hôte qui réclame un
+binaire Wasm ne réclame pas une bibliothèque JVM.
+
+```kotlin
+implementation("io.github.glandais:vcyclist-engine:<version>:wasi@wasm")
+```
+
+**Release GitHub** : les deux fichiers sont déclarés dans les `assets` de
+`@semantic-release/github`, à côté du jar CLI. Mon premier jet ajoutait une étape
+`gh release upload` après `npx semantic-release` — inutile et moins robuste : `.releaserc.json`
+est l'endroit prévu, et il attache les assets au moment où la release est créée. `release.yml`
+construit et pèse quand même le binaire **avant** semantic-release, pour qu'un binaire qui ne se
+lie pas ou qui dépasse le plafond de w06 arrête le run avant toute publication.
+
+### Les trois vérifications faites en local
+
+1. **`publishToMavenLocal`** dépose bien `vcyclist-engine-3.0.0-wasi.wasm` (300 968 o), et son
+   sha256 est identique à celui que w06 publie.
+2. **Un consommateur Gradle réel** — projet séparé, `repositories { mavenLocal() }`, dépendance en
+   notation artifact-only — récupère le fichier et **l'instancie sous wasmtime-py** (`vcEnhance`
+   répond). Ce n'est donc pas seulement un fichier au bon endroit.
+3. **La signature GPG s'applique** : avec une clé jetable générée pour l'occasion,
+   `vcyclist-engine-3.0.0-wasi.wasm.asc` est produit et `gpg --verify` le valide. Central refuse
+   un artefact non signé, et rien ne garantissait *a priori* que `signAllPublications` couvre un
+   artefact ajouté à la main.
+
+Vérifié aussi, parce que la fiche le demandait : les **métadonnées Gradle du module ne sont pas
+cassées**. Le `.module` reste du JSON valide, ses onze variantes sont intactes, et le `.wasm`
+n'apparaît dans aucune d'elles — il n'est atteignable que par classifier explicite, donc un
+consommateur ordinaire de `vcyclist-engine` ne le télécharge jamais sans le demander.
+
+### Politique de version, écrite dans `publishing.md`
+
+Deux numéros indépendants, et c'est voulu : `vcAbiVersion` (petit entier, bougé seulement quand
+un export casse un hôte) est ce qu'un hôte vérifie ; la version du projet bouge à chaque release,
+y compris celles qui ne touchent pas la surface WASI. Un hôte épingle la première dans son code et
+la seconde dans son URL de téléchargement.

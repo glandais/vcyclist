@@ -78,7 +78,7 @@ reste intact.
 | w05 | Élévation host-injectée : import `fetch_tile` + pont `suspend`→synchrone | `:engine` `:elevation` | ✅ |
 | **— Phase C : packaging et publication —** | | | |
 | w06 | Tâche Gradle de distribution du `.wasm` (nom stable, taille, checksum) | `:engine` build | ✅ |
-| w07 | Publier le `.wasm` : Maven Central (classifier) + asset de release GitHub | build docs | ⬜ |
+| w07 | Publier le `.wasm` : Maven Central (classifier) + asset de release GitHub | build docs | 🟡 |
 | w08 | Passage à Kotlin 2.4.20 final et re-vérifications | build | ⬜ |
 | **— Phase D : hôtes de référence et documentation —** | | | |
 | w09 | Harnais d'hôtes `tools/wasi/` : wasmtime CLI + wasmtime-py, joué en CI | tools | ✅ |
@@ -86,6 +86,9 @@ reste intact.
 | **— Phase E : autonomie complète (optionnel) —** | | | |
 | w11 | Décodeur WebP/VP8L pur Kotlin — `:elevation` autonome sous WASI | `:elevation` | ⬜ |
 | w12 | Encodeur FIT pur Kotlin — `pathToFit` sous WASI | `:fit` | ⬜ |
+
+🟡 = plomberie livrée et vérifiée en local, publication réelle en attente de w08 (Kotlin 2.4.20
+n'est pas sortie : Maven Central s'arrête à `2.4.20-Beta2`).
 
 Chemin critique minimal pour « un `.wasm` publié et utilisable sous wasmtime » :
 **w01 → w03 → w04 → w06 → w08 → w07**, w02/w09/w10 en accompagnement. w05 est ce qui rend
