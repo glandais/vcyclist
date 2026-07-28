@@ -194,3 +194,19 @@ nouveaux), dont 0 accès réseau par défaut.
   exécutions rend tout test de non-régression impossible.
 - La parallélisation du téléchargement n'est pas dans le périmètre. Si le rendu s'avère trop
   lent sur de grandes traces, en faire une tâche séparée avec des mesures à l'appui.
+
+
+## Vérification visuelle — 2026-07-28
+
+**Faite.** Rendu d'un parcours Albertville → Beaufortain → Bourg-Saint-Maurice sur des tuiles
+`tile.openstreetmap.org` (9 tuiles en zoom 11, cadrage `--max-size 900`) : la trace se superpose
+aux routes du fond de carte, lacets compris.
+
+Ce point méritait un œil humain. Les tests de `:map` vérifient des propriétés géométriques —
+bornes, dimensions, index de tuiles, présence de pixels de trace — et resteraient tous verts si
+`MapSpace` et le fetch de tuiles divergeaient d'un décalage systématique sur la projection. La
+superposition ne se démontre qu'en regardant. Elle est correcte.
+
+Rappel : cette commande n'a pas de valeur par défaut pour `--tile-url`, et l'URL ci-dessus a été
+choisie explicitement par l'auteur du dépôt pour ce contrôle ponctuel. Le user-agent
+`vcyclist (https://github.com/glandais/vcyclist)` est envoyé, et le cache évite tout re-téléchargement.

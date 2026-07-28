@@ -237,3 +237,18 @@ manuel avant de considérer l'export FIT comme livré à un utilisateur final.**
   la conversion radians → degrés.
 - **`Path(0)`** doit lever, pas produire un fichier vide : un `.fit` sans record est accepté
   par le SDK mais rejeté par les plateformes.
+
+
+## Validation sur appareil — 2026-07-28
+
+**Fait, et concluant.** Un FIT produit par la CLI (`enhance … --fit`, 1018 points, `sport=cycling`,
+type Course) a été chargé sur un appareil Garmin réel et s'y comporte comme un parcours à suivre.
+
+C'est la seule vérification que le dépôt ne peut pas automatiser. Les tests couvrent la
+structure — le SDK Garmin décode sur JVM, JS et Wasm, les octets de référence sont committés et
+reproduits sur les trois cibles, le round-trip préserve positions et champs capteurs, et un
+décodeur tiers indépendant (`fitdecode`, CRC strict) relit le fichier. Aucun de ces chemins ne dit
+si l'appareil *navigue* dessus. Maintenant si.
+
+Contrôle de cohérence interne relevé au passage sur le parcours de test : +4467 m / −2848 m pour
+un trajet de 350 m à 1969 m, soit exactement les 1619 m d'écart attendus.
