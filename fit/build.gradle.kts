@@ -112,3 +112,7 @@ tasks.register<Exec>("npmPublishJs") {
 tasks.matching { it.name == "jsBrowserProductionWebpack" }.configureEach {
     mustRunAfter("jsProductionLibraryCompileSync")
 }
+
+tasks.matching { it.name.endsWith("ProductionLibraryDistribution") }.configureEach {
+    mustRunAfter("jsProductionExecutableCompileSync")
+}

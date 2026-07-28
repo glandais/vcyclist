@@ -120,6 +120,15 @@ tasks.matching { it.name == "jsBrowserProductionWebpack" }.configureEach {
     mustRunAfter("jsProductionLibraryCompileSync")
 }
 
+// The same conflict exists in the other direction, and only shows up once a task graph
+// schedules both binaries: `jsBrowserProductionLibraryDistribution` copies
+// `build/js/packages/<name>/kotlin`, which `jsProductionExecutableCompileSync` also writes.
+// Both syncs materialise the same compiler output, so the order is arbitrary — it just has
+// to be declared.
+tasks.matching { it.name.endsWith("ProductionLibraryDistribution") }.configureEach {
+    mustRunAfter("jsProductionExecutableCompileSync")
+}
+
 // Propagate the `INTEGRATION` environment variable from the shell to KotlinJsTest tasks
 // (Gradle does NOT inherit env by default), so `process.env.INTEGRATION` is visible inside
 // the Node test runtime — mirrors the JVM-side gate in `ElevationProviderIntegrationTest`.
