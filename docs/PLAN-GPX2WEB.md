@@ -78,6 +78,8 @@ ce plan, 4 cibles avec Kotlin/Wasm ; la cible a depuis été retirée du projet)
 | g29 | Rattrapage de la façade JS sur g23, g24 et g25 | `:engine` | ✅ |
 | g30 | Quelle puissance le GPX exporte-t-il ? | `:gpx` `:cli` | ✅ |
 | g31 | Façade JS pour `dominantHeadwindDirection` | `:engine` `:demo` | ✅ |
+| **— Phase K : seconde migration consommateur —** | | | |
+| g32 | Fabrique JVM acceptant un fetcher de tuiles | `:elevation` | ✅ |
 
 La **phase I** n'était pas au plan initial : elle rassemble les points bloquants remontés par la
 première migration réelle d'un projet consommateur (appelant **Java**) de gpx2web vers vcyclist.
@@ -92,6 +94,12 @@ et écrites au moment où elles ont été constatées plutôt que gardées en t�
 (g28, g29, g30) ont le même motif — une tâche a changé le cœur et une surface adjacente n'a pas
 suivi : les exports tabulaires du CLI, la façade JS, l'écriture GPX de la puissance. La quatrième
 (g31) donne son premier appelant à une fonction que g26 a portée sans en avoir.
+
+La **phase K** est ouverte par la *deuxième* migration réelle d'un consommateur Java (un backend
+Quarkus). Elle confirme la méthode de la phase I — c'est l'usage, pas la relecture, qui trouve les
+trous d'appelabilité — et en révise une décision : g27 avait acté que l'injection d'un fetcher de
+tuiles « reste du ressort de Kotlin », faute d'appelant. Il en existe un, et c'est là que se
+branche le cache disque des tuiles DEM que g21 avait délibérément laissé à l'appelant.
 
 > g09 a livré `@garmin/fitsdk` sur JS **et** Kotlin/Wasm. La cible Kotlin/Wasm a depuis été
 > retirée du projet (Kotlin/Wasm n'est pas WASI et a de toute façon besoin d'un runtime JS, ce
@@ -183,6 +191,8 @@ les divergences de comportement assumées et les options pour le sort de la weba
 - **J vient après I**, dont elle dépend fiche à fiche. Deux contraintes : **g30 avant g29** (autant
   fixer la sémantique de la puissance avant d'exporter l'écriture GPX vers JS) et **g29 avant
   g31** (les deux touchent `EngineJsApi.kt`). `g28` est indépendante des trois autres.
+- **K vient après I**, dont elle révise une décision. `g32` dépend de `g21`, `g22` et `g27`, toutes
+  livrées : elle est donc immédiatement exécutable.
 
 ## Workflow
 

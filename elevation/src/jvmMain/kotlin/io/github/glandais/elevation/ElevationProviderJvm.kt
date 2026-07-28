@@ -35,21 +35,66 @@ import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.asCoroutineDispatcher
 import kotlinx.coroutines.future.future
 import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.withContext
 import java.util.concurrent.CompletableFuture
 import java.util.concurrent.Executor
+import java.util.function.Function
 
 /**
- * Java-callable factories for the provider and its configuration (task g27).
+ * Java-callable factories for the provider and its configuration (task g27, extended by g32).
  *
  * `new ElevationProvider()` does not compile from Java: both constructor parameters are Kotlin
- * defaults, and the second is a `suspend` function type that has no Java literal at all. These
- * factories give the two forms a Java caller can actually want — all defaults, or a custom
- * configuration — and deliberately stop there: injecting a fetcher means writing a suspending
- * lambda, which is Kotlin's job.
+ * defaults, and the second is a `suspend` function type that has no Java literal at all.
+ *
+ * The line this file draws is now at **suspending** fetchers, not at fetchers: a blocking one is
+ * a plain [Function] and is accepted below (g32), while a fetcher that genuinely suspends stays
+ * Kotlin's business — a caller who already has a non-blocking HTTP client has no reason to be
+ * routed through [Dispatchers.IO].
  */
 fun newElevationProvider(): ElevationProvider = ElevationProvider()
 
 fun newElevationProvider(config: ElevationProviderConfig): ElevationProvider = ElevationProvider(config)
+
+/**
+ * A provider whose tiles come from **your** code — the injection point for a disk cache, an
+ * object store, or tiles bundled with the application (task g32).
+ *
+ * A typical body: look in the cache, and on a miss call
+ * [TileFetcherJvm.fetchTileBytesBlocking] then [TileFetcherJvm.decodeTileBytesBlocking] — the two
+ * halves task g21 made public so that "my transport, your decoder" would be possible. See
+ * `elevation/README.md` for a complete example, including the atomic write the concurrency
+ * contract below makes necessary.
+ *
+ * ## Contract for the fetcher
+ *
+ * - **It may block.** It is invoked on [Dispatchers.IO], never on the caller's thread, precisely
+ *   so that reading a file or opening a socket is legitimate.
+ * - **It must be thread-safe.** `BatchCalculator` fetches up to ten tiles at once, so several
+ *   invocations overlap on different threads. A disk cache that wrote straight into its
+ *   destination file would hand out corrupt tiles; write to a temporary file and `Files.move` it.
+ * - Exceptions propagate unchanged to the caller of `getElevationBlocking` / `setElevationsBlocking`.
+ *
+ * Two hand-written overloads rather than one with `@JvmOverloads`: the annotation drops
+ * **trailing** parameters, and here the defaulted one (`config`) comes first while the required
+ * one (`fetcher`) comes last. It would generate a `newElevationProvider(config)` that loses the
+ * fetcher *and* clashes with the factory above.
+ *
+ * @param fetcher maps a tile URL — built from [ElevationProviderConfig.tileUrlTemplate] — to its
+ *   decoded pixels.
+ */
+fun newElevationProvider(fetcher: Function<String, RawTile>): ElevationProvider = newElevationProvider(ElevationProviderConfig(), fetcher)
+
+/** Same, with a custom [config]. See the other overload for the fetcher's contract. */
+fun newElevationProvider(
+    config: ElevationProviderConfig,
+    fetcher: Function<String, RawTile>,
+): ElevationProvider =
+    ElevationProvider(config) { url ->
+        // withContext, not a bare call: the fetcher blocks, and TileManager invokes it from
+        // whatever coroutine context BatchCalculator is parallelising on. Running blocking I/O
+        // there would serialise the ten concurrent tile fetches at best, starve them at worst.
+        withContext(Dispatchers.IO) { fetcher.apply(url) }
+    }
 
 @JvmOverloads
 fun elevationProviderConfig(

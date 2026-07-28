@@ -43,6 +43,41 @@ val provider =
 `decodeTileBytes` suspends because the browser decodes through `createImageBitmap`, which is
 asynchronous — not for symmetry with the fetch half.
 
+### From Java
+
+`ElevationProviderJvm.newElevationProvider(config, fetcher)` takes a plain
+`Function<String, RawTile>` (task g32), so the same cache is a lambda:
+
+```java
+Path cacheRoot = Path.of("/var/cache/tiles");
+
+ElevationProvider provider =
+    ElevationProviderJvm.newElevationProvider(
+        ElevationProviderJvm.elevationProviderConfig(),
+        url -> {
+            Path cached = cacheRoot.resolve(URLEncoder.encode(url, UTF_8));
+            try {
+                if (Files.exists(cached)) {
+                    return TileFetcherJvm.decodeTileBytesBlocking(Files.readAllBytes(cached), url);
+                }
+                byte[] bytes = TileFetcherJvm.fetchTileBytesBlocking(url);
+                // Atomic: several tiles are fetched at once, and a half-written file read by
+                // another thread would decode into a corrupt tile.
+                Path tmp = Files.createTempFile(cacheRoot, "tile", ".part");
+                Files.write(tmp, bytes);
+                Files.move(tmp, cached, StandardCopyOption.REPLACE_EXISTING, StandardCopyOption.ATOMIC_MOVE);
+                return TileFetcherJvm.decodeTileBytesBlocking(bytes, url);
+            } catch (IOException e) {
+                throw new UncheckedIOException(e);
+            }
+        });
+```
+
+The fetcher **may block** — it is invoked on `Dispatchers.IO`, never on the caller's thread — and
+**must be thread-safe**: `BatchCalculator` fetches up to ten tiles concurrently. That is why the
+example writes to a temporary file and moves it into place rather than writing the destination
+directly.
+
 Two cache levels coexist and do not overlap: yours holds compressed bytes, `TileManager` keeps
 an LRU of decoded `Tile`s (`ElevationProviderConfig.cacheSize`).
 

@@ -181,6 +181,10 @@ lives. Call them and every optional parameter becomes optional again.
 - Everything else in the library is already synchronous and needs no bridge: `GpxParser`,
   `GpxWriter`, `ElevationStep.smoothElevation`, `PathSimplifier`, the resamplers, FIT and the
   CSV / JSON writers.
+- `ElevationProviderJvm.newElevationProvider(config, fetcher)` takes a
+  `Function<String, RawTile>`, so a disk cache — or any other tile transport — plugs in from Java.
+  The fetcher may block (it runs on the IO dispatcher) but must be thread-safe: up to ten tiles
+  are fetched at once. See [`elevation/README.md`](elevation/README.md) for a complete example.
 
 ### Use from JavaScript / TypeScript
 

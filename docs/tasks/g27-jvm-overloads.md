@@ -199,9 +199,12 @@ Java du projet.
 - **`FitRecord` / `FitLap` / `FitCourse`** : constructeurs à défauts, mais un appelant Java qui
   assemble un `FitRecord` à la main court-circuite `PathToFit`, c'est-à-dire toute la logique du
   module. Pas de factory tant que ce cas d'usage n'existe pas.
-- **`ElevationProvider(config, fetcher)`** : le second paramètre est un `suspend (String) ->
-  RawTile`, qui n'a pas de littéral Java. Les factories couvrent les deux formes atteignables ;
-  injecter un fetcher reste du ressort de Kotlin.
+- ~~**`ElevationProvider(config, fetcher)`**~~ — **révisé par [g32](g32-elevation-jvm-fetcher.md)** :
+  le constat (« le second paramètre est un `suspend (String) -> RawTile`, qui n'a pas de littéral
+  Java ») était juste, la conclusion trop large. Un consommateur Java est apparu — le backend
+  Quarkus, qui y branche son cache disque de tuiles —, et une fabrique prenant un
+  `Function<String, RawTile>` bloquant règle son cas. La ligne de partage s'est déplacée de
+  « fetcher » à « fetcher **suspendu** ».
 - **`copy()` des data classes** : jamais couvert par `@JvmOverloads`, ni par une factory. La fiche
   demandait de trancher la question du `Builder` d'`EnhanceOptions` **sur la base d'un besoin
   constaté** : aucun ne l'est à ce jour, donc pas de `Builder`. La factory `enhanceOptions(...)`
