@@ -77,7 +77,7 @@ ce plan, 4 cibles avec Kotlin/Wasm ; la cible a depuis été retirée du projet)
 | g28 | CSV / JSON : écrire toutes les pistes, pas la première | `:cli` | ✅ |
 | g29 | Rattrapage de la façade JS sur g23, g24 et g25 | `:engine` | ✅ |
 | g30 | Quelle puissance le GPX exporte-t-il ? | `:gpx` `:cli` | ✅ |
-| g31 | Façade JS pour `dominantHeadwindDirection` | `:engine` `:demo` | ⬜ |
+| g31 | Façade JS pour `dominantHeadwindDirection` | `:engine` `:demo` | ✅ |
 
 La **phase I** n'était pas au plan initial : elle rassemble les points bloquants remontés par la
 première migration réelle d'un projet consommateur (appelant **Java**) de gpx2web vers vcyclist.

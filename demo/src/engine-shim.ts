@@ -41,7 +41,7 @@ export interface BikeDto {
 
 export interface WindDto {
     readonly windSpeed: number; // m/s
-    readonly windDirection: number; // degrees, meteorological (0 = N, 90 = E)
+    readonly windDirection: number; // degrees, 0 = N, 90 = E — direction the wind blows toward
 }
 
 export interface PowerProviderDto {
@@ -106,6 +106,11 @@ export type Path = object;
 
 export const parseGpx: (xml: string) => Path = ns.parseGpx;
 export const writeGpx: (path: Path, writeExtensions?: boolean) => string = ns.writeGpx;
+/**
+ * Azimuth in degrees of the constant wind that makes this course hardest, ready for the wind
+ * direction field. `NaN` when the course is too short or too symmetric to have one.
+ */
+export const dominantHeadwindAzimuth: (path: Path) => number = ns.dominantHeadwindAzimuth;
 export const enhance: (path: Path, options: EnhanceOptionsDto | null) => Promise<Path> = ns.enhance;
 export const enhanceWithCourse: (
     path: Path,

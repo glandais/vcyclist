@@ -59,10 +59,10 @@ class PathWindTest {
     }
 
     @Test
-    fun `case 01 — a line due north gives a wind from the south`() {
+    fun `case 01 — riding north, the worst wind blows toward the south`() {
         val wind = line(dLat = 0.001, dLon = 0.0).dominantHeadwindDirection()!!
 
-        assertAzimuth(180.0, wind, message = "riding north, the worst wind blows toward the south:")
+        assertAzimuth(180.0, wind, message = "the vector points where the wind goes, i.e. south:")
         assertEquals(1.0, hypot(wind.x, wind.y), 1e-9, "must be a unit vector")
     }
 

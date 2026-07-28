@@ -20,10 +20,18 @@ import kotlin.math.sqrt
  * - Always : `aeroCoef`, `pAero`.
  * - With wind : also `windSpeed`, `windDirection`, `windBearing`, `windAlpha`.
  *
- * Note : the wind direction stored in [Wind.directionRad] follows the meteorological
- * convention (0 = North, π/2 = East). The path's `bearing` follows the math convention
- * (0 = East, π/2 = North). The Isvan formula uses both ; the conversion is
- * `windBearing = π/2 − wind.directionRad`.
+ * Note : [Wind.directionRad] is written as if it were the meteorological convention (0 = North,
+ * π/2 = East, i.e. where the wind comes *from*), and the conversion below reads
+ * `windBearing = π/2 − wind.directionRad` accordingly. **In effect it is the opposite**: a wind
+ * declared at `0` acts as a tailwind for a rider heading north, so the angle behaves as the
+ * direction the wind blows *toward*.
+ *
+ * The cause is `Path.computeBearing`, which returns `atan2(-dy, dx)` over a north-positive `y`:
+ * a northbound rider gets `-π/2` instead of `+π/2`, and that sign flips the meaning of `alpha`
+ * here. It is a verbatim port of `Path.ts` (`// Negative dy for correct bearing`), so it is
+ * load-bearing for TS parity and is **not** to be "fixed" without re-measuring the whole parity
+ * suite. Task g31 established the effective convention by simulation — see
+ * `PathWindAzimuthTest` — rather than by reading this comment, which was misleading.
  */
 object AeroPowerProvider : PowerProvider {
     private const val MU = 1.2

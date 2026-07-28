@@ -23,6 +23,7 @@ import io.github.glandais.engine.io.JsonOptions
 import io.github.glandais.engine.io.JsonWriter
 import io.github.glandais.engine.path.Path
 import io.github.glandais.engine.path.PointField
+import io.github.glandais.engine.path.dominantHeadwindAzimuthDeg
 import io.github.glandais.engine.physics.AeroProviderConstant
 import io.github.glandais.engine.physics.CyclistPowerProvider
 import io.github.glandais.engine.physics.PowerProviderConstant
@@ -139,9 +140,12 @@ external interface BikeDto {
 }
 
 /**
- * JS-side mirror of constant-wind input. [windDirection] is in **degrees** (meteorological
- * convention: 0 = North, 90 = East) — the helper [toWindProvider] converts to the radians the
- * engine internally uses.
+ * JS-side mirror of constant-wind input. [windDirection] is in **degrees**, `0` = north,
+ * `90` = east — [toWindProvider] converts to the radians the engine uses internally.
+ *
+ * The angle names the direction the wind blows **toward**, not the meteorological "from" it was
+ * long documented as. Task g31 established this by simulation; see
+ * `PathWind.dominantHeadwindAzimuthDeg`, whose output goes into this field unchanged.
  */
 external interface WindDto {
     val windSpeed: Double
@@ -427,9 +431,9 @@ private fun BikeDto?.toBike(): Bike {
 }
 
 /**
- * Convert a JS [WindDto] into a [WindProvider]. The DTO's `windDirection` is in degrees
- * (meteorological convention) ; we convert to the radians expected by [Wind.directionRad].
- * `null` → [WindProviderNone].
+ * Convert a JS [WindDto] into a [WindProvider]. The DTO's `windDirection` is in degrees (see
+ * [WindDto] for which direction it names) ; we convert to the radians expected by
+ * [Wind.directionRad]. `null` → [WindProviderNone].
  */
 private fun WindDto?.toWindProvider(): WindProvider {
     if (this == null) return WindProviderNone
@@ -615,6 +619,30 @@ fun pathsToFit(
         Instant.fromEpochMilliseconds(startTimeEpochMs.toLong()),
         interPathGap = interPathGapMs.toLong().milliseconds,
     )
+
+// ── Worst-case wind (task g31) ───────────────────────────────────────────────────────────────
+
+/**
+ * Azimuth in degrees of the constant wind that makes [path] hardest on average — the opposite of
+ * the course's dominant orientation (task g26, exported by g31).
+ *
+ * The value goes **straight into** a `WindDto.directionDeg` or `Wind(speedMS, directionRad)`: no
+ * 180° flip, no unit conversion beyond degrees → radians. The engine's angle convention is not the
+ * meteorological one it claims to be, which is why this is exposed as a ready-to-use number rather
+ * than as a vector the caller would have to interpret.
+ *
+ * This function says nothing about wind **speed** — only about the direction that hurts most.
+ *
+ * @return `NaN` when the question has no answer: fewer than 4 points, or a course whose mean
+ *   direction cancels out (a perfectly symmetric loop). `0` is a valid answer, so check with
+ *   `Number.isNaN`.
+ */
+@JsExport
+fun dominantHeadwindAzimuth(path: Path): Double = path.dominantHeadwindAzimuthDeg()
+
+/** Multi-path form of [dominantHeadwindAzimuth] — the tracks of one file weigh equally. */
+@JsExport
+fun dominantHeadwindAzimuthOfTracks(paths: Array<Path>): Double = paths.toList().dominantHeadwindAzimuthDeg()
 
 // ── Climb detection (task g12) ───────────────────────────────────────────────────────────────
 

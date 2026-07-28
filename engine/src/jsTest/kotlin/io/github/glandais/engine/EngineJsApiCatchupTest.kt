@@ -9,7 +9,7 @@ import kotlin.test.assertTrue
 
 /**
  * Task g29: the JS façade catches up with g23 (`writeExtensions`), g24 (route filtering) and g25
- * (multi-path FIT).
+ * (multi-path FIT) — plus g31, which exports the worst-case wind.
  *
  * The behaviour of each feature is already covered in `commonTest` by its own task. What is
  * verified here is the **bridge**: that the parameter exists on the exported function, defaults
@@ -112,5 +112,37 @@ class EngineJsApiCatchupTest {
 
         assertEquals(contiguous.size, spaced.size, "a gap shifts timestamps, it does not add records")
         assertFalse(contiguous.contentEquals(spaced), "the gap must actually change the bytes")
+    }
+
+    // --- g31 ---------------------------------------------------------------------------
+
+    @Test
+    fun `dominantHeadwindAzimuth is a usable number on a real trace`() {
+        val path = parseGpx(GpxFixtures.SAMPLE_GPX)
+
+        val azimuth = dominantHeadwindAzimuth(path)
+
+        assertFalse(azimuth.isNaN(), "sample.gpx has enough points to have a dominant direction")
+        assertTrue(azimuth >= 0.0 && azimuth < 360.0, "azimuth out of range: $azimuth")
+    }
+
+    @Test
+    fun `dominantHeadwindAzimuth reports NaN rather than a plausible zero`() {
+        val threePoints =
+            """<?xml version="1.0" encoding="UTF-8"?>
+<gpx version="1.1" xmlns="http://www.topografix.com/GPX/1/1">
+  <trk><trkseg>
+    <trkpt lat="45.0" lon="6.0"/><trkpt lat="45.001" lon="6.0"/><trkpt lat="45.002" lon="6.0"/>
+  </trkseg></trk>
+</gpx>"""
+
+        assertTrue(dominantHeadwindAzimuth(parseGpx(threePoints)).isNaN())
+    }
+
+    @Test
+    fun `the multi-path form agrees with the single one`() {
+        val path = parseGpx(GpxFixtures.SAMPLE_GPX)
+
+        assertEquals(dominantHeadwindAzimuth(path), dominantHeadwindAzimuthOfTracks(arrayOf(path)))
     }
 }

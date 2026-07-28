@@ -115,12 +115,63 @@ défavorable.
 
 ## Done when
 
-- [ ] Azimut exposé en `commonMain`, une seule définition dans le dépôt
-- [ ] `@JsExport` mono-path et multi-path
-- [ ] Convention de cap vérifiée **par une simulation**, pas par lecture du code
-- [ ] `NaN` documenté dans le KDoc, visible dans le `.d.ts`
-- [ ] Démo câblée, `engine-shim.ts` à jour
-- [ ] `./gradlew check` + `ktlintCheck` verts
+- [x] Azimut exposé en `commonMain`, une seule définition dans le dépôt
+- [x] `@JsExport` mono-path et multi-path
+- [x] Convention de cap vérifiée **par une simulation**, pas par lecture du code
+- [x] `NaN` documenté dans le KDoc, visible dans le `.d.ts`
+- [x] `engine-shim.ts` à jour ; pas de câblage UI, voir Résultat
+- [x] `./gradlew check` + `ktlintCheck` verts
+
+## Résultat
+
+### Le risque annoncé était réel, et l'inverse de ce qui était écrit
+
+La fiche prévenait qu'une erreur de 180° donnerait un vent parfaitement favorable là où
+l'utilisateur en demande un défavorable, et imposait de trancher **par simulation**. Bien vu :
+
+1. Première implémentation, déduite du KDoc d'`AeroPowerProvider` (« [Wind.directionRad] suit la
+   convention météorologique, 0 = Nord ») : `azimut = vecteur + 180°`.
+2. Test de simulation : parcours plein nord, vent de 8 m/s au cap ainsi calculé → **15,0 m/s de
+   moyenne contre 10,1 m/s sans vent**. Soit 50 % plus rapide. C'était un vent arrière.
+3. Cause trouvée : `Path.computeBearing` renvoie `atan2(-dy, dx)` sur un `y` orienté nord, donc un
+   cycliste plein nord a un cap de `−π/2` et non `+π/2`. Ce signe inverse le sens de l'angle
+   `alpha` dans la formule d'Isvan. Il est porté **verbatim** de `Path.ts`
+   (`// Negative dy for correct bearing`), donc structurant pour la parité TS : on ne le corrige
+   pas, on le documente.
+
+**Convention effective du moteur** : `Wind.directionRad` désigne la direction vers laquelle le
+vent souffle, `0` = nord. Le KDoc d'`AeroPowerProvider` et celui de `WindDto` disaient l'inverse
+depuis l'origine ; les deux sont corrigés, avec la raison et le renvoi au test.
+
+`dominantHeadwindAzimuthDeg` renvoie donc l'azimut du vecteur **tel quel**, sans bascule.
+
+### API
+
+- `Path.dominantHeadwindAzimuthDeg()` et `List<Path>.dominantHeadwindAzimuthDeg()` en
+  `commonMain` : une seule définition de l'azimut dans le dépôt, celle que la façade et les tests
+  utilisent.
+- `@JsExport fun dominantHeadwindAzimuth(path)` et `dominantHeadwindAzimuthOfTracks(paths)`.
+- **`NaN`, pas `null`**, pour « pas de réponse » : un `Double?` traverse vers JS en
+  `number | null` et impose deux tests à l'appelant, alors que `0` est une réponse valide qui ne
+  doit pas être confondue avec l'absence de réponse. `Number.isNaN` est un test unique.
+
+### Démo : shim seulement
+
+`dominantHeadwindAzimuth` est exposé et typé dans `demo/src/engine-shim.ts`, mais aucun bouton
+n'est ajouté. Le `WindTab` a bien un champ de direction ; y greffer un bouton « vent le plus
+défavorable » est une fonctionnalité de démo à part entière (libellé, comportement quand la
+réponse est `NaN`, interaction avec le curseur existant), pas le portage d'API que cette fiche
+couvre. La prise est posée, typée, testée.
+
+### Vérification
+
+- 7 cas dans `PathWindAzimuthTest` (commonTest) × 3 cibles, dont **deux par simulation** : le vent
+  annoncé ralentit la course (cas 06) et son opposé l'accélère (cas 07). Sans le second, le
+  premier ne prouverait rien.
+- 3 cas dans `EngineJsApiCatchupTest` (jsTest) pour la façade.
+- Un nom de test de g26 corrigé au passage : « a line due north gives a wind from the south »
+  décrivait l'inverse de ce que la fonction renvoie.
+- `./gradlew check` + `ktlintCheck` + `:demo:assemble` verts.
 
 ## Notes
 
