@@ -110,6 +110,29 @@ class Path(
         return out
     }
 
+    /**
+     * A copy with every timestamp cleared, stats re-derived.
+     *
+     * The FIT writer requires monotonic time ([toFitSegment] checks it point by point), which a
+     * real recording does not always have: a head unit that resyncs its clock mid-ride, or two
+     * traces concatenated out of order, both step backwards. A consumer facing such a file has
+     * only bad options — reject the import, or hand-rebuild the path through
+     * [Path.fromCoordinates] and lose everything that is not a coordinate. This is the third one:
+     * the geometry is kept, the clock is dropped, and the result encodes as a course, which is
+     * what an un-timed route produces anyway.
+     *
+     * Only [PointField.TIME] is cleared. Fields a simulation may have derived *from* time (speed,
+     * power) are left alone — this answers "make it encodable", not "make it un-simulated".
+     */
+    fun withoutTime(): Path {
+        val out = copy()
+        for (i in 0 until size) {
+            out.setTime(i, 0.0)
+        }
+        out.computeDerivedData()
+        return out
+    }
+
     private fun copyStatsFrom(other: Path) {
         totalDistance = other.totalDistance
         minElevation = other.minElevation
@@ -233,7 +256,16 @@ class Path(
         /**
          * Build a [Path] from a sequence of [LatLonElevation], copying lat/lon (converted to
          * radians) and elevation into the first three slots. Other slots remain 0.0.
-         * Call [computeDerivedData] afterwards if you need `distance`, `bearing`, etc.
+         *
+         * [computeDerivedData] is called before returning. It used to be the caller's job, and
+         * every caller got it wrong the same way: `distance(i)` stays 0 until it runs, so a path
+         * that looks fully built silently has no length — [PointPerDistance] then finds every
+         * point at distance 0 from the start and collapses the route. This factory is the only
+         * way to build a [Path] from outside the library, so it owes the caller an object that
+         * works. Pass through [Path] and the setters directly if you need the raw form.
+         *
+         * Java callers get this as `PathJvm.fromCoordinates(coords)`: `@JvmStatic` would read
+         * better here but does not resolve from `commonMain`, so the facade carries it.
          */
         fun fromCoordinates(coords: List<CoordinatesElevation>): Path {
             val path = Path(coords.size)
@@ -242,6 +274,7 @@ class Path(
                 path.setLongitude(i, c.longitude * MathConstants.DEG_TO_RAD)
                 path.setElevation(i, c.elevation)
             }
+            path.computeDerivedData()
             return path
         }
     }

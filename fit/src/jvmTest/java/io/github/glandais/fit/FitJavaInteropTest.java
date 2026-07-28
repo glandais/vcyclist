@@ -3,6 +3,7 @@ package io.github.glandais.fit;
 import static org.junit.Assert.assertArrayEquals;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
+import static org.junit.Assert.fail;
 
 import io.github.glandais.elevation.MathConstants;
 import io.github.glandais.engine.path.Path;
@@ -71,5 +72,39 @@ public class FitJavaInteropTest {
         long secondStart =
                 course.getSegments().get(1).getRecords().get(0).getTimestamp().toEpochMilliseconds();
         assertEquals(300_000L, secondStart - firstEnd);
+    }
+
+    @Test
+    public void epochMillisecondsFormMatchesTheInstantForm() {
+        // The point of the overload: a Java caller starting from path.time(0) — a Double of epoch
+        // milliseconds — no longer has to name kotlin.time.Instant to get back to one.
+        List<Path> paths = List.of(syntheticPath(45.68), syntheticPath(46.0));
+        long startMs = START.toEpochMilliseconds();
+
+        assertArrayEquals(
+                PathToFitJvm.toFitBytes(paths, "multi", START),
+                PathToFitJvm.toFitBytes(paths, "multi", startMs));
+        assertArrayEquals(
+                PathToFitJvm.toFitBytes(paths.get(0), "course", START),
+                PathToFitJvm.toFitBytes(paths.get(0), "course", startMs));
+        assertEquals(
+                START,
+                PathToFitJvm.toFitCourse(paths, "multi", startMs).getRecords().get(0).getTimestamp());
+    }
+
+    @Test
+    public void withoutTimeMakesANonMonotonicPathEncodable() {
+        Path path = syntheticPath(45.68);
+        path.setTime(2, 1.0); // clock steps backwards, as a resynced head unit does
+        path.computeDerivedData();
+
+        try {
+            PathToFitJvm.toFitBytes(path, "course", START);
+            fail("the writer must still reject a non-monotonic path");
+        } catch (IllegalArgumentException expected) {
+            // the precondition this method exists to let callers satisfy
+        }
+
+        assertTrue(PathToFitJvm.toFitBytes(path.withoutTime(), "course", START).length > 0);
     }
 }

@@ -74,8 +74,14 @@ fun GpxDocument.segmentsAsPaths(kinds: Set<GpxPathKind> = ALL_KINDS): List<Path>
         .filter { it.points.isNotEmpty() }
         .map { it.toPath() }
 
-/** Both containers — the default selection of [tracksAsPaths] and [segmentsAsPaths]. */
-private val ALL_KINDS: Set<GpxPathKind> = GpxPathKind.entries.toSet()
+/**
+ * Both containers — the default selection of [tracksAsPaths] and [segmentsAsPaths].
+ *
+ * `internal` rather than private so `GpxToPathJvm` can name the same default: Java sees no default
+ * argument, and a facade re-deriving `GpxPathKind.entries.toSet()` on its side would be a second
+ * source of truth for it.
+ */
+internal val ALL_KINDS: Set<GpxPathKind> = GpxPathKind.entries.toSet()
 
 /**
  * Materialise a [Path] from a [GpxTrack], concatenating its segments.

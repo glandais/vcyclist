@@ -49,4 +49,49 @@ fun toFitBytes(
     interPathGapMs: Long = 0L,
 ): ByteArray = paths.toFitBytes(name, startTime, sport, interPathGapMs.gap())
 
+/**
+ * The same four, taking the start as **epoch milliseconds**.
+ *
+ * `kotlin.time.Instant` is a perfectly ordinary class from Java, but constructing one means
+ * writing `kotlin.time.Instant.Companion.fromEpochMilliseconds(t)` at the call site — the only
+ * place a Java consumer of this library has to name a `kotlin.*` type at all. Since the value it
+ * carries here always comes from `path.time(0)`, which is already a `Double` of epoch
+ * milliseconds, the round trip through `Instant` buys the caller nothing.
+ */
+@JvmOverloads
+fun toFitCourse(
+    path: Path,
+    name: String,
+    startTimeEpochMs: Long,
+    sport: FitSport = FitSport.CYCLING,
+): FitCourse = path.toFitCourse(name, startTimeEpochMs.instant(), sport)
+
+@JvmOverloads
+fun toFitBytes(
+    path: Path,
+    name: String,
+    startTimeEpochMs: Long,
+    sport: FitSport = FitSport.CYCLING,
+): ByteArray = path.toFitBytes(name, startTimeEpochMs.instant(), sport)
+
+@JvmOverloads
+fun toFitCourse(
+    paths: List<Path>,
+    name: String,
+    startTimeEpochMs: Long,
+    sport: FitSport = FitSport.CYCLING,
+    interPathGapMs: Long = 0L,
+): FitCourse = paths.toFitCourse(name, startTimeEpochMs.instant(), sport, interPathGapMs.gap())
+
+@JvmOverloads
+fun toFitBytes(
+    paths: List<Path>,
+    name: String,
+    startTimeEpochMs: Long,
+    sport: FitSport = FitSport.CYCLING,
+    interPathGapMs: Long = 0L,
+): ByteArray = paths.toFitBytes(name, startTimeEpochMs.instant(), sport, interPathGapMs.gap())
+
 private fun Long.gap(): Duration = milliseconds
+
+private fun Long.instant(): Instant = Instant.fromEpochMilliseconds(this)

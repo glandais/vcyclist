@@ -80,6 +80,7 @@ ce plan, 4 cibles avec Kotlin/Wasm ; la cible a depuis été retirée du projet)
 | g31 | Façade JS pour `dominantHeadwindDirection` | `:engine` `:demo` | ✅ |
 | **— Phase K : seconde migration consommateur —** | | | |
 | g32 | Fabrique JVM acceptant un fetcher de tuiles | `:elevation` | ✅ |
+| g33 | Les quatre trous que g27 a laissés, trouvés en migrant | `:gpx` `:engine` `:fit` | ✅ |
 
 La **phase I** n'était pas au plan initial : elle rassemble les points bloquants remontés par la
 première migration réelle d'un projet consommateur (appelant **Java**) de gpx2web vers vcyclist.
@@ -100,6 +101,11 @@ Quarkus). Elle confirme la méthode de la phase I — c'est l'usage, pas la rele
 trous d'appelabilité — et en révise une décision : g27 avait acté que l'injection d'un fetcher de
 tuiles « reste du ressort de Kotlin », faute d'appelant. Il en existe un, et c'est là que se
 branche le cache disque des tuiles DEM que g21 avait délibérément laissé à l'appelant.
+
+`g33` la clôt en mesurant ce que g27 avait manqué : une fois la migration **terminée et livrée**,
+le backend nommait encore un type Kotlin à six endroits. Aucun n'était bloquant — c'est bien le
+motif de la phase I, l'API était juste et inutilement coûteuse à appeler — et aucun n'aurait été
+trouvé par relecture, seulement en comptant sur du code réel arrivé au bout.
 
 > g09 a livré `@garmin/fitsdk` sur JS **et** Kotlin/Wasm. La cible Kotlin/Wasm a depuis été
 > retirée du projet (Kotlin/Wasm n'est pas WASI et a de toute façon besoin d'un runtime JS, ce
