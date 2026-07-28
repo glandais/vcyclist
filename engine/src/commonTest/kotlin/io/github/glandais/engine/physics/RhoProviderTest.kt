@@ -174,18 +174,35 @@ class RhoProviderTest {
         assertEquals(1.2322916950, rhoBelow, tol)
     }
 
-    // ---- 12. `temperature == 0.0` sentinel → fallback 15 °C ----------------
+    // ---- 12. temperature: genuine 0 °C vs unset slot ------------------------
 
+    /**
+     * A genuine 0 °C reading is honoured — it is *not* a "missing value" sentinel.
+     * `RhoProviderEstimate` used to treat `0.0` as absent and silently substitute 15 °C, giving
+     * a winter ride a ~5.5 % air density error ; absence is now signalled by the `NaN` that
+     * `GpxToPath` writes. See `docs/parity.md` divergence 3.
+     */
     @Test
-    fun estimate_treats_zero_temperature_as_absent() {
-        val pZero = Path(1)
-        pZero.setElevation(0, 0.0)
-        pZero.setTemperature(0, 0.0) // sentinel "absent"
+    fun estimate_honours_a_genuine_zero_temperature() {
+        val pZero = pathWith(elevation = 0.0, temperatureC = 0.0)
         val pRef = pathWith(elevation = 0.0, temperatureC = 15.0)
 
         val rhoZero = RhoProviderEstimate.rho(course(pZero), pZero, 0)
         val rhoRef = RhoProviderEstimate.rho(course(pRef), pRef, 0)
-        assertEquals(rhoRef, rhoZero, tolTight)
+        assertEquals(1.2922836699, rhoZero, tol)
+        assertTrue(rhoZero > rhoRef, "0 °C air must be denser than 15 °C air")
+    }
+
+    @Test
+    fun estimate_falls_back_to_15c_when_temperature_slot_is_unset() {
+        val pUnset = Path(1)
+        pUnset.setElevation(0, 0.0)
+        pUnset.setTemperature(0, Double.NaN) // what `GpxToPath` writes for a GPX with no <atemp>
+        val pRef = pathWith(elevation = 0.0, temperatureC = 15.0)
+
+        val rhoUnset = RhoProviderEstimate.rho(course(pUnset), pUnset, 0)
+        val rhoRef = RhoProviderEstimate.rho(course(pRef), pRef, 0)
+        assertEquals(rhoRef, rhoUnset, tolTight)
     }
 
     // ---- 13. 20 °C < 15 °C density -----------------------------------------

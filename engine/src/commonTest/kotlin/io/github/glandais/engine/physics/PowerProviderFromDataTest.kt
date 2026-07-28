@@ -5,6 +5,7 @@ import io.github.glandais.engine.CoursePhysics
 import io.github.glandais.engine.path.Path
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertTrue
 
 class PowerProviderFromDataTest {
     private fun buildCp(): Pair<CoursePhysics, Path> {
@@ -25,9 +26,18 @@ class PowerProviderFromDataTest {
     @Test
     fun zero_input_returns_zero() {
         val (cp, path) = buildCp()
-        // pInputPower defaults to 0.0
+        path.setPInputPower(0, 0.0)
         val p = PowerProviderFromData.powerAt(cp, path, 0)
         assertEquals(0.0, p, 0.0)
+    }
+
+    @Test
+    fun nan_input_is_passed_through() {
+        // `GpxToPath` writes NaN when the GPX carried no <power>. TS documents the same contract:
+        // "the power field must contain valid data (not NaN) for this provider to work correctly".
+        val (cp, path) = buildCp()
+        path.setPInputPower(0, Double.NaN)
+        assertTrue(PowerProviderFromData.powerAt(cp, path, 0).isNaN())
     }
 
     @Test

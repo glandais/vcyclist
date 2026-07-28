@@ -32,9 +32,8 @@ object RhoProviderDefault : RhoProvider {
  * ISA (International Standard Atmosphere) troposphere model. Reads `elevation(i)` and
  * `temperature(i)` from the path ; falls back to 15 °C and 0 m if either is `NaN`.
  *
- * Additionally, a `temperature(i) == 0.0` value is treated as "not provided" and falls back
- * to 15 °C — `GeneratedPath` initialises every slot to `0.0`, so the sentinel is needed to
- * distinguish "absent" from "actually 0 °C". This matches the pragmatic TS behaviour.
+ * A genuine `0.0` reading is honoured (a 0 °C winter ride keeps its air density) :
+ * `GeneratedPath` NaN-initialises every slot, so "absent" and "actually 0 °C" are distinct.
  *
  * Formula (port of `RhoProviderEstimate.ts`) :
  * ```
@@ -67,7 +66,7 @@ object RhoProviderEstimate : RhoProvider {
         pointIndex: Int,
     ): Double {
         val providedTemp = path.get(pointIndex, PointField.TEMPERATURE)
-        val temperatureC = if (providedTemp.isNaN() || providedTemp == 0.0) 15.0 else providedTemp
+        val temperatureC = if (providedTemp.isNaN()) 15.0 else providedTemp
 
         val providedElevation = path.elevation(pointIndex)
         val altitude = if (providedElevation.isNaN()) 0.0 else providedElevation
