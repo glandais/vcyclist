@@ -61,7 +61,7 @@ fun Path.toFitCourse(
                 altitudeM = elevation(i).takeUnless { it.isNaN() },
                 distanceM = distance(i),
                 speedMs = speed(i).takeUnless { it.isNaN() },
-                powerW = pComputedPower(i).optionalSensor()?.roundToInt(),
+                powerW = pComputedPower(i).optionalComputed()?.roundToInt(),
                 heartRate = heartRate(i).optionalSensor()?.roundToInt(),
                 cadence = cadence(i).optionalSensor()?.roundToInt(),
                 temperatureC = temperature(i).optionalSensor(),
@@ -110,7 +110,19 @@ fun Path.toFitBytes(
     sport: FitSport = FitSport.CYCLING,
 ): ByteArray = FitEncoder.encode(toFitCourse(name, startTime, sport))
 
-/** `NaN` or an untouched `0.0` slot both mean "this sensor produced nothing". */
-private fun Double.optionalSensor(): Double? = takeUnless { it.isNaN() || it == 0.0 }
+/**
+ * `NaN` means "this sensor produced nothing" ; a genuine `0.0` reading is kept — 0 rpm while
+ * freewheeling and 0 °C on a winter ride are measurements, not absences. [GpxToPath] writes the
+ * `NaN` when the source GPX carried no such extension.
+ */
+private fun Double.optionalSensor(): Double? = takeUnless { it.isNaN() }
+
+/**
+ * Same, for a **computed** field. `pComputedPower` is only meaningful once `VirtualizeService`
+ * has run ; on a path that never went through the pipeline its slot is still the backing array's
+ * `0.0`, and no `NaN` marks it as absent. So `0.0` stays the "nothing here" signal for it —
+ * encoding a flat 0 W line for an un-simulated ride is worse than omitting the field.
+ */
+private fun Double.optionalComputed(): Double? = takeUnless { it.isNaN() || it == 0.0 }
 
 private fun Double.roundToIntOrZero(): Int = if (isNaN()) 0 else roundToInt()
