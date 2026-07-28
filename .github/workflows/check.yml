@@ -36,6 +36,13 @@ jobs:
 
       - run: ./gradlew check
 
+      # Link the standalone WASI module and weigh it (task w06). Not part of `check` — packaging
+      # is not verification — but worth doing on every PR: a size regression is caused by what
+      # the exports reach, so it appears the moment someone widens the reachable graph, and it is
+      # much cheaper to see here than in a release.
+      - name: Build and weigh the standalone .wasm
+        run: ./gradlew :engine:checkWasmModuleSize
+
       # A red wasmWasi test prints only the assertion in the log; the HTML report carries the
       # stack. `wasmWasiWasmtimeTest` is a `KotlinJsTest`, so its report lands in the same place
       # as every other target's and one pattern covers them all.
