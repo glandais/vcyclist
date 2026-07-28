@@ -1,0 +1,7 @@
+# Pin at or above the wasmtime KGP provisions (46.0.1 as of Kotlin 2.4.20-Beta2): the GC and
+# exnref proposals Kotlin 2.4 emits are recent, and an older runtime rejects the module outright.
+wasmtime>=47.0.1
+
+# Only for the INTEGRATION=1 elevation tests: decoding the DEM tiles the module asks its host
+# for. Everything else in the harness runs offline without it.
+Pillow>=10.0.0

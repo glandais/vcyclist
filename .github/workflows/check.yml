@@ -43,6 +43,15 @@ jobs:
       - name: Build and weigh the standalone .wasm
         run: ./gradlew :engine:checkWasmModuleSize
 
+      # The only end-to-end exercise of the WASI ABI: KGP's own test runner cannot supply the
+      # custom `vcyclist` imports, so it never reaches an export that uses one. Renaming an
+      # export, changing an error code or breaking the callback protocol turns this red — nothing
+      # else does. Offline; the DEM tests stay behind INTEGRATION=1 like the rest of the project.
+      - name: Run the WASI reference host
+        run: |
+          python3 -m pip install --quiet --requirement tools/wasi/requirements.txt
+          ./tools/wasi/run-all.sh
+
       # A red wasmWasi test prints only the assertion in the log; the HTML report carries the
       # stack. `wasmWasiWasmtimeTest` is a `KotlinJsTest`, so its report lands in the same place
       # as every other target's and one pattern covers them all.
