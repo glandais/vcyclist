@@ -7,6 +7,10 @@ kotlin {
 }
 
 dependencies {
+    // :gpx is declared explicitly even though :engine re-exports it via `api`: the dump
+    // runners import Path / PointField / GpxParser / the resamplers directly, so they
+    // should not break if :engine ever narrows that to `implementation`.
+    implementation(project(":gpx"))
     implementation(project(":engine"))
     implementation(project(":elevation"))
     implementation(libs.kotlinx.coroutines.core)
@@ -22,6 +26,7 @@ tasks.register<JavaExec>("dumpPipeline") {
     description = "Dump the Kotlin Enhancer pipeline stage by stage (see tools/parity/README.md)"
     mainClass.set("io.github.glandais.parity.PipelineDumpKt")
     classpath = sourceSets["main"].runtimeClasspath
+    workingDir = rootProject.projectDir
     args = (project.findProperty("args") as String?)?.split(" ")?.filter { it.isNotBlank() } ?: emptyList()
 }
 
@@ -31,6 +36,7 @@ tasks.register<JavaExec>("dumpUnits") {
     description = "Evaluate the shared sentinel cases against the Kotlin implementations"
     mainClass.set("io.github.glandais.parity.UnitDumpKt")
     classpath = sourceSets["main"].runtimeClasspath
+    workingDir = rootProject.projectDir
     args = (project.findProperty("args") as String?)?.split(" ")?.filter { it.isNotBlank() } ?: emptyList()
 }
 
@@ -40,5 +46,6 @@ tasks.register<JavaExec>("dumpElevation") {
     description = "Resolve the shared coordinate list through the JVM WebP decoder"
     mainClass.set("io.github.glandais.parity.ElevationDumpKt")
     classpath = sourceSets["main"].runtimeClasspath
+    workingDir = rootProject.projectDir
     args = (project.findProperty("args") as String?)?.split(" ")?.filter { it.isNotBlank() } ?: emptyList()
 }

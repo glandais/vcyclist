@@ -124,6 +124,24 @@ noise, not a divergence. Verdicts are `EXACT`, `OK`, `DRIFT` (accumulating field
    difference alone accounts for a ~2 m and 1 s shortfall on every fixture.
 6. **Then use `inspect.py`** on the field and index range to read the actual numbers.
 
+## Also useful for: proving a refactor changed nothing
+
+The two dump directories the harness compares do not have to be TS vs Kotlin. Dumping the
+Kotlin pipeline before and after a refactor and comparing the two proves, field by field,
+that the numbers did not move:
+
+```bash
+git checkout <before> && ./gradlew :tools:parity:dumpPipeline \
+    -Pargs="--gpx ../virtual-cyclist/gpx/stelvio.gpx --out /tmp/before --simplify"
+git checkout <after>  && ./gradlew :tools:parity:dumpPipeline \
+    -Pargs="--gpx ../virtual-cyclist/gpx/stelvio.gpx --out /tmp/after  --simplify"
+python3 tools/parity/compare.py /tmp/before /tmp/after
+```
+
+This was used to check the gpx2web module split (`:engine` → `:gpx` + `:engine` + `:map` +
+`:cli` + `:fit`): **all 36 fields bit-identical at all 8 stages**, so moving the `Path` and
+GPX types into `:gpx` changed no arithmetic.
+
 ## Known gaps
 
 - **The TS Node elevation path cannot decode the current tiles.** `node-canvas` 3.2.3
