@@ -10,7 +10,38 @@ jobs:
       - uses: actions/setup-java@v5
         with: { java-version: 21, distribution: temurin }
       - uses: gradle/actions/setup-gradle@v6
+
+      # `wasmWasiWasmtimeTest` (task w01) runs the WASI tests of :gpx, :elevation, :fit and
+      # :engine inside wasmtime, which KGP downloads itself into `$GRADLE_USER_HOME/wasmtime/`
+      # — 64 MB unpacked, version chosen by the Kotlin plugin, hence the key on
+      # `libs.versions.toml`. Never install wasmtime from apt/brew or a third-party action: KGP
+      # wants *its* version in *its* directory, and a divergent host version would flip the
+      # GC/exnref proposals between local and CI.
+      #
+      # `setup-gradle` has no `cache-extra-paths`; its `gradle-home-cache-includes` would work
+      # (the directory is inside Gradle User Home) but folds wasmtime into a key that does not
+      # track the Kotlin version. A dedicated entry is both correctly keyed and legible in the
+      # log — which matters, because this step is on probation: locally the cold download takes
+      # **2.5 s**, and a 64 MB cache restore is not obviously faster than that. Compare the two
+      # numbers on the first CI runs (task w02) and delete this step if the cache does not win.
+      - name: Cache the wasmtime runtime KGP provisions
+        uses: actions/cache@v6
+        with:
+          path: ~/.gradle/wasmtime
+          key: wasmtime-${{ runner.os }}-${{ hashFiles('gradle/libs.versions.toml') }}
+
       - run: ./gradlew check
+
+      # A red wasmWasi test prints only the assertion in the log; the HTML report carries the
+      # stack. `wasmWasiWasmtimeTest` is a `KotlinJsTest`, so its report lands in the same place
+      # as every other target's and one pattern covers them all.
+      - name: Upload test reports
+        if: failure()
+        uses: actions/upload-artifact@v7
+        with:
+          name: test-reports
+          path: '*/build/reports/tests/**'
+          retention-days: 7
 
       # Smoke the packaged CLI. It is the only consumer that crosses every module at once
       # (:gpx -> :engine -> :fit -> :map), so it doubles as an integration test — and a fat jar
