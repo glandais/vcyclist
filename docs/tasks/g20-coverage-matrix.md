@@ -108,12 +108,65 @@ Aucune commande — c'est un livrable documentaire. Critères de relecture :
 
 ## Done when
 
-- [ ] Inventaire exhaustif, compte de lignes vérifié contre `find`
-- [ ] Statut et équivalent renseignés pour chaque classe
-- [ ] Toutes les raisons de non-port explicitées
-- [ ] Divergences de comportement rassemblées
-- [ ] Conclusion sur l'archivabilité de gpx2web
-- [ ] Document référencé depuis `README.md`, `CLAUDE.md` et `PLAN-GPX2WEB.md`
+- [x] Inventaire exhaustif, compte de lignes vérifié contre `find`
+- [x] Statut et équivalent renseignés pour chaque classe
+- [x] Toutes les raisons de non-port explicitées
+- [x] Divergences de comportement rassemblées
+- [x] Conclusion sur l'archivabilité de gpx2web
+- [x] Document référencé depuis `README.md`, `CLAUDE.md` et `PLAN-GPX2WEB.md`
+
+## Résultat
+
+[`docs/gpx2web-coverage.md`](../gpx2web-coverage.md).
+
+### Compte
+
+**104 classes, 104 lignes**, correspondance bijective vérifiée par script dans les deux sens
+(aucune ligne sans fichier, aucun fichier sans ligne) — pas à l'œil.
+
+La fiche annonçait 89 classes pour le module `gpx` ; il y en a **96**. C'est précisément ce que
+le garde-fou mécanique sert à attraper, et la raison pour laquelle une matrice partielle est pire
+qu'aucune matrice.
+
+Répartition des statuts :
+
+| Statut | Nombre |
+|---|---|
+| porté | 48 |
+| remplacé | 34 |
+| déjà couvert (`:elevation`, antérieur au plan) | 13 |
+| non porté | 8 |
+| partiellement porté | 1 |
+
+Le statut **partiellement porté** ne figurait pas dans la liste autorisée par la fiche. Il a été
+ajouté pour `gpx.util.SmoothService` : `smoothEle` est porté, `smoothPower` / `smoothAeroCoef` /
+`smoothSpeed` ne le sont pas. Le classer « porté » aurait été faux, « non porté » aussi.
+
+### Les 8 non portés, et pourquoi
+
+- `data.FastTimeIndex` — index temps → point, consommé uniquement par la webapp.
+- `util.GPXDataComputer` — détection de croisements, idem, aucun consommateur dans le périmètre.
+- `power.cyclist.OptimalSpeedService` + `OptimalSpeeds` — décision produit : conseiller une
+  allure n'est pas simuler une sortie.
+- `io.write.tabular.*` (4 classes) — l'abstraction CSV/XLSX perd son objet sans XLSX, écarté
+  parce qu'Apache POI est JVM-only et pèse plusieurs Mo dans un module qui doit compiler en JS et
+  en Wasm.
+
+### Divergences rassemblées
+
+Sept, reprises depuis les fiches g02, g03, g07, g12, g13, g14 et g17, plus une huitième trouvée
+en écrivant le document : le lissage n'est porté que pour l'altitude (voir ci-dessus). La fiche
+demandait de « compléter au fil de la relecture » — c'est ce qu'a produit la relecture.
+
+Le point g07 était marqué « à confirmer » : confirmé en lisant les deux writers. gpx2web écrit
+`{"keys": [...], "points": [{...}]}`, un objet par point ; vcyclist écrit un tableau par champ.
+
+### Conclusion
+
+`gpx` et `gpxtools-cli` sont remplacés. **`gpx-web` bloque l'archivage** : ses deux endpoints
+REST, sa page Qute et surtout `PowerCurvePowerProvider`, seule logique métier de la webapp sans
+équivalent vcyclist (ce serait un `CyclistPowerProvider` de plus, tâche courte si le besoin
+venait). Trois options documentées sans être tranchées, comme demandé.
 
 ## Notes
 

@@ -279,4 +279,5 @@ the GPX output makes sense.
 | Why does this fixture have these numbers ? | `engine/src/commonTest/.../parity/ParityFixtures.kt` + `docs/parity.md` |
 | Why is `time(0) = 0` ? | `VirtualizeService.kt` KDoc (relative-time simulation) |
 | How to run the CLI ? | [`cli/README.md`](cli/README.md) — usage, exit codes, and the gpxtools-cli migration table |
+| Where did gpx2web's `<class>` go ? | [`docs/gpx2web-coverage.md`](docs/gpx2web-coverage.md) — one row per Java class, ported / replaced / not ported with the reason |
 | How to cut a release / publish to npm or Maven Central ? | [`docs/publishing.md`](docs/publishing.md) |
