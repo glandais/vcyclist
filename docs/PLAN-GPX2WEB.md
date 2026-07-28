@@ -54,7 +54,7 @@ cœur (`:elevation`, `:gpx`, `:engine`, `:fit`) reste compilable sur les 4 cible
 | g11 | Port de `ClimbDetector` | `:engine` | ✅ |
 | g12 | Façade `@JsExport` + intégration démo | `:engine` `:demo` | ✅ |
 | **— Phase F : cartes —** | | | |
-| g13 | Projection + `MapImage` | `:map` | ⬜ |
+| g13 | Projection + `MapImage` | `:map` | ✅ |
 | g14 | `TileMapProducer` — tuiles + cache | `:map` | ⬜ |
 | g15 | `SRTMMapProducer` — profil d'élévation PNG | `:map` | ⬜ |
 | **— Phase G : CLI —** | | | |
@@ -114,8 +114,9 @@ reste sans équivalent. Son sort fera l'objet d'une décision séparée.
   headless Chrome sur les deux cibles web. Pas d'`externals.js` : contrairement à
   `@jsquash/webp` c'est du JavaScript pur, donc il est bundlé normalement et ressort en
   dépendance npm épinglée des paquets publiés.
-- **Phase F / `java.awt`** — première dépendance non-multiplateforme du dépôt. D'où le module
-  isolé : `./gradlew check` doit rester multi-cibles sur le cœur.
+- ~~**Phase F / `java.awt`**~~ — **levé pour g13** : `:map` utilise le plugin `kotlin-jvm`, n'a
+  pas de `commonMain`, et rien ne dépend de lui (vérifié). `./gradlew check` reste vert et
+  multi-cibles sur le cœur. Le bloc `mavenPublishing` fonctionne tel quel sur un module non-KMP.
 - **g14 / politique d'usage des tuiles** — gpx2web déclare un `USER_AGENT` explicite. Toute
   source de tuiles OSM impose une politique d'usage ; la reprendre telle quelle.
 

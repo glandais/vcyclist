@@ -23,6 +23,10 @@ The port is structured as:
   Phase 2bis 29-31 + Phase 3 task 33 = Node integration tests + `ElevationProvider` plumbing
   in `EngineJsApi.enhance` for `fixElevation: true`). Does `api(project(":gpx"))`, so
   consumers of `:engine` keep seeing the whole Path + GPX surface.
+- `:map` — **JVM-only** static map rendering: Web Mercator projection (`MapSpace`) and image
+  framing (`MapImage`), on `java.awt` / `ImageIO`. Uses the `kotlin-jvm` plugin, not KMP, so it
+  has no `commonMain` and the four-target invariant is untouched — but **nothing may depend on
+  it**: the arrow only points from `:map` into `:gpx` / `:elevation`.
 - `:codegen` — tiny JVM helper that regenerates `GeneratedPath.kt` and `PointFieldAccessors.kt`
   from `PointField` when the field list changes (writes into `:gpx` since g01).
 
@@ -45,6 +49,7 @@ From the `vcyclist/` root :
 ./gradlew check                          # full build + tests on all targets
 ./gradlew :engine:allTests               # engine tests (JVM + JS Node + JS browser + Wasm browser)
 ./gradlew :gpx:allTests                  # Path model + GPX I/O tests (same targets)
+./gradlew :map:test                      # static map rendering (JVM only)
 ./gradlew :elevation:allTests            # elevation tests (same targets)
 ./gradlew :engine:jvmTest                # JVM only (fast iteration)
 ./gradlew :engine:wasmJsBrowserTest      # Wasm browser tests in headless Chrome (Karma)
@@ -155,7 +160,7 @@ Co-Authored-By: Claude Opus 4.7 (1M context) <noreply@anthropic.com>
 ```
 
 Types : `feat`, `fix`, `test`, `docs`, `chore`, `style`, `refactor`. Scopes : `engine`,
-`gpx`, `elevation`, `codegen`, `plan`, `build`, `deps`. Always include the
+`gpx`, `fit`, `map`, `elevation`, `codegen`, `plan`, `build`, `deps`. Always include the
 `Co-Authored-By` trailer.
 
 **The commit type drives the release** : `feat:` triggers a minor bump, `fix:` a patch
