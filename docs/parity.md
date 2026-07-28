@@ -2,10 +2,10 @@
 
 ## What this document is
 
-The Kotlin `:engine` / `:elevation` modules are a port of the TypeScript `virtual-cyclist`
-and `elevation` libraries. This document records the **measured** numerical relationship
-between the two implementations, the divergences found, and the parity strategy that
-follows from them.
+The Kotlin `:gpx` / `:engine` / `:elevation` modules are a port of the TypeScript
+`virtual-cyclist` and `elevation` libraries. This document records the **measured**
+numerical relationship between the two implementations, the divergences found, and the
+parity strategy that follows from them.
 
 Measured 2026-07-27 against `virtual-cyclist` @ `develop` and `elevation` 3.2.2, on all
 7 sample GPX files, stage by stage across the whole `Enhancer` pipeline.
