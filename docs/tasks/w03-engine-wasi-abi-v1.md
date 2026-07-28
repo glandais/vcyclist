@@ -84,10 +84,10 @@ Deux niveaux, tous les deux nécessaires :
 
 ## Validation
 
-- [ ] `./gradlew check` vert.
-- [ ] Le `.wasm` de `:engine` s'instancie sous wasmtime-py et répond `1` à `vcAbiVersion`.
-- [ ] Round-trip GPX (parse → distance → write) identique au POC, sur `demo/public/gpx/stelvio.gpx`.
-- [ ] Taille du binaire relevée et notée (référence POC : 145 Ko pour `:gpx` seul).
+- [x] `./gradlew check` vert.
+- [x] Le `.wasm` de `:engine` s'instancie sous wasmtime-py et répond `1` à `vcAbiVersion`.
+- [x] Round-trip GPX (parse → distance → write) identique au POC, sur `demo/public/gpx/stelvio.gpx`.
+- [x] Taille du binaire relevée et notée (référence POC : 145 Ko pour `:gpx` seul).
 
 ## Done when
 
@@ -98,3 +98,70 @@ dans le KDoc du fichier.
 
 `vcAbiVersion` doit rester le premier export *au sens sémantique* : il ne doit jamais dépendre
 d'un import hôte, pour qu'un hôte puisse l'appeler avant même d'avoir câblé `read_input`.
+
+### Ce qui s'est passé
+
+**La façade est en deux fichiers, et ce n'est pas de la coquetterie.** `EngineWasiApi.kt` porte
+les `@WasmExport` et les deux imports ; `WasiAbi.kt` porte la version, les codes d'erreur, la
+table de handles et le dernier message. La raison est la contrainte de l'étape 4, vérifiée à la
+dure : le premier jet testait `vcParseGpx(0)` pour affirmer que l'argument est validé *avant* le
+callback, et le runner a répondu
+
+```
+unknown import: `vcyclist::read_input` has not been defined
+```
+
+Un test qui *atteint* un export touchant un import garde cet import vivant dans le binaire de
+test, et le runner KGP ne sait pas le fournir : le module ne s'instancie plus, toute la suite
+tombe. La validation est donc devenue `WasiAbi.invalidLengthOrNull(byteLen)`, testable sans rien
+traverser, et l'export l'appelle. Règle générale pour la suite : **toute logique digne d'un test
+doit vivre hors du chemin des imports**.
+
+**Codes d'erreur, y compris pour les `Double`.** Le POC retournait `NaN` pour un handle inconnu ;
+v1 retourne le code, converti en `Double` (`-2.0`). Sans ambiguïté — les grandeurs transportées
+sont toutes positives — et un hôte n'a qu'un seul vocabulaire à connaître. `NaN` reste disponible
+pour ce qui est réellement « pas un nombre ».
+
+**Handles : jamais réémis.** `nextHandle` ne décroît pas, donc un handle libéré ne peut pas
+ressusciter chez un hôte qui l'aurait gardé. `vcReleaseAll` existe pour l'hôte qui enchaîne les
+traces sur une même instance ; sans lui la table ne fait que croître.
+
+### JSON : parseur maison, pas kotlinx-serialization
+
+La fiche recommandait kotlinx-serialization sauf si le surcoût dépassait ~50 %. **Mesuré, il le
+dépasse largement** : plugin + `kotlinx-serialization-json:1.9.0` en `wasmWasiMain`, une seule
+`@Serializable` de quatre champs décodée puis ré-encodée dans un export jetable :
+
+| Binaire optimisé `:engine` | Taille |
+|---|---|
+| ABI v1 telle que livrée | **148 904 o** (145 Ko) |
+| + kotlinx-serialization-json | **281 030 o** (274 Ko) |
+
+**+132 Ko, soit +89 %** pour un objet d'options. C'est le coût fixe de la machinerie de
+sérialisation, pas celui du schéma : il ne se dilue qu'en ajoutant des classes. La décision
+retenue est donc **(b)** — un mini-parseur / writer JSON maison, écrit en w04 avec les DTO
+qu'il sert, et dont la surface reste minuscule parce qu'il n'a à couvrir que des objets plats de
+scalaires. Le nommage des champs reste celui des DTO JS, comme prévu.
+
+Taille du binaire, à comparer aux 145 Ko du POC `:gpx` seul : **148 904 o**, soit +4 Ko pour
+l'ABI complète. `:engine` traîne pourtant `:elevation` et `:fit` — le DCE ne garde que ce que les
+exports atteignent, et v1 n'atteint encore que le GPX. La courbe intéressante commencera en w04.
+
+### Smoke wasmtime-py (étape 4)
+
+`pip install wasmtime`, script du §7 de `kotlin-wasm-wasi.md` étendu aux exports v1, sur
+`demo/public/gpx/stelvio.gpx` :
+
+```
+exports: memory, vcAbiVersion, vcLastError, vcParseGpx, vcPathSize,
+         vcPathTotalDistance, vcRelease, vcReleaseAll, vcWriteGpx
+vcAbiVersion    = 1
+vcParseGpx      = 1          vcPathSize = 259     totalDistance = 3573.805 m
+vcWriteGpx      = 17424 bytes   → <?xml version="1.0" encoding="UTF-8"?>…
+vcPathSize(404) = -2         distance(404) = -2.0      vcParseGpx(0) = -3
+vcLastError     = "byteLen must be positive, was 0"
+vcRelease(h) = 1 puis 0      vcReleaseAll = 2 puis 0
+```
+
+259 points et le même round-trip que le POC : l'absorption n'a rien perdu. Le script est resté
+dans le scratchpad, sa version pérenne est la fiche w09.
