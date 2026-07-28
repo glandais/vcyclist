@@ -150,14 +150,67 @@ Le cas 11 est celui qui protège contre la dérive.
 
 ## Done when
 
-- [ ] Module `:cli` créé, JVM-only
-- [ ] Annotations picocli fonctionnelles en Kotlin
-- [ ] 4 mixins avec conversion vers les modèles du moteur
-- [ ] Défauts tirés de `EngineConstants`, testés par assertion croisée
-- [ ] Noms d'options alignés sur gpxtools-cli
-- [ ] Jar exécutable produit, mode de distribution tranché
-- [ ] ≥ 10 tests verts
-- [ ] `./gradlew check` et `ktlintCheck` verts
+- [x] Module `:cli` créé, JVM-only
+- [x] Annotations picocli fonctionnelles en Kotlin
+- [x] 4 mixins avec conversion vers les modèles du moteur
+- [x] Défauts tirés de `EngineConstants`, testés par assertion croisée
+- [x] Noms d'options alignés sur gpxtools-cli
+- [x] Jar exécutable produit et exécuté seul, mode de distribution tranché
+- [x] 15 tests verts
+- [x] `./gradlew check` et `ktlintCheck` verts
+
+## Résultat
+
+**Annotations picocli en Kotlin : le piège annoncé, réglé d'emblée.** Il faut la cible de site
+`@field:CommandLine.Option` — sans elle l'annotation atterrit sur la propriété et picocli ne voit
+rien. Les valeurs par défaut passent par l'initialiseur du champ, et `\${DEFAULT-VALUE}` dans la
+description les affiche dans l'aide, donc elles ne sont écrites qu'une fois.
+
+**`picocli-codegen` volontairement non branché.** Il sert à produire les métadonnées de réflexion
+pour une image native GraalVM, que ce projet ne construit pas ; picocli fonctionne par réflexion
+sans lui. Ajouter kapt ou KSP au build coûterait du temps de compilation à tout le monde, pour
+toujours, au bénéfice de personne. (La fiche autorisait explicitement ce choix.)
+
+**Défauts : source unique, et un test qui le prouve.** Toutes les valeurs viennent
+d'`EngineConstants`. Le cas 11 les compare champ par champ, et les cas 3 et 6 vérifient
+qu'un CLI sans option construit **exactement** `Cyclist()` et `Bike()` de la bibliothèque. Sans
+ça, une même commande donnerait des résultats différents selon qu'elle passe par le CLI ou par
+l'API.
+
+**Deux défauts divergent volontairement de gpxtools-cli** — noms d'options identiques, valeurs
+différentes, la bibliothèque l'emporte. **À reporter dans la matrice g20 :**
+
+| Option | gpxtools-cli | vcyclist | Source |
+|---|---|---|---|
+| `--cyclist-max-angle` | 45° | **35°** | `DEFAULT_MAX_LEAN_ANGLE_DEG` |
+| `--cyclist-max-speed` | 90 km/h | **100 km/h** | `DEFAULT_MAX_SPEED_KMH` |
+
+Figés par le cas 12 pour que ça reste une décision et non une dérive.
+
+**`--cyclist-power` ne va pas dans `Cyclist`.** gpx2web embarque la puissance dans son `Cyclist` ;
+côté vcyclist c'est une stratégie (`CyclistPowerProvider`). Le mixin expose donc `toCyclist()` et
+`toPowerProvider()` séparément.
+
+**`FilesMixin` : deux écarts assumés.** La référence journalise et appelle `System.exit` depuis le
+mixin — un porteur de paramètres capable de tuer le processus est intestable et surprenant. Ici
+`collectGpxFiles` **retourne** la liste et signale les fichiers ignorés via un callback, au
+choix de l'appelant. Et le parcours de dossier est **trié par nom** : `listFiles` ne garantit
+aucun ordre, donc la référence traite les fichiers dans un ordre dépendant du système.
+
+**Distribution tranchée : `:cli` ne va pas sur Maven Central.** C'est une application, pas une
+bibliothèque — personne ne devrait compiler contre un outil en ligne de commande. La tâche
+`:cli:executableJar` produit un jar autonome de 7,5 Mo, **vérifié exécuté seul**
+(`java -jar … --version` → `vcyclist 1.2.1`, `--help` correct), destiné à être attaché à une
+release GitHub. Aucune publication n'a été ajoutée au `publishCmd` de `.releaserc.json`. **À
+confirmer en g19.**
+
+La version affichée est lue depuis un fichier de propriétés généré par le build plutôt que depuis
+le manifeste du jar, pour qu'elle soit correcte aussi en exécution depuis un classpath —
+`./gradlew :cli:run` et les tests compris. Le cas 2 échoue si le câblage casse, plutôt que de
+laisser passer un `unknown` jusqu'à la release.
+
+**Validation :** `./gradlew check` + `ktlintCheck` verts. `:cli` = 15 tests, aucune I/O réseau.
+`--help` et `--version` vérifiés via Gradle **et** via le jar autonome.
 
 ## Notes
 
