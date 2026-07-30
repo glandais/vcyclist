@@ -60,8 +60,10 @@ reste intact.
    JSON existent déjà côté `:gpx` (g07), et un hôte quelconque sait parser du JSON.
 4. **Le réseau et le décodage d'images restent chez l'hôte.** WASI n'a ni client HTTP ni
    décodeur ; le seam `TileManager(fetcher = …)` de g21 est le point d'injection (w05).
-5. **FIT n'est pas porté** sur WASI : `actual` stub qui échoue explicitement (w01), porte
-   laissée ouverte en w12.
+5. ~~**FIT n'est pas porté** sur WASI~~ — **levé en w12** : `FitEncoder` est passé en
+   `commonMain` sur `io.github.glandais:fit-kotlin-sdk` (SDK FIT multiplateforme). Un seul
+   encodeur, sortie identique octet pour octet sur les quatre cibles, et les deux SDK Garmin
+   (`com.garmin:fit`, `@garmin/fitsdk`) sortent du périmètre publié. Coût : +183 Ko de `.wasm`.
 6. **Publication du binaire séparée de celle des klib.** Les variantes `-wasm-wasi` (klib) sont
    déjà publiées gratuitement ; le `.wasm` exécutable est un artefact supplémentaire (w07).
 
@@ -85,14 +87,16 @@ reste intact.
 | w10 | Documentation : `docs/wasm-wasi-abi.md`, README, `publishing.md` | docs | ✅ |
 | **— Phase E : autonomie complète (optionnel) —** | | | |
 | w11 | Décodeur WebP/VP8L pur Kotlin — `:elevation` autonome sous WASI | `:elevation` | ✅ |
-| w12 | Encodeur FIT pur Kotlin — `pathToFit` sous WASI | `:fit` | ⬜ |
+| w12 | Encodeur FIT pur Kotlin — `pathToFit` sous WASI | `:fit` `:engine` | ✅ |
 
 🟡 = plomberie livrée et vérifiée en local, publication réelle en attente de w08 (Kotlin 2.4.20
 n'est pas sortie : Maven Central s'arrête à `2.4.20-Beta2`).
 
 Chemin critique minimal pour « un `.wasm` publié et utilisable sous wasmtime » :
 **w01 → w03 → w04 → w06 → w08 → w07**, w02/w09/w10 en accompagnement. w05 est ce qui rend
-`fixElevation` utilisable ; w11/w12 ne sont requis que pour supprimer toute dépendance à l'hôte.
+`fixElevation` utilisable ; w11/w12 ne sont requis que pour supprimer toute dépendance à l'hôte —
+faits tous les deux, donc le module est autonome : plus rien n'est délégué à l'hôte hormis le
+réseau.
 
 ## Ce qui n'est explicitement pas fait
 
