@@ -91,14 +91,14 @@ internal val PARITY_TABLE: List<ParityEntry> =
         ParityEntry(
             "pathToFit",
             "vcPathToFit",
-            ParityDecision.NOT_PORTED,
-            "FitEncoder is a stub on wasmWasi (w01); the export exists and returns ERR_UNSUPPORTED, see w12",
+            ParityDecision.RESHAPED,
+            "name and startTimeEpochMs moved into the payload; startTimeEpochMs stays mandatory (w12)",
         ),
         ParityEntry(
             "pathsToFit",
-            "vcPathToFit",
-            ParityDecision.NOT_PORTED,
-            "same stub; no multi-path form until an encoder exists",
+            "vcPathsToFit",
+            ParityDecision.RESHAPED,
+            "list handle; interPathGapMs is a payload field (w12)",
         ),
         ParityEntry("dominantHeadwindAzimuth", "vcDominantHeadwindAzimuth", ParityDecision.PORTED, ""),
         ParityEntry(

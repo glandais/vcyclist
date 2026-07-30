@@ -25,6 +25,8 @@ import io.github.glandais.engine.path.PointField
 import io.github.glandais.engine.path.dominantHeadwindAzimuthDeg
 import io.github.glandais.engine.physics.AeroProviderConstant
 import io.github.glandais.engine.physics.RhoProviderEstimate
+import io.github.glandais.fit.toFitBytes
+import kotlin.time.Duration.Companion.milliseconds
 import kotlin.time.Instant
 import kotlin.wasm.WasmExport
 import kotlin.wasm.WasmImport
@@ -739,20 +741,51 @@ fun vcPathToJson(
     }
 
 /**
- * FIT export — **not available on this target**, always [WasiAbi.ERR_UNSUPPORTED].
+ * Encode the path behind [handle] as a Garmin FIT Course file — `pathToFit`. The **binary** file
+ * goes through `write_output` and the return value is its byte length.
  *
- * The export exists rather than being simply absent so that the answer is a code a host can act
- * on, instead of a missing-symbol failure at wire-up time. Both `FitEncoder` implementations wrap
- * an official Garmin SDK and neither runs under WASI (task w01); task w12 is the pure-Kotlin
- * encoder that would make this real.
+ * Payload (mandatory, unlike everywhere else in this ABI): `startTimeEpochMs`, plus an optional
+ * `name`. FIT has no relative clock, so the absolute start is not something this export can
+ * default — see [FitOptions].
+ *
+ * This returned [WasiAbi.ERR_UNSUPPORTED] until w12, when the encoder became pure Kotlin over a
+ * multiplatform FIT SDK. The signature did not change and no host that handled the old sentinel
+ * breaks, so the ABI version stays at 1.
  */
 @WasmExport
 fun vcPathToFit(
     handle: Int,
     payloadJsonLen: Int,
 ): Int =
-    WasiAbi.fail(
-        WasiAbi.ERR_UNSUPPORTED,
-        "FIT encoding is not available on wasmWasi: both FitEncoder actuals wrap a Garmin SDK " +
-            "that cannot run here (task w01). A pure-Kotlin encoder is task w12.",
-    )
+    guarded {
+        val path = requirePath(handle)
+        val options = readOptions(payloadJsonLen).toFitOptions()
+        writeBytesToHost(
+            path.toFitBytes(options.name, Instant.fromEpochMilliseconds(options.startTimeEpochMs.toLong())),
+        )
+    }
+
+/**
+ * Encode every path of a list handle into **one** FIT course — `pathsToFit`. One lap and one
+ * `TIMER`/`START`…`STOP` event pair per path, the last one closing the file with `STOP_ALL`.
+ *
+ * Same payload as [vcPathToFit], plus `interPathGapMs`: how far to shift each path after the
+ * first, `0` meaning they run straight on from one another. It is not a pause — FIT expresses
+ * those with `TIMER`/`PAUSE` events, which this port does not emit.
+ */
+@WasmExport
+fun vcPathsToFit(
+    handle: Int,
+    payloadJsonLen: Int,
+): Int =
+    guarded {
+        val paths = requireList(handle)
+        val options = readOptions(payloadJsonLen).toFitOptions()
+        writeBytesToHost(
+            paths.toFitBytes(
+                options.name,
+                Instant.fromEpochMilliseconds(options.startTimeEpochMs.toLong()),
+                interPathGap = options.interPathGapMs.milliseconds,
+            ),
+        )
+    }

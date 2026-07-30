@@ -82,42 +82,36 @@ produced by `./gradlew :cli:executableJar`, intended for attachment to the GitHu
 KMP one; the shared publishing configuration in the root `build.gradle.kts` applies to it
 unchanged (verified in g19 — `vcyclist-map-<version>.{jar,pom,module}` plus sources and javadoc).
 
-### `:fit` and the Garmin SDK licence — the decision
+### `:fit` and the Garmin SDK licence — the decision, and what w12 changed
 
-**Settled in g19: publishing `vcyclist-fit` to Maven Central does not redistribute Garmin's
-SDK, and is not blocked.** The reasoning, stated precisely because the short version is easy to
-get wrong in both directions:
+**Since w12, no Garmin-published package is a dependency of anything vcyclist ships.** `:fit`
+encodes FIT with [`io.github.glandais:fit-kotlin-sdk`](https://github.com/glandais/fit-kotlin-sdk),
+a Kotlin Multiplatform SDK generated from the public FIT profile and published from this same
+account. `com.garmin:fit` is gone from the build entirely; `@garmin/fitsdk` survives only as a
+**test** dependency of `:fit`'s JS target, where it decodes what the encoder wrote as an
+independent check. It reaches no published artefact.
 
-Garmin publishes the SDK itself, on both registries — `com.garmin:fit` on Maven Central and
-`@garmin/fitsdk` on npm. vcyclist reaches it the way the publisher intended: by **declaring a
-coordinate** that the consumer's own resolver fetches from Garmin's distribution.
-`vcyclist-fit`'s POM names `com.garmin:fit`; the npm `package.json` names `@garmin/fitsdk`.
-**Neither embeds a byte of it.** The FIT Protocol License Agreement's §2.c prohibition on making
-the Licensed Technology "available to any third party" governs redistribution; a dependency
-declaration on a package the licensor has itself published publicly is the intended consumption
-path, not a redistribution of it.
+That closes, rather than answers, the question this section carried since g19. Two consequences
+worth stating, because they were live problems:
 
-Two facts that a previous version of this section got wrong, and that anyone re-examining the
-question should have in front of them:
+- `npm install @glandais/vcyclist-engine` no longer pulls 1.3 MB of `@garmin/fitsdk` in
+  transitively for consumers who never write a FIT file. The demo's Vite alias that existed
+  solely to resolve that transitive import is gone too.
+- The FIT export works on **wasmWasi**, which no vendor SDK could reach.
 
-- The Garmin dependency is **not** jvmMain-only. `fit/build.gradle.kts` declares
-  `npm("@garmin/fitsdk")` for the JS target too.
-- Because `:engine` does `api(project(":fit"))`, **every `npm install @glandais/vcyclist-engine`
-  pulls `@garmin/fitsdk` in transitively**, whether or not the consumer ever writes a FIT file.
-  Verified in g19 by installing the packed tarball into an empty project: npm resolved
-  `@garmin/fitsdk` and `@jsquash/webp` without being asked.
+`fit-kotlin-sdk` is itself distributed under the Flexible and Interoperable Data Transfer (FIT)
+Protocol License — the FIT format is Garmin's, whoever writes the encoder — so a consumer of
+`vcyclist-fit` still accepts those terms in practice. What changed is the shape: one coordinate
+under a namespace this project controls, rather than two vendor packages, one of which reached
+every engine consumer.
 
-That widens the reach — every engine consumer accepts Garmin's licence terms in practice — but
-does not change the conclusion, since it remains a coordinate rather than a copy.
+**The g19 reasoning, kept because it is what justified shipping before w12:** Garmin published
+the SDK itself on both registries, and vcyclist declared a *coordinate* that the consumer's own
+resolver fetched from Garmin's distribution — never a copy. The FIT Protocol License Agreement's
+§2.c prohibition on making the Licensed Technology "available to any third party" governs
+redistribution, and a dependency declaration on a package the licensor has itself published
+publicly is the intended consumption path. That held; it is simply no longer needed.
 
-**Decided (g19): accepted as-is.** `@garmin/fitsdk` weighs 1.3 MB next to the engine bundle's
-3.2 MB, and the alternative — an `optionalDependency` plus a dynamic import in the JS
-`FitEncoder` actual, on the model of `@jsquash/webp` — buys that back at the cost of a refactor.
-Should the weight ever matter, that is the route: make the dependency optional and load it on
-the first `pathToFit` call, rather than removing the façade.
-
-It is documented here rather than left in a build file because it is a real obligation that
-someone installing `vcyclist-engine` for the physics alone would not expect.
 
 **Not a legal opinion.** Maven Central artefacts cannot be deleted once published. If that
 matters to you, have the terms reviewed before the first release that includes `:fit`.
@@ -228,7 +222,7 @@ before the split, compiles and runs unmodified.
 **Pack, do not link.** `npm install /path/to/build/dist/js/productionLibrary` creates a symlink,
 and Node resolves that package's own `require`s from the link's *realpath* — so its
 dependencies are looked up inside `engine/build/`, where they are not, and the check fails with
-a `Cannot find module '@garmin/fitsdk'` that says nothing about the real package:
+a `Cannot find module '@jsquash/webp'` that says nothing about the real package:
 
 ```bash
 npm pack engine/build/dist/js/productionLibrary          # -> glandais-vcyclist-engine-<v>.tgz

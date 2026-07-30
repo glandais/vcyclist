@@ -43,8 +43,8 @@ kotlin {
     }
 
     // Library target only : `:fit` produces a klib, never a standalone `.wasm` (the single
-    // executable binary of the project is `:engine`'s, see w06). The `actual` encoder throws —
-    // there is no FIT SDK under WASI, see `FitEncoder.wasmWasi.kt` and task w12.
+    // executable binary of the project is `:engine`'s, see w06). Since w12 the encoder is
+    // commonMain over a multiplatform SDK, so FIT export works here like anywhere else.
     @OptIn(org.jetbrains.kotlin.gradle.ExperimentalWasmDsl::class)
     wasmWasi {
         wasmtime()
@@ -55,25 +55,26 @@ kotlin {
             // `FitCourse` is built from a `Path` (task g10), and the conversion is part of the
             // public surface, so `:gpx` is exposed rather than merely used.
             api(project(":gpx"))
+            // Kotlin Multiplatform FIT SDK, generated from the same 21.205.0 profile revision the
+            // two official Garmin SDKs implemented before w12. It is stdlib-only commonMain code,
+            // so the encoder is written once and runs on JVM, JS *and* wasmWasi — which is what
+            // let `expect`/`actual` FitEncoder, `com.garmin:fit` and `@garmin/fitsdk` all go away.
+            // `implementation`, not `api` : `FitCourse` is the public model, the SDK's message
+            // classes stay an implementation detail of the encoder.
+            implementation(libs.fit.kotlin.sdk)
         }
         commonTest.dependencies {
             implementation(kotlin("test"))
         }
-        // Tests that actually call `FitEncoder`, compiled only into the targets that have an SDK
-        // behind it. wasmWasi's actual throws (task w01), so they cannot pass there ; the stub's
-        // own contract is pinned by `FitEncoderStubTest`. Same single-file-two-compilations
-        // trick as `commonTestFixtures` in gpx/build.gradle.kts.
-        jvmTest { kotlin.srcDir("src/encodingTest/kotlin") }
-        jsTest { kotlin.srcDir("src/encodingTest/kotlin") }
-        jvmMain.dependencies {
-            // Official Garmin FIT SDK, same coordinates and version as gpx2web. JVM-only : the
-            // JS target goes through @garmin/fitsdk instead (task g09).
-            implementation(libs.garmin.fit)
-        }
-        // Exact version, never a range : a binary encoder that changes behaviour on an
-        // `npm install` is miserable to diagnose. 21.205.0 also matches the Java SDK version
-        // exactly, so both targets encode against the same FIT profile revision.
-        jsMain.dependencies {
+        // `@garmin/fitsdk` is **test-only** since w12, and JS-only. Nothing in the encoder needs
+        // it any more, but replaying its output through the vendor's own decoder is the strongest
+        // check there is that this port emits real FIT — that is all `FitEncoderJsTest` does now.
+        // A JS consumer of `@glandais/vcyclist-fit` no longer installs it.
+        //
+        // There is no JVM counterpart on purpose: `com.garmin:fit` declares the same
+        // `com.garmin.fit.*` class names as `fit-kotlin-sdk`, so the two cannot share a
+        // classpath. The Java SDK is gone from the project entirely.
+        jsTest.dependencies {
             implementation(npm("@garmin/fitsdk", "21.205.0"))
         }
     }
@@ -84,24 +85,17 @@ kotlin {
 // npm publishing tasks — same shape as `:engine` / `:elevation`, and wired into
 // `.releaserc.json` alongside them.
 //
-// Note that until task g09 lands, `@glandais/vcyclist-fit` ships an encoder that throws
-// `NotImplementedError`. The Maven Central artefact is fully functional on its JVM variant.
+// The Garmin SDK licence question that dominated this file until w12 is **moot**: no
+// Garmin-published package is a dependency of anything vcyclist ships any more. The encoder sits
+// on `io.github.glandais:fit-kotlin-sdk`, generated from the public FIT profile and published
+// from the same account as vcyclist itself; `com.garmin:fit` is gone from the build, and
+// `@garmin/fitsdk` is a *test* dependency of the JS target only, where it decodes what the
+// encoder wrote. No `npm install @glandais/vcyclist-engine` pulls 1.3 MB of vendor SDK for a
+// consumer who never writes a FIT file.
 //
-// The Garmin SDK licence question raised in the g08 spec is settled in g19, and the reasoning is
-// worth stating exactly, because the obvious summary is wrong.
-//
-// vcyclist redistributes **none of Garmin's bytes**, on any target. Garmin publishes the SDK
-// itself — `com.garmin:fit` on Maven Central, `@garmin/fitsdk` on npm — and both are reached the
-// way the publisher intended : by declaring a dependency coordinate that the consumer's own
-// resolver fetches from Garmin's distribution. `vcyclist-fit`'s POM names `com.garmin:fit`; its
-// npm `package.json` names `@garmin/fitsdk`. Neither embeds a line of it.
-//
-// The correction : an earlier version of this note claimed the dependency was jvmMain-only and
-// that "nothing of Garmin's ever reaches the npm bundles". That is false — see the `npm(...)`
-// declarations above, and note that `:engine` does `api(project(":fit"))`, so **every** install
-// of `@glandais/vcyclist-engine` pulls `@garmin/fitsdk` in transitively, whether or not the
-// consumer ever writes a FIT file. The conclusion is unchanged (a coordinate, not a copy), but
-// the reach is wider than that note implied, and `docs/publishing.md` records it as such.
+// The FIT format is still Garmin's, so `fit-kotlin-sdk` carries the FIT Protocol License and a
+// consumer accepts those terms in practice. `docs/publishing.md` records the full reasoning,
+// including the pre-w12 argument it replaces.
 val copyReadmeToJsPackage =
     tasks.register<Copy>("copyReadmeToJsPackage") {
         from(rootProject.layout.projectDirectory.file("README.md"))

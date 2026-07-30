@@ -246,3 +246,34 @@ internal fun JsonObj?.toWriteGpxOptions(): WriteGpxOptions {
         trackName = string("trackName", "virtualized"),
     )
 }
+
+private val FIT_KEYS = setOf("name", "startTimeEpochMs", "interPathGapMs")
+
+/**
+ * Options of the FIT writers — `pathToFit` and `pathsToFit` in one shape (task w12).
+ *
+ * `startTimeEpochMs` is **mandatory**, unlike in [WriteGpxOptions]: a `Path`'s clock is relative
+ * (`time(0) == 0`) and FIT has no way to express that, so an absent start would silently date
+ * every course to the FIT epoch. The JS façade makes it a required parameter for the same
+ * reason; here it is a required key, and its absence is [WasiAbi.ERR_INVALID_ARGUMENT].
+ *
+ * `interPathGapMs` only means anything to `vcPathsToFit`, and `0` runs each path straight on
+ * from the previous one.
+ */
+internal class FitOptions(
+    val name: String,
+    val startTimeEpochMs: Double,
+    val interPathGapMs: Long,
+)
+
+internal fun JsonObj?.toFitOptions(): FitOptions {
+    require(this != null) { "FIT export needs an options object carrying at least startTimeEpochMs" }
+    requireOnly(FIT_KEYS)
+    val start = double("startTimeEpochMs", Double.NaN)
+    require(!start.isNaN()) { "FIT export needs startTimeEpochMs: a course has no relative clock" }
+    return FitOptions(
+        name = string("name", "virtualized"),
+        startTimeEpochMs = start,
+        interPathGapMs = double("interPathGapMs", 0.0).toLong(),
+    )
+}

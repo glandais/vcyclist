@@ -18,15 +18,18 @@ import unittest
 from pathlib import Path
 
 import fixtures
-from host import (ERR_INVALID_ARGUMENT, ERR_UNKNOWN_HANDLE, ERR_UNSUPPORTED,
-                  ROUTES_ONLY, SEGMENTS, TRACKS_AND_ROUTES, TRACKS_ONLY,
-                  VcyclistHost, WasiCallFailed, http_tile_source,
-                  raw_webp_tile_source)
+from host import (ERR_INVALID_ARGUMENT, ERR_UNKNOWN_HANDLE, ROUTES_ONLY,
+                  SEGMENTS, TRACKS_AND_ROUTES, TRACKS_ONLY, VcyclistHost,
+                  WasiCallFailed, http_tile_source, raw_webp_tile_source)
 
 WASM = fixtures.REPO_ROOT / "engine/build/wasm/vcyclist-engine.wasm"
 
 #: The project's tolerance for whole-pipeline metrics (see CLAUDE.md, "Numerical tolerances").
 PIPELINE_TOLERANCE = 0.005
+
+#: 2026-07-28T08:00:00Z — an arbitrary but fixed absolute start for the FIT exports, which have
+#: no relative clock to fall back on.
+START_TIME_MS = 1785225600000
 
 #: The ABI version this harness was written against. A bump here without a bump in the
 #: expectations below is the whole point of the check.
@@ -148,11 +151,14 @@ class AbiTest(HostTestCase):
         self.assertEqual(ERR_INVALID_ARGUMENT, raised.exception.code)
         self.assertIn("fixElevations", raised.exception.message)
 
-    def test_fit_export_answers_unsupported_rather_than_being_absent(self):
+    def test_fit_export_refuses_a_payload_without_a_start_time(self):
+        # FIT has no relative clock, so `startTimeEpochMs` is the one mandatory payload field in
+        # this ABI. `0` (all defaults) cannot mean anything here — better a code than a course
+        # dated to the FIT epoch. The export itself works since w12; see FitExportTest.
         handle = self.host.parse_gpx(fixtures.gpx_fixture("SAMPLE_GPX"))
 
-        self.assertEqual(ERR_UNSUPPORTED, self.host.raw("vcPathToFit", handle, 0))
-        self.assertIn("w12", self.host.last_error(), "the message must name the way out")
+        self.assertEqual(ERR_INVALID_ARGUMENT, self.host.raw("vcPathToFit", handle, 0))
+        self.assertIn("startTimeEpochMs", self.host.last_error())
 
     def test_last_error_is_empty_before_anything_fails(self):
         with VcyclistHost(str(WASM)) as fresh:
@@ -345,6 +351,30 @@ class ExportsTest(HostTestCase):
         self.assertTrue(math.isnan(azimuth) or 0.0 <= azimuth < 360.0, azimuth)
         self.assertTrue(math.isnan(self.host.dominant_headwind_azimuth(4040)),
                         "an unknown handle answers NaN here, not a negative sentinel")
+
+    def test_fit_export_produces_a_file_a_reader_can_open(self):
+        # Task w12: the module encodes FIT itself, so this is a real file and not a sentinel.
+        # Asserted from the outside — the 14-byte header, its ".FIT" marker, and the data size
+        # it declares — because a host has no SDK either.
+        handle = self.host.parse_gpx(fixtures.gpx_fixture("SAMPLE_GPX"))
+
+        fit = self.host.to_fit(handle, "col de la madeleine", START_TIME_MS)
+
+        self.assertEqual(b".FIT", fit[8:12], "the FIT data-type marker")
+        self.assertEqual(0x0E, fit[0], "14-byte header")
+        declared = int.from_bytes(fit[4:8], "little")
+        self.assertEqual(len(fit), 14 + declared + 2, "header size + data + file CRC")
+
+    def test_paths_to_fit_puts_every_track_in_one_file(self):
+        one = self.host.parse_gpx(fixtures.gpx_fixture("SAMPLE_GPX"))
+        several = self.host.parse_gpx_multi(fixtures.gpx_fixture("SAMPLE_GPX"))
+
+        single = self.host.to_fit(one, "multi", START_TIME_MS)
+        multi = self.host.paths_to_fit(several, "multi", START_TIME_MS)
+
+        self.assertEqual(b".FIT", multi[8:12])
+        self.assertGreaterEqual(len(multi), len(single) - 32,
+                                "a multi-track file cannot be much smaller than its first track")
 
     def test_waypoints_come_back_as_json(self):
         waypoints = self.host.waypoints(fixtures.gpx_fixture("SAMPLE_GPX"))

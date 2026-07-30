@@ -150,7 +150,7 @@ sentinel. The codes are `WasiAbi.kt`'s, and `tools/wasi/host.py` asserts each of
 | `-1` | `ERR_GENERIC` | something failed; the message is in `vcLastError` |
 | `-2` | `ERR_UNKNOWN_HANDLE` | that handle is not (or no longer) in the table |
 | `-3` | `ERR_INVALID_ARGUMENT` | a length, an index, a mode or a JSON option is out of range or unknown |
-| `-4` | `ERR_UNSUPPORTED` | the capability exists in the API but not on this target — today, FIT (§10) |
+| `-4` | `ERR_UNSUPPORTED` | the capability exists in the API but not on this target. Nothing returns it since w12 — it stays reserved |
 
 Exports returning a `Double` return the same codes as a `Double` (`-2.0`, …), which is
 unambiguous because every quantity they carry is non-negative. The single exception is
@@ -238,7 +238,8 @@ survives.
 | `vcWriteGpxTracks` | `(listHandle, optionsJsonLen) -> i32` | → GPX 1.1, one `<trk>` per path |
 | `vcPathToCsv` | `(handle, optionsJsonLen) -> i32` | → CSV, one row per point |
 | `vcPathToJson` | `(handle, optionsJsonLen) -> i32` | → JSON, **column-oriented** (one array per field) |
-| `vcPathToFit` | `(handle, payloadJsonLen) -> i32` | always `-4`. See §10 |
+| `vcPathToFit` | `(handle, payloadJsonLen) -> i32` | → a Garmin FIT Course file, **binary** |
+| `vcPathsToFit` | `(listHandle, payloadJsonLen) -> i32` | → one FIT course holding every path of the list |
 
 ### Elevation
 
@@ -373,6 +374,25 @@ output lands decades in the future — enhance first, or leave the option out.
 
 `separator` takes its first character only.
 
+### `vcPathToFit` / `vcPathsToFit` — payload
+
+```json
+{"name": "Col de la Madeleine", "startTimeEpochMs": 1785225600000, "interPathGapMs": 0}
+```
+
+**`startTimeEpochMs` is mandatory**, and `0` for the payload length is refused with
+`ERR_INVALID_ARGUMENT` — the only export in this ABI with no usable default. A `Path`'s clock is
+relative (`time(0) == 0`) and FIT has no way to express that, so an absent start would date every
+course to 1989-12-31 rather than fail.
+
+`interPathGapMs` only means anything to `vcPathsToFit`: it shifts each path after the first by
+that many milliseconds, `0` running them straight on. It is not a pause — FIT expresses those
+with `TIMER`/`PAUSE` events, which this port does not emit.
+
+The output is **binary**, not UTF-8: a 14-byte header (`.FIT` at bytes 8..11), the data, and a
+two-byte CRC. One `file_id`, one `course`, one `lap` per path, and each path's records bracketed
+by a `TIMER`/`START`…`STOP` pair, the last one carrying `STOP_ALL`.
+
 ### Output shapes
 
 `vcPointJson`, `vcParseGpxWaypointsJson`, `vcFieldDefinitionsJson` and `vcDetectClimbsJson` emit
@@ -412,7 +432,8 @@ and a JVM test fails the build if a JS export ever appears without a decision he
 | `pathToCsv`, `pathToJson` | `vcPathToCsv`, `vcPathToJson` | arguments moved into the options |
 | `dominantHeadwindAzimuth` | `vcDominantHeadwindAzimuth` | ported |
 | `dominantHeadwindAzimuthOfTracks` | `vcDominantHeadwindAzimuthOfTracks` | takes a list handle |
-| `pathToFit`, `pathsToFit` | `vcPathToFit` | **not ported** — always `-4` |
+| `pathToFit` | `vcPathToFit` | `name` and `startTimeEpochMs` moved into the payload |
+| `pathsToFit` | `vcPathsToFit` | takes a list handle; `interPathGapMs` is a payload field |
 
 Three things have no JS counterpart: `vcAbiVersion`, `vcSetElevationConfig`,
 `vcTileGeometryJson`, plus the handle plumbing (`vcRelease`, `vcReleaseAll`, `vcListSize`,
@@ -420,10 +441,10 @@ Three things have no JS counterpart: `vcAbiVersion`, `vcSetElevationConfig`,
 
 ## 11. Known limits
 
-- **No FIT export.** Both `FitEncoder` implementations wrap an official Garmin SDK, and neither
-  runs under WASI. `vcPathToFit` exists so the answer is a code you can act on rather than a
-  missing symbol; a pure-Kotlin encoder is task w12. Everything upstream — the `Path` →
-  `FitCourse` conversion — works here, so a host that has an encoder can do the last step itself.
+- **FIT export costs 183 KB of binary.** It works since w12 — the encoder is pure Kotlin over a
+  multiplatform FIT SDK — but that SDK's `Mesg` reaches a `Factory` naming all 123 profile
+  message classes, so dead-code elimination keeps every one of them although this encoder writes
+  five. There is one binary and no way to opt out.
 - **Only lossless WebP.** The module's own decoder (task w11) reads VP8L, which is what the
   reference DEM serves. A lossy `VP8 ` or extended `VP8X` file is refused with its fourcc named;
   a host facing one must decode it itself and use `"rgba"` mode.

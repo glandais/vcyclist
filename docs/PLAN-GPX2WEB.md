@@ -22,7 +22,7 @@ vcyclist/
 ├─ :elevation   KMP   inchangé
 ├─ :gpx         KMP   Path + PointField + GPX I/O + waypoints + repair + exports CSV/JSON
 ├─ :engine      KMP   physique + Enhancer + détection de cols   →  api(project(":gpx"))
-├─ :fit         KMP   com.garmin:fit (JVM) / @garmin/fitsdk (JS)
+├─ :fit         KMP   io.github.glandais:fit-kotlin-sdk (commonMain, depuis w12)
 ├─ :map         JVM   cartes statiques (java.awt / ImageIO)
 ├─ :cli         JVM   picocli — remplace gpxtools-cli
 ├─ :codegen     JVM   génère désormais dans :gpx
@@ -132,7 +132,7 @@ no-op ne revienne pas.
 
 | Sujet | Décision |
 |---|---|
-| Écriture FIT | Module KMP `:fit`. JVM → `com.garmin:fit:21.205.0` (Maven Central). JS → `@garmin/fitsdk` (classe `Encoder`). Interface `expect` **haut niveau** (`Path` → `ByteArray`), les deux SDK n'ayant aucune API commune. |
+| Écriture FIT | Module KMP `:fit`. **Depuis w12** : un seul encodeur en `commonMain` sur `io.github.glandais:fit-kotlin-sdk`, donc plus d'`expect`/`actual` et plus de SDK vendeur publié. Avant : JVM → `com.garmin:fit:21.205.0`, JS → `@garmin/fitsdk`, avec une interface `expect` **haut niveau** (`Path` → `ByteArray`) faute d'API commune entre les deux SDK. |
 | Détection de cols | commonMain, plus façade JS et affichage dans la démo. |
 | Cartes statiques | Port JVM-only fidèle (`java.awt`), module `:map` isolé. |
 | Exports tabulaires | CSV + JSON en commonMain. **XLSX abandonné.** |

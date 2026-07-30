@@ -6,12 +6,12 @@ import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
 
 import io.github.glandais.elevation.MathConstants;
+import com.garmin.fit.DecodeOptions;
 import com.garmin.fit.FitDecoder;
 import com.garmin.fit.FitMessages;
 import com.garmin.fit.LapMesg;
 import com.garmin.fit.RecordMesg;
 import io.github.glandais.engine.path.Path;
-import java.io.ByteArrayInputStream;
 import java.util.ArrayList;
 import java.util.List;
 import kotlin.time.Instant;
@@ -124,10 +124,11 @@ public class FitJavaInteropTest {
         Path path = syntheticPath(45.68);
 
         FitMessages messages =
-                new FitDecoder()
-                        .decode(
-                                new ByteArrayInputStream(
-                                        PathToFitJvm.toFitBytes(path.withoutTime(), "course", START)));
+                new FitDecoder(PathToFitJvm.toFitBytes(path.withoutTime(), "course", START))
+                        // No @JvmOverloads on the SDK's `decode(options)`, so Java passes the
+                        // default explicitly.
+                        .decode(new DecodeOptions())
+                        .getMessages();
 
         List<RecordMesg> records = new ArrayList<>(messages.getRecordMesgs());
         assertEquals(path.getSize(), records.size());
@@ -137,20 +138,20 @@ public class FitJavaInteropTest {
             assertEquals(
                     "all records share the start instant",
                     START.toEpochMilliseconds(),
-                    record.getTimestamp().getDate().getTime());
-            assertEquals("speed is derived from the clock, so it is gone", 0.0f, record.getSpeed(), 0.0f);
+                    record.getTimestamp().toEpochMilliseconds());
+            assertEquals("speed is derived from the clock, so it is gone", 0.0, record.getSpeed(), 0.0);
         }
 
         LapMesg lap = messages.getLapMesgs().get(0);
-        assertEquals("elapsed time of a course with no clock", 0.0f, lap.getTotalElapsedTime(), 0.0f);
-        assertEquals(0.0f, lap.getMaxSpeed(), 0.0f);
+        assertEquals("elapsed time of a course with no clock", 0.0, lap.getTotalElapsedTime(), 0.0);
+        assertEquals(0.0, lap.getMaxSpeed(), 0.0);
 
         // The geometry is the part worth keeping, and it is all there.
-        assertTrue("distances must survive", records.get(records.size() - 1).getDistance() > 0.0f);
+        assertTrue("distances must survive", records.get(records.size() - 1).getDistance() > 0.0);
         assertEquals(
                 "cumulative distance matches the source path",
-                (float) path.getTotalDistance(),
+                path.getTotalDistance(),
                 lap.getTotalDistance(),
-                0.5f);
+                0.5);
     }
 }

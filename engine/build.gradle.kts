@@ -180,11 +180,17 @@ val wasmFileName = "vcyclist-engine.wasm"
 
 /**
  * Ceiling for the binary, in bytes. Measured at 300 408 B when w05 landed (the full ABI plus
- * host-served elevation); the limit is roughly twice that, so ordinary growth is silent and a
- * doubling is not. Raise it deliberately with a note, or find out what grew — `-PwasmSizeLimit=…`
- * overrides it for a one-off experiment.
+ * host-served elevation), 318 KB after w11's WebP decoder, then **501 547 B after w12**: the
+ * multiplatform FIT SDK costs ~183 KB because `Mesg` reaches `Factory`, and `Factory` names
+ * every one of the profile's 123 message classes, so dead-code elimination keeps the lot even
+ * though this encoder writes five of them. That is the price of FIT export on this target; a
+ * host that does not want it has no way to opt out of a single binary.
+ *
+ * The limit is roughly twice the current size, so ordinary growth is silent and a doubling is
+ * not. Raise it deliberately with a note, or find out what grew — `-PwasmSizeLimit=…` overrides
+ * it for a one-off experiment.
  */
-val wasmSizeLimit = (providers.gradleProperty("wasmSizeLimit").orNull ?: "600000").toLong()
+val wasmSizeLimit = (providers.gradleProperty("wasmSizeLimit").orNull ?: "1000000").toLong()
 
 val wasmModule =
     tasks.register<Copy>("wasmModule") {

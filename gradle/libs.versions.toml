@@ -7,7 +7,7 @@ imageio-webp = "3.14.0"
 ktlint = "14.2.0"
 vanniktech-publish = "0.37.0"
 node-gradle = "7.1.0"
-garmin-fit = "21.205.0"
+fit-kotlin-sdk = "21.205.0.2"
 picocli = "4.7.7"
 
 [libraries]
@@ -17,7 +17,7 @@ kotlinx-browser = { module = "org.jetbrains.kotlinx:kotlinx-browser", version.re
 xmlutil-core = { module = "io.github.pdvrieze.xmlutil:core", version.ref = "xmlutil" }
 xmlutil-serialization = { module = "io.github.pdvrieze.xmlutil:serialization", version.ref = "xmlutil" }
 imageio-webp = { module = "com.twelvemonkeys.imageio:imageio-webp", version.ref = "imageio-webp" }
-garmin-fit = { module = "com.garmin:fit", version.ref = "garmin-fit" }
+fit-kotlin-sdk = { module = "io.github.glandais:fit-kotlin-sdk", version.ref = "fit-kotlin-sdk" }
 picocli = { module = "info.picocli:picocli", version.ref = "picocli" }
 
 [plugins]

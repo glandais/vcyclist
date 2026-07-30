@@ -1,22 +1,28 @@
 package io.github.glandais.fit
 
 import com.garmin.fit.FitDecoder
-import com.garmin.fit.Sport
-import java.io.ByteArrayInputStream
+import com.garmin.fit.FitMessages
+import com.garmin.fit.types.EventType
+import com.garmin.fit.types.Sport
 import kotlin.test.Test
 import kotlin.test.assertContentEquals
 import kotlin.test.assertEquals
-import kotlin.test.assertNotNull
+import kotlin.test.assertNull
 import kotlin.test.assertTrue
+import kotlin.time.Duration.Companion.seconds
 import kotlin.time.Instant
-import com.garmin.fit.File as FitFileType
+import com.garmin.fit.types.File as FitFileType
 
 /**
- * Minimal encode → decode round-trip, replaying the produced bytes through the Garmin SDK's own
- * decoder. This validates that the module assembles and emits a file the reference
- * implementation accepts ; the exhaustive field-by-field round-trip is task g10.
+ * Encode → decode round-trip of a hand-built [FitCourse].
+ *
+ * Was `FitEncoderJvmTest`, in `jvmTest`, because decoding needed the Garmin **Java** SDK. Since
+ * w12 both halves — [FitEncoder] and the decoder it is replayed through — are multiplatform, so
+ * this runs on JVM, JS (Node and headless Chrome) *and* wasmWasi. Independent confirmation from
+ * the vendors' own implementations lives in `FitEncoderJsTest`, which decodes the same bytes
+ * with `@garmin/fitsdk`.
  */
-class FitEncoderJvmTest {
+class FitEncoderTest {
     private val start = Instant.parse("2026-07-28T08:00:00Z")
 
     private fun course(): FitCourse {
@@ -35,7 +41,7 @@ class FitEncoderJvmTest {
                     temperatureC = 18.0,
                 ),
                 FitRecord(
-                    timestamp = start + kotlin.time.Duration.parse("10s"),
+                    timestamp = start + 10.seconds,
                     latitudeDeg = 45.681335,
                     longitudeDeg = 6.396195,
                     altitudeM = 349.7,
@@ -47,7 +53,7 @@ class FitEncoderJvmTest {
                     temperatureC = 18.0,
                 ),
                 FitRecord(
-                    timestamp = start + kotlin.time.Duration.parse("20s"),
+                    timestamp = start + 20.seconds,
                     latitudeDeg = 45.681565,
                     longitudeDeg = 6.396291,
                     altitudeM = 349.5,
@@ -82,8 +88,14 @@ class FitEncoderJvmTest {
         )
     }
 
-    /** Replay bytes through the SDK's own decoder — the reference reader for this format. */
-    private fun decode(bytes: ByteArray) = FitDecoder().decode(ByteArrayInputStream(bytes))
+    /** Replay bytes through the SDK's decoder, failing on anything it could not read. */
+    private fun decode(bytes: ByteArray): FitMessages {
+        val decoder = FitDecoder(bytes)
+        assertTrue(decoder.checkIntegrity(), "the decoder rejected the file's integrity check")
+        val result = decoder.decode()
+        assertEquals(emptyList(), result.errors.map { it.message }, "decoder reported errors")
+        return result.messages
+    }
 
     @Test
     fun `encoded bytes carry the FIT signature and decode without error`() {
@@ -91,7 +103,7 @@ class FitEncoderJvmTest {
         assertTrue(bytes.size > 100, "suspiciously small FIT file: ${bytes.size} bytes")
         // Bytes 8..11 of a FIT header are the ASCII data-type marker ".FIT".
         assertEquals(".FIT", bytes.copyOfRange(8, 12).decodeToString())
-        assertNotNull(decode(bytes))
+        assertTrue(decode(bytes).recordMesgs.isNotEmpty())
     }
 
     @Test
@@ -118,24 +130,24 @@ class FitEncoderJvmTest {
             // Position comes back in semicircles; convert to compare against the source degrees.
             assertEquals(
                 expected.latitudeDeg,
-                FitUnits.semicirclesToDegrees(actual.positionLat),
+                FitUnits.semicirclesToDegrees(actual.positionLat!!),
                 1e-6,
                 "record $i latitude",
             )
             assertEquals(
                 expected.longitudeDeg,
-                FitUnits.semicirclesToDegrees(actual.positionLong),
+                FitUnits.semicirclesToDegrees(actual.positionLong!!),
                 1e-6,
                 "record $i longitude",
             )
             // Altitude is stored scaled by 5 with a +500 offset, so 0.2 m is the quantum.
-            assertEquals(expected.altitudeM!!, actual.altitude.toDouble(), 0.2, "record $i altitude")
-            assertEquals(expected.distanceM, actual.distance.toDouble(), 0.01, "record $i distance")
-            assertEquals(expected.speedMs!!, actual.speed.toDouble(), 0.001, "record $i speed")
-            assertEquals(expected.powerW, actual.power, "record $i power")
-            assertEquals(expected.heartRate, actual.heartRate.toInt(), "record $i heart rate")
-            assertEquals(expected.cadence, actual.cadence.toInt(), "record $i cadence")
-            assertEquals(expected.timestamp, FitUnits.fromFitTimestamp(actual.timestamp.timestamp))
+            assertEquals(expected.altitudeM!!, actual.altitude!!, 0.2, "record $i altitude")
+            assertEquals(expected.distanceM, actual.distance!!, 0.01, "record $i distance")
+            assertEquals(expected.speedMs!!, actual.speed!!, 0.001, "record $i speed")
+            assertEquals(expected.powerW, actual.power!!.toInt(), "record $i power")
+            assertEquals(expected.heartRate, actual.heartRate!!.toInt(), "record $i heart rate")
+            assertEquals(expected.cadence, actual.cadence!!.toInt(), "record $i cadence")
+            assertEquals(expected.timestamp, actual.timestamp, "record $i timestamp")
         }
     }
 
@@ -145,24 +157,14 @@ class FitEncoderJvmTest {
         val messages = decode(FitEncoder.encode(src))
         val lap = messages.lapMesgs.single()
 
-        assertEquals(src.lap.totalDistanceM, lap.totalDistance.toDouble(), 0.01)
-        assertEquals(src.lap.totalElapsedTimeS, lap.totalElapsedTime.toDouble(), 0.01)
-        assertEquals(src.lap.totalTimerTimeS, lap.totalTimerTime.toDouble(), 0.01)
-        assertEquals(src.lap.startTime, FitUnits.fromFitTimestamp(lap.startTime.timestamp))
+        assertEquals(src.lap.totalDistanceM, lap.totalDistance!!, 0.01)
+        assertEquals(src.lap.totalElapsedTimeS, lap.totalElapsedTime!!, 0.01)
+        assertEquals(src.lap.totalTimerTimeS, lap.totalTimerTime!!, 0.01)
+        assertEquals(src.lap.startTime, lap.startTime)
         // A lap's `timestamp` is its END, so it must land elapsedTime after its startTime.
-        assertEquals(
-            src.lap.startTime + kotlin.time.Duration.parse("20s"),
-            FitUnits.fromFitTimestamp(lap.timestamp.timestamp),
-        )
+        assertEquals(src.lap.startTime + 20.seconds, lap.timestamp)
         // The lap total must match the last record, or head units reject the course.
-        assertEquals(
-            messages.recordMesgs
-                .last()
-                .distance
-                .toDouble(),
-            lap.totalDistance.toDouble(),
-            0.01,
-        )
+        assertEquals(messages.recordMesgs.last().distance!!, lap.totalDistance!!, 0.01)
     }
 
     @Test
@@ -170,8 +172,8 @@ class FitEncoderJvmTest {
         val messages = decode(FitEncoder.encode(course()))
         val events = messages.eventMesgs
         assertEquals(2, events.size, "expected exactly a START and a STOP_ALL timer event")
-        assertEquals(com.garmin.fit.EventType.START, events.first().eventType)
-        assertEquals(com.garmin.fit.EventType.STOP_ALL, events.last().eventType)
+        assertEquals(EventType.START, events.first().eventType)
+        assertEquals(EventType.STOP_ALL, events.last().eventType)
     }
 
     @Test
@@ -199,63 +201,14 @@ class FitEncoderJvmTest {
             )
         val record = decode(FitEncoder.encode(bare)).recordMesgs.first()
         // A FIT consumer must be able to tell "no power meter" from "0 W".
-        assertEquals(null, record.power)
-        assertEquals(null, record.heartRate)
-        assertEquals(null, record.cadence)
-        assertEquals(null, record.temperature)
-    }
-
-    // ---- Cross-target contract (task g09) -----------------------------------
-
-    @Test
-    fun `the JVM encoder reproduces its committed reference bytes`() {
-        assertContentEquals(FitReferenceBytes.JVM, FitEncoder.encode(FitReferenceCourse.build()))
+        assertNull(record.power)
+        assertNull(record.heartRate)
+        assertNull(record.cadence)
+        assertNull(record.temperature)
     }
 
     @Test
-    fun `the Java SDK decodes what the JS encoder produces`() {
-        // The interoperability claim in FitReferenceBytes' KDoc, verified from this side: the
-        // little-endian file the JavaScript SDK writes is readable by the Java SDK, and yields
-        // exactly the same values as the JVM's own big-endian output.
-        val fromWeb = decode(FitReferenceBytes.WEB)
-        val fromJvm = decode(FitReferenceBytes.JVM)
-
-        assertEquals(fromJvm.recordMesgs.size, fromWeb.recordMesgs.size)
-        fromJvm.recordMesgs.forEachIndexed { i, expected ->
-            val actual = fromWeb.recordMesgs[i]
-            assertEquals(expected.positionLat, actual.positionLat, "record $i latitude")
-            assertEquals(expected.positionLong, actual.positionLong, "record $i longitude")
-            assertEquals(expected.altitude, actual.altitude, "record $i altitude")
-            assertEquals(expected.distance, actual.distance, "record $i distance")
-            assertEquals(expected.speed, actual.speed, "record $i speed")
-            assertEquals(expected.power, actual.power, "record $i power")
-            assertEquals(
-                expected.timestamp.timestamp,
-                actual.timestamp.timestamp,
-                "record $i timestamp",
-            )
-        }
-        assertEquals(fromJvm.courseMesgs.single().name, fromWeb.courseMesgs.single().name)
-        assertEquals(fromJvm.courseMesgs.single().sport, fromWeb.courseMesgs.single().sport)
-        assertEquals(
-            fromJvm.lapMesgs
-                .single()
-                .totalDistance,
-            fromWeb.lapMesgs
-                .single()
-                .totalDistance,
-        )
-    }
-
-    @Test
-    fun `the two encoder families differ only where documented`() {
-        val jvm = FitReferenceBytes.JVM
-        val web = FitReferenceBytes.WEB
-        assertEquals(jvm.size, web.size, "the two files must have the same length")
-        // Header byte 1 is the protocol version: 0x20 from the Java SDK, 0x02 from the JS one.
-        assertEquals(0x20.toByte(), jvm[1])
-        assertEquals(0x02.toByte(), web[1])
-        // Bytes 8..11 are the ".FIT" marker on both.
-        assertContentEquals(jvm.copyOfRange(8, 12), web.copyOfRange(8, 12))
+    fun `the encoder reproduces its committed reference bytes`() {
+        assertContentEquals(FitReferenceBytes.REFERENCE, FitEncoder.encode(FitReferenceCourse.build()))
     }
 }

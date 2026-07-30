@@ -421,7 +421,7 @@ class EnhanceCommandTest {
         assertEquals(0, result.code, result.err)
         assertTrue(fit.isFile, "no FIT written")
         // Pre-g25 only the first track was encoded, silently dropping the second.
-        val messages = FitDecoder().decode(fit.inputStream())
+        val messages = FitDecoder(fit.readBytes()).decode().messages
         assertEquals(2, messages.lapMesgs.size, "one lap per track")
         assertEquals(4, messages.eventMesgs.size, "a START and a STOP per track")
     }
@@ -645,7 +645,13 @@ class EnhanceCommandTest {
 
         val tracks = GpxParser.parse(gpx.readText()).tracksAsPaths()
         assertEquals(2, tracks.size, "GPX")
-        assertEquals(2, FitDecoder().decode(File(work, "all.fit").inputStream()).lapMesgs.size, "FIT")
+        assertEquals(
+            2,
+            FitDecoder(File(work, "all.fit").readBytes())
+                .decode()
+                .messages.lapMesgs.size,
+            "FIT",
+        )
         // One CSV per track, each with a header plus one row per point of *its* track.
         for ((i, track) in tracks.withIndex()) {
             val lines = File(work, "all-${i + 1}.csv").readLines().filter { it.isNotBlank() }

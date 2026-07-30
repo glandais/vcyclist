@@ -1,9 +1,10 @@
 package io.github.glandais.fit
 
 import com.garmin.fit.FitDecoder
+import com.garmin.fit.FitMessages
+import com.garmin.fit.types.Sport
 import io.github.glandais.elevation.MathConstants
 import io.github.glandais.engine.path.Path
-import java.io.ByteArrayInputStream
 import kotlin.test.Test
 import kotlin.test.assertContentEquals
 import kotlin.test.assertEquals
@@ -12,8 +13,12 @@ import kotlin.test.assertTrue
 import kotlin.time.Instant
 
 /**
- * End-to-end round-trips: build a [Path], encode it, and read the result back with the Garmin
- * SDK's own decoder — the reference implementation for this format.
+ * End-to-end round-trips: build a [Path], encode it, and read the result back with the FIT
+ * SDK's decoder.
+ *
+ * This lived in `jvmTest` until w12, because decoding needed the Garmin **Java** SDK. Both
+ * halves are multiplatform now, so it runs on every target — including wasmWasi, where FIT
+ * export did not exist at all before.
  *
  * Tolerances here are not arbitrary. They follow the FIT scales pinned in `FitUnitsTest`:
  * position is quantised to a semicircle (~1.2 cm at the equator), altitude to 1/5 m, distance
@@ -22,7 +27,13 @@ import kotlin.time.Instant
 class FitRoundTripTest {
     private val start = Instant.parse("2026-07-28T08:00:00Z")
 
-    private fun decode(bytes: ByteArray) = FitDecoder().decode(ByteArrayInputStream(bytes))
+    private fun decode(bytes: ByteArray): FitMessages {
+        val decoder = FitDecoder(bytes)
+        assertTrue(decoder.checkIntegrity(), "the decoder rejected the file's integrity check")
+        val result = decoder.decode()
+        assertEquals(emptyList(), result.errors.map { it.message }, "decoder reported errors")
+        return result.messages
+    }
 
     /**
      * A synthetic climb of [n] points: 1 s apart, ~7 m apart, rising then falling, with power
@@ -57,13 +68,13 @@ class FitRoundTripTest {
             // degrees -> radians -> degrees round-trip Path imposes.
             assertEquals(
                 path.latitudeDeg(i),
-                FitUnits.semicirclesToDegrees(records[i].positionLat),
+                FitUnits.semicirclesToDegrees(records[i].positionLat!!),
                 1e-5,
                 "record $i latitude",
             )
             assertEquals(
                 path.longitudeDeg(i),
-                FitUnits.semicirclesToDegrees(records[i].positionLong),
+                FitUnits.semicirclesToDegrees(records[i].positionLong!!),
                 1e-5,
                 "record $i longitude",
             )
@@ -75,7 +86,7 @@ class FitRoundTripTest {
         val path = syntheticPath(5)
         val records = decode(path.toFitBytes("clock", start)).recordMesgs
         for (i in records.indices) {
-            val decoded = FitUnits.fromFitTimestamp(records[i].timestamp.timestamp)
+            val decoded = records[i].timestamp!!
             val offsetS = (decoded.toEpochMilliseconds() - start.toEpochMilliseconds()) / 1000.0
             // FIT timestamps have 1 s resolution, hence the whole-second comparison.
             assertEquals(path.time(i) / 1000.0, offsetS, 1.0, "record $i timestamp")
@@ -87,10 +98,10 @@ class FitRoundTripTest {
         val path = syntheticPath(20)
         val records = decode(path.toFitBytes("dist", start)).recordMesgs
         for (i in records.indices) {
-            assertEquals(path.distance(i), records[i].distance.toDouble(), 0.01, "record $i distance")
+            assertEquals(path.distance(i), records[i].distance!!, 0.01, "record $i distance")
         }
         assertTrue(
-            records.zipWithNext().all { (a, b) -> b.distance >= a.distance },
+            records.zipWithNext().all { (a, b) -> b.distance!! >= a.distance!! },
             "decoded distance must be non-decreasing",
         )
     }
@@ -101,7 +112,7 @@ class FitRoundTripTest {
         val records = decode(path.toFitBytes("alt", start)).recordMesgs
         for (i in records.indices) {
             // Altitude is stored as (m + 500) * 5, so 0.2 m is exactly one quantum.
-            assertEquals(path.elevation(i), records[i].altitude.toDouble(), 0.2, "record $i altitude")
+            assertEquals(path.elevation(i), records[i].altitude!!, 0.2, "record $i altitude")
         }
     }
 
@@ -132,21 +143,14 @@ class FitRoundTripTest {
         val messages = decode(path.toFitBytes("lap", start))
         val lap = messages.lapMesgs.single()
 
-        assertEquals(path.totalDistance, lap.totalDistance.toDouble(), 0.01)
-        assertEquals(path.durationMs / 1000.0, lap.totalElapsedTime.toDouble(), 0.01)
+        assertEquals(path.totalDistance, lap.totalDistance!!, 0.01)
+        assertEquals(path.durationMs / 1000.0, lap.totalElapsedTime!!, 0.01)
         // Ascent/descent are whole meters in FIT and rounded on the way in, so allow 1 m.
-        assertEquals(path.elevationGain, lap.totalAscent.toDouble(), 1.0)
+        assertEquals(path.elevationGain, lap.totalAscent!!.toDouble(), 1.0)
         // FIT descent is a positive magnitude while Path.elevationLoss is negative.
-        assertEquals(-path.elevationLoss, lap.totalDescent.toDouble(), 1.0)
+        assertEquals(-path.elevationLoss, lap.totalDescent!!.toDouble(), 1.0)
         // The lap total must agree with the final record or head units reject the course.
-        assertEquals(
-            messages.recordMesgs
-                .last()
-                .distance
-                .toDouble(),
-            lap.totalDistance.toDouble(),
-            0.01,
-        )
+        assertEquals(messages.recordMesgs.last().distance!!, lap.totalDistance!!, 0.01)
     }
 
     @Test
@@ -164,14 +168,7 @@ class FitRoundTripTest {
         val path = syntheticPath(10_000)
         val messages = decode(path.toFitBytes("very long", start))
         assertEquals(10_000, messages.recordMesgs.size)
-        assertEquals(
-            path.totalDistance,
-            messages.lapMesgs
-                .single()
-                .totalDistance
-                .toDouble(),
-            0.01,
-        )
+        assertEquals(path.totalDistance, messages.lapMesgs.single().totalDistance!!, 0.01)
     }
 
     @Test
@@ -185,7 +182,7 @@ class FitRoundTripTest {
         val messages = decode(syntheticPath(3).toFitBytes("Col du Galibier", start))
         val course = messages.courseMesgs.single()
         assertEquals("Col du Galibier", course.name)
-        assertEquals(com.garmin.fit.Sport.CYCLING, course.sport)
+        assertEquals(Sport.CYCLING, course.sport)
     }
 
     @Test
@@ -193,8 +190,8 @@ class FitRoundTripTest {
         val path = syntheticPath(10)
         val records = decode(path.toFitBytes("sensors", start)).recordMesgs
         for (i in records.indices) {
-            assertEquals(path.pComputedPower(i).toInt(), records[i].power, "record $i power")
-            assertEquals(path.heartRate(i).toInt(), records[i].heartRate.toInt(), "record $i heart rate")
+            assertEquals(path.pComputedPower(i).toInt(), records[i].power!!.toInt(), "record $i power")
+            assertEquals(path.heartRate(i).toInt(), records[i].heartRate!!.toInt(), "record $i heart rate")
         }
     }
 
@@ -221,7 +218,7 @@ class FitRoundTripTest {
         // 0 = START, 1 = STOP, 4 = STOP_ALL. Only the last run closes the file.
         assertEquals(
             listOf(0, 1, 0, 1, 0, 4),
-            events.map { it.eventType.value.toInt() },
+            events.map { it.eventType!!.value.toInt() },
             "only the last run may carry STOP_ALL",
         )
     }
@@ -232,7 +229,7 @@ class FitRoundTripTest {
 
         val records = decode(paths.toFitBytes("multi", start)).recordMesgs.toList()
 
-        val timestamps = records.map { it.timestamp.date.time }
+        val timestamps = records.map { it.timestamp!!.toEpochMilliseconds() }
         assertEquals(timestamps.sorted(), timestamps, "records must not go backwards")
         assertEquals(start.toEpochMilliseconds(), timestamps.first(), "the file starts at startTime")
     }

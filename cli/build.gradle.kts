@@ -18,7 +18,7 @@ dependencies {
     // Decoder-side only: the FIT export tests assert the structure of what the CLI wrote
     // (one lap per track, one event pair per track) rather than its byte length. The SDK is
     // already on the runtime classpath through :fit; this makes it visible at test-compile time.
-    testImplementation(libs.garmin.fit)
+    testImplementation(libs.fit.kotlin.sdk)
 }
 
 tasks.withType<Test>().configureEach {

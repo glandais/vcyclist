@@ -303,6 +303,24 @@ class VcyclistHost:
         self._with_options("vcPathToJson", handle, options)
         return json.loads(self._captured.decode())
 
+    def to_fit(self, handle: int, name: str, start_time_epoch_ms: int) -> bytes:
+        """The path as a Garmin FIT Course file (task w12).
+
+        Binary, not text: the captured bytes are returned as they came. `startTimeEpochMs` is
+        mandatory — a Path's clock is relative and FIT has no way to say so.
+        """
+        self._with_options("vcPathToFit", handle,
+                           {"name": name, "startTimeEpochMs": start_time_epoch_ms})
+        return self._captured
+
+    def paths_to_fit(self, list_handle: int, name: str, start_time_epoch_ms: int,
+                     inter_path_gap_ms: int = 0) -> bytes:
+        """Every path of a list handle in one FIT course — one lap and one event pair each."""
+        self._with_options("vcPathsToFit", list_handle,
+                           {"name": name, "startTimeEpochMs": start_time_epoch_ms,
+                            "interPathGapMs": inter_path_gap_ms})
+        return self._captured
+
     # ── Context manager ───────────────────────────────────────────────────────────────────
 
     def __enter__(self) -> "VcyclistHost":

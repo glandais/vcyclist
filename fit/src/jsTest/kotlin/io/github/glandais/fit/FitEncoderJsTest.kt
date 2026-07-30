@@ -22,9 +22,15 @@ external object FitSdkTestApi {
 }
 
 /**
- * Kotlin/JS encoder tests. Run under Node **and**, through Karma, in headless Chrome. The
- * browser run is the whole point of task g09, so it is not optional coverage — if
- * `@garmin/fitsdk` failed to load in a browser bundle, these tests are what would say so.
+ * Vendor cross-check: what [FitEncoder] produces, read back by Garmin's own JavaScript SDK.
+ *
+ * Since w12 the encoder is pure Kotlin in `commonMain` and every assertion about its output is
+ * in `commonTest`, replayed through the multiplatform SDK's decoder. That proves the port is
+ * self-consistent, not that it emits FIT as an outside implementation understands it. This file
+ * is what closes that gap, and it is the only place `@garmin/fitsdk` still appears — as a
+ * **test** dependency, no longer shipped to consumers of `@glandais/vcyclist-fit`.
+ *
+ * Runs under Node **and**, through Karma, in headless Chrome.
  */
 class FitEncoderJsTest {
     private fun decode(bytes: ByteArray): dynamic {
@@ -99,35 +105,12 @@ class FitEncoderJsTest {
     }
 
     @Test
-    fun `Kotlin_JS reproduces the committed web reference bytes`() {
-        // Committed alongside the JVM reference bytes so a drift in field order or units shows
-        // up as a byte diff instead of silently shipping a different file.
-        assertTrue(
-            FitEncoder.encode(FitReferenceCourse.build()).contentEquals(FitReferenceBytes.WEB),
-            "Kotlin/JS output diverged from the committed reference bytes",
-        )
-    }
-
-    @Test
-    fun `the JS SDK decodes what the JVM encoder produces`() {
-        // Interoperability, checked from this side: the Java SDK writes big-endian FIT, and this
-        // decoder must read it and agree with our own little-endian output field for field.
-        val fromJvm = decode(FitReferenceBytes.JVM)
-        val fromWeb = decode(FitReferenceBytes.WEB)
-
-        val a = fromJvm.messages.recordMesgs
-        val b = fromWeb.messages.recordMesgs
-        assertEquals(a.length as Int, b.length as Int)
-        for (i in 0 until (a.length as Int)) {
-            assertEquals(a[i].positionLat as Int, b[i].positionLat as Int, "record $i latitude")
-            assertEquals(a[i].positionLong as Int, b[i].positionLong as Int, "record $i longitude")
-            assertEquals(a[i].distance as Double, b[i].distance as Double, 1e-9, "record $i distance")
-            assertEquals(a[i].speed as Double, b[i].speed as Double, 1e-9, "record $i speed")
-            assertEquals(a[i].power as Int, b[i].power as Int, "record $i power")
-        }
-        assertEquals(
-            fromJvm.messages.courseMesgs[0].name as String,
-            fromWeb.messages.courseMesgs[0].name as String,
-        )
+    fun `the vendor SDK reads the committed reference bytes`() {
+        // The bytes `FitEncoderTest` pins on every target, decoded by an implementation that
+        // knows nothing of this port: the interoperability claim, verified from the outside.
+        val result = decode(FitReferenceBytes.REFERENCE)
+        assertEquals(0, result.errors.length as Int, "decoder reported errors")
+        assertEquals(FitReferenceCourse.NAME, result.messages.courseMesgs[0].name as String)
+        assertEquals(3, result.messages.recordMesgs.length as Int)
     }
 }
