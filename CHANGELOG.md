@@ -1,3 +1,24 @@
+# [3.1.0](https://github.com/glandais/vcyclist/compare/v3.0.0...v3.1.0) (2026-07-31)
+
+
+### Bug Fixes
+
+* **cli:** --fix-elevation now really corrects elevations (gpx2web task g34) ([6c3ec03](https://github.com/glandais/vcyclist/commit/6c3ec03d24d70e1b916475dbe17555a0141ebad2))
+
+
+### Features
+
+* **build:** add the WASI reference host harness (Phase WASI tâche w09) ([e9ddf50](https://github.com/glandais/vcyclist/commit/e9ddf50d8ef4c2ee44759702a5aacc5a34bc070a))
+* **build:** cache wasmtime and upload test reports in CI (Phase WASI tâche w02) ([1f3c21e](https://github.com/glandais/vcyclist/commit/1f3c21ed1216eaacf0917acf6f325543fc1375cd))
+* **build:** extend the wasmWasi target to :fit and :engine (Phase WASI tâche w01) ([0ae2dba](https://github.com/glandais/vcyclist/commit/0ae2dba511c6109954938d075dd3a1e17e268902))
+* **build:** produce the standalone .wasm at a stable path, with a checksum (Phase WASI tâche w06) ([5a27960](https://github.com/glandais/vcyclist/commit/5a279609bb204d45a7a51430d87e7b7fffabbf5b))
+* **build:** ship the standalone .wasm to Maven Central and the GitHub release (Phase WASI tâche w07) ([c7bbbf9](https://github.com/glandais/vcyclist/commit/c7bbbf9daaf10c63ca0878c1a5eb9dc4688565d0))
+* **elevation:** decode lossless WebP in pure Kotlin (Phase WASI tâche w11) ([16ad07d](https://github.com/glandais/vcyclist/commit/16ad07d0d627ac44dd956b79267f69eaa5bc5aa2))
+* **elevation:** serve DEM tiles from the host under WASI (Phase WASI tâche w05) ([5bd17dc](https://github.com/glandais/vcyclist/commit/5bd17dcc74ef184944b8b4dc012d0e133c08834c))
+* **engine:** bring the WASI façade up to EngineJsApi parity (Phase WASI tâche w04) ([9cbd3cc](https://github.com/glandais/vcyclist/commit/9cbd3cc87710ddcd1e2ccd1951e9224497570471))
+* **engine:** freeze the WASI ABI v1 in EngineWasiApi (Phase WASI tâche w03) ([9d1056e](https://github.com/glandais/vcyclist/commit/9d1056eceda174e0d7aa69810e612618e124838e))
+* **fit:** encode FIT in commonMain over fit-kotlin-sdk (Phase WASI tâche w12) ([86a37f6](https://github.com/glandais/vcyclist/commit/86a37f6530261e4a7e7ca52be9a59333ab050fa3))
+
 # [3.0.0](https://github.com/glandais/vcyclist/compare/v2.0.0...v3.0.0) (2026-07-28)
 
 
