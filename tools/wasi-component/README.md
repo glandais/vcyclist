@@ -13,7 +13,10 @@ vcyclist, pas dans la CI, pas publié. L'ABI v1 (`docs/wasm-wasi-abi.md`) est in
 |---|---|
 | `vcyclist-engine.wit` | **Le livrable de papier** : les 33 exports de l'ABI v1 traduits en WIT, avec ce que chaque ligne supprime. Ne compile rien |
 | `spike.wit` | Le monde jetable du guest ci-dessous — trois exports utiles et une poignée de sondes |
-| `spike-guest/` | Un **build Gradle séparé** : un fichier Kotlin qui exporte aux noms canoniques par-dessus le vrai `:engine`, consommé depuis mavenLocal |
+| `spike-guest/` | Un **build Gradle séparé** : un fichier Kotlin qui exporte aux noms canoniques par-dessus le vrai `:engine`, consommé depuis mavenLocal. Toute la glue est écrite à la main |
+| `spike-bindgen/` | Le même exercice avec des bindings **générés** par [`Kotlin/wit-bindgen`](https://github.com/Kotlin/wit-bindgen) depuis `vcyclist-engine.wit`. Le contenu de `src/` est généré : 2 544 lignes dont 53 de stubs |
+| `generate-bindings.sh` | Régénère `spike-bindgen/src/` (clone et compile le fork, ~5 min la première fois). Inutile pour *lire* : la sortie est commitée |
+| `run_bindgen_component.py` | Le même bout en bout, à travers les bindings générés |
 | `run_component.py` | L'hôte : ~15 lignes de mise en route, puis des appels typés. À comparer aux 392 lignes de `tools/wasi/host.py` |
 | `reproduce.sh` | Rejoue tout, de zéro |
 | `build/` | Artefacts jetables, ignorés par git |
@@ -40,9 +43,15 @@ parse-gpx      : handle 1, 259 points, 3573.8048648177737 m
 ABI v1 says    : 259 points, 3573.8048648177737 m
 random-sum     : 16 bytes from wasi:random
 http-get-status: 200 for https://tiles.mapterhorn.com/12/2129/1465.webp
+
+component      : 157454 bytes
+parse-gpx      : ResourceAny, 259 points, 3573.8048648177737 m
 ```
 
-Les deux lignes qui comptent : le composant et le module core donnent **la même distance au
+La dernière ligne est celle du composant **généré** : `parse-gpx` y rend une `ResourceAny`
+wasmtime, c'est-à-dire que la table de handles de `WasiAbi.kt` est devenue celle du runtime.
+
+Les deux autres lignes qui comptent : le composant et le module core donnent **la même distance au
 dernier chiffre** (le spike exécute vraiment le moteur), et `probe-scoped` échoue (le mur est
 réel, et le reste ne marche qu'avec le contournement documenté dans `SpikeGuest.kt`).
 
@@ -66,3 +75,6 @@ réel, et le reste ne marche qu'avec le contournement documenté dans `SpikeGues
 - `package 'wasi:http@0.2.7' not found` : le tarball WIT n'a pas été extrait dans `build/`.
 - `failed to resolve import 'vcyclist::fetch_tile'` : c'est l'étape 1 **sans** le stub — le
   message est un résultat du spike, pas une panne.
+- `Duplicate interface names found in generation plan` en régénérant : c'est le générateur qui
+  refuse l'arbre WIT de `wasi:http`. Également un résultat, et l'une des deux raisons pour
+  lesquelles la phase F attend (voir le verdict, §6 et §8).

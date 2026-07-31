@@ -257,9 +257,12 @@ interface path-api {
         dominant-headwind-azimuth: func() -> option<f64>;
 
         get-field: func(field-index: u32, point-index: u32) -> result<f64, engine-error>;
-        /// `vcPathFieldBytes`, and the one row of the table where the ABI is already optimal: the
-        /// canonical ABI lowers `list<f64>` to exactly the same contiguous little-endian block,
-        /// copied once. Nothing is gained here and nothing is lost.
+        /// `vcPathFieldBytes`. The wire is identical — the Canonical ABI lowers `list<f64>` to
+        /// the same contiguous little-endian block — but the *guest* side is not: the generated
+        /// binding takes a `List<Double>`, boxed, and stores it element by element, where today a
+        /// `DoubleArray` is copied out whole. The one export the Component Model makes slower,
+        /// and `list<u8>` (tiles, FIT) has the same problem an order of magnitude larger. See §2
+        /// of the verdict.
         field: func(field-index: u32) -> result<list<f64>, engine-error>;
         point-at: func(index: u32) -> result<point, engine-error>;
 

@@ -76,6 +76,21 @@ echo "   guest     $(stat -c%s "$BUILD/spike-guest.wasm") bytes"
 echo "   component $(stat -c%s "$BUILD/spike-guest.component.wasm") bytes, valid"
 
 echo
+echo "== the same thing from GENERATED bindings =="
+# `spike-bindgen/src/wasmWasiMain/kotlin` is committed; `./generate-bindings.sh` rebuilds it from
+# vcyclist-engine.wit with JetBrains' Kotlin fork of wit-bindgen.
+"$ROOT/gradlew" -p spike-bindgen -PengineVersion="$ENGINE_VERSION" compileProductionExecutableKotlinWasmWasiOptimize -q
+cp spike-bindgen/build/compileSync/wasmWasi/main/productionExecutable/optimized/*.wasm "$BUILD/bindgen-guest.wasm"
+rm -rf "$BUILD/wit-hosted" && mkdir -p "$BUILD/wit-hosted"
+awk '/^world engine \{/{exit} {print}' vcyclist-engine.wit > "$BUILD/wit-hosted/vcyclist-engine.wit"
+wasm-tools component embed "$BUILD/wit-hosted" --world engine-hosted-tiles "$BUILD/bindgen-guest.wasm" -o "$BUILD/bindgen-guest.embedded.wasm"
+wasm-tools component new "$BUILD/bindgen-guest.embedded.wasm" \
+  --adapt "wasi_snapshot_preview1=$BUILD/wasi_snapshot_preview1.reactor.wasm" \
+  -o "$BUILD/bindgen-guest.component.wasm"
+wasm-tools validate --features=all "$BUILD/bindgen-guest.component.wasm"
+echo "   component $(stat -c%s "$BUILD/bindgen-guest.component.wasm") bytes, valid"
+
+echo
 echo "== the .wit of ABI v1, checked =="
 rm -rf "$BUILD/witcheck" && mkdir -p "$BUILD/witcheck"
 cp -r "$BUILD/wasi-http-0.2.7/wit/deps" "$BUILD/witcheck/deps"
@@ -87,3 +102,5 @@ wasm-tools component wit "$BUILD/witcheck" > /dev/null && echo "   vcyclist-engi
 echo
 echo "== run =="
 python3 run_component.py "$@"
+echo
+python3 run_bindgen_component.py

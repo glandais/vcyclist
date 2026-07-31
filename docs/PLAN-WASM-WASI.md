@@ -105,11 +105,14 @@ réseau.
 - **Le Component Model / WIT / WASI Preview 2.** Écarté sur mesure par la tâche w13, pas par
   présomption : le verdict est [`wasm-wasi-component-model.md`](wasm-wasi-component-model.md).
   L'outillage digère bien le module WASM-GC, et un composant qui exécute vraiment le moteur a été
-  produit (`wasi:http` compris, HTTP 200 sur une vraie tuile) — mais il n'existe pas de générateur
-  de bindings Canonical ABI pour Kotlin, et `componentModelRealloc` est une API interne qui exclut
-  `withScopedMemoryAllocator` pendant l'appel. Refus daté du 2026-07-31, réouverture à
-  [KT-64569](https://youtrack.jetbrains.com/issue/KT-64569). On reste sur un module core WASI
-  Preview 1 avec des imports custom.
+  produit (`wasi:http` compris, HTTP 200 sur une vraie tuile). `Kotlin/wit-bindgen` génère même
+  toute la glue à partir du `.wit` de l'ABI v1 : 2 544 lignes, dont 53 de stubs à écrire, et le
+  composant obtenu rend la bonne distance. Ce qui bloque n'est donc pas technique : le générateur
+  est un fork non publié, il ne digère pas encore l'arbre WIT de `wasi:http` — le seul monde qui
+  apporte un gain fonctionnel — et il boxe les lectures en vrac (`list<f64>`, `list<u8>`). Décision
+  du 2026-07-31 : **pas maintenant**, phase F cadrée et en attente dans le verdict (§7), à
+  déclencher quand le générateur est livré. On reste sur un module core WASI Preview 1 avec des
+  imports custom.
 - **Un `.wasm` par module.** Un seul binaire, celui de `:engine`, qui contient tout le cœur.
 - **La publication npm d'un paquet WASI.** WASI n'est pas un artefact npm ; les paquets
   `@glandais/vcyclist-*` restent Kotlin/JS.

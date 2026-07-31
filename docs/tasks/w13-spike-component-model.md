@@ -129,7 +129,8 @@ jeu, et le verdict doit le dire).
       pourquoi. → 27 fonctions, 6 supprimées plutôt que traduites, aucune intraduisible.
 - [x] Le gain `wasi:http` est chiffré, cache et retries compris, pas seulement affirmé. → HTTP 200
       réel sur une vraie tuile, ~110 lignes de glue pour le seul statut, et §8 **déménage** vers le
-      guest au lieu de disparaître.
+      guest au lieu de disparaître. Le générateur Kotlin, lui, **refuse** l'arbre WIT de
+      `wasi:http` : le seul monde qui rapporte est celui qui ne se génère pas.
 - [x] `docs/wasm-wasi-component-model.md` tranche explicitement, sans « à voir ». → refus daté,
       condition de réouverture nommée (KT-64569).
 - [x] `./gradlew check` reste vert : **rien** de la production n'a bougé.
@@ -138,7 +139,7 @@ jeu, et le verdict doit le dire).
 
 ## Résultat
 
-**Refus daté du 2026-07-31**, pas de phase F : le verdict est
+**Décision du 2026-07-31 : pas maintenant, phase F cadrée et en attente.** Le verdict est
 [`docs/wasm-wasi-component-model.md`](../wasm-wasi-component-model.md), les mesures se rejouent
 avec [`tools/wasi-component/reproduce.sh`](../../tools/wasi-component/README.md).
 
@@ -149,9 +150,12 @@ Trois écarts avec la fiche, assumés :
 2. **L'étape 1 ne s'est pas arrêtée au premier refus** : l'encodeur exige un adapter pour les
    imports `vcyclist` avant de dire quoi que ce soit du reste. Un module de stub lève l'obstacle,
    et c'est ce refus-là qui est consigné.
-3. **L'étape 4 va plus loin que ses trois exports** : elle a dû fabriquer à la main le
-   `cabi_realloc`, une `string` sortante et dix imports `wasi:http`, faute de générateur. C'est
-   précisément ce coût-là qui fonde le verdict.
+3. **L'étape 4 va plus loin que ses trois exports** : elle a d'abord fabriqué à la main le
+   `cabi_realloc`, une `string` sortante et dix imports `wasi:http`. Puis, une fois
+   [`Kotlin/wit-bindgen`](https://github.com/Kotlin/wit-bindgen) trouvé, elle a refait le même
+   bout en bout avec des bindings **générés** depuis `vcyclist-engine.wit` — 53 lignes de stubs
+   au lieu de 791. La première rédaction du verdict, qui affirmait qu'aucun générateur n'existait,
+   a été corrigée ; l'encadré en tête du verdict le dit.
 
 ## Done when
 

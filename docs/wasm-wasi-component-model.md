@@ -4,11 +4,18 @@ Réponse mesurée à la phrase que `PLAN-WASM-WASI.md` posait par présomption �
 de composant ». Spike w13, timeboxé, exploratoire : **aucune ligne de production n'a bougé**,
 l'ABI v1 reste figée à `vcAbiVersion() == 1`.
 
-**Verdict, en une phrase : c'est mécaniquement possible aujourd'hui — un composant réel, appelé
-par des valeurs typées, rend la *bonne* distance sur une vraie trace — mais chaque octet de la
-glue Canonical ABI est écrit à la main, sur une API que la stdlib déclare interne, et avec un
-contournement d'une incompatibilité d'allocateurs. Donc non : pas de phase F. Réouverture à
-[KT-64569](https://youtrack.jetbrains.com/issue/KT-64569).**
+**Verdict, en une phrase : ça marche, et ça se génère.** [`Kotlin/wit-bindgen`](https://github.com/Kotlin/wit-bindgen)
+produit toute la glue Canonical ABI à partir du `.wit` de l'ABI v1 ; il ne reste que **53 lignes de
+stubs** à remplir, et le composant obtenu rend la bonne distance sur une vraie trace. Ce qui
+subsiste n'est plus un mur technique mais un pari : dépendre d'un **fork non publié** d'un
+prototype, et accepter que les lectures en vrac (`list<f64>`, `list<u8>`) deviennent des listes
+**boxées**. Recommandation : **pas maintenant** — phase F cadrée en §7, à déclencher le jour où le
+générateur est livré, pas avant.
+
+> **Cette page a été corrigée.** Sa première version concluait « il n'existe pas de générateur de
+> bindings Canonical ABI pour Kotlin ». C'était faux : le fork existe, il est actif (dernier
+> commit 21/07/2026), il cible `wasm-wasi`, et le spike l'a fait tourner sur cette ABI-ci. Le §2
+> est la mesure ; la conclusion en a changé de nature.
 
 Tout ce qui suit est reproductible : [`tools/wasi-component/reproduce.sh`](../tools/wasi-component/README.md).
 
@@ -26,8 +33,12 @@ Tout ce qui suit est reproductible : [`tools/wasi-component/reproduce.sh`](../to
 | … sans contournement ? | **Non.** `IllegalStateException: Can't create new allocators while realloc-allocated memory is not freed` |
 | Un import composant marche-t-il depuis Kotlin ? | **Oui**, `wasi:random/random.get-random-bytes` à la main |
 | `wasi:http` sortant, pour de vrai ? | **Oui, HTTP 200** sur `https://tiles.mapterhorn.com/12/2129/1465.webp` |
-| Combien de glue pour ce seul GET ? | **~110 lignes** de Kotlin, statut seulement — ni corps, ni en-têtes, ni cache, ni retry |
-| Quelque chose génère-t-il cette glue ? | **Non**, pour Kotlin. `wit-bindgen` la génère pour Rust, C, Go, JS, Python |
+| Combien de glue **à la main** pour ce seul GET ? | **~110 lignes** de Kotlin, statut seulement — ni corps, ni en-têtes, ni cache, ni retry |
+| Quelque chose génère-t-il cette glue ? | **Oui** : `Kotlin/wit-bindgen`, branche `kotlin`, cible `wasm-wasi` |
+| Génère-t-il **notre** ABI ? | **Oui** : 2 544 lignes depuis `vcyclist-engine.wit`, dont **53 de stubs** à écrire |
+| Ça compile sur le Kotlin du projet ? | **Oui**, 2.4.20-Beta2, contre le vrai `:engine` |
+| Le composant généré marche-t-il ? | **Oui** : `parse-gpx(str)` → une *resource* WIT, 259 points, 3573,8048648177737 m |
+| Le générateur est-il livré ? | **Non** : fork, branche `kotlin`, rien sur crates.io, pas de plugin Gradle, README amont inchangé |
 
 ### Versions exactes
 
@@ -37,7 +48,8 @@ Tout ce qui suit est reproductible : [`tools/wasi-component/reproduce.sh`](../to
 | adapter Preview 1 | `wasi_snapshot_preview1.reactor.wasm` de wasmtime **47.0.1** | traduit `wasi_snapshot_preview1` vers WASI 0.2 |
 | wasmtime (Python) | **47.0.1**, `wasmtime.component` | l'hôte ; API composant **dynamique**, sans génération de code |
 | WIT `wasi:http` | **0.2.7** (dernier tag publié) | wasmtime 47 l'accepte comme compatible sémantiquement avec les 0.2.12 de son adapter |
-| Kotlin | **2.4.20-Beta2** | ⚠️ w08 (2.4.20 final) n'est pas faite ; voir §6 |
+| Kotlin | **2.4.20-Beta2** | ⚠️ w08 (2.4.20 final) n'est pas faite ; voir §9 |
+| `Kotlin/wit-bindgen` | branche `kotlin`, commit `efcd80ba8` (21/07/2026), s'annonce `wit-bindgen-cli 0.57.1` | génère les bindings Kotlin depuis WIT ; testé chez lui avec kotlinc-wasm **2.4.20-Beta1**, `-Xwasm-target=wasm-wasi` |
 
 ## 1. Est-ce mécaniquement possible ? Oui, et voici le mur
 
@@ -122,6 +134,10 @@ la même instance passent. Mais on libère là une mémoire que l'appelant croit
 `cabi_post_return` — c'est-à-dire qu'on parie sur ce que fait l'hôte de la sienne. wasmtime 47.0.1
 ne s'en plaint pas ; ce n'est pas une garantie, c'est une observation.
 
+**Ce contournement n'est pas une astuce de spike** : le générateur de JetBrains ouvre *chacun* de
+ses exports par exactement ces deux lignes, dans cet ordre (§2). Le mur est donc réel, connu, et
+traité systématiquement par l'outil — mais traité en pariant la même chose.
+
 ### 1.4 Et pourtant, le bout en bout est juste
 
 ```
@@ -133,7 +149,69 @@ Même moteur, même trace, même valeur au dernier chiffre — d'un côté le co
 `str` Python, de l'autre `tools/wasi/host.py` sur le module core. Le critère de la fiche (« un
 `total-distance` **juste**, pas une instanciation sans erreur ») est atteint.
 
-## 2. Ce que ça supprime pour un intégrateur
+## 2. Le générateur existe — et il génère *cette* ABI
+
+C'est la correction annoncée en tête. [`Kotlin/wit-bindgen`](https://github.com/Kotlin/wit-bindgen),
+dans l'organisation JetBrains, est un fork du `wit-bindgen` de la Bytecode Alliance avec un
+`crates/kotlin` de 2 955 lignes de Rust. Branche par défaut `kotlin`, dernier commit **21 juillet
+2026** (dix jours avant ce spike), tests menés contre kotlinc-wasm 2.4.20-Beta1 avec
+`-Xwasm-target=wasm-wasi` : la cible de ce projet, pas une cible voisine.
+
+Lancé sur [`vcyclist-engine.wit`](../tools/wasi-component/vcyclist-engine.wit) — la traduction de
+l'ABI v1, écrite avant de connaître le générateur :
+
+```bash
+wit-bindgen kotlin wit --world engine-hosted-tiles --generate-stubs   --kotlin-package-name io.github.glandais.engine.wit --out-dir …
+```
+
+| Fichier généré | Lignes | Ce que c'est |
+|---|---|---|
+| `InternalEngineHostedTiles.kt` | 2 001 | l'adaptateur Canonical ABI : lifting/lowering, zones de retour, `RepTable` des resources |
+| `EngineHostedTiles.kt` | 372 | l'API typée : `interface PathApi`, `abstract class Path`, les `record`/`variant` en `data class`/`sealed` |
+| `runtime/ComponentSupport.kt` | 118 | `cabi_realloc`, `ResourceHandle`, les helpers mémoire |
+| **`EngineHostedTilesImpl.kt`** | **53** | **les stubs — le seul fichier qu'un humain écrit** |
+
+Les 53 lignes sont 27 signatures `TODO()`, une par fonction du `.wit`, à remplir en déléguant au
+moteur exactement comme `EngineJsApi` le fait pour JavaScript. À comparer aux **791 lignes** de
+`EngineWasiApi.kt` — et les 807 lignes de `MiniJson`/`WasiOptions`/`WasiAbi`/`WasiJsonOutput`
+n'existent plus du tout.
+
+Trois vérifications, parce que « ça génère » n'est pas « ça marche » :
+
+1. **Ça compile** sur le Kotlin du projet (2.4.20-Beta2, pas la Beta1 des tests amont), contre le
+   vrai `:engine` pris dans mavenLocal.
+2. **Ça produit un composant valide** (157 454 o) via `component embed` + `component new`.
+3. **Ça répond juste** : trois stubs remplis (`parse-gpx`, `path.size`, `path.total-distance`), et
+   `run_bindgen_component.py` obtient 259 points et 3573,8048648177737 m — la valeur de l'ABI v1,
+   au dernier chiffre. `parse-gpx` rend une `ResourceAny` wasmtime : la table de handles de
+   `WasiAbi.kt` est devenue celle du runtime.
+
+Le `cabi_realloc` généré est, au caractère près, celui que ce spike avait écrit à la main —
+argument `align` compris, et jeté de la même façon. La convergence est rassurante sur la mesure et
+inquiétante sur l'API : deux implémentations indépendantes ont dû ignorer le même paramètre.
+
+### Ce que le générateur ne fait pas encore
+
+- **Il n'est pas livré.** Fork, branche `kotlin`, aucune publication crates.io, pas de plugin
+  Gradle : le sample officiel *clone et compile le fork* dans son `make setup`, et annonce des
+  bindings *« subject to change and certainly not final »*. Le README amont ne mentionne même pas
+  Kotlin dans ses langages supportés.
+- **Il refuse l'arbre WIT de `wasi:http`** : `Duplicate interface names found in generation plan
+  (most likely due to multiple versions of the package)` — `wasi:filesystem/preopens` y apparaît en
+  0.2.6 *et* 0.2.7. Le monde `engine-hosted-tiles` passe, le monde `engine` non. C'est-à-dire que
+  le seul monde qui apporte le gain fonctionnel est précisément celui qui ne se génère pas
+  aujourd'hui.
+- **Il boxe les lectures en vrac.** `list<f64>` devient `List<Double>` et `list<u8>` devient
+  `List<UByte>`, élément par élément :
+  - en sortie (`path.field`, le `vcPathFieldBytes` d'aujourd'hui), le guest doit construire une
+    `List<Double>` boxée de *n* éléments puis la stocker en boucle, là où l'ABI v1 copie une
+    `DoubleArray` d'un bloc. Le fil est identique, le coût côté guest ne l'est pas ;
+  - en entrée (`tile-source.fetch-tile`), une tuile d'1 Mio devient **1 048 576 `UByte` boxés**
+    construits un par un dans une `ArrayList`. C'est le chemin chaud de `fixElevation`.
+  - `ComponentSupport.kt` contient encore `fun MALLOC(size: Int, align: Int): Int = TODO()`. Il
+    n'est appelé nulle part dans *notre* génération — mais il est là.
+
+## 3. Ce que ça supprime pour un intégrateur
 
 `tools/wasi/host.py`, l'étalon, fait **392 lignes**. Découpage mesuré :
 
@@ -144,7 +222,7 @@ Même moteur, même trace, même valeur au dernier chiffre — d'un côté le co
 | Les deux `tile_source` (HTTP + Pillow) | ~60 | **rien**, seulement dans le monde `wasi:http` |
 
 Côté guest, le `.wit` de [`tools/wasi-component/vcyclist-engine.wit`](../tools/wasi-component/vcyclist-engine.wit)
-traduit **les 33 exports** de §7 : 27 fonctions en sortie, **6 supprimées** plutôt que traduites
+traduit **les 33 exports** de l'ABI (§7 de `wasm-wasi-abi.md`) : 27 fonctions en sortie, **6 supprimées** plutôt que traduites
 (`vcAbiVersion`, `vcLastError`, `vcRelease`, `vcReleaseAll`, `vcListSize`, `vcListGet`), et **aucun
 qui ne se traduise pas**. Disparaîtraient aussi : `MiniJson.kt` (282 l.), `WasiOptions.kt` (279 l.),
 la table de handles de `WasiAbi.kt` (142 l.), les arguments de longueur d'octets de 14 exports, la
@@ -153,7 +231,7 @@ plutôt que d'échouer ».
 
 C'est réel, et c'est de l'ergonomie. Le seul gain **fonctionnel** est ailleurs.
 
-## 3. `wasi:http` : chiffré, cache et retries compris
+## 4. `wasi:http` : chiffré, cache et retries compris
 
 Depuis w11 (WebP en Kotlin) et w12 (FIT en Kotlin), le réseau est la **seule** chose que le module
 demande encore à son hôte. C'est donc la seule question qui pouvait changer la nature du produit.
@@ -171,8 +249,10 @@ Le prix, mesuré :
   `option<result<result<own<incoming-response>, error-code>, ()>>` est à +24), et une boucle
   `poll`. Lire le corps de la réponse — c'est-à-dire la tuile — ajoute `incoming-body`, un
   `input-stream`, un `blocking-read` en boucle et leurs `[resource-drop]`.
-- **Rien ne génère ça pour Kotlin.** `wit-bindgen` le génère en une commande pour Rust, C, Go, JS
-  et Python. C'est tout l'écart, et il est là entièrement.
+- **Cette glue-là se génère aussi** — sur le principe : c'est le même Canonical ABI, côté import.
+  Sauf qu'aujourd'hui elle ne se génère justement pas, faute pour le générateur de digérer l'arbre
+  WIT de `wasi:http` (§2). Les ~110 lignes sont donc à la fois « du travail que l'outil fera » et
+  « du travail que l'outil ne fait pas encore ».
 
 **La question qui compte, tranchée : non, §8 ne disparaît pas, elle déménage.** Aujourd'hui l'hôte
 apporte le réseau *et* ce qui va avec — `TileManager` côté guest a un cache LRU, mais les retries,
@@ -188,7 +268,7 @@ Ce que ça achète en échange, et qui est réel : un `.wasm` que n'importe quel
 sans écrire une ligne d'imports, `fixElevation` compris. C'est la différence entre « une
 bibliothèque qu'on embarque » et « un binaire qu'on exécute ».
 
-## 4. Ce que ça coûterait
+## 5. Ce que ça coûterait
 
 Un monde composant est une **ABI v2**, pas une option de compilation :
 
@@ -210,69 +290,101 @@ ici, sans génération de code) ; ce spike n'a **pas** testé wasmtime-go ni was
 intégrateur JVM ou Go doit vérifier lui-même que sa liaison expose les composants avant de
 compter sur ce verdict.
 
-## 5. Verdict
+## 6. Verdict
 
-**Non. Pas de phase F. Refus daté du 2026-07-31.**
+**Pas maintenant — mais la raison a changé, et elle est datée.**
 
-Ce n'est pas un « pas mûr » vague : les trois quarts de la mécanique marchent, et la mesure le
-montre. C'est un refus pour une raison unique et nommable :
+La première version de cette page refusait pour un motif technique : « il n'existe pas de
+générateur ». Ce motif est mort. Ce qui reste est un arbitrage, et il tient en trois lignes :
 
-> **Il n'existe pas de générateur de bindings Canonical ABI pour Kotlin.** Tout ce que
-> `wit-bindgen` produit ailleurs — lifting des `string`/`list`/`record`/`variant`, `resource`,
-> zones de retour, `cabi_post_return`, appels d'imports — est ici du code écrit à la main, sur une
-> API que la stdlib marque interne, contre un allocateur qui interdit à la stdlib de fonctionner
-> pendant l'appel. ~110 lignes pour un GET qui ne lit pas son corps donnent l'ordre de grandeur
-> pour 33 exports.
+1. **Le générateur n'est pas un produit.** Une branche d'un fork, sans release, sans publication,
+   sans intégration Gradle, dont le sample officiel dit que les bindings changeront. Adosser une
+   ABI publiée — versionnée, documentée sur 466 lignes, jouée en CI à chaque PR — à un `git clone`
+   d'une branche, c'est déplacer le risque de notre code vers un dépôt tiers que nous ne
+   contrôlons pas.
+2. **Le seul monde qui rapporte quelque chose est celui qui ne se génère pas.** `wasi:http` est
+   l'unique gain fonctionnel, et c'est précisément l'arbre WIT que le générateur refuse
+   aujourd'hui (§2). Faire l'ABI v2 pour le monde `engine-hosted-tiles`, c'est payer une refonte
+   complète pour de l'ergonomie d'intégrateur, en gardant `fetch_tile`.
+3. **Les lectures en vrac régressent.** `vcPathFieldBytes` existe parce qu'« un appel d'export par
+   point et par champ est une traversée de frontière par valeur, ce qu'aucune trace de 50 000
+   points ne supporte » (ABI §7). Le binding généré n'y ramène pas la traversée par valeur, mais
+   il y ramène une `List<Double>` boxée — et une tuile d'1 Mio devient un million d'`UByte` boxés
+   sur le chemin chaud de `fixElevation`.
 
-Échanger une ABI figée, versionnée, documentée sur 466 lignes et jouée en CI contre cette
-quantité de glue manuelle serait un mauvais marché — et `wasi:http`, seul gain fonctionnel, ne
-supprime pas le travail de §8, il le déplace vers le guest.
+Aucun des trois n'est définitif. Aucun des trois n'est de notre ressort. C'est exactement la
+situation où l'on cadre le travail et où l'on attend.
 
-### Conditions de réouverture
+## 7. Phase F, cadrée et en attente
 
-Réouvrir la question **dès qu'une seule** de ces deux conditions tombe, sans attendre l'autre :
+À déclencher quand les conditions de §8 sont réunies, pas avant. Les coûts sont ceux mesurés
+ci-dessus, pas des estimations à vue.
 
-1. **[KT-64569](https://youtrack.jetbrains.com/issue/KT-64569) est résolue**, c'est-à-dire que le
-   compilateur Kotlin émet un composant ou qu'un `wit-bindgen` Kotlin existe et est supporté. Le
-   critère de recevabilité est précis : que `parse-gpx: func(gpx: string) -> result<path, error>`
-   se génère, et que le guest puisse appeler `withScopedMemoryAllocator` — ou n'en ait plus besoin
-   — pendant cet appel.
-2. **`componentModelRealloc` quitte `@ComponentModelInternalApi`** et gagne son paramètre
-   d'alignement, ce qui vaudrait engagement de stabilité.
+| Tâche | Contenu | Appui mesuré |
+|---|---|---|
+| f01 | Figer le `.wit` comme contrat : reprendre `vcyclist-engine.wit`, arbitrer les 6 exports supprimés, décider `engine` vs `engine-hosted-tiles` | le `.wit` existe et résout |
+| f02 | Intégrer le générateur au build (tâche Gradle, version épinglée, sortie en `build/generated`, jamais commitée) | aujourd'hui : `generate-bindings.sh` + un `git clone` |
+| f03 | Remplir les 27 stubs en déléguant au moteur, sur le modèle de `EngineJsApi` | 53 lignes de stubs, 3 déjà remplies dans le spike |
+| f04 | Traiter les listes en vrac : mesurer `path.field` et `fetch-tile` sur une vraie trace, et arbitrer (garder un export d'octets hors WIT ? attendre le générateur ?) | la régression est identifiée, pas chiffrée |
+| f05 | `wasi:http` : `TileFetcher.wasmWasi.kt` par-dessus `outgoing-handler`, **avec** retries, timeouts, `User-Agent` et respect des conditions du serveur — ce que l'hôte faisait | ~110 lignes à la main pour un GET sans corps ; à générer |
+| f06 | Refaire `wasm-wasi-abi.md` (466 l.), `host.py` (392 l.), `test_engine.py` (472 l.), la CI, le `.wasm` publié et son plafond de taille ; `vcAbiVersion` → 2 | inventaire de §5 |
+
+Ordre imposé : **f01 → f02 → f03 → f06**, f04 en parallèle de f03, f05 seulement si le monde
+`engine` se génère (sinon la phase F ne livre que de l'ergonomie et doit être re-arbitrée à ce
+moment-là).
+
+## 8. Conditions de déclenchement
+
+Réouvrir **dès que** :
+
+1. le générateur Kotlin est **livré** — release taguée, ou publication, ou intégration Gradle
+   officielle, ou absorption dans le `wit-bindgen` amont ; le fait que
+   [KT-64569](https://youtrack.jetbrains.com/issue/KT-64569) soit résolue vaut aussi ;
+2. **et** qu'il génère le monde `wasi:http` (le bug de doublons d'interfaces est corrigé, ou
+   l'arbre WIT amont l'est).
+
+À surveiller en plus, parce que chacun change l'arbitrage sans le déclencher :
+
+- `componentModelRealloc` quitte `@ComponentModelInternalApi` et récupère son paramètre
+  d'alignement — le générateur ne serait plus obligé de le jeter ;
+- les listes de scalaires cessent d'être boxées côté Kotlin (`DoubleArray`/`ByteArray`) ;
+- une liaison composant apparaît côté hôtes JVM ou Go, ce qui étendrait le gain au-delà de Python
+  et Rust.
 
 Le sample [sample-wasi-http-kotlin](https://github.com/Kotlin/sample-wasi-http-kotlin/) reste le
-signal à surveiller : il annonce lui-même des bindings *« subject to change and certainly not
-final »*, ce que ce spike confirme depuis l'autre bout.
+signal le plus lisible : le jour où il n'a plus besoin de cloner un fork dans son `make setup`,
+la condition n°1 est remplie.
 
 ### Ce que ce verdict ne dit pas
 
-- Que l'ABI v1 est parfaite. Le `.wit` de `tools/wasi-component/` liste ce qu'elle paie :
-  `vcLastError`, la table de handles, les longueurs d'octets, le NaN. C'est de l'élégance, et
-  l'élégance ne justifie pas une ABI v2.
-- Que le Component Model est immature. Il ne l'est pas — `wasm-tools`, l'adapter et wasmtime ont
-  fait ici exactement ce qu'ils promettent, sur un module WASM-GC qu'ils n'ont pas été écrits pour
-  digérer. **C'est le support Kotlin qui manque, pas la spécification.**
+- Que l'ABI v1 est parfaite. Le `.wit` liste ce qu'elle paie : `vcLastError`, la table de handles,
+  les longueurs d'octets, le NaN. C'est de l'élégance, et l'élégance ne justifie pas seule une
+  ABI v2 — mais elle en justifierait une partie le jour où le reste est réuni.
+- Que le Component Model est immature. Il ne l'est pas : `wasm-tools`, l'adapter et wasmtime ont
+  fait exactement ce qu'ils promettent, sur un module WASM-GC qu'ils n'ont pas été écrits pour
+  digérer, et le générateur JetBrains a produit 2 544 lignes correctes du premier coup sur une
+  ABI qu'il n'avait jamais vue. **C'est la livraison de l'outillage Kotlin qui manque, pas sa
+  faisabilité.**
 
-## 6. Réserves de méthode
+## 9. Réserves de méthode
 
 - **Le spike tourne sur Kotlin 2.4.20-Beta2, pas 2.4.20 final** : w08 n'est pas faite et w07 est
   🟡. La fiche demandait l'inverse, pour ne pas faire porter le doute sur le compilateur. Aucun
   résultat ci-dessus ne dépend pourtant d'un correctif de compilateur : l'absence de générateur,
   le statut interne de `componentModelRealloc` et l'exclusion mutuelle des deux allocateurs sont
-  des faits d'API, pas des bugs. `./reproduce.sh` les rejouera tels quels sur la finale, et la
-  conclusion ne devrait changer que si la 2.4.20 apporte un `wit-bindgen` — auquel cas c'est la
-  condition de réouverture n°1 qui est remplie.
+  des faits d'API, pas des bugs. `./reproduce.sh` les rejouera tels quels sur la finale.
 - `tools/wasi-component/spike-guest` consomme `:engine` via **mavenLocal**, pas par référence de
   projet : le build vcyclist n'est pas touché, conformément aux non-buts de la fiche.
 - La chirurgie sur le `.wat` de §1.2 (renommage des exports en kebab) n'a servi qu'à isoler la
   question « les exports scalaires se liftent-ils ? ». Le bout en bout de §1.4 et §3 n'en utilise
   rien : il passe par de vrais `@WasmExport("nom-kebab")`.
 
-## 7. Voir aussi
+## 10. Voir aussi
 
 | Question | Où |
 |---|---|
 | Rejouer toutes les mesures | [`tools/wasi-component/README.md`](../tools/wasi-component/README.md) |
+| Les bindings générés, lisibles sans cargo | `tools/wasi-component/spike-bindgen/src/wasmWasiMain/kotlin/` |
 | L'ABI v1 traduite en WIT | [`tools/wasi-component/vcyclist-engine.wit`](../tools/wasi-component/vcyclist-engine.wit) |
 | L'ABI v1 elle-même | [`wasm-wasi-abi.md`](wasm-wasi-abi.md) |
 | Les notes d'ingénierie de la cible | [`kotlin-wasm-wasi.md`](kotlin-wasm-wasi.md) |
