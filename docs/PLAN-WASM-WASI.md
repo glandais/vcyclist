@@ -88,6 +88,8 @@ reste intact.
 | **— Phase E : autonomie complète (optionnel) —** | | | |
 | w11 | Décodeur WebP/VP8L pur Kotlin — `:elevation` autonome sous WASI | `:elevation` | ✅ |
 | w12 | Encodeur FIT pur Kotlin — `pathToFit` sous WASI | `:fit` `:engine` | ✅ |
+| **— Hors phases : exploratoire —** | | | |
+| w13 | Spike Component Model / WASI 0.2 — verdict mesuré, aucune production touchée | docs tools | ✅ |
 
 🟡 = plomberie livrée et vérifiée en local, publication réelle en attente de w08 (Kotlin 2.4.20
 n'est pas sortie : Maven Central s'arrête à `2.4.20-Beta2`).
@@ -100,9 +102,14 @@ réseau.
 
 ## Ce qui n'est explicitement pas fait
 
-- **Le Component Model / WIT / WASI Preview 2.** Kotlin n'émet pas de composant ; on reste sur
-  un module core WASI Preview 1 avec des imports custom. Un wrapper `wit-component` reste
-  possible côté hôte, hors périmètre.
+- **Le Component Model / WIT / WASI Preview 2.** Écarté sur mesure par la tâche w13, pas par
+  présomption : le verdict est [`wasm-wasi-component-model.md`](wasm-wasi-component-model.md).
+  L'outillage digère bien le module WASM-GC, et un composant qui exécute vraiment le moteur a été
+  produit (`wasi:http` compris, HTTP 200 sur une vraie tuile) — mais il n'existe pas de générateur
+  de bindings Canonical ABI pour Kotlin, et `componentModelRealloc` est une API interne qui exclut
+  `withScopedMemoryAllocator` pendant l'appel. Refus daté du 2026-07-31, réouverture à
+  [KT-64569](https://youtrack.jetbrains.com/issue/KT-64569). On reste sur un module core WASI
+  Preview 1 avec des imports custom.
 - **Un `.wasm` par module.** Un seul binaire, celui de `:engine`, qui contient tout le cœur.
 - **La publication npm d'un paquet WASI.** WASI n'est pas un artefact npm ; les paquets
   `@glandais/vcyclist-*` restent Kotlin/JS.
