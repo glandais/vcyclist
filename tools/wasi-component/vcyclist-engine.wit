@@ -1,0 +1,406 @@
+// The vcyclist WASI ABI v1, translated to WIT — on paper.
+//
+// Nothing builds this file. It exists to *price* the Component Model: what the 33 exports of
+// `docs/wasm-wasi-abi.md` §7 would look like as a WIT world, and therefore what an ABI v2 would
+// cost and what it would buy. The verdict that reads it is `docs/wasm-wasi-component-model.md`;
+// the spike that produced it is task w13.
+//
+// It is deliberately a translation of the ABI *as it is*, not a redesign: same exports, same
+// semantics, same defaults. Every place where the shape changes is a place where the current ABI
+// pays for the absence of the Component Model, and the comment says which.
+//
+// Checked with wasm-tools 1.255.0, against the wasi-http 0.2.7 WIT — `./reproduce.sh` does it.
+// 0.2.7 is the last tagged release of the wasi-http repository; wasmtime 47 treats it as
+// semver-compatible with the 0.2.12 interfaces its own adapter emits.
+
+package vcyclist:engine@1.0.0;
+
+// ---------------------------------------------------------------------------------------------
+// Errors — replaces §6 (sentinels -1..-4 + vcLastError)
+// ---------------------------------------------------------------------------------------------
+
+interface types {
+    /// What the four negative sentinels of ABI v1 become. The message travels *with* the error
+    /// instead of being fetched afterwards through `vcLastError`, which disappears entirely: the
+    /// deferred read exists only because a core function returning `i32` has nowhere to put a
+    /// string.
+    variant engine-error {
+        /// -1 ERR_GENERIC
+        failed(string),
+        /// -2 ERR_UNKNOWN_HANDLE — kept for parity, but see `resource path`: with resources this
+        /// case is unrepresentable, the runtime rejects a stale handle before the guest sees it.
+        unknown-handle,
+        /// -3 ERR_INVALID_ARGUMENT
+        invalid-argument(string),
+        /// -4 ERR_UNSUPPORTED — reserved since w12, nothing returns it.
+        unsupported(string),
+    }
+
+    /// §7 `vcFieldDefinitionsJson`. The `index` field of the JSON version is gone: in WIT the
+    /// position in the returned `list` *is* the index, and `list<f64>` below is addressed by it.
+    record field-definition {
+        prop: string,
+        unit: string,
+        short-description: string,
+        category-id: string,
+        category-name: string,
+        not-selectable: bool,
+        angles-in-radians: bool,
+    }
+
+    /// §7 `vcPointJson` — the JS `PointDto`, field for field.
+    record point {
+        latitude-deg: f64,
+        longitude-deg: f64,
+        elevation: f64,
+        time-ms: f64,
+        speed: f64,
+        p-computed-power: f64,
+        distance: f64,
+        grade: f64,
+    }
+
+    /// §7 `vcParseGpxWaypointsJson` — the JS `WaypointDto`. The `?` of the DTO becomes `option`,
+    /// which is the one place WIT is strictly more precise than the JSON: `null` and "absent"
+    /// stop being the same thing.
+    record waypoint {
+        latitude-deg: f64,
+        longitude-deg: f64,
+        elevation-m: option<f64>,
+        name: option<string>,
+        description: option<string>,
+        symbol: option<string>,
+        %type: option<string>,
+        time-epoch-ms: option<f64>,
+    }
+
+    record climb-part {
+        start-distance-m: f64,
+        end-distance-m: f64,
+        start-elevation-m: f64,
+        end-elevation-m: f64,
+        length-m: f64,
+        elevation-gain-m: f64,
+        grade: f64,
+    }
+
+    record climb {
+        start-index: u32,
+        end-index: u32,
+        start-distance-m: f64,
+        end-distance-m: f64,
+        start-elevation-m: f64,
+        end-elevation-m: f64,
+        length-m: f64,
+        elevation-gain-m: f64,
+        average-grade: f64,
+        climbing-grade: f64,
+        positive-elevation-m: f64,
+        negative-elevation-m: f64,
+        parts: list<climb-part>,
+    }
+
+    // -----------------------------------------------------------------------------------------
+    // Options — replaces §9 (JSON pulled through read_input, by byte length)
+    //
+    // Every `option<T>` here is one line of MiniJson parsing on the guest side and one JSON
+    // encoder on the host side that stop existing. "Absent means the engine's default" survives
+    // as `option` + none; "an unknown field is an error" becomes a *type* error at binding
+    // generation time, which is strictly better: the typo in `mass-kg` no longer compiles.
+    // -----------------------------------------------------------------------------------------
+
+    record enhance-options {
+        fix-elevation: option<bool>,
+        compute-max-speeds: option<bool>,
+        virtualize-track: option<bool>,
+        compute-one-point-per-second: option<bool>,
+        simplify-enabled: option<bool>,
+        simplify-tolerance-m: option<f64>,
+        simplify-z-exaggeration: option<f64>,
+    }
+
+    record cyclist {
+        mass-kg: f64,
+        cd: f64,
+        frontal-area-m2: f64,
+        max-lean-angle-deg: f64,
+        max-brake-g: f64,
+        max-speed-km-h: f64,
+    }
+
+    record bike {
+        crr: f64,
+        inertia-front: f64,
+        inertia-rear: f64,
+        wheel-radius-m: f64,
+        efficiency: f64,
+    }
+
+    record wind {
+        /// m/s
+        wind-speed: f64,
+        /// degrees, the direction the wind blows *toward* (§9)
+        wind-direction: f64,
+    }
+
+    /// §9 `power.type` is a string validated at run time and answered with -3. As a `variant` the
+    /// three shapes carry exactly their own parameters — `tiring-duration` cannot be set on a
+    /// constant power any more, which the JSON allows and silently ignores.
+    variant power-provider {
+        constant(f64),
+        constant-tiring(tiring-power),
+        from-data,
+    }
+
+    record tiring-power {
+        power: f64,
+        /// seconds
+        tiring-duration: f64,
+    }
+
+    record course {
+        cyclist: option<cyclist>,
+        bike: option<bike>,
+        wind: option<wind>,
+        power: option<power-provider>,
+        options: option<enhance-options>,
+        use-harmonics: option<bool>,
+    }
+
+    record climb-options {
+        min-min-climb-elevation-m: option<f64>,
+        max-min-climb-elevation-m: option<f64>,
+        min-climb-elevation-ratio: option<f64>,
+        min-grade-percent: option<f64>,
+        max-diff-real-grade: option<f64>,
+        booster: option<f64>,
+    }
+
+    record gpx-write-options {
+        write-extensions: option<bool>,
+        track-name: option<string>,
+        start-time-epoch-ms: option<s64>,
+    }
+
+    record csv-options {
+        /// §9 keeps only the first character; `char` says so in the type.
+        separator: option<char>,
+        units-in-header: option<bool>,
+        decimals: option<u8>,
+    }
+
+    record json-options {
+        pretty: option<bool>,
+        decimals: option<u8>,
+        include-meta: option<bool>,
+    }
+
+    /// §9 `vcPathToFit`: `start-time-epoch-ms` is mandatory, which is why it is a bare field of a
+    /// mandatory record rather than an `option`. The "0 length is refused" rule of the ABI is the
+    /// type system's job here.
+    record fit-options {
+        name: option<string>,
+        start-time-epoch-ms: s64,
+        inter-path-gap-ms: option<s64>,
+    }
+
+    record tile-geometry {
+        tile-size: u32,
+        bytes-per-pixel: u32,
+        expected-bytes: u32,
+        layout: string,
+        encoding: string,
+        zoom-level: u32,
+        tile-format: tile-format,
+    }
+
+    enum tile-format {
+        rgba,
+        webp,
+    }
+
+    record elevation-config {
+        zoom-level: option<u32>,
+        tile-size: option<u32>,
+        cache-size: option<u32>,
+        tile-format: option<tile-format>,
+    }
+}
+
+// ---------------------------------------------------------------------------------------------
+// Paths — replaces §5 (integer handles, the guest-side table, vcRelease / vcReleaseAll)
+// ---------------------------------------------------------------------------------------------
+
+interface path-api {
+    use types.{engine-error, field-definition, point, waypoint, climb, climb-options,
+               enhance-options, course, gpx-write-options, csv-options, json-options, fit-options};
+
+    /// The whole of §5 collapses into this. `vcRelease` becomes the resource's destructor, called
+    /// by the caller's language (`with` in Python, `Drop` in Rust, try-with-resources in Java);
+    /// `vcReleaseAll` becomes dropping the instance; "a released handle is never reissued"
+    /// becomes a property of the runtime's table rather than a guest-side counter this project
+    /// maintains and tests. A leaked handle is still a leak, but it is now the caller's leak, in
+    /// the caller's ownership model.
+    resource path {
+        size: func() -> u32;
+        total-distance: func() -> f64;
+        duration-ms: func() -> f64;
+        elevation-gain: func() -> f64;
+        /// negative by convention, unchanged
+        elevation-loss: func() -> f64;
+        latitude-deg: func(index: u32) -> result<f64, engine-error>;
+        longitude-deg: func(index: u32) -> result<f64, engine-error>;
+
+        /// §6's NaN special case disappears: `none` says "no answer" without borrowing a value
+        /// from the answer space. `vcDominantHeadwindAzimuth` is the only export of the ABI that
+        /// had to, and it is the only one this line changes.
+        dominant-headwind-azimuth: func() -> option<f64>;
+
+        get-field: func(field-index: u32, point-index: u32) -> result<f64, engine-error>;
+        /// `vcPathFieldBytes`, and the one row of the table where the ABI is already optimal: the
+        /// canonical ABI lowers `list<f64>` to exactly the same contiguous little-endian block,
+        /// copied once. Nothing is gained here and nothing is lost.
+        field: func(field-index: u32) -> result<list<f64>, engine-error>;
+        point-at: func(index: u32) -> result<point, engine-error>;
+
+        enhance: func(options: option<enhance-options>) -> result<path, engine-error>;
+        enhance-with-course: func(payload: course) -> result<path, engine-error>;
+        detect-climbs: func(options: option<climb-options>) -> result<list<climb>, engine-error>;
+
+        write-gpx: func(options: option<gpx-write-options>) -> result<string, engine-error>;
+        to-csv: func(options: option<csv-options>) -> result<string, engine-error>;
+        to-json: func(options: option<json-options>) -> result<string, engine-error>;
+        to-fit: func(options: fit-options) -> result<list<u8>, engine-error>;
+    }
+
+    /// `vcParseGpxMulti` + `vcListSize` + `vcListGet` — three exports and a second handle table
+    /// for what is a `list` in every language that has one. The list handle existed because a
+    /// core export cannot return a variable number of things; here it does.
+    ///
+    /// It stays a resource rather than a plain `list<path>` only where the paths must outlive the
+    /// call as a group (`write-gpx-tracks`, `to-fit`), and even that is expressible as
+    /// `list<borrow<path>>` — see below. So the resource is not needed at all.
+    enum parse-mode {
+        /// tracks *and* routes
+        tracks-and-routes,
+        segments,
+        tracks-only,
+        routes-only,
+    }
+
+    /// §4's transfer protocol in one line. `read_input`, `write_output`, the scoped arena, the
+    /// two rules that "corrupt state rather than fail cleanly", the byte-length arguments: all of
+    /// it is the canonical ABI's job now, generated on both sides.
+    parse-gpx: func(gpx: string) -> result<path, engine-error>;
+    parse-gpx-multi: func(gpx: string, mode: parse-mode) -> result<list<path>, engine-error>;
+    parse-gpx-waypoints: func(gpx: string) -> result<list<waypoint>, engine-error>;
+
+    field-definitions: func() -> list<field-definition>;
+
+    write-gpx-tracks: func(paths: list<borrow<path>>, options: option<gpx-write-options>)
+        -> result<string, engine-error>;
+    paths-to-fit: func(paths: list<borrow<path>>, options: fit-options)
+        -> result<list<u8>, engine-error>;
+    dominant-headwind-azimuth-of-tracks: func(paths: list<borrow<path>>) -> option<f64>;
+}
+
+// ---------------------------------------------------------------------------------------------
+// Elevation — replaces §8 (the fetch_tile import the host must implement)
+// ---------------------------------------------------------------------------------------------
+
+interface elevation {
+    use types.{elevation-config, tile-geometry, engine-error};
+
+    /// Sticky and validated on the spot, exactly as `vcSetElevationConfig`.
+    set-config: func(config: elevation-config) -> result<_, engine-error>;
+    /// Kept for hosts that still serve tiles themselves; with `wasi:http` it is informational.
+    geometry: func() -> tile-geometry;
+}
+
+/// The alternative to `wasi:http`, if the guest must not do its own networking: the same callback
+/// as today, typed. Written out to make the comparison honest — this interface is what §8 becomes
+/// if the tiles keep coming from the host, and it is *not* what makes the module autonomous.
+interface tile-source {
+    fetch-tile: func(zoom: u32, x: u32, y: u32) -> option<list<u8>>;
+}
+
+// ---------------------------------------------------------------------------------------------
+// The worlds
+// ---------------------------------------------------------------------------------------------
+
+/// Host-served tiles: the faithful translation of ABI v1. Two custom imports of the three are
+/// gone (`read_input`, `write_output` are the canonical ABI); the third survives as `tile-source`.
+world engine-hosted-tiles {
+    import tile-source;
+    export types;
+    export path-api;
+    export elevation;
+}
+
+/// What the spike is actually about. The module fetches its own DEM tiles and imports nothing
+/// from the embedder but a standard, already-specified interface — §8 of the ABI does not move,
+/// it ceases to exist, and so does every host-side line that implements it.
+///
+/// The cache, the concurrency limit and the retries that a host provides today have to live
+/// somewhere; in this world they live in the guest. See the verdict, §3: that is a real cost, not
+/// a disappearance.
+world engine {
+    import wasi:http/outgoing-handler@0.2.7;
+    export types;
+    export path-api;
+    export elevation;
+}
+
+// ---------------------------------------------------------------------------------------------
+// The 33 exports of §7, one line each
+// ---------------------------------------------------------------------------------------------
+//
+//  1 vcAbiVersion                       — GONE. The world's package version (`@1.0.0`) is the
+//                                          version, and a runtime refuses a mismatch before the
+//                                          guest runs. This export exists only because a core
+//                                          module cannot describe itself.
+//  2 vcLastError                        — GONE, folded into `engine-error` (interface types).
+//  3 vcRelease                          — GONE, `resource path` destructor.
+//  4 vcReleaseAll                       — GONE, drop the instance.
+//  5 vcParseGpx                         → path-api.parse-gpx
+//  6 vcParseGpxMulti                    → path-api.parse-gpx-multi (returns list<path>)
+//  7 vcParseGpxWaypointsJson            → path-api.parse-gpx-waypoints (list<waypoint>, not JSON)
+//  8 vcListSize                         — GONE, `list.len()` on the caller's side.
+//  9 vcListGet                          — GONE, indexing.
+// 10 vcPathSize                         → path.size
+// 11 vcPathTotalDistance                → path.total-distance
+// 12 vcPathDurationMs                   → path.duration-ms
+// 13 vcPathElevationGain                → path.elevation-gain
+// 14 vcPathElevationLoss                → path.elevation-loss
+// 15 vcPathLatitudeDeg                  → path.latitude-deg
+// 16 vcPathLongitudeDeg                 → path.longitude-deg
+// 17 vcFieldDefinitionsJson             → path-api.field-definitions (list<field-definition>)
+// 18 vcGetField                         → path.get-field
+// 19 vcPathFieldBytes                   → path.field (list<f64>; the one export that gains nothing)
+// 20 vcPointJson                        → path.point-at
+// 21 vcEnhance                          → path.enhance
+// 22 vcEnhanceWithCourse                → path.enhance-with-course
+// 23 vcSetElevationConfig               → elevation.set-config
+// 24 vcTileGeometryJson                 → elevation.geometry
+// 25 vcDetectClimbsJson                 → path.detect-climbs
+// 26 vcDominantHeadwindAzimuth          → path.dominant-headwind-azimuth (option, not NaN)
+// 27 vcDominantHeadwindAzimuthOfTracks  → path-api.dominant-headwind-azimuth-of-tracks
+// 28 vcWriteGpx                         → path.write-gpx
+// 29 vcWriteGpxTracks                   → path-api.write-gpx-tracks
+// 30 vcPathToCsv                        → path.to-csv
+// 31 vcPathToJson                       → path.to-json
+// 32 vcPathToFit                        → path.to-fit
+// 33 vcPathsToFit                       → path-api.paths-to-fit
+//
+// 33 exports in, 27 functions out, 6 of them deleted rather than translated — and not one of the
+// 33 fails to translate. The three imports of §3 go the same way: `read_input` and `write_output`
+// are the canonical ABI itself, `fetch_tile` is either `tile-source` (world
+// engine-hosted-tiles) or `wasi:http` (world engine).
+//
+// What does NOT appear anywhere above, and is the point of the exercise:
+//   - the byte-length arguments (`byteLen`, `optionsJsonLen`, `payloadJsonLen`) — 14 exports;
+//   - `MiniJson.kt` (282 lines) and `WasiOptions.kt` (279 lines) on the guest side;
+//   - the JSON encoder/decoder on every host side;
+//   - `WasiAbi.kt`'s handle table (142 lines) and its shared counter;
+//   - the "do not re-enter an export from a callback" and "do not keep a pointer" rules;
+//   - the NaN convention of `vcDominantHeadwindAzimuth`.

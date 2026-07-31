@@ -449,7 +449,9 @@ Three things have no JS counterpart: `vcAbiVersion`, `vcSetElevationConfig`,
   reference DEM serves. A lossy `VP8 ` or extended `VP8X` file is refused with its fourcc named;
   a host facing one must decode it itself and use `"rgba"` mode.
 - **No Component Model / WIT.** Core module, custom imports. Wrapping it with `wit-component` on
-  the host side is possible and not something this project does.
+  the host side is possible — task w13 did it, and got a component that runs the engine correctly
+  — and it is still not something this project does. The measurement, and why, is in
+  [`wasm-wasi-component-model.md`](wasm-wasi-component-model.md).
 - **No concurrency.** One instance, one caller, tiles fetched one at a time.
 - **`vcWriteGpxTracks` drops waypoints**, as noted above. Keep them from
   `vcParseGpxWaypointsJson` and merge them yourself if you need them.
@@ -464,3 +466,4 @@ Three things have no JS counterpart: `vcAbiVersion`, `vcSetElevationConfig`,
 | The JavaScript façade this mirrors | [`kotlin-js-jvm-webp.md`](kotlin-js-jvm-webp.md) |
 | DEM tiles, attribution, coverage | [`elevation-integration.md`](elevation-integration.md) |
 | How artefacts ship | [`publishing.md`](publishing.md) |
+| Why there is no WIT / component | [`wasm-wasi-component-model.md`](wasm-wasi-component-model.md) |

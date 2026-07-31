@@ -122,15 +122,36 @@ jeu, et le verdict doit le dire).
 
 ## Validation
 
-- [ ] `wasm-tools component new` tenté sur le binaire publié, résultat consigné avec les versions
-      de `wasm-tools`, `wasmtime` et Kotlin.
-- [ ] Le `.wit` couvre les **33 exports** de la §7 — ou nomme ceux qui ne se traduisent pas et
-      pourquoi.
-- [ ] Le gain `wasi:http` est chiffré, cache et retries compris, pas seulement affirmé.
-- [ ] `docs/wasm-wasi-component-model.md` tranche explicitement, sans « à voir ».
-- [ ] `./gradlew check` reste vert : **rien** de la production n'a bougé.
-- [ ] Arbre propre — les artefacts jetables sont dans `tools/wasi-component/`, `.gitignore`
-      ajusté si besoin.
+- [x] `wasm-tools component new` tenté sur le binaire publié, résultat consigné avec les versions
+      de `wasm-tools`, `wasmtime` et Kotlin. → il **accepte** le module WASM-GC (526 849 o, valide)
+      mais produit un composant **sans aucun export**.
+- [x] Le `.wit` couvre les **33 exports** de la §7 — ou nomme ceux qui ne se traduisent pas et
+      pourquoi. → 27 fonctions, 6 supprimées plutôt que traduites, aucune intraduisible.
+- [x] Le gain `wasi:http` est chiffré, cache et retries compris, pas seulement affirmé. → HTTP 200
+      réel sur une vraie tuile, ~110 lignes de glue pour le seul statut, et §8 **déménage** vers le
+      guest au lieu de disparaître.
+- [x] `docs/wasm-wasi-component-model.md` tranche explicitement, sans « à voir ». → refus daté,
+      condition de réouverture nommée (KT-64569).
+- [x] `./gradlew check` reste vert : **rien** de la production n'a bougé.
+- [x] Arbre propre — les artefacts jetables sont dans `tools/wasi-component/`, `.gitignore`
+      ajusté si besoin. → `build/` était déjà ignoré, rien à ajuster.
+
+## Résultat
+
+**Refus daté du 2026-07-31**, pas de phase F : le verdict est
+[`docs/wasm-wasi-component-model.md`](../wasm-wasi-component-model.md), les mesures se rejouent
+avec [`tools/wasi-component/reproduce.sh`](../../tools/wasi-component/README.md).
+
+Trois écarts avec la fiche, assumés :
+
+1. **La dépendance à w08 n'est pas respectée** — le spike tourne sur 2.4.20-Beta2, w08 et w07
+   n'étant pas faites. Aucun résultat n'en dépend (voir §6 du verdict), mais c'est à savoir.
+2. **L'étape 1 ne s'est pas arrêtée au premier refus** : l'encodeur exige un adapter pour les
+   imports `vcyclist` avant de dire quoi que ce soit du reste. Un module de stub lève l'obstacle,
+   et c'est ce refus-là qui est consigné.
+3. **L'étape 4 va plus loin que ses trois exports** : elle a dû fabriquer à la main le
+   `cabi_realloc`, une `string` sortante et dix imports `wasi:http`, faute de générateur. C'est
+   précisément ce coût-là qui fonde le verdict.
 
 ## Done when
 

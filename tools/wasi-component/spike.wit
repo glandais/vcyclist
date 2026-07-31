@@ -1,0 +1,19 @@
+package vcyclist:spike;
+
+world engine {
+  import wasi:http/outgoing-handler@0.2.7;
+  import wasi:random/random@0.2.7;
+  export abi-version: func() -> s32;
+  export parse-gpx: func(gpx: string) -> s32;
+  export total-distance: func(handle: s32) -> f64;
+  export path-size: func(handle: s32) -> s32;
+  export str-len: func(s: string) -> s32;
+  export try-parse: func(gpx: string) -> s32;
+  export last-error-len: func() -> s32;
+  export last-error: func() -> string;
+  export probe-scoped: func(s: string) -> s32;
+  export parse-gpx-freeing: func(gpx: string) -> s32;
+  export random-sum: func(n: s32) -> s32;
+  export http-get-status: func(authority: string, path: string) -> s32;
+  export http-debug: func(authority: string, path: string, step: s32) -> s32;
+}
