@@ -9,7 +9,7 @@ jobs:
       - uses: actions/checkout@v7
       - uses: actions/setup-java@v5
         with: { java-version: 21, distribution: temurin }
-      - uses: gradle/actions/setup-gradle@v6
+      - uses: gradle/actions/setup-gradle@v6.2.0
 
       # `wasmWasiWasmtimeTest` (task w01) runs the WASI tests of :gpx, :elevation, :fit and
       # :engine inside wasmtime, which KGP downloads itself into `$GRADLE_USER_HOME/wasmtime/`
