@@ -31,7 +31,7 @@ jobs:
           node-version: 25
           registry-url: 'https://registry.npmjs.org/'
 
-      - uses: gradle/actions/setup-gradle@v6.2.0
+      - uses: gradle/actions/setup-gradle@v6.3.0
 
       - name: Run full check (build + tests on all targets)
         # actions/setup-node (registry-url) writes an .npmrc with `_authToken=${NODE_AUTH_TOKEN}`
