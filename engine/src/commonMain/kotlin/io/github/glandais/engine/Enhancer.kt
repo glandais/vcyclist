@@ -13,6 +13,7 @@ import io.github.glandais.engine.physics.RhoProviderEstimate
 import io.github.glandais.engine.physics.VirtualizeService
 import io.github.glandais.engine.physics.WindProviderNone
 import io.github.glandais.engine.physiology.WPrimeBalanceComputer
+import io.github.glandais.engine.trajectory.PathCurvature
 
 /**
  * Top-level enhancement pipeline : transforms a raw GPS [Path] into a physics-aware
@@ -28,6 +29,9 @@ import io.github.glandais.engine.physiology.WPrimeBalanceComputer
  *    spacing so downstream physics (`MaxSpeedComputer`, `VirtualizeService`) operates on a
  *    dense, regular trace.
  * 4. smooth elevations (always runs — TS parity).
+ * 4b. **curvature** : writes `trajectoryCurvature` from heading regression in a local planar
+ *    frame. An annotation pass — no coordinate moves — but step 5 prefers it over its own
+ *    windowed estimate, so it changes `radius` and `speedMax`. Not in TS.
  * 5. compute max speeds (cornering + braking).
  * 6. virtualize track (time-stepping simulation).
  * 7. resample to 1 Hz.
@@ -117,6 +121,13 @@ object Enhancer {
 
         // Step 1d : smooth elevations (always runs — TS parity).
         path = ElevationStep.smoothElevation(path)
+
+        // Step 1e : curvature. Annotation only — writes `trajectoryCurvature` and nothing else,
+        // moves no coordinate. Placed here because the path is dense and its geometry is final,
+        // while `radius` / `speedMax` are still unwritten, so step 2 consumes it.
+        if (options.curvature.enabled) {
+            PathCurvature.compute(path, options.curvature)
+        }
 
         // Wrap the updated path into a fresh CoursePhysics carrying the new path.
         var working = course.copy(course = course.course.copy(path = path))

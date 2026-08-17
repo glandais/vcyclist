@@ -33,6 +33,7 @@ import io.github.glandais.engine.physics.Wind
 import io.github.glandais.engine.physics.WindProvider
 import io.github.glandais.engine.physics.WindProviderConstant
 import io.github.glandais.engine.physics.WindProviderNone
+import io.github.glandais.engine.trajectory.CurvatureOptions
 import io.github.glandais.fit.toFitBytes
 import kotlinx.coroutines.DelicateCoroutinesApi
 import kotlinx.coroutines.GlobalScope
@@ -131,6 +132,12 @@ external interface EnhanceOptionsDto {
 
     /** W′ (J) for the W′ balance field. Same independence caveat as [wPrimeBalanceCriticalPower]. */
     val wPrimeBalanceWPrime: Double?
+
+    /**
+     * Curvature estimation. Defaults to on — it corrects `radius` and `speedMax`, so turning it
+     * off restores the historical windowed estimate rather than saving work worth saving.
+     */
+    val curvatureEnabled: Boolean?
 }
 
 /**
@@ -449,6 +456,7 @@ private fun EnhanceOptionsDto?.toEnhanceOptions(): EnhanceOptions {
                 criticalPowerW = wPrimeBalanceCriticalPower ?: EngineConstants.DEFAULT_CRITICAL_POWER_W,
                 wPrimeJ = wPrimeBalanceWPrime ?: EngineConstants.DEFAULT_W_PRIME_J,
             ),
+        curvature = CurvatureOptions(enabled = curvatureEnabled ?: true),
     )
 }
 
@@ -465,6 +473,7 @@ private fun defaultJsOptions(): EnhanceOptions =
         virtualizeTrack = true,
         computeOnePointPerSecond = false,
         simplifyPath = SimplifyPathOptions(enabled = false),
+        curvature = CurvatureOptions(enabled = true),
     )
 
 // ── Expanded JS API (task 34) ────────────────────────────────────────────────────────────────

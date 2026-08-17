@@ -23,6 +23,7 @@ import io.github.glandais.engine.path.Path
 import io.github.glandais.engine.physics.AeroProviderConstant
 import io.github.glandais.engine.physics.PowerProviderFromData
 import io.github.glandais.engine.physics.RhoProviderEstimate
+import io.github.glandais.engine.trajectory.CurvatureOptions
 import io.github.glandais.fit.toFitBytes
 import kotlinx.coroutines.runBlocking
 import picocli.CommandLine
@@ -161,6 +162,17 @@ class EnhanceCommand : Callable<Int> {
     var simplifyToleranceM: Double = SimplifyPathOptions().toleranceM
 
     @field:CommandLine.Option(
+        names = ["--curvature"],
+        negatable = true,
+        description = [
+            "Estimate turn radius by heading regression in a local planar frame instead of the",
+            "older windowed bearing difference. Corrects tight bends, which the old estimate",
+            "reported as up to twice too open. (default: true)",
+        ],
+    )
+    var curvature: Boolean? = null
+
+    @field:CommandLine.Option(
         names = ["--one-point-per-second"],
         negatable = true,
         description = ["Resample to 1 Hz before simplifying (default: true)"],
@@ -258,6 +270,7 @@ class EnhanceCommand : Callable<Int> {
             virtualizeTrack = virtualize ?: true,
             computeOnePointPerSecond = onePointPerSecond ?: true,
             simplifyPath = SimplifyPathOptions(enabled = simplify ?: true, toleranceM = simplifyToleranceM),
+            curvature = CurvatureOptions(enabled = curvature ?: CurvatureOptions.DEFAULT.enabled),
         )
 
     private fun processOne(

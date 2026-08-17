@@ -8,6 +8,7 @@ import io.github.glandais.elevation.ElevationProviderConfig
 import io.github.glandais.elevation.RawTile
 import io.github.glandais.engine.gpx.GpxParser
 import io.github.glandais.engine.gpx.tracksAsPaths
+import io.github.glandais.engine.trajectory.CurvatureOptions
 import picocli.CommandLine
 import java.io.File
 import java.io.PrintWriter
@@ -186,6 +187,13 @@ class EnhanceCommandTest {
 
         assertEquals(true, parsed().pipelineOptions().computeOnePointPerSecond)
         assertEquals(false, parsed("--no-one-point-per-second").pipelineOptions().computeOnePointPerSecond)
+
+        // Curvature estimation is on by default — it corrects `radius`, so --no-curvature is an
+        // opt-out into the historical behaviour, not an opt-in to a feature. The default is read
+        // from the engine rather than restated, like every other default here.
+        assertEquals(CurvatureOptions.DEFAULT.enabled, parsed().pipelineOptions().curvature.enabled)
+        assertEquals(false, parsed("--no-curvature").pipelineOptions().curvature.enabled)
+        assertEquals(true, parsed("--curvature").pipelineOptions().curvature.enabled)
 
         // Elevation correction is off unless asked: a CLI should not reach the network silently.
         assertEquals(false, parsed().pipelineOptions().fixElevation)

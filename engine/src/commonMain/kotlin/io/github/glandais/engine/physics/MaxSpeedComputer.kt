@@ -16,9 +16,11 @@ import kotlin.math.sqrt
  * `speedMax[i] = min(corneringLimit(i), brakeFrom(i, i+1, speedMax[i+1]))`.
  *
  * - **Cornering** : `v_max = √(g × radius × tan(θ_lean))` — equivalently `√(µ·g·R)`, since
- *   `µ ≡ tan θ_lean` (see [io.github.glandais.engine.RoadCondition]). Radius is estimated by
- *   accumulating bearing changes over a window of ±10 points and dividing total distance by total
- *   angle, clamped to `[5 m, MAX_RADIUS=200 m]`. **Saturating the upper clamp means "no measurable
+ *   `µ ≡ tan θ_lean` (see [io.github.glandais.engine.RoadCondition]). Radius comes from the
+ *   `trajectoryCurvature` field when [io.github.glandais.engine.trajectory.PathCurvature] has
+ *   written it, and otherwise from the historical estimate that accumulates bearing changes over
+ *   a window of ±10 points and divides total distance by total angle. Either way it is
+ *   clamped to `[5 m, MAX_RADIUS=200 m]`. **Saturating the upper clamp means "no measurable
  *   curvature", so no cornering limit is applied at all** — applying `√(µ·g·200)` there would turn
  *   the clamp into a speed cap on dead-straight road, which is invisible at the dry default
  *   (133 km/h, above `maxSpeedKmH`) but binding in the wet (84 km/h).
@@ -77,11 +79,34 @@ object MaxSpeedComputer {
         return result
     }
 
+    /**
+     * Turn radius at [i], in metres, clamped to `[MIN_RADIUS_M, MAX_RADIUS_M]`.
+     *
+     * Prefers the `trajectoryCurvature` field when
+     * [io.github.glandais.engine.trajectory.PathCurvature] has written it, and otherwise falls
+     * back to the historical windowed bearing-difference estimate below. The field defaults to
+     * `NaN` (`PointField.nanDefault`), so the preference is a strict no-op when the curvature
+     * stage did not run — a zero default would read as "present, dead straight" and silently
+     * suppress every cornering limit on the route.
+     *
+     * **Writing `radius` is not optional.** [computeBrakingLimit] reads `path.radius(i)` back a
+     * few lines later and treats `radius <= 0.0` as "straight road, full braking budget", so an
+     * early return that skipped the write would hand every point the whole friction budget and
+     * disable the ellipse (ledger R11) across the entire path — while leaving the `radius` field
+     * empty in every export.
+     */
     private fun computeRadiusWindowed(
         path: Path,
         i: Int,
         k: Int,
     ): Double {
+        val kappa = path.trajectoryCurvature(i)
+        if (!kappa.isNaN()) {
+            val clamped = max(MIN_RADIUS_M, min(MAX_RADIUS_M, 1.0 / max(abs(kappa), 1.0 / MAX_RADIUS_M)))
+            path.setRadius(i, clamped)
+            return clamped
+        }
+
         val mini = max(0, i - k)
         val maxi = min(path.size - 1, i + k)
         val totalBearingChange = normalizeAngleDiff(path.bearing(maxi) - path.bearing(mini))

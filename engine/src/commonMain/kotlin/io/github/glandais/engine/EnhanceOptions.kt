@@ -1,5 +1,7 @@
 package io.github.glandais.engine
 
+import io.github.glandais.engine.trajectory.CurvatureOptions
+
 /**
  * Options for [io.github.glandais.engine.path.Path] simplification via Douglas-Peucker 3D.
  *
@@ -51,6 +53,8 @@ data class WPrimeBalanceOptions(
  * @param wPrimeBalance W′ balance annotation options — runs after the 1 Hz resample, writes one
  *   field and changes nothing else
  * @param simplifyPath Douglas-Peucker simplification options (task 23)
+ * @param curvature curvature-estimation options — writes `trajectoryCurvature`, which
+ *   `MaxSpeedComputer` prefers over its own windowed estimate
  */
 data class EnhanceOptions(
     val fixElevation: Boolean = true,
@@ -61,6 +65,7 @@ data class EnhanceOptions(
     // Appended last on purpose : `simplifyPath` is passed positionally by `EngineModelJvm`, and
     // inserting ahead of it would silently re-map an existing Java call site.
     val wPrimeBalance: WPrimeBalanceOptions = WPrimeBalanceOptions(),
+    val curvature: CurvatureOptions = CurvatureOptions(),
 ) {
     companion object {
         /** All steps enabled with TS-compatible defaults. */

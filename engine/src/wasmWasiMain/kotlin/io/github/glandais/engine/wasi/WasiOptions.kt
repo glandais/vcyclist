@@ -16,6 +16,7 @@ import io.github.glandais.engine.physics.Wind
 import io.github.glandais.engine.physics.WindProvider
 import io.github.glandais.engine.physics.WindProviderConstant
 import io.github.glandais.engine.physics.WindProviderNone
+import io.github.glandais.engine.trajectory.CurvatureOptions
 import kotlin.math.PI
 
 /**
@@ -46,6 +47,7 @@ private val ENHANCE_KEYS =
         "wPrimeBalanceEnabled",
         "wPrimeBalanceCriticalPower",
         "wPrimeBalanceWPrime",
+        "curvatureEnabled",
     )
 
 /**
@@ -77,6 +79,7 @@ internal fun JsonObj?.toEnhanceOptions(): EnhanceOptions {
                     double("wPrimeBalanceCriticalPower", defaults.wPrimeBalance.criticalPowerW),
                 wPrimeJ = double("wPrimeBalanceWPrime", defaults.wPrimeBalance.wPrimeJ),
             ),
+        curvature = CurvatureOptions(enabled = bool("curvatureEnabled", defaults.curvature.enabled)),
     )
 }
 
@@ -87,6 +90,7 @@ private fun defaultWasiOptions(): EnhanceOptions =
         virtualizeTrack = true,
         computeOnePointPerSecond = false,
         simplifyPath = SimplifyPathOptions(enabled = false),
+        curvature = CurvatureOptions(enabled = true),
     )
 
 private val CYCLIST_KEYS =
