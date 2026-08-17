@@ -29,6 +29,19 @@ const updateSimplifyField = <K extends keyof DemoEnhanceOptions['simplifyPath']>
         },
     });
 };
+
+const updateWPrimeField = <K extends keyof DemoEnhanceOptions['wPrimeBalance']>(
+    field: K,
+    value: DemoEnhanceOptions['wPrimeBalance'][K]
+) => {
+    emit('update:modelValue', {
+        ...props.modelValue,
+        wPrimeBalance: {
+            ...props.modelValue.wPrimeBalance,
+            [field]: value,
+        },
+    });
+};
 </script>
 
 <template>
@@ -118,6 +131,87 @@ const updateSimplifyField = <K extends keyof DemoEnhanceOptions['simplifyPath']>
                         >
                     </span>
                 </label>
+            </div>
+        </div>
+
+        <div class="mb-8 pt-6 border-t-2 border-gray-200">
+            <h4 class="text-lg font-semibold text-gray-700 mb-4">W′ Balance</h4>
+
+            <label
+                class="flex items-start gap-3 p-4 bg-gray-50 border-2 border-gray-200 rounded-lg cursor-pointer hover:bg-gray-100 hover:border-blue-500 transition-all mb-6"
+            >
+                <UCheckbox
+                    :modelValue="modelValue.wPrimeBalance.enabled"
+                    @update:modelValue="
+                        updateWPrimeField('enabled', !modelValue.wPrimeBalance.enabled)
+                    "
+                    class="mt-1"
+                />
+                <span class="flex flex-col gap-1">
+                    <strong class="text-gray-800">Annotate the W′ balance</strong>
+                    <small class="text-gray-600 text-sm"
+                        >Tracks how much of the anaerobic reserve is left at each point. Adds the
+                        <code>wPrimeBalance</code> field and changes nothing else — select it in the
+                        Fields sidebar to plot it.</small
+                    >
+                </span>
+            </label>
+
+            <div
+                v-if="modelValue.wPrimeBalance.enabled"
+                class="p-6 bg-gray-50 rounded-lg border-l-4 border-blue-500"
+            >
+                <label class="flex items-start gap-3 cursor-pointer mb-4">
+                    <UCheckbox
+                        :modelValue="modelValue.wPrimeBalance.linkToPowerModel"
+                        @update:modelValue="
+                            updateWPrimeField(
+                                'linkToPowerModel',
+                                !modelValue.wPrimeBalance.linkToPowerModel
+                            )
+                        "
+                        class="mt-1"
+                    />
+                    <span class="flex flex-col gap-1">
+                        <strong class="text-gray-800">Use the power model's CP and W′</strong>
+                        <small class="text-gray-600 text-sm"
+                            >On by default. Untick to report the simulated rider's effort against a
+                            <em>different</em> physiology — legitimate, but then the trace no longer
+                            describes the rider shown in the Power tab.</small
+                        >
+                    </span>
+                </label>
+
+                <template v-if="!modelValue.wPrimeBalance.linkToPowerModel">
+                    <SliderInput
+                        :model-value="modelValue.wPrimeBalance.criticalPower"
+                        @update:model-value="updateWPrimeField('criticalPower', $event)"
+                        label="Reporting CP"
+                        unit="W"
+                        :min="100"
+                        :max="450"
+                        :step="5"
+                        tooltip="Critical power used to score the ride, independent of the rider being simulated."
+                    />
+
+                    <SliderInput
+                        :model-value="modelValue.wPrimeBalance.wPrime / 1000"
+                        @update:model-value="updateWPrimeField('wPrime', $event * 1000)"
+                        label="Reporting W′"
+                        unit="kJ"
+                        :min="5"
+                        :max="40"
+                        :step="1"
+                        tooltip="Anaerobic work capacity used to score the ride."
+                    />
+                </template>
+
+                <p class="text-gray-700 text-sm m-0">
+                    Enable <strong>Resample to 1Hz</strong> above for the most faithful trace, and
+                    note that <strong>Path Simplification</strong> runs after this pass with no
+                    knowledge of it — a simplified path carries a sampled W′ trace, in which a deep
+                    trough between two kept points can vanish.
+                </p>
             </div>
         </div>
 

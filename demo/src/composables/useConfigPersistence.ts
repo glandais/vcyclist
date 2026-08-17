@@ -36,14 +36,32 @@ const migrateConfig = (data: SerializableConfig): SerializableConfig => {
         | undefined;
     if (power?.type === 'constant_tiring') {
         data.power = {
+            ...DEFAULT_CONFIG.power,
             type: PowerSourceType.durability,
             power: power.power ?? DEFAULT_CONFIG.power.power,
             useHarmonics: power.useHarmonics ?? DEFAULT_CONFIG.power.useHarmonics,
-            criticalPower: DEFAULT_CONFIG.power.criticalPower,
         };
-    } else if (power && power.criticalPower === undefined) {
+    } else if (power) {
+        // Fill in whatever the saved build did not know about (wPrime, pacing, slew…). A missing
+        // key must not reach the DTO as `undefined`: the engine reads that as "use my default",
+        // which is indistinguishable from a deliberate choice and hides the gap.
         data.power = { ...DEFAULT_CONFIG.power, ...power } as Config['power'];
     }
+
+    if (data.enhance) {
+        data.enhance = {
+            ...data.enhance,
+            wPrimeBalance: {
+                ...DEFAULT_CONFIG.enhance.wPrimeBalance,
+                ...(data.enhance.wPrimeBalance ?? {}),
+            },
+        };
+    }
+
+    if (data.cyclist && data.cyclist.roadCondition === undefined) {
+        data.cyclist = { ...data.cyclist, roadCondition: 'dry' };
+    }
+
     return data;
 };
 

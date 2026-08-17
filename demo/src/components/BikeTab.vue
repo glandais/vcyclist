@@ -82,6 +82,35 @@ const resetToDefault = () => {
             tooltip="Rolling resistance coefficient (lower = faster)"
         />
 
+        <SliderInput
+            :model-value="modelValue.maxPedalingLeanAngleDeg ?? 20"
+            @update:model-value="updateField('maxPedalingLeanAngleDeg', $event)"
+            label="Pedal Clearance Angle"
+            unit="°"
+            :min="10"
+            :max="90"
+            :step="1"
+            tooltip="Lean angle past which the inside pedal would strike the ground, so the rider stops pedalling. Set 90 to disable."
+        />
+
+        <div class="mb-6 p-4 bg-amber-50 rounded-lg border-l-4 border-amber-500 text-sm">
+            <p class="text-gray-800 m-0">
+                <template v-if="(modelValue.maxPedalingLeanAngleDeg ?? 20) >= 90">
+                    The cut-off is <strong>disabled</strong>: the rider pedals at full power through
+                    every hairpin.
+                </template>
+                <template v-else>
+                    The rider stops pedalling past
+                    <strong>{{ modelValue.maxPedalingLeanAngleDeg ?? 20 }}°</strong> of lean. This
+                    barely moves the clock — about 0.3 % — because it fires exactly where cornering
+                    or braking was throwing the power away anyway. Watch
+                    <code>pCyclistProvidedMuscular</code> against
+                    <code>pCyclistProvidedOptimalPower</code> in the chart: the gap between them
+                    <em>is</em> the cut-off.
+                </template>
+            </p>
+        </div>
+
         <UCollapsible class="mt-6 rounded-lg border border-gray-200">
             <template #default="{ open }">
                 <button

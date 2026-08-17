@@ -116,13 +116,56 @@ font quelque chose, puisque plusieurs ne bougent presque pas le chrono. Sélecti
 
 ## Done when
 
-- [ ] Sec/mouillé dans l'onglet Cyclist, au-dessus de l'angle de carre
-- [ ] Angle de pédalage dans l'onglet Bike, `BikeDto` du shim complété
-- [ ] Quatre modèles de puissance + deux décorateurs indépendants
-- [ ] CP/W′ du champ W′bal, divergence avec le modèle de puissance traitée explicitement
-- [ ] Presets et persistance à jour
-- [ ] Cas 1 vérifié : la config par défaut ne bouge pas
-- [ ] typecheck + lint + build verts, 7 cas passés dans le navigateur
+- [x] Sec/mouillé dans l'onglet Cyclist, au-dessus de l'angle de carre
+- [x] Angle de pédalage dans l'onglet Bike, `BikeDto` du shim complété
+- [x] Quatre modèles de puissance + deux décorateurs indépendants
+- [x] CP/W′ du champ W′bal, divergence avec le modèle de puissance traitée explicitement
+- [x] Presets et persistance à jour
+- [x] Cas 1 vérifié : la config par défaut ne bouge pas
+- [x] typecheck + lint + build verts, cas passés dans le navigateur
+
+## Résultat
+
+typecheck + lint + build verts. Validation menée dans Chrome sur `stelvio.gpx` (3,5 km, épingles),
+zéro erreur console sur toute la session.
+
+| Cas | Mesure |
+|---|---|
+| Sec → mouillé | 633 s → **674 s**, soit **+6,5 %** — l'ordre de grandeur du +7,1 % que le ledger mesure sur la même trace |
+| `critical-power` + allure + lissage | 583 s, soit −7,9 % contre le `constant` sec |
+| Angle de pédalage 20 → 90 | l'encart bascule sur « cut-off désactivé » |
+| Champ `wPrimeBalance` tracé | part de 20 kJ, tombe à ~0 au sommet (1,4 km), remonte à ~11 kJ dans la descente |
+| Rechargement | `roadCondition`, angle de pédalage, modèle, CP, W′, allure, lissage, champs sélectionnés : tout relu |
+
+La courbe W′bal est la vérification la plus parlante des cinq : sa forme — vidange en montée
+au-dessus de CP, recharge exponentielle en descente — est celle que décrit la physiologie, et elle
+est calculée avec le CP/W′ du modèle de puissance, ce qui prouve le chaînage complet UI → DTO →
+moteur → champ → graphe.
+
+Le −7,9 % est **le cas dont l'encart d'allure prévient** : `stelvio.gpx` est une montée pure, la
+règle n'a rien à redistribuer *vers*, elle se contente d'augmenter la puissance. La démo le dit
+maintenant à l'écran plutôt que de laisser lire un gain de 8 % comme une meilleure gestion.
+
+### Décisions prises à l'implémentation
+
+- **Le lissage est une case, pas un curseur.** Le moteur prend un taux en W/s (fiche `41`), la démo
+  n'expose que le choix marche/arrêt et envoie `SLEW_W_PER_S = 50`. C'est une borne de modélisation
+  de Zignoli & Biral, pas une propriété mesurée d'un coureur ; un curseur donnerait à croire le
+  contraire. Le taux reste réglable via l'API.
+- **Les décorateurs ne s'appliquent pas à `from_data`.** L'UI les masque pour ce modèle ; le
+  builder de DTO fait désormais pareil. Sans ça, activer l'allure puis basculer sur « depuis le
+  GPX » aurait continué à réécrire silencieusement la puissance enregistrée.
+- **`linkToPowerModel`, coché par défaut**, plutôt que deux CP indépendants et muets. La fiche
+  laissait le choix entre lier et avertir : deux CP qui divergent en silence produisent une trace
+  W′bal qui ne décrit pas le coureur affiché à côté, et c'est le cas surprenant, pas l'utile.
+- **`maxBrakeG` plafonné à 0,6** dans le curseur : au-delà de ~0,63 g le vélo bascule par-dessus la
+  roue avant, quelles que soient les gommes. Le curseur montait à 0,8.
+- **La condition de route n'entre pas dans les presets** mais devait survivre à leur application :
+  `applyPreset` la reconduit explicitement, sinon choisir « Pro » séchait la route en silence.
+- **La migration de config est devenue générique** : elle complète depuis `DEFAULT_CONFIG` toute
+  clé que la version enregistrée ne connaissait pas, au lieu de traiter le seul cas R17. Une clé
+  absente qui atteint le DTO en `undefined` se lit côté moteur comme « prends ton défaut », ce qui
+  est indiscernable d'un choix délibéré.
 
 ## Notes
 

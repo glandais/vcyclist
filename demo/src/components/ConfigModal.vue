@@ -55,9 +55,15 @@ const resetToDefault = () => {
 const applyPreset = (preset: keyof typeof PRESETS) => {
     const newValue: Config = { ...props.modelValue };
     newValue.bike = structuredClone(PRESETS[preset].bike);
-    newValue.cyclist = structuredClone(PRESETS[preset].cyclist);
+    newValue.cyclist = {
+        ...structuredClone(PRESETS[preset].cyclist),
+        // Road condition describes today's ride, not the rider, so the presets do not carry one
+        // and picking "Pro" must not silently dry the road.
+        roadCondition: props.modelValue.cyclist.roadCondition,
+    };
     newValue.power.power = PRESETS[preset].power;
     newValue.power.criticalPower = PRESETS[preset].criticalPower;
+    newValue.power.wPrime = PRESETS[preset].wPrime;
     emit('update:modelValue', newValue);
 };
 </script>

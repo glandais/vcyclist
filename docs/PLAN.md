@@ -92,7 +92,7 @@ Le projet TypeScript `virtual-cyclist` (simulateur de cyclisme basé physique av
 | **— Phase 10 : rattrapage démo / façade JS sur le ledger recherche —** | | | | |
 | 40 | Demo — réparer la rupture R17 (`constant_tiring` → `durability`) + presets `maxBrakeG` (R2) | ✅ | — | — (typecheck/lint/build verts, smoke Node : `constant_tiring` lève, `durability` +1,25 % sur sample.gpx) |
 | 41 | Engine — façade JS : rattrapage R9, R15, R16, R18, R19 | ✅ | — | 11 (jsTest, `EngineJsApiLedgerTest`) |
-| 42 | Demo — UI des modèles du ledger (R9, R10, R15, R16, R18, R19) | ⬜ | — | — |
+| 42 | Demo — UI des modèles du ledger (R9, R10, R15, R16, R18, R19) | ✅ | — | — (typecheck/lint/build verts ; Chrome sur stelvio : sec 633 s → mouillé 674 s, W′bal 20 kJ → 0 → 11 kJ) |
 | 43 | Garde-fou de parité cœur / CLI / façade JS / shim démo | ⬜ | — | — |
 
 **Cumul `:elevation` après Phase 1 + extras** : 20 classes de tests, **193 tests** (commonTest 182 + jvmTest 11 dont 6 opt-in) × 3 targets en mode standard = **557 exécutions** vertes (offline).

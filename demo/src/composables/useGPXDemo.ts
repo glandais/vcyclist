@@ -11,7 +11,7 @@ import {
     type PowerProviderDto,
     type WindDto,
 } from '~/engine-shim';
-import { type Config, PowerSourceType } from '~/types';
+import { type Config, PowerSourceType, SLEW_W_PER_S } from '~/types';
 
 export interface UseGPXDemoReturn {
     currentPath: Ref<Path | null>;
@@ -37,17 +37,42 @@ export function useGPXDemo(config: Ref<Config>): UseGPXDemoReturn {
 
     const buildPowerProviderDto = (): PowerProviderDto => {
         const p = config.value.power;
+        // Pacing (R19) and the slew limit (R18) are decorators in the engine: they compose over
+        // whichever model was picked, so they are spread onto every branch rather than being
+        // models of their own.
+        const decorators = {
+            pacing: p.pacing,
+            maxSlewWPerS: p.slew ? SLEW_W_PER_S : 0,
+        };
         switch (p.type) {
             case PowerSourceType.constant:
-                return { type: 'constant', power: p.power, useHarmonics: p.useHarmonics };
+                return {
+                    type: 'constant',
+                    power: p.power,
+                    useHarmonics: p.useHarmonics,
+                    ...decorators,
+                };
             case PowerSourceType.durability:
                 return {
                     type: 'durability',
                     power: p.power,
                     useHarmonics: p.useHarmonics,
                     criticalPower: p.criticalPower,
+                    ...decorators,
+                };
+            case PowerSourceType.critical_power:
+                return {
+                    type: 'critical-power',
+                    power: p.power,
+                    useHarmonics: p.useHarmonics,
+                    criticalPower: p.criticalPower,
+                    wPrime: p.wPrime,
+                    ...decorators,
                 };
             case PowerSourceType.from_data:
+                // No decorators: the UI hides them for this model, and replayed power is a
+                // recording, not a choice the rider is making — pacing or smoothing it would
+                // silently rewrite the data the user asked to see.
                 return { type: 'from_data' };
         }
     };
@@ -67,6 +92,16 @@ export function useGPXDemo(config: Ref<Config>): UseGPXDemoReturn {
             simplifyEnabled: e.simplifyPath.enable,
             simplifyToleranceM: e.simplifyPath.tolerance,
             simplifyZExaggeration: e.simplifyPath.zExaggeration,
+            wPrimeBalanceEnabled: e.wPrimeBalance.enabled,
+            // When linked, the reported W′ trace describes the rider actually being simulated.
+            // Unlinked, it reports that rider's effort against a different physiology — legitimate,
+            // but it has to be asked for.
+            wPrimeBalanceCriticalPower: e.wPrimeBalance.linkToPowerModel
+                ? config.value.power.criticalPower
+                : e.wPrimeBalance.criticalPower,
+            wPrimeBalanceWPrime: e.wPrimeBalance.linkToPowerModel
+                ? config.value.power.wPrime
+                : e.wPrimeBalance.wPrime,
         };
     };
 
