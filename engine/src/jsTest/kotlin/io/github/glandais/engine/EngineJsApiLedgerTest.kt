@@ -332,6 +332,77 @@ class EngineJsApiLedgerTest {
             )
         }
 
+    // ── Task 43 — the DTOs reject what they do not read ──────────────────────────────────────
+
+    @Test
+    fun `an unknown DTO key is an error, not a silent default`() =
+        runTest {
+            // The failure this prevents: `external interface` ignores unknown properties, so the
+            // demo spent nine ledger entries sending R17's removed `tiringDuration` and getting a
+            // default rather than a complaint. WASI has always been strict; JS is now too.
+            val stale =
+                js("({ type: 'durability', power: 250, tiringDuration: 7200 })")
+                    .unsafeCast<PowerProviderDto>()
+            val thrown =
+                assertFailsWith<IllegalStateException> {
+                    enhanceWithCourse(parseGpx(spiral()), null, null, null, stale, null).await()
+                }
+            assertTrue(
+                thrown.message!!.contains("tiringDuration"),
+                "the error must name the offending key, got: ${thrown.message}",
+            )
+        }
+
+    @Test
+    fun `every DTO checks its own keys`() =
+        runTest {
+            val gpx = spiral()
+
+            val strayCyclist =
+                js(
+                    "({ massKg: 80, cd: 0.7, frontalAreaM2: 0.5, maxLeanAngleDeg: 35, " +
+                        "maxBrakeG: 0.4, maxSpeedKmH: 100, weightKg: 80 })",
+                ).unsafeCast<CyclistDto>()
+            val strayBike =
+                js(
+                    "({ crr: 0.004, inertiaFront: 0.05, inertiaRear: 0.07, wheelRadiusM: 0.35, " +
+                        "efficiency: 0.976, wheelDiameter: 0.7 })",
+                ).unsafeCast<BikeDto>()
+            val strayWind = js("({ windSpeed: 5, windDirection: 90, gusts: 2 })").unsafeCast<WindDto>()
+            val strayOptions =
+                js("({ fixElevation: false, simplify: true })").unsafeCast<EnhanceOptionsDto>()
+
+            assertFailsWith<IllegalStateException>("CyclistDto") {
+                enhanceWithCourse(parseGpx(gpx), strayCyclist, null, null, null, null).await()
+            }
+            assertFailsWith<IllegalStateException>("BikeDto") {
+                enhanceWithCourse(parseGpx(gpx), null, strayBike, null, null, null).await()
+            }
+            assertFailsWith<IllegalStateException>("WindDto") {
+                enhanceWithCourse(parseGpx(gpx), null, null, strayWind, null, null).await()
+            }
+            assertFailsWith<IllegalStateException>("EnhanceOptionsDto") {
+                enhanceWithCourse(parseGpx(gpx), null, null, null, null, strayOptions).await()
+            }
+        }
+
+    @Test
+    fun `the JS default power is the library default`() =
+        runTest {
+            // Until task 43 this façade hardcoded 250 W while the CLI used 280 W, so the same
+            // "unconfigured rider" rode differently depending on the door. Omitting the power DTO
+            // must now match asking for the library default explicitly.
+            val gpx = straightHill()
+            val implicit = durationOf(gpx, cyclist(), null)
+            val explicit =
+                durationOf(
+                    gpx,
+                    cyclist(),
+                    js("({ type: 'constant', power: 280 })").unsafeCast<PowerProviderDto>(),
+                )
+            assertEquals(implicit, explicit, absoluteTolerance = 0.0)
+        }
+
     // ── R15 — W′ balance options ─────────────────────────────────────────────────────────────
 
     @Test

@@ -26,12 +26,8 @@ import io.github.glandais.engine.path.PointField
 import io.github.glandais.engine.path.dominantHeadwindAzimuthDeg
 import io.github.glandais.engine.physics.AeroProviderConstant
 import io.github.glandais.engine.physics.CyclistPowerProvider
-import io.github.glandais.engine.physics.PowerProviderConstant
-import io.github.glandais.engine.physics.PowerProviderCriticalPower
-import io.github.glandais.engine.physics.PowerProviderDurability
-import io.github.glandais.engine.physics.PowerProviderFromData
-import io.github.glandais.engine.physics.PowerProviderSlewLimited
-import io.github.glandais.engine.physics.PowerProviderTerrainPacing
+import io.github.glandais.engine.physics.CyclistPowerSpec
+import io.github.glandais.engine.physics.PowerModel
 import io.github.glandais.engine.physics.RhoProviderEstimate
 import io.github.glandais.engine.physics.Wind
 import io.github.glandais.engine.physics.WindProvider
@@ -141,7 +137,10 @@ external interface EnhanceOptionsDto {
  * JS-side mirror of [Cyclist]. All fields required when the DTO is passed (Kotlin/JS does not
  * gracefully tolerate optional fields on `external interface` without `?`). Callers can pass
  * `null` for the whole DTO to fall back to engine defaults (80 kg / 0.7 Cd / 0.5 m² / 35° / 100
- * km/h / 0.6 g brake).
+ * km/h / 0.4 g brake).
+ *
+ * Passing a key this interface does not declare is an **error** since task 43 — see
+ * [requireOnlyKeys].
  */
 external interface CyclistDto {
     val massKg: Double
@@ -197,16 +196,12 @@ external interface WindDto {
 /**
  * JS-side description of which [CyclistPowerProvider] to instantiate.
  *
- * - `type = "constant"` → [PowerProviderConstant] (requires [power], optional [useHarmonics]).
- * - `type = "durability"` → [PowerProviderDurability] (requires [power], optional
- *   [criticalPower] and [useHarmonics]) — power fades with work accumulated above CP.
- * - `type = "critical-power"` → [PowerProviderCriticalPower] (optional [criticalPower], [wPrime])
- *   — spends a W′ reserve, then settles asymptotically at CP.
- * - `type = "from_data"` → [PowerProviderFromData] singleton (replays `pInputPower` from the
- *   input path).
+ * [type] takes any [PowerModel] wire name — `"constant"`, `"durability"`, `"critical-power"` or
+ * `"from_data"` — and the catalog is the single source of that list, so a model added to the
+ * engine is reachable here without editing this file.
  *
  * [pacing] and [maxSlewWPerS] are **decorators**, not types : they compose over whichever [type]
- * was chosen, in the order the CLI uses — see [toCyclistPowerProvider].
+ * was chosen, in the order [CyclistPowerSpec.toProvider] defines.
  */
 external interface PowerProviderDto {
     val type: String
@@ -436,6 +431,7 @@ fun enhance(
 
 private fun EnhanceOptionsDto?.toEnhanceOptions(): EnhanceOptions {
     if (this == null) return defaultJsOptions()
+    requireOnlyKeys("EnhanceOptionsDto", ENHANCE_OPTIONS_KEYS)
     return EnhanceOptions(
         fixElevation = fixElevation ?: false,
         computeMaxSpeeds = computeMaxSpeeds ?: true,
@@ -485,6 +481,7 @@ private fun defaultJsOptions(): EnhanceOptions =
  */
 private fun CyclistDto?.toCyclist(): Cyclist {
     if (this == null) return Cyclist()
+    requireOnlyKeys("CyclistDto", CYCLIST_KEYS)
     val condition = roadCondition?.toRoadCondition()
     return Cyclist(
         massKg = massKg,
@@ -512,6 +509,7 @@ private fun String.toRoadCondition(): RoadCondition =
 /** Convert a JS [BikeDto] (or `null` → defaults) into a [Bike]. */
 private fun BikeDto?.toBike(): Bike {
     if (this == null) return Bike()
+    requireOnlyKeys("BikeDto", BIKE_KEYS)
     return Bike(
         crr = crr,
         inertiaFront = inertiaFront,
@@ -530,58 +528,90 @@ private fun BikeDto?.toBike(): Bike {
  */
 private fun WindDto?.toWindProvider(): WindProvider {
     if (this == null) return WindProviderNone
+    requireOnlyKeys("WindDto", WIND_KEYS)
     return WindProviderConstant(Wind(speedMS = windSpeed, directionRad = windDirection * PI / 180.0))
 }
 
 /**
- * Convert a JS [PowerProviderDto] (or `null` → 250 W constant) into a [CyclistPowerProvider].
+ * Convert a JS [PowerProviderDto] (or `null` → the [CyclistPowerSpec] defaults) into a provider.
  *
- * - `"constant"` → [PowerProviderConstant] (default 250 W if `power` omitted).
- * - `"durability"` → [PowerProviderDurability] (default CP 250 W).
- * - `"critical-power"` → [PowerProviderCriticalPower] (default CP 250 W, W′ 20 kJ).
- * - `"from_data"` → the [PowerProviderFromData] singleton.
- *
- * ## Composition order
- *
- * `base → pacing → slew`, identical to `CyclistMixin.toPowerProvider` : the fatigue model picks a
- * target, terrain pacing redistributes it, and the rate limiter smooths whatever comes out, so the
- * slew limit has the last word. The order is not a free choice — [PowerProviderSlewLimited] must
- * see the final signal or it smooths something that is then stepped again — and it is shared with
- * the CLI rather than re-decided here.
+ * Every default now comes from [CyclistPowerSpec], i.e. from `EngineConstants`. Until task 43 this
+ * façade hardcoded **250 W** where the CLI used `DEFAULT_CYCLIST_POWER_W` = **280 W**, so the same
+ * "unconfigured rider" rode at two different powers depending on which surface you came through.
  */
-private fun PowerProviderDto?.toCyclistPowerProvider(): CyclistPowerProvider {
-    if (this == null) return PowerProviderConstant(250.0, useHarmonics = false)
-    var provider = basePowerProvider()
-    if (pacing == true) provider = PowerProviderTerrainPacing(provider)
-    val slew = maxSlewWPerS ?: 0.0
-    if (slew > 0.0) provider = PowerProviderSlewLimited(provider, slew)
-    return provider
+private fun PowerProviderDto?.toCyclistPowerProvider(): CyclistPowerProvider = toPowerSpec().toProvider()
+
+/**
+ * Parse the DTO into the engine's own [CyclistPowerSpec]. The model → provider mapping and the
+ * `base → pacing → slew` order live there, shared with the CLI and the WASI façade — see its KDoc
+ * for why they are no longer written out per surface.
+ */
+private fun PowerProviderDto?.toPowerSpec(): CyclistPowerSpec {
+    if (this == null) return CyclistPowerSpec()
+    requireOnlyKeys("PowerProviderDto", POWER_PROVIDER_KEYS)
+    val defaults = CyclistPowerSpec()
+    return CyclistPowerSpec(
+        model =
+            PowerModel.fromIdOrNull(type)
+                ?: error("Unknown PowerProviderDto.type: $type (expected one of ${PowerModel.ids})"),
+        powerW = power ?: defaults.powerW,
+        criticalPowerW = criticalPower ?: defaults.criticalPowerW,
+        wPrimeJ = wPrime ?: defaults.wPrimeJ,
+        useHarmonics = useHarmonics ?: defaults.useHarmonics,
+        pacing = pacing ?: defaults.pacing,
+        maxSlewWPerS = maxSlewWPerS ?: defaults.maxSlewWPerS,
+    )
 }
 
-/** The undecorated model named by [PowerProviderDto.type]. */
-private fun PowerProviderDto.basePowerProvider(): CyclistPowerProvider =
-    when (type) {
-        "constant" ->
-            PowerProviderConstant(
-                power = power ?: 250.0,
-                useHarmonics = useHarmonics ?: false,
-            )
-        "durability" ->
-            PowerProviderDurability(
-                powerW = power ?: 250.0,
-                criticalPowerW = criticalPower ?: EngineConstants.DEFAULT_CRITICAL_POWER_W,
-                useHarmonics = useHarmonics ?: false,
-            )
-        "critical-power" ->
-            PowerProviderCriticalPower(
-                powerW = power ?: 250.0,
-                criticalPowerW = criticalPower ?: EngineConstants.DEFAULT_CRITICAL_POWER_W,
-                wPrimeJ = wPrime ?: EngineConstants.DEFAULT_W_PRIME_J,
-                useHarmonics = useHarmonics ?: false,
-            )
-        "from_data" -> PowerProviderFromData
-        else -> error("Unknown PowerProviderDto.type: $type")
+private val POWER_PROVIDER_KEYS =
+    setOf("type", "power", "useHarmonics", "criticalPower", "wPrime", "pacing", "maxSlewWPerS")
+
+private val CYCLIST_KEYS =
+    setOf("massKg", "cd", "frontalAreaM2", "maxLeanAngleDeg", "maxBrakeG", "maxSpeedKmH", "roadCondition")
+
+private val BIKE_KEYS =
+    setOf("crr", "inertiaFront", "inertiaRear", "wheelRadiusM", "efficiency", "maxPedalingLeanAngleDeg")
+
+private val WIND_KEYS = setOf("windSpeed", "windDirection")
+
+private val ENHANCE_OPTIONS_KEYS =
+    setOf(
+        "fixElevation",
+        "computeMaxSpeeds",
+        "virtualizeTrack",
+        "computeOnePointPerSecond",
+        "simplifyEnabled",
+        "simplifyToleranceM",
+        "simplifyZExaggeration",
+        "wPrimeBalanceEnabled",
+        "wPrimeBalanceCriticalPower",
+        "wPrimeBalanceWPrime",
+    )
+
+/**
+ * Reject a DTO carrying a key this façade does not read (task 43).
+ *
+ * An `external interface` ignores unknown properties in silence, which is how the demo spent nine
+ * ledger entries sending `tiringDuration` — a field renamed by R17 — and getting the default
+ * instead of an error. The WASI façade has always been strict (`requireOnly`); this brings JS to
+ * the same footing, so a stale caller is told rather than quietly misread.
+ *
+ * A typo is therefore now a hard error where it used to be a silently ignored setting. That is the
+ * intended trade: the failure it prevents is invisible, and this one is not.
+ */
+private fun Any.requireOnlyKeys(
+    dtoName: String,
+    allowed: Set<String>,
+) {
+    val keys = js("Object.keys")(this).unsafeCast<Array<String>>()
+    val unknown = keys.filterNot { it in allowed }
+    if (unknown.isNotEmpty()) {
+        error(
+            "Unknown $dtoName key(s): ${unknown.joinToString()} — expected one of " +
+                allowed.sorted().joinToString(),
+        )
     }
+}
 
 /**
  * Enhance [path] using a fully custom [CoursePhysics] (cyclist + bike + wind + power provider).

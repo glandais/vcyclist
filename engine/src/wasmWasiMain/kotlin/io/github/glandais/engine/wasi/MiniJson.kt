@@ -242,6 +242,19 @@ internal fun JsonObj.string(
         else -> throw IllegalArgumentException("option '$key' must be a string")
     }
 
+/**
+ * The `String` at [key], or `null` when the key is absent or `null`.
+ *
+ * Distinct from [string] because a preset like `roadCondition` has to tell "not given" from any
+ * value it could be given — substituting a default would make the preset unreachable.
+ */
+internal fun JsonObj.stringOrNull(key: String): String? =
+    when (val v = fields[key]) {
+        null, JsonNull -> null
+        is JsonStr -> v.value
+        else -> throw IllegalArgumentException("option '$key' must be a string")
+    }
+
 /** The nested object at [key], or `null` when the key is absent or `null`. */
 internal fun JsonObj.obj(key: String): JsonObj? =
     when (val v = fields[key]) {

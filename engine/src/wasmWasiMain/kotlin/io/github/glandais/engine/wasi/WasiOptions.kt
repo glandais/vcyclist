@@ -2,16 +2,16 @@ package io.github.glandais.engine.wasi
 
 import io.github.glandais.engine.Bike
 import io.github.glandais.engine.Cyclist
-import io.github.glandais.engine.EngineConstants
 import io.github.glandais.engine.EnhanceOptions
+import io.github.glandais.engine.RoadCondition
 import io.github.glandais.engine.SimplifyPathOptions
+import io.github.glandais.engine.WPrimeBalanceOptions
 import io.github.glandais.engine.climb.ClimbOptions
 import io.github.glandais.engine.io.CsvOptions
 import io.github.glandais.engine.io.JsonOptions
 import io.github.glandais.engine.physics.CyclistPowerProvider
-import io.github.glandais.engine.physics.PowerProviderConstant
-import io.github.glandais.engine.physics.PowerProviderDurability
-import io.github.glandais.engine.physics.PowerProviderFromData
+import io.github.glandais.engine.physics.CyclistPowerSpec
+import io.github.glandais.engine.physics.PowerModel
 import io.github.glandais.engine.physics.Wind
 import io.github.glandais.engine.physics.WindProvider
 import io.github.glandais.engine.physics.WindProviderConstant
@@ -43,6 +43,9 @@ private val ENHANCE_KEYS =
         "simplifyEnabled",
         "simplifyToleranceM",
         "simplifyZExaggeration",
+        "wPrimeBalanceEnabled",
+        "wPrimeBalanceCriticalPower",
+        "wPrimeBalanceWPrime",
     )
 
 /**
@@ -67,6 +70,13 @@ internal fun JsonObj?.toEnhanceOptions(): EnhanceOptions {
                 toleranceM = double("simplifyToleranceM", defaults.simplifyPath.toleranceM),
                 zExaggeration = double("simplifyZExaggeration", defaults.simplifyPath.zExaggeration),
             ),
+        wPrimeBalance =
+            WPrimeBalanceOptions(
+                enabled = bool("wPrimeBalanceEnabled", defaults.wPrimeBalance.enabled),
+                criticalPowerW =
+                    double("wPrimeBalanceCriticalPower", defaults.wPrimeBalance.criticalPowerW),
+                wPrimeJ = double("wPrimeBalanceWPrime", defaults.wPrimeBalance.wPrimeJ),
+            ),
     )
 }
 
@@ -80,19 +90,34 @@ private fun defaultWasiOptions(): EnhanceOptions =
     )
 
 private val CYCLIST_KEYS =
-    setOf("massKg", "cd", "frontalAreaM2", "maxLeanAngleDeg", "maxBrakeG", "maxSpeedKmH")
+    setOf("massKg", "cd", "frontalAreaM2", "maxLeanAngleDeg", "maxBrakeG", "maxSpeedKmH", "roadCondition")
 
-/** Read a `CyclistDto`-shaped object; `null` or absent fields fall back to [Cyclist]'s defaults. */
+/**
+ * Read a `CyclistDto`-shaped object; `null` or absent fields fall back to [Cyclist]'s defaults.
+ *
+ * `roadCondition` (ledger R9) is `"dry"` or `"wet"`, case-insensitive, and **overrides**
+ * `maxLeanAngleDeg` / `maxBrakeG` when present — same rule as the JS façade, for the same reason:
+ * this reader cannot distinguish "absent" from "given" once a default has been substituted.
+ */
 internal fun JsonObj?.toCyclist(): Cyclist {
     if (this == null) return Cyclist()
     requireOnly(CYCLIST_KEYS)
     val d = Cyclist()
+    val conditionName = stringOrNull("roadCondition")
+    val condition =
+        conditionName?.let { name ->
+            RoadCondition.entries.firstOrNull { it.name.equals(name, ignoreCase = true) }
+                ?: throw IllegalArgumentException(
+                    "unknown roadCondition '$name' — expected one of " +
+                        RoadCondition.entries.joinToString { it.name.lowercase() },
+                )
+        }
     return Cyclist(
         massKg = double("massKg", d.massKg),
-        maxBrakeG = double("maxBrakeG", d.maxBrakeG),
+        maxBrakeG = condition?.maxBrakeG ?: double("maxBrakeG", d.maxBrakeG),
         cd = double("cd", d.cd),
         frontalAreaM2 = double("frontalAreaM2", d.frontalAreaM2),
-        maxLeanAngleDeg = double("maxLeanAngleDeg", d.maxLeanAngleDeg),
+        maxLeanAngleDeg = condition?.leanAngleDeg ?: double("maxLeanAngleDeg", d.maxLeanAngleDeg),
         maxSpeedKmH = double("maxSpeedKmH", d.maxSpeedKmH),
     )
 }
@@ -133,33 +158,39 @@ internal fun JsonObj?.toWindProvider(): WindProvider {
     )
 }
 
-private val POWER_KEYS = setOf("type", "power", "useHarmonics", "criticalPower")
+private val POWER_KEYS =
+    setOf("type", "power", "useHarmonics", "criticalPower", "wPrime", "pacing", "maxSlewWPerS")
 
-/** Read a `PowerProviderDto`-shaped object; `null` → 250 W constant, as on the JS side. */
-internal fun JsonObj?.toCyclistPowerProvider(): CyclistPowerProvider {
-    if (this == null) return PowerProviderConstant(DEFAULT_POWER_W, useHarmonics = false)
+/**
+ * Read a `PowerProviderDto`-shaped object; `null` → the [CyclistPowerSpec] defaults.
+ *
+ * The model list, the model → provider mapping and the `base -> pacing -> slew` composition all
+ * come from [CyclistPowerSpec], shared with the CLI and the JS façade (task 43). Before that this
+ * file carried its own `when`, which is why it still offered three models when the engine had five
+ * — and its own 250 W default, where the CLI used `DEFAULT_CYCLIST_POWER_W` = 280 W.
+ */
+internal fun JsonObj?.toCyclistPowerProvider(): CyclistPowerProvider = toPowerSpec().toProvider()
+
+internal fun JsonObj?.toPowerSpec(): CyclistPowerSpec {
+    if (this == null) return CyclistPowerSpec()
     requireOnly(POWER_KEYS)
-    return when (val type = string("type", "constant")) {
-        "constant" ->
-            PowerProviderConstant(
-                power = double("power", DEFAULT_POWER_W),
-                useHarmonics = bool("useHarmonics", false),
+    val d = CyclistPowerSpec()
+    val type = string("type", PowerModel.CONSTANT.id)
+    val model =
+        PowerModel.fromIdOrNull(type)
+            ?: throw IllegalArgumentException(
+                "unknown power provider type '$type' — expected one of ${PowerModel.ids.joinToString()}",
             )
-        "durability" ->
-            PowerProviderDurability(
-                powerW = double("power", DEFAULT_POWER_W),
-                criticalPowerW = double("criticalPower", EngineConstants.DEFAULT_CRITICAL_POWER_W),
-                useHarmonics = bool("useHarmonics", false),
-            )
-        "from_data" -> PowerProviderFromData
-        else -> throw IllegalArgumentException(
-            "unknown power provider type '$type' — expected constant, durability or from_data",
-        )
-    }
+    return CyclistPowerSpec(
+        model = model,
+        powerW = double("power", d.powerW),
+        criticalPowerW = double("criticalPower", d.criticalPowerW),
+        wPrimeJ = double("wPrime", d.wPrimeJ),
+        useHarmonics = bool("useHarmonics", d.useHarmonics),
+        pacing = bool("pacing", d.pacing),
+        maxSlewWPerS = double("maxSlewWPerS", d.maxSlewWPerS),
+    )
 }
-
-/** Same figure the JS façade uses when a caller omits the power. */
-private const val DEFAULT_POWER_W = 250.0
 
 private val CLIMB_KEYS =
     setOf(

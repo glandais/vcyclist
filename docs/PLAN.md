@@ -93,7 +93,7 @@ Le projet TypeScript `virtual-cyclist` (simulateur de cyclisme basé physique av
 | 40 | Demo — réparer la rupture R17 (`constant_tiring` → `durability`) + presets `maxBrakeG` (R2) | ✅ | — | — (typecheck/lint/build verts, smoke Node : `constant_tiring` lève, `durability` +1,25 % sur sample.gpx) |
 | 41 | Engine — façade JS : rattrapage R9, R15, R16, R18, R19 | ✅ | — | 11 (jsTest, `EngineJsApiLedgerTest`) |
 | 42 | Demo — UI des modèles du ledger (R9, R10, R15, R16, R18, R19) | ✅ | — | — (typecheck/lint/build verts ; Chrome sur stelvio : sec 633 s → mouillé 674 s, W′bal 20 kJ → 0 → 11 kJ) |
-| 43 | Garde-fou de parité cœur / CLI / façade JS / shim démo | ⬜ | — | — |
+| 43 | Garde-fou de parité + catalogue partagé + rattrapage WASI | ✅ | — | 8 (commonTest `CyclistPowerSpecTest`) + 3 (jsTest) + 6 (wasmWasiTest) |
 
 **Cumul `:elevation` après Phase 1 + extras** : 20 classes de tests, **193 tests** (commonTest 182 + jvmTest 11 dont 6 opt-in) × 3 targets en mode standard = **557 exécutions** vertes (offline).
 
@@ -609,8 +609,12 @@ modèles de puissance de l'onglet Power fait lever `EngineJsApi`.
 posé avant `41` s'installerait rouge.
 
 **Critère de fin** : la démo simule un coureur à jour du ledger — route sèche ou mouillée, réserve
-W′ dépensée, allure adaptée au terrain, pédales relevées dans les épingles — et une capacité
-ajoutée au cœur sans être relayée vers JS fait échouer le build.
+W′ dépensée, allure adaptée au terrain, pédales relevées dans les épingles — et un modèle de
+puissance ajouté au cœur sans être relayé fait échouer la compilation.
+
+**Atteint.** `43` a corrigé son propre énoncé au passage : il y a **quatre** surfaces, pas trois —
+`wasmWasiMain` avait été oublié et était en retard comme JS. La matrice est désormais tenue dans
+[`docs/surface-coverage.md`](surface-coverage.md).
 
 ---
 

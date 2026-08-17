@@ -3,11 +3,17 @@ package io.github.glandais.engine.wasi
 import io.github.glandais.engine.Bike
 import io.github.glandais.engine.Course
 import io.github.glandais.engine.Cyclist
+import io.github.glandais.engine.EngineConstants
+import io.github.glandais.engine.RoadCondition
 import io.github.glandais.engine.climb.ClimbOptions
 import io.github.glandais.engine.path.Path
+import io.github.glandais.engine.physics.PowerModel
 import io.github.glandais.engine.physics.PowerProviderConstant
+import io.github.glandais.engine.physics.PowerProviderCriticalPower
 import io.github.glandais.engine.physics.PowerProviderDurability
 import io.github.glandais.engine.physics.PowerProviderFromData
+import io.github.glandais.engine.physics.PowerProviderSlewLimited
+import io.github.glandais.engine.physics.PowerProviderTerrainPacing
 import io.github.glandais.engine.physics.WindProviderConstant
 import io.github.glandais.engine.physics.WindProviderNone
 import kotlin.math.PI
@@ -80,24 +86,88 @@ class WasiOptionsTest {
     }
 
     @Test
-    fun `the three power provider types are recognised`() {
+    fun `every power model in the catalog is reachable over the ABI`() {
+        // The catalog is the source of the list: a model added to the engine must be reachable
+        // here without editing this test, which is the whole point of task 43. Before it, this
+        // file carried its own `when` and had been stuck at three models for two ledger entries.
+        for (model in PowerModel.entries) {
+            val spec = json("""{"type":"${model.id}"}""").toPowerSpec()
+            assertEquals(model, spec.model, "model ${model.id} did not round-trip")
+        }
+    }
+
+    @Test
+    fun `the power models build the expected providers`() {
         assertIs<PowerProviderConstant>(json("""{"type":"constant","power":220}""").toCyclistPowerProvider())
         val durability =
             json("""{"type":"durability","power":220,"criticalPower":240}""").toCyclistPowerProvider()
         assertIs<PowerProviderDurability>(durability)
         assertEquals(240.0, durability.criticalPowerW)
+        val cp =
+            json("""{"type":"critical-power","power":300,"criticalPower":240,"wPrime":15000}""")
+                .toCyclistPowerProvider()
+        assertIs<PowerProviderCriticalPower>(cp)
+        assertEquals(15000.0, cp.wPrimeJ)
         assertSame(PowerProviderFromData, json("""{"type":"from_data"}""").toCyclistPowerProvider())
     }
 
     @Test
-    fun `an unknown power type names the three that exist`() {
+    fun `the decorators compose in the shared order`() {
+        val slewOnly = json("""{"type":"constant","maxSlewWPerS":50}""").toCyclistPowerProvider()
+        assertIs<PowerProviderSlewLimited>(slewOnly)
+
+        val both = json("""{"type":"constant","pacing":true,"maxSlewWPerS":50}""").toCyclistPowerProvider()
+        // Slew outermost, pacing inside it — the order CyclistPowerSpec defines for every surface.
+        assertIs<PowerProviderSlewLimited>(both)
+        assertIs<PowerProviderTerrainPacing>(both.delegate)
+
+        assertIs<PowerProviderConstant>(json("""{"type":"constant","maxSlewWPerS":0}""").toCyclistPowerProvider())
+    }
+
+    @Test
+    fun `the default power is the library default, not a local copy`() {
+        // This façade hardcoded 250 W while the CLI used 280 W, for the same unconfigured rider.
+        assertEquals(EngineConstants.DEFAULT_CYCLIST_POWER_W, json("{}").toPowerSpec().powerW)
+        assertEquals(EngineConstants.DEFAULT_CYCLIST_POWER_W, (null as JsonObj?).toPowerSpec().powerW)
+    }
+
+    @Test
+    fun `an unknown power type names the ones that exist`() {
         val thrown =
             assertFailsWith<IllegalArgumentException> {
                 json("""{"type":"quadratic"}""").toCyclistPowerProvider()
             }
 
         assertTrue(thrown.message!!.contains("quadratic"), thrown.message!!)
+        assertTrue(thrown.message!!.contains("critical-power"), thrown.message!!)
         assertTrue(thrown.message!!.contains("from_data"), thrown.message!!)
+    }
+
+    @Test
+    fun `the road condition preset overrides the raw grip limits`() {
+        val dry = json("""{"roadCondition":"dry"}""").toCyclist()
+        assertEquals(Cyclist().maxLeanAngleDeg, dry.maxLeanAngleDeg, 1e-12)
+        assertEquals(Cyclist().maxBrakeG, dry.maxBrakeG, 1e-12)
+
+        val wet = json("""{"maxLeanAngleDeg":42,"maxBrakeG":0.5,"roadCondition":"WET"}""").toCyclist()
+        assertEquals(RoadCondition.WET.leanAngleDeg, wet.maxLeanAngleDeg, 1e-12)
+        assertEquals(RoadCondition.WET.maxBrakeG, wet.maxBrakeG, 1e-12)
+
+        // Absent: the raw values stand, which is the pre-R9 behaviour.
+        val raw = json("""{"maxLeanAngleDeg":42}""").toCyclist()
+        assertEquals(42.0, raw.maxLeanAngleDeg, 1e-12)
+
+        assertFailsWith<IllegalArgumentException> { json("""{"roadCondition":"damp"}""").toCyclist() }
+    }
+
+    @Test
+    fun `the W prime balance options are readable`() {
+        val o =
+            json("""{"wPrimeBalanceEnabled":false,"wPrimeBalanceCriticalPower":300,"wPrimeBalanceWPrime":25000}""")
+                .toEnhanceOptions()
+        assertEquals(false, o.wPrimeBalance.enabled)
+        assertEquals(300.0, o.wPrimeBalance.criticalPowerW)
+        assertEquals(25000.0, o.wPrimeBalance.wPrimeJ)
     }
 
     @Test

@@ -4,11 +4,8 @@ import io.github.glandais.engine.Cyclist
 import io.github.glandais.engine.EngineConstants
 import io.github.glandais.engine.RoadCondition
 import io.github.glandais.engine.physics.CyclistPowerProvider
-import io.github.glandais.engine.physics.PowerProviderConstant
-import io.github.glandais.engine.physics.PowerProviderCriticalPower
-import io.github.glandais.engine.physics.PowerProviderDurability
-import io.github.glandais.engine.physics.PowerProviderSlewLimited
-import io.github.glandais.engine.physics.PowerProviderTerrainPacing
+import io.github.glandais.engine.physics.CyclistPowerSpec
+import io.github.glandais.engine.physics.PowerModel
 import picocli.CommandLine
 
 /**
@@ -119,6 +116,7 @@ class CyclistMixin {
     @field:CommandLine.Option(
         names = ["--cyclist-model"],
         converter = [PowerModelConverter::class],
+        completionCandidates = PowerModelCandidates::class,
         description = [
             "How the rider chooses power: \${COMPLETION-CANDIDATES} (default: \${DEFAULT-VALUE}). " +
                 "'durability' fades with work above CP; 'critical-power' spends a W' reserve and " +
@@ -160,55 +158,62 @@ class CyclistMixin {
      * Composition order : the fatigue model chooses a target, terrain pacing redistributes it, and
      * the slew limiter smooths whatever comes out — so the rate limit is the last word.
      */
-    fun toPowerProvider(): CyclistPowerProvider {
-        var provider = basePowerProvider()
-        if (terrainPacing) provider = PowerProviderTerrainPacing(provider)
-        if (maxSlewWPerS > 0.0) provider = PowerProviderSlewLimited(provider, maxSlewWPerS)
-        return provider
-    }
+    fun toPowerProvider(): CyclistPowerProvider = toPowerSpec().toProvider()
 
-    private fun basePowerProvider(): CyclistPowerProvider =
-        when (powerModel) {
-            PowerModel.CONSTANT -> PowerProviderConstant(powerW, useHarmonics = useHarmonics)
-            PowerModel.DURABILITY ->
-                PowerProviderDurability(
-                    powerW = powerW,
-                    criticalPowerW = criticalPowerW,
-                    useHarmonics = useHarmonics,
-                )
-            PowerModel.CRITICAL_POWER ->
-                PowerProviderCriticalPower(
-                    powerW = powerW,
-                    criticalPowerW = criticalPowerW,
-                    wPrimeJ = wPrimeJ,
-                    useHarmonics = useHarmonics,
-                )
-        }
+    /**
+     * The rider's power strategy, in the engine's own vocabulary.
+     *
+     * The mapping from a model to a provider — and the `base -> pacing -> slew` composition — lives
+     * in [CyclistPowerSpec], shared with the JS and WASI facades. It used to be written out here
+     * *and* there, and the copies drifted; see the [CyclistPowerSpec] KDoc.
+     */
+    fun toPowerSpec(): CyclistPowerSpec =
+        CyclistPowerSpec(
+            model = powerModel,
+            powerW = powerW,
+            criticalPowerW = criticalPowerW,
+            wPrimeJ = wPrimeJ,
+            useHarmonics = useHarmonics,
+            pacing = terrainPacing,
+            maxSlewWPerS = maxSlewWPerS,
+        )
 
-    /** The three ways the simulated rider can choose its power. */
-    enum class PowerModel(
-        val cliName: String,
-    ) {
-        /** Hold [powerW] for the whole ride. */
-        CONSTANT("constant"),
-
-        /** Fade with work accumulated above CP — [PowerProviderDurability]. */
-        DURABILITY("durability"),
-
-        /** Spend a W' reserve, then settle at CP — [PowerProviderCriticalPower]. */
-        CRITICAL_POWER("critical-power"),
-        ;
-
-        override fun toString(): String = cliName
-    }
-
-    /** Case-insensitive [PowerModel] parsing, accepting the hyphenated CLI spelling. */
+    /**
+     * Case-insensitive [PowerModel] parsing, accepting the hyphenated CLI spelling.
+     *
+     * [PowerModel.FROM_DATA] is rejected on purpose: replaying recorded power is what
+     * `--gpx-power-source` selects, and accepting it here as well would give one behaviour two
+     * spellings. The catalog still lists it — it is a real provider — so [CLI_MODELS] names the
+     * subset this option accepts rather than the enum standing in for it.
+     */
     class PowerModelConverter : CommandLine.ITypeConverter<PowerModel> {
-        override fun convert(value: String): PowerModel =
-            PowerModel.entries.firstOrNull { it.cliName.equals(value, ignoreCase = true) }
-                ?: throw CommandLine.TypeConversionException(
-                    "expected one of ${PowerModel.entries.map { it.cliName }} but was '$value'",
+        override fun convert(value: String): PowerModel {
+            val parsed = PowerModel.fromIdOrNull(value)
+            if (parsed == null || parsed !in CLI_MODELS) {
+                throw CommandLine.TypeConversionException(
+                    "expected one of ${CLI_MODELS.map { it.id }} but was '$value'" +
+                        if (parsed == PowerModel.FROM_DATA) " (use --gpx-power-source instead)" else "",
                 )
+            }
+            return parsed
+        }
+    }
+
+    /**
+     * What `${'$'}{COMPLETION-CANDIDATES}` prints for `--cyclist-model`.
+     *
+     * Needed because picocli's default for an enum-typed option lists *every* constant, which
+     * since task 43 includes [PowerModel.FROM_DATA] — a value the converter rejects. Advertising
+     * an option that errors is worse than not advertising it, and hardcoding the other three in
+     * the help string would be one more copy to drift.
+     */
+    class PowerModelCandidates : Iterable<String> {
+        override fun iterator(): Iterator<String> = CLI_MODELS.map { it.id }.iterator()
+    }
+
+    companion object {
+        /** Models `--cyclist-model` accepts: every one but [PowerModel.FROM_DATA]. */
+        val CLI_MODELS: List<PowerModel> = PowerModel.entries.filter { it != PowerModel.FROM_DATA }
     }
 
     /**

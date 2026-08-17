@@ -274,6 +274,32 @@ different ULPs. Use these tolerances :
    and the Enhancer.
 4. Add tests in `engine/src/commonTest/.../physics/` covering the formula at sentinel inputs.
 
+### Adding a capability users can reach (the four surfaces)
+
+The engine has **four doors** — core, CLI, JS façade, WASI façade — plus the demo behind JS. A
+capability added to the core does not reach them by itself, and three times running it did not:
+`g29`, then tasks `41` and `43`. R17 renamed one string on one surface and left the demo broken
+for nine ledger entries.
+
+So, in order: core → CLI → JS (`EngineJsApi`) → WASI (`WasiOptions` + `docs/wasm-wasi-abi.md`) →
+`demo/src/engine-shim.ts` → the ledger's `Surfaces` line. The matrix and the reasoning live in
+[`docs/surface-coverage.md`](docs/surface-coverage.md).
+
+Two mechanical guards exist, and neither covers everything:
+
+- **A new cyclist power model needs no façade work.** Add a `PowerModel` entry and the `when` in
+  `CyclistPowerSpec` stops compiling until it is handled — in `commonMain`, so on all three
+  targets at once. The CLI, JS and WASI all parse into a `CyclistPowerSpec`, so they inherit it,
+  along with the `base → pacing → slew` composition order.
+- **A new *option* is not covered.** JS and WASI reject unknown DTO keys (`requireOnlyKeys` /
+  `requireOnly`), which catches a stale *caller* but not a façade that never exposed the field.
+  That one is on the checklist above.
+
+**Defaults come from `EngineConstants`, never a literal.** The JS and WASI façades each hardcoded
+250 W while the CLI read `DEFAULT_CYCLIST_POWER_W` = 280 W, so the same unconfigured rider rode
+differently depending on which door you came through. Found in task 43, by reading the three
+surfaces side by side rather than by any test.
+
 ### Adding a public function with default arguments
 
 Kotlin defaults do not exist for Java callers, and **`@JvmOverloads` cannot be resolved from a

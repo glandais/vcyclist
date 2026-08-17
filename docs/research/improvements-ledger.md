@@ -38,9 +38,10 @@ items buy is a ride trace a human recognises as their own.
 **✅ names the surfaces reached.** For five entries in a row it meant "landed in the core and the
 CLI", and nobody noticed the JS façade had been left behind until the demo broke — see
 [`docs/tasks/41-js-facade-ledger-catchup.md`](../tasks/41-js-facade-ledger-catchup.md). Every
-behavioural entry now carries a **Surfaces** line: core / CLI / JS. An entry that moves rider
-behaviour is not done until all three say so, or until the entry says why one is deliberately
-skipped.
+behavioural entry now carries a **Surfaces** line: core / CLI / JS / WASI. An entry that moves
+rider behaviour is not done until all four say so, or until the entry says why one is
+deliberately skipped. The matrix lives in
+[`docs/surface-coverage.md`](../surface-coverage.md).
 
 ## Headline
 
@@ -181,8 +182,8 @@ self-evident.
 
 #### What landed
 
-**Surfaces** : core ✅ · CLI ✅ (`--road-condition`) · JS ✅ (`CyclistDto.roadCondition`, task 41 —
-the façade lagged from R9 shipping until then).
+**Surfaces** : core ✅ · CLI ✅ (`--road-condition`) · JS ✅ (task 41) · WASI ✅ (task 43). The two
+façades lagged from R9 shipping until those tasks.
 
 `RoadCondition` (engine) with `DRY` / `WET`, `Cyclist.mu` / `withMu()` / `withRoadCondition()`, and
 `--road-condition=dry|wet` on the CLI. `Cyclist.maxLeanAngleDeg` stays the stored parameter — µ is
@@ -243,8 +244,8 @@ currently pedals at full power through a hairpin.
 
 #### What landed
 
-**Surfaces** : core ✅ · CLI ✅ (`--bike-max-pedal-angle`) · JS ✅ (`BikeDto.maxPedalingLeanAngleDeg`)
-— the one entry of the series that relayed to JS when it shipped.
+**Surfaces** : core ✅ · CLI ✅ (`--bike-max-pedal-angle`) · JS ✅ · WASI ✅ — the one entry of the
+series that relayed to every façade when it shipped.
 
 `MuscularPowerProvider` — the single funnel for cyclist power into the balance, and the right place
 for a *bike geometry* constraint — delivers nothing past `Bike.maxPedalingLeanAngleDeg` (default
@@ -341,8 +342,8 @@ no field carries it.
 **−200 to −460 W of braking** alongside the 600–700 W re-accelerations. vcyclist currently produces
 the second and not the first: its power trace has no braking in it at all.
 
-**Surfaces** : core ✅ · CLI ✅ · JS ✅ (an output field — `fieldDefinitions()` carries it with no
-façade work needed, which is why this one never drifted).
+**Surfaces** : core ✅ · CLI ✅ · JS ✅ · WASI ✅ (an output field — `fieldDefinitions()` carries it
+with no façade work needed, which is why this one never drifted).
 
 **Implemented** as `PointField.P_BRAKE` (#38), written by `PowerComputer.computeCyclistPower`.
 
@@ -414,7 +415,7 @@ different risk, and only the first is low-risk:
 | Other fields | **untouched** — trajectory unchanged | every value shifts |
 | New required input | none (defaults CP 250 W / W′ 20 kJ) | CP and W′ become load-bearing |
 
-**Surfaces** : core ✅ · CLI ✅ · JS ✅ (`EnhanceOptionsDto.wPrimeBalance*`, task 41). Note the field
+**Surfaces** : core ✅ · CLI ✅ · JS ✅ (task 41) · WASI ✅ (task 43). Note the field
 was *already being written* on JS all along — `WPrimeBalanceOptions` defaults to enabled and the
 façade never overrode it — at CP 250 / W′ 20 kJ. Task 41 made it calibrable, not enabled.
 
@@ -458,8 +459,8 @@ and correctly identified by ch. 07.
 
 #### What landed
 
-**Surfaces** : core ✅ · CLI ✅ (`--cyclist-model=critical-power`) · JS ✅ (`type: "critical-power"`,
-task 41).
+**Surfaces** : core ✅ · CLI ✅ (`--cyclist-model=critical-power`) · JS ✅ (task 41) · WASI ✅
+(task 43).
 
 `PowerProviderCriticalPower(powerW, criticalPowerW, wPrimeJ, taperStartFraction)`. It carries a
 running W′ balance — via literally the same `WPrimeBalanceComputer.step` the post-pipeline field
@@ -532,8 +533,8 @@ larger sub-CP volumes.
 
 #### What landed
 
-**Surfaces** : core ✅ · CLI ✅ (`--cyclist-model=durability`) · JS ✅ (`type: "durability"`). The JS
-rename is what broke the demo for nine entries — see task 40.
+**Surfaces** : core ✅ · CLI ✅ (`--cyclist-model=durability`) · JS ✅ · WASI ✅. The JS rename is what
+broke the demo for nine entries — see task 40.
 
 `PowerProviderDurability`, plus `--cyclist-durability` / `--cyclist-cp` on the CLI — and
 **`PowerProviderConstantWithTiring` is removed**, not deprecated. It shipped first as a new provider
@@ -604,7 +605,7 @@ anticipation machinery.
 
 #### What landed
 
-**Surfaces** : core ✅ · CLI ✅ (`--cyclist-slew`) · JS ✅ (`PowerProviderDto.maxSlewWPerS`, task 41).
+**Surfaces** : core ✅ · CLI ✅ (`--cyclist-slew`) · JS ✅ (task 41) · WASI ✅ (task 43).
 
 `PowerProviderSlewLimited(delegate, maxSlewWPerS = 50.0)` — a **decorator**, not a change to
 `CyclistPowerProviderBase`. Two reasons: the base class is shared by `object` singletons
@@ -643,7 +644,7 @@ The qualitative rules from [`04 §4.3`](04-behavioral-modeling.md), worth captur
 
 #### What landed
 
-**Surfaces** : core ✅ · CLI ✅ (`--cyclist-pacing`) · JS ✅ (`PowerProviderDto.pacing`, task 41).
+**Surfaces** : core ✅ · CLI ✅ (`--cyclist-pacing`) · JS ✅ (task 41) · WASI ✅ (task 43).
 
 `PowerProviderTerrainPacing(delegate, …)` — a decorator, composing as
 `PowerProviderSlewLimited(PowerProviderTerrainPacing(PowerProviderCriticalPower(…)))`, and

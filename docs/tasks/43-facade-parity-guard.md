@@ -135,13 +135,93 @@ la même erreur que le test « par point » de R11, qui serait passé par chance
 
 ## Done when
 
-- [ ] Test de parité en `jsTest`, échec vérifié en ajoutant un provider bidon
-- [ ] Décision tranchée et **motivée** sur `sealed` (le coût API est réel, le refuser est une
-      réponse acceptable si la liste manuelle est testée)
-- [ ] Table de couverture cœur / CLI / JS
-- [ ] Position tranchée sur le shim de la démo (dériver du `.d.ts` est exclu — voir étape 4)
-- [ ] Ligne dans `CLAUDE.md`
-- [ ] `./gradlew check` + `ktlintCheck` + typecheck démo verts
+- [x] Garde-fou mécanique, échec vérifié en ajoutant un modèle bidon
+- [x] Décision tranchée et **motivée** sur `sealed` — **non retenu**, voir ci-dessous
+- [x] Table de couverture cœur / CLI / JS / WASI
+- [x] Position tranchée sur le shim de la démo (dériver du `.d.ts` est exclu — voir étape 4)
+- [x] Ligne dans `CLAUDE.md`
+- [x] `./gradlew check` + `ktlintCheck` + typecheck démo verts
+
+## Décisions
+
+La fiche proposait quatre pistes ; l'analyse a été menée sur le code, pas sur les souvenirs, et
+elle a d'abord corrigé la fiche elle-même : **il y a quatre surfaces, pas trois**. `wasmWasiMain`
+avait été oublié à la rédaction, et il était en retard exactement comme JS — trois modèles de
+puissance sur cinq, ni R9, ni R15, ni R18, ni R19.
+
+**Retenu : le catalogue partagé + le contrôle strict des clés.** Rejeté : `sealed`, et le test par
+réflexion.
+
+### Pourquoi pas `sealed`
+
+Mesuré, en scellant et en compilant :
+
+```
+e: PowerProviderSlewLimitedTest.kt:43:9 Extending sealed classes or interfaces
+   from a different module is prohibited.
+```
+
+Une seule erreur — le coût direct est plus faible que la fiche ne le craignait. Mais deux choses
+le rendent peu rentable :
+
+- **Un niveau ne suffit pas.** Les sous-types directs sont `CyclistPowerProviderBase`,
+  `FromData`, `SlewLimited` et `TerrainPacing` : les trois *modèles* sont sous `Base`, qu'il
+  faudrait sceller aussi.
+- **Sceller force *un* `when` à changer, pas les surfaces.** Le compilateur ne sait pas qu'un DTO
+  JS existe. C'est exactement ce qu'une `enum` donne — sans rendre l'interface non implémentable
+  pour un consommateur Kotlin de Maven Central.
+
+### Ce que l'analyse a trouvé au passage
+
+Le défaut de puissance était **280 W au CLI** (`EngineConstants.DEFAULT_CYCLIST_POWER_W`) et
+**250 W en dur** côté JS *et* WASI. Le même « coureur non configuré » ne roulait pas à la même
+puissance selon la porte empruntée. C'est précisément la classe de bug que
+`MixinParsingTest` empêche côté CLI et que rien ne surveillait ailleurs. Unifié sur 280 W : les
+trois surfaces lisent maintenant la constante.
+
+## Résultat
+
+`./gradlew check` + `ktlintCheck` verts, typecheck / lint / build de la démo verts.
+
+### Le garde-fou, vérifié en le regardant échouer
+
+Ajout d'une entrée `FAKE("fake")` à `PowerModel`, sans branche :
+
+```
+e: CyclistPowerSpec.kt:108:9 'when' expression must be exhaustive.
+   Add the 'FAKE' branch or an 'else' branch.
+```
+
+C'est une erreur de **compilation de `commonMain`** : elle tombe sur JVM, JS et WASI à la fois,
+avant qu'un seul test ne démarre. Un test n'aurait couvert que la cible sur laquelle il tourne.
+
+### Ce qui a été livré
+
+| Élément | Effet |
+|---|---|
+| `PowerModel` + `CyclistPowerSpec` (`commonMain`) | le `when`, l'ordre `base → pacing → slew` et les défauts existent une fois |
+| CLI, JS, WASI → `CyclistPowerSpec` | trois copies supprimées |
+| `requireOnlyKeys` sur les quatre DTO JS | une clé inconnue lève, au lieu d'être ignorée |
+| WASI : R9, R15, R16, R18, R19 | la quatrième surface rattrapée, `POWER_KEYS` dérivé du catalogue |
+| Défaut unifié à 280 W | les trois surfaces lisent `EngineConstants` |
+| [`docs/surface-coverage.md`](../surface-coverage.md) | la matrice, et la marche à suivre |
+
+### Le coût du contrôle strict, assumé
+
+Une clé de trop est désormais une erreur dure là où elle était ignorée en silence. C'est
+l'échange voulu — la panne évitée est invisible, celle-ci ne l'est pas — mais elle a une
+conséquence concrète : la démo passait `config.cyclist` et `config.bike` **directement**, et ces
+objets viennent du `localStorage`. Une clé écrite par une version antérieure aurait fait échouer
+l'enhancement. Ils sont maintenant construits champ par champ, comme l'étaient déjà le vent, la
+puissance et les options.
+
+### Ce que le garde-fou ne couvre toujours pas
+
+Une capacité qui n'est pas un modèle de puissance : R9 vit sur `Cyclist`, R15 sur
+`EnhanceOptions`. Le contrôle strict attrape un *appelant* périmé, pas une façade qui n'a jamais
+exposé le champ. Pour celles-là, il reste la table de couverture et la checklist de `CLAUDE.md` —
+une relecture, pas une garantie. C'est dit explicitement dans les deux documents plutôt que laissé
+croire à une couverture totale.
 
 ## Notes
 

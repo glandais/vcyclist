@@ -6,6 +6,8 @@ import {
     pathDurationMs,
     pathSize,
     pathTotalDistance,
+    type BikeDto,
+    type CyclistDto,
     type EnhanceOptionsDto,
     type Path,
     type PowerProviderDto,
@@ -81,6 +83,36 @@ export function useGPXDemo(config: Ref<Config>): UseGPXDemoReturn {
         windSpeed: config.value.wind.windSpeed,
         windDirection: config.value.wind.windDirection,
     });
+
+    // Cyclist and bike are spelled out field by field rather than passed straight from the config,
+    // for the same reason wind and power always were. The config is restored from localStorage and
+    // may carry keys an older build wrote; since task 43 the engine rejects a DTO key it does not
+    // read, so forwarding the stored object wholesale would turn a harmless leftover into a hard
+    // failure at enhance time.
+    const buildCyclistDto = (): CyclistDto => {
+        const c = config.value.cyclist;
+        return {
+            massKg: c.massKg,
+            cd: c.cd,
+            frontalAreaM2: c.frontalAreaM2,
+            maxLeanAngleDeg: c.maxLeanAngleDeg,
+            maxBrakeG: c.maxBrakeG,
+            maxSpeedKmH: c.maxSpeedKmH,
+            roadCondition: c.roadCondition,
+        };
+    };
+
+    const buildBikeDto = (): BikeDto => {
+        const b = config.value.bike;
+        return {
+            crr: b.crr,
+            inertiaFront: b.inertiaFront,
+            inertiaRear: b.inertiaRear,
+            wheelRadiusM: b.wheelRadiusM,
+            efficiency: b.efficiency,
+            maxPedalingLeanAngleDeg: b.maxPedalingLeanAngleDeg,
+        };
+    };
 
     const buildEnhanceOptionsDto = (): EnhanceOptionsDto => {
         const e = config.value.enhance;
@@ -166,8 +198,8 @@ export function useGPXDemo(config: Ref<Config>): UseGPXDemoReturn {
         try {
             const enhanced = await enhanceWithCourse(
                 originalPath.value,
-                config.value.cyclist,
-                config.value.bike,
+                buildCyclistDto(),
+                buildBikeDto(),
                 buildWindDto(),
                 buildPowerProviderDto(),
                 buildEnhanceOptionsDto()

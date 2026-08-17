@@ -327,20 +327,45 @@ Up to five optional sub-objects; each is the matching JS DTO, field for field.
 
 ```json
 {"cyclist": {"massKg": 72, "cd": 0.7, "frontalAreaM2": 0.5,
-             "maxLeanAngleDeg": 35, "maxBrakeG": 0.6, "maxSpeedKmH": 100},
+             "maxLeanAngleDeg": 35, "maxBrakeG": 0.4, "maxSpeedKmH": 100,
+             "roadCondition": "dry"},
  "bike": {"crr": 0.004, "inertiaFront": 0.0771, "inertiaRear": 0.1055,
-          "wheelRadiusM": 0.35, "efficiency": 0.95},
+          "wheelRadiusM": 0.35, "efficiency": 0.95, "maxPedalingLeanAngleDeg": 20},
  "wind": {"windSpeed": 5.0, "windDirection": 270},
- "power": {"type": "constant", "power": 250, "useHarmonics": false},
- "options": {"computeOnePointPerSecond": true}}
+ "power": {"type": "constant", "power": 280, "useHarmonics": false,
+           "criticalPower": 250, "wPrime": 20000,
+           "pacing": false, "maxSlewWPerS": 0},
+ "options": {"computeOnePointPerSecond": true,
+             "wPrimeBalanceEnabled": true,
+             "wPrimeBalanceCriticalPower": 250, "wPrimeBalanceWPrime": 20000}}
 ```
 
 - `wind.windDirection` is in **degrees** and names the direction the wind blows *toward*. It is
   the same convention `vcDominantHeadwindAzimuth` returns, so that value feeds straight back in —
   no 180° flip.
-- `power.type` is `constant`, `durability` (adds `criticalPower`, in watts — power fades with
-  work done above it) or `from_data` (replays the power recorded in the input path). Anything else
-  is `-3`.
+- `power.type` is `constant`, `durability` (fades with work done above `criticalPower`),
+  `critical-power` (spends the `wPrime` reserve, then settles at `criticalPower`) or `from_data`
+  (replays the power recorded in the input path). Anything else is `-3`. The list comes from the
+  engine's `PowerModel` catalog, shared with the CLI and the JS façade, so it cannot fall behind
+  them again.
+- `power.pacing` and `power.maxSlewWPerS` are **decorators**: they compose over whichever `type`
+  was chosen, in the order `base → pacing → slew`. `maxSlewWPerS` is a rate in W/s and `0`
+  disables it.
+- `cyclist.roadCondition` is `dry` or `wet`, case-insensitive, and **overrides**
+  `maxLeanAngleDeg` and `maxBrakeG` when present — wet takes grip from cornering *and* braking
+  together. Omit it to keep the raw values.
+- `options.wPrimeBalance*` calibrate the `wPrimeBalance` output field. The pass is **on by
+  default** and always has been; these only set the CP and W′ it scores against.
+
+**Changed in task 43.** `critical-power`, `wPrime`, `pacing`, `maxSlewWPerS`, `roadCondition` and
+the three `wPrimeBalance*` keys are new — every one of them additive, so an existing payload keeps
+its meaning. One value did move: omitting `power.power` now yields
+`EngineConstants.DEFAULT_CYCLIST_POWER_W` = **280 W**, where this façade previously hardcoded
+250 W. The CLI always used 280 W for the same unconfigured rider; the two are now the same number
+because they read the same constant.
+
+Unknown keys remain an error (`-3`), and the allowlist is derived from the catalog, so it cannot
+drift from what the engine accepts.
 
 ### `vcDetectClimbsJson` — options
 
