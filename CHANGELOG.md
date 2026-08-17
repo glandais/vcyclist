@@ -1,3 +1,32 @@
+# [4.0.0](https://github.com/glandais/vcyclist/compare/v3.1.1...v4.0.0) (2026-08-17)
+
+
+* feat(engine)!: fade power with supra-CP work, drop the elapsed-time decay (ledger R17) ([f51c5ed](https://github.com/glandais/vcyclist/commit/f51c5ed995309f7206dbd9d0076f426d5a780286))
+
+
+### Features
+
+* **engine:** add a rider who spends a W' reserve and settles at CP (ledger R16) ([0784cf3](https://github.com/glandais/vcyclist/commit/0784cf3197158b4732dc6f23d00d7c8a7dceb879))
+* **engine:** add a wet/dry road-condition preset (ledger R9) ([edb3a87](https://github.com/glandais/vcyclist/commit/edb3a878801de408931cc54761813fadf32732e9))
+* **engine:** annotate the W' balance of the Critical Power model (ledger R15) ([cff2263](https://github.com/glandais/vcyclist/commit/cff2263d53569d2323479e5b366f731a1aca8f10)), closes [#37](https://github.com/glandais/vcyclist/issues/37)
+* **engine:** rate-limit how fast cyclist power may change (ledger R18) ([7132fe7](https://github.com/glandais/vcyclist/commit/7132fe71b6f2a14088f3c883c754c0df376a780e))
+* **engine:** record braking power instead of discarding it (ledger R12) ([51183b0](https://github.com/glandais/vcyclist/commit/51183b0a688ce97ca50e391be21f3dfc1ca359bc)), closes [#38](https://github.com/glandais/vcyclist/issues/38)
+* **engine:** ride harder uphill and easier downhill, as a heuristic (ledger R19) ([b2c7073](https://github.com/glandais/vcyclist/commit/b2c70731d4174b74846f754fe3be68144b75039b))
+* **engine:** spend one friction budget on braking and cornering (ledger R11) ([63aa84e](https://github.com/glandais/vcyclist/commit/63aa84e337335c6c8777646c60bcf227243e4cd4))
+* **engine:** stop pedalling past the pedal-strike lean angle (ledger R10) ([903e4cd](https://github.com/glandais/vcyclist/commit/903e4cd3fe81d8d54ed88f45537829edcc8296cb))
+
+
+### BREAKING CHANGES
+
+* PowerProviderConstantWithTiring is removed. The JS façade's
+power.type = "constant_tiring" becomes "durability", and its "tiringDuration" field becomes
+"criticalPower" (watts); the WASI JSON ABI takes the same rename. Callers wanting the old
+elapsed-time fade have no replacement -- it was never sourced. The frozen WIT spike under
+tools/wasi-component/ still describes constant-tiring: it is a replay artifact of the w13
+experiment, not built by Gradle, and is left as it was.
+
+Co-Authored-By: Claude Opus 5 (1M context) <noreply@anthropic.com>
+
 ## [3.1.1](https://github.com/glandais/vcyclist/compare/v3.1.0...v3.1.1) (2026-08-17)
 
 
