@@ -1,8 +1,12 @@
 # Build warnings ledger
 
-Inventory of everything `./gradlew clean build` emits that is not a plain task line. **This file
-records observations only — no fixes, no root-cause analysis.** Each entry has an ID so a later
-task can reference it.
+Inventory of everything `./gradlew clean build` emits that is not a plain task line. Sections A-G
+below are the **baseline measurement**, written before anything was changed: they describe the build
+as it was on 2026-08-17, and they are deliberately left as measured so the fixes have something to
+be diffed against. Each entry has an ID.
+
+**Current status is the [Resolution](#resolution) section at the end** — read that first if you want
+to know what the build emits *today*, then come back here for the detail of any single finding.
 
 ## How this was measured
 
@@ -174,6 +178,9 @@ Location: tools/parity/src/main/kotlin/io/github/glandais/parity/UnitDump.kt lin
 
 - Code: `out["dp.$id.$i.ele"] = p.elevation ?: 0.0`.
 
+**Moot since `865dd0b` on `develop`**, which removed the whole TS parity verification harness — the
+file this warning lived in no longer exists. Nothing was fixed here; the site went away.
+
 ## D. Kotlin Gradle Plugin misconfiguration
 
 ### D1 — "JS Environment Not Selected" for `wasmWasi`
@@ -278,24 +285,85 @@ and `clean` — but **no `build` task**. In the full run the only demo task that
 consequence of the newer Kotlin, and because the project is currently building on a **release
 candidate** compiler.
 
+Those two were what the build log exposed directly; reading `libs.versions.toml` while fixing this
+turned up **five** stale entries in total (see [Resolution](#resolution)), which is why the index
+counts 5 and not 2.
+
 ## Ledger index
 
-| ID | Severity | Count | Where | Owner |
-|---|---|---|---|---|
-| B1 | Breaks on Gradle 10 | 1 | `cli/build.gradle.kts:35` | first-party |
-| B2 | Info | 1 | root | first-party |
-| B3 | Info | 1 | root | Gradle |
-| B4 | Environmental | 1 | dev machine | — |
-| C1 | Warning | 36 | `EngineWasiApi.kt`, `HostTileSource.kt` | first-party |
-| C2 | Warning (by design) | 32 | `EngineJsApi.kt`, `ElevationJsApi.kt` | first-party |
-| C3 | Warning | 3 | `FluxTest.kt`, `LruCacheTest.kt` | first-party |
-| C4 | Warning (possible dead assert) | 1 | `TileFetcherStubTest.kt:145` | first-party |
-| C5 | Warning (Windows portability) | 1 | `EnhanceCommandTest.kt:268` | first-party |
-| C6 | Warning | 1 | `UnitDump.kt:229` | first-party |
-| D1 | Becomes an error later | 1 | 4 × `build.gradle.kts` | first-party |
-| E1 | Perf advisory | 6 | `engine.js`, `fit.js` | first-party + deps |
-| E2 | Unknown (uninspected) | ~429 | Kotlin/JS modules | mixed |
-| F1 | Noise | 4 | KGP mocha wiring | third-party |
-| F2 | Noise | 14 | ktlint's embedded compiler | third-party |
-| G1 | Coverage gap | 1 | `demo/build.gradle.kts` | first-party |
-| G2 | Doc drift | 1 | `CLAUDE.md` | first-party |
+| ID | Severity | Count | Where | Owner | Status |
+|---|---|---|---|---|---|
+| B1 | Breaks on Gradle 10 | 1 | `cli/build.gradle.kts:35` | first-party | ✅ fixed |
+| B2 | Info | 1 | root | first-party | ⬜ left as is |
+| B3 | Info | 1 | root | Gradle | ⬜ left as is |
+| B4 | Environmental | 1 | dev machine | — | — n/a |
+| C1 | Warning | 36 | `EngineWasiApi.kt`, `HostTileSource.kt` | first-party | ✅ fixed |
+| C2 | Warning (by design) | 32 | `EngineJsApi.kt`, `ElevationJsApi.kt` | first-party | 🟡 kept on purpose |
+| C3 | Warning | 3 | `FluxTest.kt`, `LruCacheTest.kt` | first-party | ✅ fixed |
+| C4 | **Dead assert** (confirmed) | 1 | `TileFetcherStubTest.kt:145` | first-party | ✅ fixed |
+| C5 | Warning (Windows portability) | 1 | `EnhanceCommandTest.kt:268` | first-party | ✅ fixed |
+| C6 | Warning | 1 | `UnitDump.kt:229` | first-party | ➖ moot (harness deleted upstream) |
+| D1 | Becomes an error later | 1 | 4 × `build.gradle.kts` | KGP | 🟡 documented, deferred to w08 |
+| E1 | Perf advisory | 6 | `engine.js`, `fit.js` | first-party + deps | ⬜ open |
+| E2 | Unknown (uninspected) | ~429 | Kotlin/JS modules | mixed | ⬜ open |
+| F1 | Noise | 4 | KGP mocha wiring | third-party | ⬜ not ours |
+| F2 | Noise | 14 | ktlint's embedded compiler | third-party | ⬜ not ours |
+| G1 | Coverage gap | 1 | `demo/build.gradle.kts` | first-party | ⬜ open, needs a decision |
+| G2 | Doc drift | 5 | `CLAUDE.md` | first-party | ✅ fixed |
+
+## Resolution
+
+Applied on branch `fix/build-warnings`, verified by a second
+`clean build --warning-mode all --no-build-cache` on 2026-08-17, then re-verified after rebasing onto
+`develop` at `865dd0b` (*"remove TS parity verification harness"*), which landed in between.
+
+| Measure | Baseline | After |
+|---|---|---|
+| `w:` warning lines | 75 | **32** |
+| Gradle deprecations (own scripts) | 1 | **0** |
+| Kotlin compiler problem entries | 5 | **0** |
+| KGP misconfiguration | 1 | 1 (D1, deliberately) |
+| Tests / failures / skipped | 3 681 / 0 / 0 | 3 637 / 0 / 0 († ) |
+| ktlint | clean | clean |
+
+(† ) The 44 fewer test executions are **entirely** `865dd0b`'s parity-fixture removal, not this
+branch: the whole delta is `:engine` (-11 on each of its four targets), while `:elevation`, `:gpx`,
+`:fit`, `:map` and `:cli` are unchanged to the test. Baseline totals above were measured on the
+pre-`865dd0b` tree and are left as measured.
+
+Every remaining `w:` line is C2. B1, C1, C3, C4, C5 and G2 were fixed here; C6 disappeared on its
+own when `develop` dropped the parity harness.
+
+### Fixed
+
+- **B1** — `tasks.register("generateVersionProperties")` replaces the `by registering` delegate.
+  ktlint then required the multiline expression on its own line, hence the re-indent.
+- **C1** — `ExperimentalWasmInterop` joins the existing file-level `@OptIn` in `EngineWasiApi.kt` and
+  `HostTileSource.kt`, rather than being repeated across 36 declarations. **The emitted `.wasm` is
+  byte-identical** (502 184 bytes, sha256 `99411d1a…f23f6fc9`), which is the evidence the change is
+  annotation-only and leaves w06's size guard and the w09 host harness alone.
+- **C3** — file-level opt-in on both test files, each with a line on why `runCurrent()` is used.
+- **C4** — the assert was `elevation != null` on a non-nullable `Double`: **structurally incapable of
+  failing**, so it verified nothing. Replaced by the fixture's encoded value — (0, 0) is the centre of
+  the zoom-0 tile, i.e. pixel (2, 2) of a 4 × 4 one, so 202 m. Confirmed green (10/10 under wasmtime),
+  not assumed.
+- **C5** — renamed without the quotes. Worth noting the suite would not have run on Windows at all.
+- **G2** — the drift was **5 entries**, not the 2 first recorded: Gradle 9.5.0 → 9.7.0, Kotlin 2.3.21 →
+  2.4.20-RC, xmlutil 0.91.3 → 1.0.2, imageio-webp 3.13.1 → 3.14.0, and picocli / fit-kotlin-sdk were
+  absent. The list now points at `libs.versions.toml` as the source of truth.
+
+### Deliberately not fixed
+
+- **C2** (32 sites) — the opaque-handle façade is intentional. Suppressing the warnings would also
+  hide a *genuinely* new non-exportable type appearing later, which is exactly the regression signal
+  section C2 exists to preserve. The count is the canary; leave it visible.
+- **D1** — not a project misconfiguration: KGP's check only recognises `nodejs()`. The only way to
+  silence it is to declare `nodejs()` on modules that are verified under wasmtime, which would create
+  pointless Node test tasks. Recorded in `docs/kotlin-wasm-wasi.md` §1 instead, where it had been
+  filed as a "Beta2 roughness" — it persists on 2.4.20-RC, so it is KGP behaviour, and it closes the
+  first of w08's three re-verification questions early. Re-check at 2.4.20 final.
+- **E1 / E2** — `engine.js` at 996 KiB and the ~429 uninspected per-module webpack warnings need real
+  investigation (a `stats` bump to even read them), not a quick fix.
+- **F1 / F2** — third-party: KGP's own mocha wiring, and ktlint's embedded compiler 2.1.0.
+- **G1** — wiring `:demo` into `build` would make every contributor's `./gradlew build` run npm
+  install + vite. That is a build-time policy call, not a warning fix.
