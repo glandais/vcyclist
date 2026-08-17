@@ -189,8 +189,8 @@ bump with `[skip ci]` and pushes it back to `develop`).
   `gpx/src/commonTestFixtures/kotlin/.../gpx/GpxFixtures.kt` — `commonTest/resources` is not
   portable across targets, but referenced files exist there for human / git diff readability.
   That directory is added as an extra `commonTest` source dir by **both** `gpx/build.gradle.kts`
-  and `engine/build.gradle.kts` : KMP has no `java-test-fixtures`, and `:engine`'s parity /
-  JS-façade tests need the same strings.
+  and `engine/build.gradle.kts` : KMP has no `java-test-fixtures`, and `:engine`'s JS-façade
+  tests need the same strings.
 - **Java sources in `src/jvmTest/java/`** are compiled and run as part of `jvmTest` (`:elevation`,
   `:gpx`, `:engine` each have some since g22). They exist to pin *Java callability*, which no
   Kotlin test can check — from Kotlin every call compiles whether the JVM bridges and
@@ -208,22 +208,6 @@ different ULPs. Use these tolerances :
 - Composed trig (Haversine, Vector3D distances) : `1e-9`.
 - Full pipeline metrics (totalDistance, durationMs) : `0.5 %` relative.
 - Elevation : `±1 m` (Terrarium tile resolution).
-
-### Parity strategy
-
-Parity tests are **TS-corroborated** : `ParityFixtures.kt` asserts the Kotlin pipeline's
-output, and each value carries the TS reference value measured on identical input plus a
-quantified explanation of the gap. See [`docs/parity.md`](docs/parity.md) for the full
-measurement and [`tools/parity/`](tools/parity/README.md) for the re-runnable harness
-(`./tools/parity/run-all.sh`).
-
-The TS values are deliberately **not** asserted: the TS reference seeds its simulation clock
-from `new Date()` and does not simulate the last point, both of which this port fixes on
-purpose. Don't "align" Kotlin to TS on those two points.
-
-When a pipeline change shifts the output by more than the 0.5 % budget, regenerate the
-fixture values (run the pipeline once, copy-paste, commit with a comment) and re-measure the
-TS side per the checklist at the end of `docs/parity.md`.
 
 ## Codebase touchpoints
 
@@ -339,7 +323,6 @@ the GPX output makes sense.
 | Why this design decision ? | The relevant task markdown's "Notes" section, or `docs/PLAN.md` if architectural |
 | How does Kotlin/JS export this type ? | `docs/kotlin-js-jvm-webp.md` |
 | What's the TS equivalent of `<class>` ? | Same name in `../virtual-cyclist/src/` — Kotlin file's KDoc names the TS source |
-| Why does this fixture have these numbers ? | `engine/src/commonTest/.../parity/ParityFixtures.kt` + `docs/parity.md` |
 | Why is `time(0) = 0` ? | `VirtualizeService.kt` KDoc (relative-time simulation) |
 | How to run the CLI ? | [`cli/README.md`](cli/README.md) — usage, exit codes, and the gpxtools-cli migration table |
 | Where did gpx2web's `<class>` go ? | [`docs/gpx2web-coverage.md`](docs/gpx2web-coverage.md) — one row per Java class, ported / replaced / not ported with the reason |

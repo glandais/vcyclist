@@ -337,7 +337,6 @@ vcyclist/
 ├── gradle/libs.versions.toml    # version catalog (Kotlin 2.3.21, coroutines 1.11, xmlutil 0.91, …)
 ├── docs/
 │   ├── PLAN.md                  # task-by-task progress (Phases 1-2bis)
-│   ├── parity.md                # parity strategy vs the TS reference
 │   ├── elevation-integration.md # how to run live HTTP integration tests
 │   ├── kotlin-js-jvm-webp.md    # Kotlin/JS ↔ JS interop guide
 │   └── tasks/                   # one Markdown per implementation task (00-31, + bonus demos)
@@ -372,7 +371,6 @@ output points covering ~128.6 km / ~5.3 h of simulated ride.
 
 - [`docs/PLAN.md`](docs/PLAN.md) — task-by-task plan with commit hashes for every step.
 - [`docs/tasks/`](docs/tasks/) — detailed Markdown spec for each task (00-31 + bonus demos).
-- [`docs/parity.md`](docs/parity.md) — TS↔Kotlin parity approach and tolerances.
 - [`docs/kotlin-js-jvm-webp.md`](docs/kotlin-js-jvm-webp.md) — Kotlin/JS ↔ JS interop
   guide that underpins the `@JsExport` façades and the WebP tile decoding.
 - [`docs/publishing.md`](docs/publishing.md) — release flow (Maven Central + npm via

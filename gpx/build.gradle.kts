@@ -47,9 +47,9 @@ kotlin {
             api(project(":elevation"))
         }
         commonTest {
-            // GpxFixtures is shared verbatim with `:engine`'s parity and JS-façade tests. KMP
-            // has no `java-test-fixtures` equivalent, so the single source file is compiled
-            // into both test compilations rather than duplicated on disk.
+            // GpxFixtures is shared verbatim with `:engine`'s JS-façade tests. KMP has no
+            // `java-test-fixtures` equivalent, so the single source file is compiled into both
+            // test compilations rather than duplicated on disk.
             kotlin.srcDir("src/commonTestFixtures/kotlin")
             dependencies {
                 implementation(kotlin("test"))
