@@ -130,6 +130,10 @@ simulated rider *react* to a low W′ is a separate change — see
   braking together (`DRY` reproduces the shipped defaults bit-for-bit ; `WET` is 40 % of the grip).
 - `PowerProviderSlewLimited` (**not in TS**) is a **decorator** capping |ΔP| per second (50 W/s
   default, Zignoli & Biral). Wrap any provider : `PowerProviderSlewLimited(PowerProviderDurability(…))`.
+- **Friction ellipse** (**not in TS**) : `MaxSpeedComputer` spends one grip budget on cornering and
+  braking together — `a_x = a_xmax·√(1 − (a_y/a_ymax)²)` — so a rider at full lean cannot brake.
+  Solved by **bisection**, not fixed-point iteration : the map is decreasing and iterates oscillate
+  outside the ellipse.
 - **Pedal-strike clearance** (**not in TS**) : `MuscularPowerProvider` delivers no power past
   `Bike.maxPedalingLeanAngleDeg` (20°), lean being `atan(v²/(g·R))` from the path's own `speed` and
   `radius`. Set 90 to disable. It fails *open* when `radius` is absent — `MaxSpeedComputer` may not

@@ -12,7 +12,8 @@ entry (R7, R12, R19, R21).
 - Assessed against: `develop` @ `0f979af`
 - Shipped since: **R15** (W′bal output field), **R12** (`pBrake`), **R9** (`RoadCondition`),
   **R17** (`PowerProviderDurability`), **R10** (pedal-strike cut-off),
-  **R18** (`PowerProviderSlewLimited`), **R16** (`PowerProviderCriticalPower`)
+  **R18** (`PowerProviderSlewLimited`), **R16** (`PowerProviderCriticalPower`),
+  **R11** (friction ellipse)
 - Sources read: all 8 research chapters + `EngineConstants`, `Cyclist`, `MaxSpeedComputer`,
   `PowerComputer`, `VirtualizeService`, `PowerProviderConstantWithTiring`,
   `CyclistPowerProviderBase`, the four resistive providers, `RhoProvider`, `AeroProvider`,
@@ -48,7 +49,7 @@ items buy is a ride trace a human recognises as their own.
 | R8 | Vertical-curvature rolling term | Negligible | Med-high | ❌ |
 | R9 | Wet/dry µ condition preset | **High** | **Very low** | ✅ |
 | R10 | Pedal-strike power cut-off at high lean | Med-high | Low | ✅ |
-| R11 | Friction ellipse (combined braking + cornering) | Medium | Medium | ⚪ |
+| R11 | Friction ellipse (combined braking + cornering) | Low (measured) | Medium | ✅ |
 | R12 | **Brake power as a `PointField`** | **High** | **Very low** | ✅ |
 | R13 | Brake actuation lag (0.13 s) | Negligible | Low | ❌ |
 | R14 | Posture-dependent CdA | Medium | Med (unbounded validation) | ⚪ |
@@ -61,9 +62,8 @@ items buy is a ride trace a human recognises as their own.
 | R21 | Fuelling / glycogen state variable | Low | High | ❌ (for now) |
 | R22 | Optimal-pacing solver as rider behaviour | Negative | Very high | ❌ |
 
-Recommended order if acted on: ~~R15 → R12 → R9 → R17 → R10 → R18 → R16~~ — **all shipped**.
-Left: **R11** (friction ellipse), **R19** (pacing heuristic — the natural follow-on to R16 and
-R18), **R14** and **R20**.
+Recommended order if acted on: ~~R15 → R12 → R9 → R17 → R10 → R18 → R16 → R11~~ — **all shipped**.
+Left: **R19** (pacing heuristic — the natural follow-on to R16 and R18), **R14** and **R20**.
 
 ## A. Mechanical layer — closed
 
@@ -264,7 +264,7 @@ braking for. So R10 is a fix to the **power trace**, not to the finish time, and
 these changes to move the default output at all — by well under the 0.5 % that used to be the parity
 budget.
 
-### R11 — Friction ellipse (combined braking + cornering) ⚪
+### R11 — Friction ellipse (combined braking + cornering) ✅
 
 `MaxSpeedComputer` takes `min(cornering, braking)` — the two constraints are independent, so the
 simulated rider may brake at 0.4 g while already at full lean. The physical constraint
@@ -276,8 +276,46 @@ R = 15 m flat hairpin, vcyclist gives **36.5 km/h** dry against his simulated **
 fast, *despite* the deliberate 78 %-of-dry-grip margin in the 35° default. Independent constraints
 explain the direction of that gap better than the µ value does.
 
-Deferred rather than recommended because it changes the backward pass's structure (the braking limit
-becomes lean-dependent, so the pass has to iterate or approximate), where R9/R10 are local.
+#### What landed
+
+`MaxSpeedComputer.computeBrakingLimit` now spends one friction budget on both axes:
+`a_x = a_xmax · √(1 − (a_y/a_ymax)²)` with `a_y = v²/R`, so a rider at full lean has no braking
+left. `a_xmax` and `a_ymax` are the rider's own limits (`maxBrakeG`, `tan θ_lean`), so the ellipse
+inherits the margin those already encode rather than stacking a second one. Saturated-radius points
+count as straight (the R9 rule) and keep the full budget.
+
+**The obvious implementation is wrong, and the tests caught it.** `a_y` depends on the speed being
+solved for, so the constraint is implicit — but iterating `v ← √(v_next² + 2·a_x(v)·d)` does not
+converge onto it: a higher `v` leaves *less* braking, so the map is **decreasing** and the iterates
+oscillate around the answer, landing outside the ellipse half the time. `g(v) = v² − v_next² −
+2·a_x(v)·d` is strictly increasing, so it is now plain bisection, which always lands on the safe
+side. A per-point invariant test would have passed by luck with an even iteration count.
+
+#### The measurement corrects this entry's own premise
+
+| Route | before | with ellipse | cost |
+|---|---|---|---|
+| `stelvio.gpx` | 578 s | 579 s | +0.17 % |
+| `strava.gpx` | 2 891 s | 2 892 s | +0.03 % |
+| `sample.gpx` | 19 215 s | 19 220 s | +0.03 % |
+
+Almost nothing — and the reason matters more than the number. This entry claimed the ellipse was
+*"the mechanism behind the calibration gap"* against Zignoli's 29 km/h hairpin. **It is not.** The
+ellipse only lengthens the braking zone *approaching* a corner; the apex is still
+`v = √(µ·g·R)` = 36.5 km/h, untouched, because a rider who has finished braking spends the whole
+budget laterally by definition.
+
+So the 36.5-vs-29 comparison was between two different quantities: ours is an **upper bound** on
+cornering speed, Zignoli's is an **optimised behaviour** under constraints we do not model (his
+solver trades corner speed against the cost of re-accelerating, and carries roll-rate and
+pedal-clearance limits). Nor can trajectory explain it in that direction — his riders *cut* the
+turn, which is a larger radius and a higher speed, not a lower one. Closing that gap needs a
+cornering-behaviour model, not more constraint algebra, and no source parameterises how far below
+`√(µgR)` real riders actually corner (§5.7 lists exactly that as missing).
+
+What R11 does buy is that the speed profile is now physically admissible everywhere — no point
+brakes at 0.4 g while already at full lean — which is worth having whether or not it moves the
+clock.
 
 ### R12 — Brake power as a `PointField` ✅ **not proposed by the research**
 
