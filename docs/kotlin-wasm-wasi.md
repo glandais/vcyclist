@@ -42,9 +42,12 @@ wasmWasi {
 - `wasmWasiWasmtimeTest` est un `KotlinJsTest` : les blocs existants
   `tasks.withType<KotlinJsTest>` (propagation `INTEGRATION`, timeouts…) s'y appliquent sans
   modification.
-- **Rugosité de la Beta2** : KGP logue `⚠️ JS Environment Not Selected` même quand `wasmtime()`
-  est choisi — le check ne connaît que `nodejs()`. Avertissement inoffensif, à surveiller pour
-  2.4.20 final.
+- **Rugosité de KGP, toujours présente en `2.4.20-RC`** : KGP logue `⚠️ JS Environment Not
+  Selected` même quand `wasmtime()` est choisi — le check ne connaît que `nodejs()`. Avertissement
+  inoffensif *aujourd'hui*, mais son texte annonce « Not choosing any of them will be an error in
+  the future releases » : c'est donc un point de rupture potentiel, pas seulement du bruit. Ne pas
+  le faire taire en ajoutant `nodejs()`, qui créerait des tâches de test Node inutiles pour un
+  module vérifié sous wasmtime. À re-vérifier en 2.4.20 final (tâche w08, étape 3).
 
 ## 2. Compatibilité des dépendances et `expect`/`actual`
 

@@ -303,13 +303,19 @@ the GPX output makes sense.
 
 ## Tools
 
-- Gradle 9.5.0 (wrapper)
-- Kotlin 2.3.21 (KMP)
+`gradle/libs.versions.toml` is the source of truth — this list is a convenience copy, so check the
+catalogue before trusting a number here.
+
+- Gradle 9.7.0 (wrapper)
+- Kotlin **2.4.20-RC** (KMP) — a release candidate, deliberately: wasmtime support in KGP landed in
+  the 2.4.20 line, and 2.4.20 final is not on Maven Central yet. Task w08 does the bump and blocks
+  the real publication (w07).
 - kotlinx-coroutines 1.11.0
 - kotlinx-browser 0.5.0 (js)
-- xmlutil 0.91.3 (multi-target XML)
-- TwelveMonkeys imageio-webp 3.13.1 (JVM WebP)
-- ktlint 14.2.0
+- xmlutil 1.0.2 (multi-target XML)
+- TwelveMonkeys imageio-webp 3.14.0 (JVM WebP)
+- ktlint 14.2.0 (its embedded compiler is 2.1.0, hence the `sun.misc.Unsafe` warnings in build logs)
+- picocli 4.7.7 (`:cli`), fit-kotlin-sdk 21.213.0 (`:fit`)
 
 ## Where to find things
 
