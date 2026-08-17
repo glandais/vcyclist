@@ -26,6 +26,7 @@ TypeScript library for elevation data.
             │  ├─ PointPerDistance(1, 2)              │
             │  ├─ smoothElevation (150 m kernel)      │
             │  ├─ PathCurvature (turn radius)         │
+            │  │   or RacingLine (optimal line)*      │
             │  ├─ MaxSpeedComputer (cornering+braking)│
             │  ├─ VirtualizeService (1 Hz physics)    │
             │  ├─ PointPerSecond (uniform sampling)   │

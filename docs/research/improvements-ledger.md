@@ -70,8 +70,9 @@ deliberately skipped. The matrix lives in
 | R21 | Fuelling / glycogen state variable | Low | High | ❌ (for now) |
 | R22 | Optimal-pacing solver as rider behaviour | Negative | Very high | ❌ |
 | R23 | **Curvature by heading regression in a planar frame** | **High (measured)** | Low | ✅ |
+| R24 | Racing line (optimal trajectory through corners) | Low (measured) | High | ✅ (opt-in) |
 
-Recommended order if acted on: ~~R15 → R12 → R9 → R17 → R10 → R18 → R16 → R11 → R19 → R23~~ —
+Recommended order if acted on: ~~R15 → R12 → R9 → R17 → R10 → R18 → R16 → R11 → R19 → R23 → R24~~ —
 **all shipped**. Left: **R14** (posture CdA) and **R20** (RPE / Hazard Score), both deferred on
 evidence rather than effort.
 
@@ -469,6 +470,64 @@ recording, because both looked right and were measurably wrong — see the comme
 the *smoothed* curve's own arclength, not the raw path's; and the scale-selection allowance must be
 measured from the trace at the *widest* window, since a fixed allowance rejects wide windows first
 and a narrow-window measurement mistakes jitter for signal.
+
+### R24 — Racing line (optimal trajectory through corners) ✅, opt-in
+
+The trajectory half of [`docs/design/racing-line.md`](../design/racing-line.md), shipped behind
+`racingLine.enabled = false`. A lateral offset `n(s)` is solved as a box-constrained convex QP —
+curvature objective, steering penalty, centring prior — by projected Newton over a pentadiagonal
+`LDLᵀ`, then the path is rebuilt on the resulting line. Tasks t04, t05, t07.
+
+#### Measurement
+
+Full pipeline, `FULL_ROAD`, no simplification, `fixElevation` off. Reproduce with
+`MEASURE=1 ./gradlew :engine:jvmTest --tests '*RacingLineMeasurementTest*' --rerun-tasks -i`:
+
+| fixture | duration | distance | p1 radius | p10 radius | stations opened / tightened |
+|---|---|---|---|---|---|
+| `stelvio` | +0.07 % | 3 574 → 3 650 m | 5.0 → 6.5 m | 23.0 → 26.2 m | 528 / 407 |
+| `strava` | **−0.54 %** | 21 118 → 21 148 m | 16.2 → 17.2 m | 58 → 69 m | 3 977 / 2 144 |
+| `sample` | **−0.81 %** | 130 393 → 131 086 m | 10.0 → 13.2 m | 65 → 67 m | 13 577 / 9 400 |
+
+Half a percent, on the curviest fixtures, in `FULL_ROAD` — the mode that is illegal on an open
+road. `LANE`, the legal default, gives less. This is the same order the feasibility study predicted
+from first principles (0.05–0.4 %) and for the same structural reason R11 recorded: **constraint
+algebra only moves the clock where the constraint binds**, and a rider spends 1–5 % of a ride at
+the cornering limit.
+
+`stelvio` going very slightly *slower* is not a defect. It is a 3.5 km climb of hairpins where
+speed is power-limited rather than corner-limited, and the racing line is 2 % **longer** — the
+objective penalises curvature, not length, so it buys corner speed with distance. On a climb that
+trade is a loss. Worth knowing before anyone enables this for a hill climb.
+
+#### The trap that made it look catastrophic
+
+The first integrated measurement showed rides **16–27 % slower**, with the median corner radius on
+`strava` collapsing from 187 m to 85 m and the 10th percentile hitting the 5 m clamp. The line was
+apparently turning every corner into a hairpin.
+
+The cause was not the solver, which was solving correctly, but how its output was *measured*. The
+exact offset-curvature formula reads `n''` off a finite second difference at 1–2 m spacing, where a
+0.1 m wiggle between adjacent stations already looks like a 23 m bend — and a box-constrained
+solution is only C¹ where it meets a bound, so it has exactly such wiggles. Every corridor-bound
+kink became a spurious hairpin, and `MaxSpeedComputer` dutifully braked for all of them.
+
+The fix is to **re-run the curvature estimator on the materialised path** instead of trusting the
+analytic form. That reports the curvature of the geometry actually written, and — just as
+importantly — measures the racing line and the centreline the same way, so the two can be compared
+at all. It is worth stating plainly because the analytic formula is *correct*: what failed was
+applying an exact continuous identity to a finite difference of a nearly-C¹ function.
+
+#### Why it stays off by default
+
+It rewrites every coordinate of the output. That is not a refinement an existing caller asked for,
+and it is visible to anything that map-matches or detects segments — hence `sourceLatitude` /
+`sourceLongitude`, which keep the edit reversible rather than merely documented.
+
+The corridor is also still a fiction on any route without width data: the gain is **linear** in the
+assumed road width, so `defaultRoadWidthM = 6.0` being wrong by 2× makes the whole result wrong by
+2×, in an unknown direction. Design §12 question 1 remains the honest caveat, and `--road-width` is
+exposed precisely so a user who knows better can say so.
 
 ## C. Physiological
 

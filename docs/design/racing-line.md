@@ -1,12 +1,27 @@
 # Racing-Line (Optimal-Trajectory) Stage for vcyclist — Final Design
 
-> **Status update (2026-08-17).** This document is the *full* design. What has actually shipped is
-> its geometry half — the curvature estimator of §3.1–3.3 and the `MaxSpeedComputer` hook of §8.2,
-> with the lateral offset pinned to `n ≡ 0` — as ledger entry
-> [**R23**](../research/improvements-ledger.md), on the feasibility study's recommendation that the
-> estimator is where the measurable value sits. The QP, the corridor, corner detection, roundabouts
-> and junction reconstruction are **not** implemented. Task specs:
-> [`t01`](../tasks/t01-nan-default-curvature-field.md), [`t03`](../tasks/t03-curvature-estimator.md).
+> **Status update (2026-08-17).** This document is the *full* design. Shipped so far:
+> the curvature estimator of §3.1–3.3 with the `MaxSpeedComputer` hook of §8.2 (ledger
+> [**R23**](../research/improvements-ledger.md)), and the corridor, corner detector, offset QP and
+> pipeline integration of §3.4–3.6, §3.8, §3.11 and §8 (ledger **R24**, opt-in via
+> `racingLine.enabled`). **Not** implemented: time weighting (§3.7), roundabouts (§5), junction
+> reconstruction (§3.10) and the lattice-DP fallback (§3.9). Task specs:
+> [`t01`](../tasks/t01-nan-default-curvature-field.md), [`t02`](../tasks/t02-road-width.md),
+> [`t03`](../tasks/t03-curvature-estimator.md),
+> [`t04`](../tasks/t04-corner-detector-corridor.md), [`t05`](../tasks/t05-offset-qp.md),
+> [`t07`](../tasks/t07-enhancer-integration.md).
+>
+> Further corrections the implementation measured, beyond the feasibility study's list:
+>
+> - **§3.8's iteration cap of 12 is far too low** — a tight corner takes ~40 projected-Newton
+>   iterations. The count is bounded by corner difficulty, not route length.
+> - **§3.8.1's analytic seed makes the solver slower**, not faster: it saturates the corridor, and
+>   the released constraints cost more iterations than the seed saves. Deleted.
+> - **§3.6's exact offset curvature must not be written straight out.** It reads `n''` off a finite
+>   difference, and a box-constrained solution's bound kinks turn into spurious hairpins — 16–27 %
+>   slower rides until the curvature was instead re-measured on the materialised path.
+> - **The objective needs the §3.7 saturation mask even without time weighting**, or it amplifies
+>   jitter: `n'' ≈ −κ` integrated twice is a random walk.
 >
 > Maintainer decisions taken since, which override the text below where they disagree:
 >

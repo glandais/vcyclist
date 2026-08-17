@@ -100,6 +100,9 @@ Browser demos (in `:elevation`) :
 3. `PointPerDistance(1, 2)` — refine for downstream physics.
 4. `smoothElevation` (150 m kernel, always).
 4b. `PathCurvature` — writes `trajectoryCurvature`, moves nothing. **Not in TS.**
+    *Or* `RacingLine.compute` when `racingLine.enabled` (off by default), which replaces every
+    coordinate with an optimised trajectory and writes the same field for the line it built. The
+    two are alternatives, never a sequence.
 5. `MaxSpeedComputer` (always if `virtualizeTrack=true`) — prefers that field over its own estimate.
 6. `VirtualizeService` (time-stepping simulation).
 7. `PointPerSecond` (1 Hz uniform sampling).
@@ -157,6 +160,16 @@ simulated rider *react* to a low W′ is a separate change — see
   reproduces the table. Two non-obvious constraints, both found by measurement and both commented
   at their call sites : heading must be regressed against the **smoothed** curve's own arclength,
   and the scale-selection allowance must be measured from the trace at the **widest** window.
+- **Racing line** (**not in TS**, ledger R24) : `RacingLine.compute` solves for a lateral offset
+  `n(s)` minimising a convex quadratic energy over a corridor box — projected Newton on a
+  pentadiagonal `LDLᵀ`. Off by default because it **rewrites every coordinate**; the originals are
+  kept in `sourceLatitude`/`sourceLongitude`. `CorridorMode.LANE` (default) keeps `n = 0` feasible,
+  so straights are untouched and the line never crosses the centreline; `FULL_ROAD` is closed-road
+  only. Three traps, all measured rather than reasoned : the iteration cap must be ~200 not 12, the
+  analytic out–in–out seed makes it *slower*, and the trajectory curvature must be **re-measured**
+  on the materialised path rather than taken from the analytic offset formula — the latter reads
+  `n''` off a finite difference and spikes at every corridor-bound kink, which made rides 16–27 %
+  slower until it was fixed.
 - `pBrake` (**not in TS**) records the energy `VirtualizeService`'s `speedMax` clip removes, as
   `min(0, pComputedWheelPower)` — negative, at the wheel, so **not** divided by drivetrain
   efficiency. A speed cap the rider merely sits at is not braking : resistance alone explains it.
