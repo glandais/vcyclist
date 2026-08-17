@@ -94,6 +94,7 @@ Le projet TypeScript `virtual-cyclist` (simulateur de cyclisme basé physique av
 | 41 | Engine — façade JS : rattrapage R9, R15, R16, R18, R19 | ✅ | — | 11 (jsTest, `EngineJsApiLedgerTest`) |
 | 42 | Demo — UI des modèles du ledger (R9, R10, R15, R16, R18, R19) | ✅ | — | — (typecheck/lint/build verts ; Chrome sur stelvio : sec 633 s → mouillé 674 s, W′bal 20 kJ → 0 → 11 kJ) |
 | 43 | Garde-fou de parité + catalogue partagé + rattrapage WASI | ✅ | — | 8 (commonTest `CyclistPowerSpecTest`) + 3 (jsTest) + 6 (wasmWasiTest) |
+| 44 | Réconcilier `feat/demo-update` et `feat/racing-line` | ⬜ | — | — (à faire après la fusion des deux branches) |
 
 **Cumul `:elevation` après Phase 1 + extras** : 20 classes de tests, **193 tests** (commonTest 182 + jvmTest 11 dont 6 opt-in) × 3 targets en mode standard = **557 exécutions** vertes (offline).
 
@@ -604,6 +605,7 @@ modèles de puissance de l'onglet Power fait lever `EngineJsApi`.
 | [`41`](tasks/41-js-facade-ledger-catchup.md) | Rendre R9, R15, R16, R18, R19 **atteignables** depuis JS. Aucune UI, aucun défaut modifié. |
 | [`42`](tasks/42-demo-ledger-ui.md) | Les mettre dans l'UI de la démo, plus R10 (déjà exposé, jamais câblé). |
 | [`43`](tasks/43-facade-parity-guard.md) | Garde-fou : la même dérive s'est produite trois fois (voir `g29`, `g31`, `g33`). |
+| [`44`](tasks/44-racing-line-merge.md) | Réconcilier avec `feat/racing-line`, et refermer le trou que la fusion ouvre. |
 
 **Ordre** : `40` d'abord (la démo est cassée), puis `41` → `42`, et `43` en dernier — un garde-fou
 posé avant `41` s'installerait rouge.
