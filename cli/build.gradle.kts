@@ -32,17 +32,18 @@ tasks.withType<Test>().configureEach {
 
 // The version shown by `--version`, written into a resource at build time so the CLI reports the
 // same string the artefact was published under, and so tests can read it without a manifest.
-val generateVersionProperties by tasks.registering {
-    val output = layout.buildDirectory.file("generated/version/vcyclist-cli.properties")
-    val projectVersion = project.version.toString()
-    inputs.property("version", projectVersion)
-    outputs.file(output)
-    doLast {
-        val file = output.get().asFile
-        file.parentFile.mkdirs()
-        file.writeText("version=$projectVersion\n")
+val generateVersionProperties =
+    tasks.register("generateVersionProperties") {
+        val output = layout.buildDirectory.file("generated/version/vcyclist-cli.properties")
+        val projectVersion = project.version.toString()
+        inputs.property("version", projectVersion)
+        outputs.file(output)
+        doLast {
+            val file = output.get().asFile
+            file.parentFile.mkdirs()
+            file.writeText("version=$projectVersion\n")
+        }
     }
-}
 
 sourceSets.named("main") {
     resources.srcDir(layout.buildDirectory.dir("generated/version"))
