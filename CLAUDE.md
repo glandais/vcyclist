@@ -119,6 +119,9 @@ simulated rider *react* to a low W′ is a separate change — see
   cyclistPower).
 - Conventions : resistive powers are **negative**, cyclist input is **positive**, gravity is
   negative climbing / positive descending.
+- `Cyclist.maxLeanAngleDeg` **is** a tyre friction coefficient : `v_max = √(g·R·tan θ)` is
+  `√(µ·g·R)`, so `Cyclist.mu == tanMaxLeanAngle`. [`RoadCondition`] is the preset that sets µ and
+  braking together (`DRY` reproduces the shipped defaults bit-for-bit ; `WET` is 40 % of the grip).
 - `pBrake` (**not in TS**) records the energy `VirtualizeService`'s `speedMax` clip removes, as
   `min(0, pComputedWheelPower)` — negative, at the wheel, so **not** divided by drivetrain
   efficiency. A speed cap the rider merely sits at is not braking : resistance alone explains it.

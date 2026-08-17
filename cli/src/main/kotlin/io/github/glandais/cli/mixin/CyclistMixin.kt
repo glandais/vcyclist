@@ -2,6 +2,7 @@ package io.github.glandais.cli.mixin
 
 import io.github.glandais.engine.Cyclist
 import io.github.glandais.engine.EngineConstants
+import io.github.glandais.engine.RoadCondition
 import io.github.glandais.engine.physics.CyclistPowerProvider
 import io.github.glandais.engine.physics.PowerProviderConstant
 import picocli.CommandLine
@@ -26,6 +27,14 @@ import picocli.CommandLine
  * | `--cyclist-max-speed` | 90 km/h | 100 km/h ([EngineConstants.DEFAULT_MAX_SPEED_KMH]) |
  *
  * Recorded here for the g20 correspondence matrix.
+ *
+ * ## `--road-condition` is a preset, and explicit options win over it
+ *
+ * `--road-condition=wet` sets both grip-dependent limits at once ([RoadCondition]). Passing
+ * `--cyclist-max-angle` or `--cyclist-max-brake` explicitly overrides the preset for that one
+ * value, which is why those two fields are nullable here : `null` means "not given on the command
+ * line", and only then does the preset apply. The dry preset *is* the library default, so an
+ * unconfigured CLI still builds exactly [Cyclist].
  *
  * ## Power is not part of [Cyclist]
  *
@@ -53,9 +62,9 @@ class CyclistMixin {
 
     @field:CommandLine.Option(
         names = ["--cyclist-max-brake"],
-        description = ["Maximum braking deceleration, in g (default: \${DEFAULT-VALUE})"],
+        description = ["Maximum braking deceleration, in g (default: 0.4 dry, 0.23 wet)"],
     )
-    var maxBrakeG: Double = EngineConstants.DEFAULT_MAX_BRAKE_G
+    var maxBrakeG: Double? = null
 
     @field:CommandLine.Option(
         names = ["--cyclist-cd"],
@@ -71,9 +80,19 @@ class CyclistMixin {
 
     @field:CommandLine.Option(
         names = ["--cyclist-max-angle"],
-        description = ["Maximum lean angle in cornering, in degrees (default: \${DEFAULT-VALUE})"],
+        description = ["Maximum lean angle in cornering, in degrees (default: 35 dry, 15.6 wet)"],
     )
-    var maxLeanAngleDeg: Double = EngineConstants.DEFAULT_MAX_LEAN_ANGLE_DEG
+    var maxLeanAngleDeg: Double? = null
+
+    @field:CommandLine.Option(
+        names = ["--road-condition"],
+        converter = [RoadConditionConverter::class],
+        description = [
+            "Road surface: \${COMPLETION-CANDIDATES} (default: \${DEFAULT-VALUE}). " +
+                "Sets cornering grip and braking together; wet cuts cornering speed by 1.58x.",
+        ],
+    )
+    var roadCondition: RoadCondition = RoadCondition.DRY
 
     @field:CommandLine.Option(
         names = ["--cyclist-max-speed"],
@@ -84,13 +103,25 @@ class CyclistMixin {
     fun toCyclist(): Cyclist =
         Cyclist(
             massKg = massKg,
-            maxBrakeG = maxBrakeG,
+            maxBrakeG = maxBrakeG ?: roadCondition.maxBrakeG,
             cd = cd,
             frontalAreaM2 = frontalAreaM2,
-            maxLeanAngleDeg = maxLeanAngleDeg,
+            maxLeanAngleDeg = maxLeanAngleDeg ?: roadCondition.leanAngleDeg,
             maxSpeedKmH = maxSpeedKmH,
         )
 
     /** Power is a separate strategy in vcyclist — see the class KDoc. */
     fun toPowerProvider(): CyclistPowerProvider = PowerProviderConstant(powerW, useHarmonics = useHarmonics)
+
+    /**
+     * Case-insensitive [RoadCondition] parsing : `--road-condition=wet` is what anyone types, and
+     * picocli's built-in enum conversion is case-sensitive.
+     */
+    class RoadConditionConverter : CommandLine.ITypeConverter<RoadCondition> {
+        override fun convert(value: String): RoadCondition =
+            RoadCondition.entries.firstOrNull { it.name.equals(value, ignoreCase = true) }
+                ?: throw CommandLine.TypeConversionException(
+                    "expected one of ${RoadCondition.entries.map { it.name.lowercase() }} but was '$value'",
+                )
+    }
 }

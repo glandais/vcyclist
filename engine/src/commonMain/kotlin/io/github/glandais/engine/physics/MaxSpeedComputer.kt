@@ -15,9 +15,13 @@ import kotlin.math.sqrt
  * Single backward pass : for each point `i` from last → first,
  * `speedMax[i] = min(corneringLimit(i), brakeFrom(i, i+1, speedMax[i+1]))`.
  *
- * - **Cornering** : `v_max = √(g × radius × tan(θ_lean))`. Radius is estimated by accumulating
- *   bearing changes over a window of ±10 points and dividing total distance by total angle.
- *   Clamped to `[5 m, MAX_RADIUS=200 m]`.
+ * - **Cornering** : `v_max = √(g × radius × tan(θ_lean))` — equivalently `√(µ·g·R)`, since
+ *   `µ ≡ tan θ_lean` (see [io.github.glandais.engine.RoadCondition]). Radius is estimated by
+ *   accumulating bearing changes over a window of ±10 points and dividing total distance by total
+ *   angle, clamped to `[5 m, MAX_RADIUS=200 m]`. **Saturating the upper clamp means "no measurable
+ *   curvature", so no cornering limit is applied at all** — applying `√(µ·g·200)` there would turn
+ *   the clamp into a speed cap on dead-straight road, which is invisible at the dry default
+ *   (133 km/h, above `maxSpeedKmH`) but binding in the wet (84 km/h).
  * - **Braking** : kinematic `v₀ = √(v_f² + 2 × a × d)`. Always satisfiable since `a > 0`.
  * - **Last point** is set to `2 m/s` (sentinel speed at end-of-track).
  *
@@ -56,7 +60,13 @@ object MaxSpeedComputer {
     ): Double {
         val path = course.path
         val radius = computeRadiusWindowed(path, currentIndex, window)
-        val vMax = sqrt(EngineConstants.G * radius * course.cyclist.tanMaxLeanAngle)
+        val vMax =
+            if (radius >= MAX_RADIUS_M) {
+                // Straight enough that the windowed estimate saturated : cornering does not bind.
+                course.cyclist.maxSpeedMS
+            } else {
+                sqrt(EngineConstants.G * radius * course.cyclist.tanMaxLeanAngle)
+            }
         val result = min(course.cyclist.maxSpeedMS, vMax)
         path.setSpeedMaxIncline(currentIndex, result)
         return result

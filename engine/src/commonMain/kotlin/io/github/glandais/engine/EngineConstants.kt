@@ -1,6 +1,7 @@
 package io.github.glandais.engine
 
 import kotlin.math.PI
+import kotlin.math.tan
 
 /**
  * Physics constants and default cyclist/bike parameters. Ported from the TS
@@ -62,6 +63,33 @@ object EngineConstants {
      * consistent with real descenders riding below the physics-optimal line.
      */
     const val DEFAULT_MAX_LEAN_ANGLE_DEG: Double = 35.0
+
+    /**
+     * Tyre friction coefficient on **dry** asphalt — the physical limit, not a riding target.
+     * Zignoli (2020), sourced to Muller, Uchanski & Hedrick (2003).
+     */
+    const val DRY_ROAD_MU: Double = 0.90
+
+    /**
+     * Tyre friction coefficient on **wet** asphalt — 40 % of [DRY_ROAD_MU], i.e. a 1.58× cut in
+     * cornering speed. Same source.
+     */
+    const val WET_ROAD_MU: Double = 0.36
+
+    /**
+     * Pitch-over (stoppie) deceleration ceiling, in g. The binding limit when braking on dry
+     * asphalt is the rider going over the bars, not the tyres letting go (§5.5 of the research).
+     */
+    const val PITCH_OVER_BRAKE_G: Double = 0.63
+
+    /**
+     * Fraction of the available grip the default rider uses when cornering : `tan 35° / 0.90`
+     * = 0.778. Not a `const val` — `tan` is not a compile-time function.
+     */
+    val RIDER_GRIP_FRACTION: Double = tan(DEFAULT_MAX_LEAN_ANGLE_RAD) / DRY_ROAD_MU
+
+    /** Fraction of the available deceleration the default rider uses : `0.40 g / 0.63 g` = 0.635. */
+    const val RIDER_BRAKE_FRACTION: Double = DEFAULT_MAX_BRAKE_G / PITCH_OVER_BRAKE_G
     const val DEFAULT_MAX_LEAN_ANGLE_RAD: Double = DEFAULT_MAX_LEAN_ANGLE_DEG * PI / 180.0
     const val DEFAULT_MAX_SPEED_KMH: Double = 100.0
 

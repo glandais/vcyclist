@@ -131,8 +131,33 @@ removing the old entry points, and it feeds the g20 correspondence matrix.
 | `--bike-crr`, `--bike-inertia-front`, `--bike-inertia-rear`, `--bike-wheel-radius`, `--bike-efficiency` | same names | |
 
 Options with no gpx2web equivalent, added because vcyclist's pipeline exposes them:
-`--json`, `--[no-]virtualize`, `--[no-]simplify`, `--simplify-tolerance`,
+`--json`, `--road-condition`, `--[no-]virtualize`, `--[no-]simplify`, `--simplify-tolerance`,
 `--[no-]one-point-per-second`, `--max-size`, `--zoom`, `--margin`, `--cache`, `--quiet`.
+
+### `--road-condition`
+
+`--road-condition=dry|wet` (default `dry`) sets the two grip-dependent rider limits together —
+cornering friction and braking — because a wet road takes both away:
+
+| | `dry` | `wet` |
+|---|---|---|
+| µ (cornering) | 0.70 (35° lean) | 0.28 (15.6° lean) |
+| braking | 0.40 g | 0.23 g |
+
+`dry` *is* the library default, so it changes nothing. `wet` cuts cornering speed by **1.58×**,
+and `--cyclist-max-angle` / `--cyclist-max-brake` override the preset when given explicitly.
+
+Measured cost on the shipped fixtures (`--no-fix-elevation`, default rider):
+
+| Route | dry | wet | penalty |
+|---|---|---|---|
+| `stelvio.gpx` (3.5 km, hairpins throughout) | 576 s | 617 s | **+7.1 %** |
+| `strava.gpx` (20.8 km) | 2 882 s | 3 039 s | **+5.4 %** |
+| `sample.gpx` (128.6 km) | 19 168 s | 19 763 s | **+3.1 %** |
+
+The literature reports 1.8–3.4 % over 40 km on courses where technical sections are ~25 % of the
+route, and 0–0.5 % without them. These sit at or above that band because the fixtures are more
+technical than those courses — `stelvio.gpx` is essentially all corners.
 
 ### Coming from `EngineCli`
 

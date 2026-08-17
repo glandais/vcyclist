@@ -8,6 +8,7 @@ import io.github.glandais.engine.Bike
 import io.github.glandais.engine.Course
 import io.github.glandais.engine.Cyclist
 import io.github.glandais.engine.EngineConstants
+import io.github.glandais.engine.RoadCondition
 import io.github.glandais.engine.path.Path
 import io.github.glandais.engine.physics.PowerProviderConstant
 import io.github.glandais.engine.physics.WindProviderConstant
@@ -187,6 +188,39 @@ class MixinParsingTest {
         assertContains(err.toString(), "--cyclist-weight")
     }
 
+    // ---- Road condition ------------------------------------------------------
+
+    @Test
+    fun `case 05b — road condition defaults to dry and changes both grip limits`() {
+        assertEquals(RoadCondition.DRY, parse().cyclist.roadCondition)
+        assertEquals(Cyclist(), parse().cyclist.toCyclist(), "dry must be the library default")
+
+        val wet = parse("--road-condition", "wet").cyclist.toCyclist()
+        assertEquals(RoadCondition.WET.leanAngleDeg, wet.maxLeanAngleDeg, 1e-12)
+        assertEquals(RoadCondition.WET.maxBrakeG, wet.maxBrakeG, 1e-12)
+        assertNotEquals(Cyclist().maxLeanAngleDeg, wet.maxLeanAngleDeg)
+        assertNotEquals(Cyclist().maxBrakeG, wet.maxBrakeG)
+    }
+
+    @Test
+    fun `case 05c — an explicit angle or brake value overrides the preset`() {
+        val cyclist =
+            parse("--road-condition", "wet", "--cyclist-max-angle", "40").cyclist.toCyclist()
+        assertEquals(40.0, cyclist.maxLeanAngleDeg, "the explicit option must win")
+        assertEquals(RoadCondition.WET.maxBrakeG, cyclist.maxBrakeG, 1e-12, "…and only for that value")
+    }
+
+    @Test
+    fun `case 05d — an unknown road condition is rejected`() {
+        val err = StringWriter()
+        val code =
+            CommandLine(Harness())
+                .setErr(PrintWriter(err))
+                .execute("--road-condition", "snow")
+        assertNotEquals(0, code)
+        assertContains(err.toString(), "--road-condition")
+    }
+
     // ---- Drift guard ---------------------------------------------------------
 
     @Test
@@ -196,11 +230,13 @@ class MixinParsingTest {
         val cyclist = parse().cyclist
         assertEquals(EngineConstants.DEFAULT_CYCLIST_MASS_KG, cyclist.massKg)
         assertEquals(EngineConstants.DEFAULT_CYCLIST_POWER_W, cyclist.powerW)
-        assertEquals(EngineConstants.DEFAULT_MAX_BRAKE_G, cyclist.maxBrakeG)
         assertEquals(EngineConstants.DEFAULT_DRAG_COEFFICIENT, cyclist.cd)
         assertEquals(EngineConstants.DEFAULT_FRONTAL_AREA_M2, cyclist.frontalAreaM2)
-        assertEquals(EngineConstants.DEFAULT_MAX_LEAN_ANGLE_DEG, cyclist.maxLeanAngleDeg)
         assertEquals(EngineConstants.DEFAULT_MAX_SPEED_KMH, cyclist.maxSpeedKmH)
+        // Braking and lean angle are `null` until given, so the road-condition preset can supply
+        // them — they are asserted on the built Cyclist, where the resolution has happened.
+        assertEquals(EngineConstants.DEFAULT_MAX_BRAKE_G, cyclist.toCyclist().maxBrakeG)
+        assertEquals(EngineConstants.DEFAULT_MAX_LEAN_ANGLE_DEG, cyclist.toCyclist().maxLeanAngleDeg)
 
         val bike = parse().bike
         assertEquals(EngineConstants.DEFAULT_CRR, bike.crr)
@@ -215,7 +251,7 @@ class MixinParsingTest {
         // gpxtools-cli ships 45 degrees and 90 km/h; vcyclist's library values win, and the
         // divergence is documented for the g20 matrix. Pinned so it stays a decision.
         val cyclist = parse().cyclist
-        assertEquals(35.0, cyclist.maxLeanAngleDeg, "gpxtools-cli uses 45; the library value must win")
+        assertEquals(35.0, cyclist.toCyclist().maxLeanAngleDeg, "gpxtools-cli uses 45; the library value must win")
         assertEquals(100.0, cyclist.maxSpeedKmH, "gpxtools-cli uses 90; the library value must win")
     }
 

@@ -10,7 +10,7 @@ entry (R7, R12, R19, R21).
 
 - Date of assessment: 2026-08-17
 - Assessed against: `develop` @ `0f979af`
-- Shipped since: **R15** (W′bal output field), **R12** (`pBrake`)
+- Shipped since: **R15** (W′bal output field), **R12** (`pBrake`), **R9** (`RoadCondition`)
 - Sources read: all 8 research chapters + `EngineConstants`, `Cyclist`, `MaxSpeedComputer`,
   `PowerComputer`, `VirtualizeService`, `PowerProviderConstantWithTiring`,
   `CyclistPowerProviderBase`, the four resistive providers, `RhoProvider`, `AeroProvider`,
@@ -44,7 +44,7 @@ items buy is a ride trace a human recognises as their own.
 | R6 | Yaw-dependent CdA | Negligible | Low | ❌ |
 | R7 | Distance as the integration variable | — | — | ✔ |
 | R8 | Vertical-curvature rolling term | Negligible | Med-high | ❌ |
-| R9 | Wet/dry µ condition preset | **High** | **Very low** | 🔵 |
+| R9 | Wet/dry µ condition preset | **High** | **Very low** | ✅ |
 | R10 | Pedal-strike power cut-off at high lean | Med-high | Low | 🔵 |
 | R11 | Friction ellipse (combined braking + cornering) | Medium | Medium | ⚪ |
 | R12 | **Brake power as a `PointField`** | **High** | **Very low** | ✅ |
@@ -59,7 +59,7 @@ items buy is a ride trace a human recognises as their own.
 | R21 | Fuelling / glycogen state variable | Low | High | ❌ (for now) |
 | R22 | Optimal-pacing solver as rider behaviour | Negative | Very high | ❌ |
 
-Recommended order if acted on: ~~R15~~ → ~~R12~~ → **R9 → R17 → R10 → R18**, then re-assess R16/R11.
+Recommended order if acted on: ~~R15~~ → ~~R12~~ → ~~R9~~ → **R17 → R10 → R18**, then re-assess R16/R11.
 
 ## A. Mechanical layer — closed
 
@@ -135,7 +135,7 @@ compression (Sundström & Bäckström).
 
 The layer with the highest realism-per-line ratio, and where the remaining §7.2 items live.
 
-### R9 — Wet/dry µ condition preset 🔵 **recommended**
+### R9 — Wet/dry µ condition preset ✅
 
 [`05 §5.1`](05-cornering-braking-descending.md): µ = **0.90 dry**, **0.36 wet**, i.e. wet grip is
 40 % of dry → a **1.58× cut in cornering speed**. vcyclist's `maxLeanAngleDeg` *is* µ in disguise
@@ -166,6 +166,49 @@ with no tight corners that shifts by more than ~0.5 % indicates the clamp artefa
 Also worth adopting from the same section: re-express the parameter as µ directly. Every source uses
 that form, `tanMaxLeanAngle` is already the value being consumed, and it makes the wet/dry mapping
 self-evident.
+
+#### What landed
+
+`RoadCondition` (engine) with `DRY` / `WET`, `Cyclist.mu` / `withMu()` / `withRoadCondition()`, and
+`--road-condition=dry|wet` on the CLI. `Cyclist.maxLeanAngleDeg` stays the stored parameter — µ is
+exposed as the property it already was, not as a second source of truth, which keeps the CLI mixin,
+the WASI DTO and the JS façade untouched.
+
+**The wet numbers are derived, not chosen.** vcyclist's 35° default is 77.8 % of the dry physical
+limit (`tan 35° / 0.90`), i.e. the *rider's* margin. `WET` holds that margin constant and changes
+only the road: `0.778 × 0.36 = 0.280` (15.6°). Braking follows the same logic with one twist — the
+dry ceiling is pitch-over (0.63 g, geometric, unaffected by rain) and 0.4 g is 63 % of it, while in
+the wet the binding limit is grip, so `0.635 × 0.36 g = 0.23 g`. The resulting cornering ratio is
+`√(0.70/0.28) = 1.581`, which *is* the research's 1.58× — both are ratios of the same two µ values,
+so that agreement is arithmetic, not evidence.
+
+`DRY` reproduces the shipped defaults **bit-for-bit** (`atan(tan(35°))` round-trips exactly), so the
+preset cannot move an existing simulation.
+
+**The 200 m clamp artefact is fixed, and had to be.** Saturating `MAX_RADIUS_M` now means "no
+measurable curvature" and applies *no* cornering limit, instead of `√(µ·g·200)`. At the dry default
+that expression gives 133 km/h — above `maxSpeedKmH`, so it never bound and nobody noticed. In the
+wet it gives 84 km/h, which would have capped dead-straight road. No dry output moves.
+
+Measured penalty (CLI, `--no-fix-elevation`, default rider):
+
+| Route | dry | wet | penalty |
+|---|---|---|---|
+| `stelvio.gpx` (3.5 km, hairpins throughout) | 576 s | 617 s | **+7.1 %** |
+| `strava.gpx` (20.8 km) | 2 882 s | 3 039 s | **+5.4 %** |
+| `sample.gpx` (128.6 km) | 19 168 s | 19 763 s | **+3.1 %** |
+
+Against the research's 1.8–3.4 % over 40 km *with* technical sections and 0–0.5 % without: the
+128 km fixture lands inside the band, and the shorter ones exceed it in proportion to how
+corner-dense they are (Zignoli's courses were ~25 % technical; `stelvio.gpx` is essentially all
+corners). The ordering is the check that matters — penalty scales with technicality.
+
+**Not modelled**, deliberately: rain does not touch `Crr`, air density or power. The research is
+explicit that road conditions change performance time and peak power but *not* pacing strategy, so
+this stays a limits-only knob. One consequence worth knowing: a wet ride is never *exactly* equal to
+a dry one even on a dead-straight route, because every track ends and `MaxSpeedComputer` brakes to
+its end-of-track sentinel with the weaker wet deceleration. That is a fixed ~1 s at the finish,
+which is why the straight-route test asserts < 0.5 % rather than 0.
 
 ### R10 — Pedal-strike power cut-off 🔵 **recommended, with a caveat**
 

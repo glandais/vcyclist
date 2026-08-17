@@ -1,6 +1,7 @@
 package io.github.glandais.engine
 
 import kotlin.math.PI
+import kotlin.math.atan
 import kotlin.math.tan
 
 /**
@@ -24,6 +25,16 @@ data class Cyclist(
     /** Tangent of the max lean angle — used in cornering physics (`v_max² = g·R·tan(θ)`). */
     val tanMaxLeanAngle: Double get() = tan(maxLeanAngleDeg * PI / 180.0)
 
+    /**
+     * Tyre friction coefficient the rider is willing to use, **the same number** as
+     * [tanMaxLeanAngle] : `v_max = √(g·R·tan θ)` is `v_max = √(µ·g·R)` with `µ ≡ tan θ`.
+     *
+     * Exposed under this name because every source in the literature states the parameter as µ
+     * (0.90 dry, 0.36 wet — see [RoadCondition]), while [maxLeanAngleDeg] is the form vcyclist
+     * inherited from gpx2web. At the 35° default, `µ = 0.70`.
+     */
+    val mu: Double get() = tanMaxLeanAngle
+
     /** Max lean angle in radians. */
     val maxLeanAngleRad: Double get() = maxLeanAngleDeg * PI / 180.0
 
@@ -35,6 +46,24 @@ data class Cyclist(
 
     /** Aerodynamic drag area `CdA = cd × frontalArea` (m²). */
     val aerodynamicDragArea: Double get() = cd * frontalAreaM2
+
+    /**
+     * Copy with the grip-dependent limits — cornering µ **and** braking — set from [condition].
+     *
+     * `Cyclist().withRoadCondition(RoadCondition.DRY)` returns an equal cyclist : the shipped
+     * defaults *are* the dry preset.
+     */
+    fun withRoadCondition(condition: RoadCondition): Cyclist =
+        copy(
+            maxLeanAngleDeg = condition.leanAngleDeg,
+            maxBrakeG = condition.maxBrakeG,
+        )
+
+    /** Copy with the cornering limit set from a friction coefficient rather than an angle. */
+    fun withMu(mu: Double): Cyclist {
+        require(mu > 0.0) { "mu must be > 0, got $mu" }
+        return copy(maxLeanAngleDeg = atan(mu) * 180.0 / PI)
+    }
 
     companion object {
         /** Default cyclist : 80 kg system, recreational/intermediate parameters. */
