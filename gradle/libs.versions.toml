@@ -7,7 +7,7 @@ imageio-webp = "3.14.0"
 ktlint = "14.2.0"
 vanniktech-publish = "0.37.0"
 node-gradle = "7.1.0"
-fit-kotlin-sdk = "21.205.1"
+fit-kotlin-sdk = "21.213.0"
 picocli = "4.7.7"
 
 [libraries]

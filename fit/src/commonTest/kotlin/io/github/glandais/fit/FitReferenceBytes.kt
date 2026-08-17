@@ -22,13 +22,15 @@ package io.github.glandais.fit
  * these very bytes with `@garmin/fitsdk`, the vendor implementation.
  *
  * Regenerate by encoding [FitReferenceCourse] on any target and printing the bytes as
- * lowercase hex.
+ * lowercase hex. Expect exactly four bytes to move on an `fit-kotlin-sdk` version bump — the
+ * little-endian profile version at offsets 2–3 (`21.213.0` → `dd52`) and the header CRC at
+ * offsets 12–13 that covers it. Any change beyond those four is a real encoder change.
  */
 object FitReferenceBytes {
     /** Output of [FitEncoder], identical on every target. */
     val REFERENCE: ByteArray =
         hex(
-            "0e20d552050100002e464954bda040000000000600010001028402028403048c" +
+            "0e20dd52050100002e4649543c4a40000000000600010001028402028403048c" +
                 "05028404048600060f0039303930000046f18015cb444100001f000205140704" +
                 "010001436f6c206465206c61204d6164656c65696e6500024200001300080204" +
                 "86fd04860704860804860904861502841602840d0284028015cb449415cb4420" +
