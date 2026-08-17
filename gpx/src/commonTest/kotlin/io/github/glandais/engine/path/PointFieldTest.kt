@@ -7,21 +7,21 @@ import kotlin.test.assertTrue
 
 class PointFieldTest {
     @Test
-    fun `36 fields exactly`() {
-        assertEquals(36, PointField.entries.size)
-        assertEquals(36, PointField.COUNT)
+    fun `37 fields exactly`() {
+        assertEquals(37, PointField.entries.size)
+        assertEquals(37, PointField.COUNT)
     }
 
     @Test
     fun `ordinals are unique`() {
         val ordinals = PointField.entries.map { it.ordinal }
-        assertEquals(36, ordinals.toSet().size)
+        assertEquals(37, ordinals.toSet().size)
     }
 
     @Test
     fun `props are unique and non-blank`() {
         val props = PointField.entries.map { it.prop }
-        assertEquals(36, props.toSet().size)
+        assertEquals(37, props.toSet().size)
         assertTrue(props.all { it.isNotBlank() })
     }
 
@@ -63,13 +63,13 @@ class PointFieldTest {
         assertEquals(3, PointField.byCategory(PointFieldCategory.POWER_POST).size)
         assertEquals(4, PointField.byCategory(PointFieldCategory.SPEED).size)
         assertEquals(3, PointField.byCategory(PointFieldCategory.ENVIRONMENTAL).size)
-        assertEquals(2, PointField.byCategory(PointFieldCategory.PHYSIOLOGICAL).size)
+        assertEquals(3, PointField.byCategory(PointFieldCategory.PHYSIOLOGICAL).size)
     }
 
     @Test
     fun `all fields are partitioned across categories`() {
         val sum = PointFieldCategory.entries.sumOf { PointField.byCategory(it).size }
-        assertEquals(36, sum)
+        assertEquals(37, sum)
     }
 
     @Test
@@ -114,6 +114,7 @@ class PointFieldTest {
                 "bpm",
                 "rpm",
                 "aero",
+                "joules",
             )
         for (f in PointField.entries) {
             assertTrue(f.unit in allowed, "Unexpected unit '${f.unit}' for $f")

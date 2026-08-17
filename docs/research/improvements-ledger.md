@@ -3,13 +3,14 @@
 One row per improvement suggested by (or derivable from) [`docs/research/`](README.md), scored
 against **the code as it actually stands**. Each entry has an ID so a later task can reference it.
 
-**This file records assessment only — no fixes, no implementation.** It is the tracking surface for
+**This file records assessment; implementation status is tracked in the Status column.** It is the tracking surface for
 the research; [`07-vcyclist-implementation-notes.md`](07-vcyclist-implementation-notes.md) remains
 the narrative synthesis, and where the two disagree the disagreement is stated explicitly in the
 entry (R7, R12, R19, R21).
 
 - Date of assessment: 2026-08-17
 - Assessed against: `develop` @ `0f979af`
+- Shipped since: **R15** (W′bal output field)
 - Sources read: all 8 research chapters + `EngineConstants`, `Cyclist`, `MaxSpeedComputer`,
   `PowerComputer`, `VirtualizeService`, `PowerProviderConstantWithTiring`,
   `CyclistPowerProviderBase`, the four resistive providers, `RhoProvider`, `AeroProvider`,
@@ -49,7 +50,7 @@ items buy is a ride trace a human recognises as their own.
 | R12 | **Brake power as a `PointField`** | **High** | **Very low** | 🔵 |
 | R13 | Brake actuation lag (0.13 s) | Negligible | Low | ❌ |
 | R14 | Posture-dependent CdA | Medium | Med (unbounded validation) | ⚪ |
-| R15 | W′bal as an **output** field (ODE form) | **High** | **Very low** | 🔵 |
+| R15 | W′bal as an **output** field (ODE form) | **High** | **Very low** | ✅ |
 | R16 | W′bal as a **behaviour** driver (CP-aware provider) | High | High | ⚪ |
 | R17 | Durability: decay on supra-CP work, not elapsed time | Med-high | Low | 🔵 |
 | R18 | Power slew-rate limit (50 W/s) | Medium | Low | 🔵 |
@@ -58,7 +59,7 @@ items buy is a ride trace a human recognises as their own.
 | R21 | Fuelling / glycogen state variable | Low | High | ❌ (for now) |
 | R22 | Optimal-pacing solver as rider behaviour | Negative | Very high | ❌ |
 
-Recommended order if acted on: **R15 → R12 → R9 → R17 → R10 → R18**, then re-assess R16/R11.
+Recommended order if acted on: ~~R15~~ → **R12 → R9 → R17 → R10 → R18**, then re-assess R16/R11.
 
 ## A. Mechanical layer — closed
 
@@ -208,7 +209,8 @@ no field carries it.
 the second and not the first: its power trace has no braking in it at all.
 
 - **Cost**: record the discarded energy (`½·m_eq·(v_uncapped² − v_max²)/dt`) into a new field. No
-  physics changes, no pipeline stage, no parity movement — the trajectory is identical either way.
+  physics changes, no pipeline stage, no change to any other field — the trajectory is identical
+  either way.
 - **Value**: it is the cheapest change that makes the output *look* like a real ride file, and it
   makes R10 and R11 observable when they land. It also gives `:map` and the demo something to draw.
 - Follows the `CLAUDE.md` codegen workflow (edit `PointField`, run `:codegen:run`).
@@ -236,7 +238,7 @@ worth labelling as ours when it lands.
 
 ## C. Physiological
 
-### R15 — W′bal as an output field 🔵 **recommended first**
+### R15 — W′bal as an output field ✅
 
 [`02 §2.1`](02-physiological-modeling.md) + [`06 §6.1`](06-implementations-and-validation.md).
 
@@ -247,10 +249,23 @@ different risk, and only the first is low-risk:
 |---|---|---|
 | Reads | `pComputedPower` after step 7 | drives `optimalPower` inside the sim |
 | Touches | one new field, one post-pass | `VirtualizeService`, `Cyclist`, every provider |
-| Parity fixtures | **unmoved** — trajectory unchanged | every value shifts |
+| Other fields | **untouched** — trajectory unchanged | every value shifts |
 | New required input | none (defaults CP 250 W / W′ 20 kJ) | CP and W′ become load-bearing |
 
-R15 is essentially free: `PointPerSecond` already delivers the 1 Hz grid the recursion assumes.
+**Implemented** as `WPrimeBalanceComputer` (`engine/…/physiology/`), pipeline step 8, behind
+`EnhanceOptions.wPrimeBalance`. Field `wPrimeBalance` is `PointField` #37. What landed, against
+what was planned:
+
+| Planned | Landed |
+|---|---|
+| Differential (ODE) form | Closed-form exponential recovery, not GoldenCheetah's Euler recursion — so it is correct off a 1 Hz grid |
+| Defaults CP 250 / W′ 20 kJ | `EngineConstants.DEFAULT_CRITICAL_POWER_W` / `DEFAULT_W_PRIME_J` |
+| Other fields untouched | Confirmed — a test asserts every other field is bit-identical with the pass on and off |
+| No new required input | CP/W′ live on `WPrimeBalanceOptions`, not `Cyclist` — see the KDoc for why, and R16 for when they should move |
+
+τ is not yet exposed as configuration (Bartram's elite form) — still open.
+
+R15 was essentially free: `PointPerSecond` already delivers the 1 Hz grid the recursion assumes.
 
 - Use the **differential (ODE)** form. Skiba himself calls the integral form *"theoretically
   untenable"* for continuous severe-intensity work, and the two diverge by ~300 s in predicted time
@@ -317,8 +332,8 @@ Revisit when 2b gets its dedicated verification pass — that pass is already re
 **Framing constraint for this whole section.** [`04 §4.2`](04-behavioral-modeling.md): optimal pacing
 is worth **1–3 %** on realistic courses, and a real professional rides within **1.2 %** of the
 optimum. So R18/R19 must be justified as *realism of the power trace*, never as accuracy of
-predicted time. If a pacing heuristic moves finish time by more than the 0.5 % parity budget, that
-is a **bug signal, not a feature**.
+predicted time. If a pacing heuristic moves finish time by more than ~0.5 %, that is a **bug
+signal, not a feature**.
 
 ### R18 — Power slew-rate limit 🔵 **recommended**
 
@@ -381,10 +396,10 @@ predicting TTE (1–2), RPE linear in elapsed time (0–3).
 
 ## F. Cross-cutting notes
 
-- **Parity budget.** R9, R10, R11, R16, R17, R18 all move pipeline output; R12 and R15 do not (they
-  add fields without changing the trajectory). Anything in the first group needs the
-  [`docs/parity.md`](../parity.md) checklist, and — per `CLAUDE.md` — a deliberate decision about
-  whether the TS reference should follow.
+- **Output movement.** R9, R10, R11, R16, R17, R18 all move pipeline output; R12 and R15 do not
+  (they add fields without changing the trajectory — R15 shipped with a test pinning exactly
+  that). Anything in the first group is a behavioural change to re-smoke through the CLI, and a
+  deliberate decision about whether the TS reference should follow.
 - **Three projects, not one.** R1–R4 were applied in vcyclist, virtual-cyclist *and* gpx2web. Any
   constant-level change below (R9's µ re-expression in particular) inherits that obligation.
 - **Validation ceiling.** [`06 §6.3`](06-implementations-and-validation.md): Zwift's unexplained

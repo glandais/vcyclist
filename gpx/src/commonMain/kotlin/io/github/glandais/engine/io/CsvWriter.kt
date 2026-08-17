@@ -7,7 +7,7 @@ import io.github.glandais.engine.path.PointField
  * Options for [CsvWriter.write].
  *
  * @property fields columns to export, in order. `null` = every [PointField], in
- *   [PointField.entries] order (the 36-field default).
+ *   [PointField.entries] order (the 37-field default).
  * @property separator field separator. Not restricted to `,` : `;` is the common choice for
  *   spreadsheets configured for a French locale.
  * @property unitsInHeader append the unit in parentheses to each header cell, e.g.

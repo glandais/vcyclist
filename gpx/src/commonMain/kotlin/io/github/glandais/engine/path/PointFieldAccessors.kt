@@ -191,4 +191,9 @@ internal val POINT_FIELD_ACCESSORS: List<PointFieldAccessor> =
             GeneratedPath::cadence,
             GeneratedPath::setCadence,
         ),
+        PointFieldAccessor(
+            PointField.W_PRIME_BALANCE,
+            GeneratedPath::wPrimeBalance,
+            GeneratedPath::setWPrimeBalance,
+        ),
     )

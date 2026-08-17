@@ -77,7 +77,7 @@ Browser demos (in `:elevation`) :
 
 ### `Path` model (`:gpx`)
 
-- `Path` extends `GeneratedPath(size)` and stores **36 fields × `DoubleArray`** flat. Fields
+- `Path` extends `GeneratedPath(size)` and stores **37 fields × `DoubleArray`** flat. Fields
   defined in `gpx/src/commonMain/.../path/PointField.kt` (single source of truth).
 - `GeneratedPath.kt` and `PointFieldAccessors.kt` are **generated** by the `:codegen` module.
   After editing `PointField`, run `./gradlew :codegen:run` (or follow the regen instructions
@@ -97,7 +97,15 @@ Browser demos (in `:elevation`) :
 5. `MaxSpeedComputer` (always if `virtualizeTrack=true`).
 6. `VirtualizeService` (time-stepping simulation).
 7. `PointPerSecond` (1 Hz uniform sampling).
-8. `PathSimplifier` (Douglas-Peucker 3D).
+8. `WPrimeBalanceComputer` (W′ balance annotation) — **not in TS**, see below.
+9. `PathSimplifier` (Douglas-Peucker 3D).
+
+Step 8 is a **deliberate divergence** from the TS reference, which has no physiological layer.
+It is an annotation pass : it reads `pComputedPower`, writes the `wPrimeBalance` field and
+touches nothing else, so the other 36 fields — the ones the TS reference also has — are
+bit-identical whether it runs or not (`WPrimeBalanceComputerTest` pins exactly that). Making the
+simulated rider *react* to a low W′ is a separate change — see
+[`docs/research/improvements-ledger.md`](docs/research/improvements-ledger.md) R16.
 
 ### Physics
 

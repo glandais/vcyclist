@@ -359,4 +359,13 @@ abstract class GeneratedPath(
     ) {
         data[i * PointField.COUNT + 35] = v
     }
+
+    fun wPrimeBalance(i: Int): Double = data[i * PointField.COUNT + 36]
+
+    fun setWPrimeBalance(
+        i: Int,
+        v: Double,
+    ) {
+        data[i * PointField.COUNT + 36] = v
+    }
 }

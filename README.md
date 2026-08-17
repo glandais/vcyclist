@@ -28,6 +28,7 @@ TypeScript library for elevation data.
             │  ├─ MaxSpeedComputer (cornering+braking)│
             │  ├─ VirtualizeService (1 Hz physics)    │
             │  ├─ PointPerSecond (uniform sampling)   │
+            │  ├─ W′bal (Critical Power annotation)   │
             │  └─ PathSimplifier (Douglas-Peucker 3D) │
             └──────────────────┬──────────────────────┘
                                ▼
@@ -42,7 +43,7 @@ TypeScript library for elevation data.
 | Module | Purpose | Targets |
 |---|---|---|
 | **`:elevation`** | Terrarium tile fetch + DEM lookup + Haversine + Douglas-Peucker 3D + triangular smoother. See [`elevation/README.md`](elevation/README.md). | JVM, JS Node, JS browser, WASI |
-| **`:gpx`** | Path model (36 fields × `DoubleArray`), resamplers, Douglas-Peucker simplifier, elevation steps, GPX I/O. Published to Maven Central; **not** published to npm — its JS output ships inside `@glandais/vcyclist-engine`. | JVM, JS Node, JS browser, WASI |
+| **`:gpx`** | Path model (37 fields × `DoubleArray`), resamplers, Douglas-Peucker simplifier, elevation steps, GPX I/O. Published to Maven Central; **not** published to npm — its JS output ships inside `@glandais/vcyclist-engine`. | JVM, JS Node, JS browser, WASI |
 | **`:engine`** | Physics (4 resistive `PowerProvider`s + cyclist input + `MaxSpeedComputer` + `VirtualizeService`), `Enhancer` pipeline, JVM CLI, JS façades. Re-exports `:gpx` via `api`, so `io.github.glandais.engine.path.*` and `…engine.gpx.*` stay importable from `:engine`. Also the module that links the standalone `.wasm` — see [`docs/wasm-wasi-abi.md`](docs/wasm-wasi-abi.md). | JVM, JS Node, JS browser, WASI |
 | **`:fit`** | Garmin FIT encoding. `FitCourse` model, unit conversions and `FitEncoder` itself, all in commonMain over [`fit-kotlin-sdk`](https://github.com/glandais/fit-kotlin-sdk) — a multiplatform SDK generated from the FIT profile. One encoder, byte-identical output on every target, and no vendor SDK for consumers to install. | JVM, JS Node, JS browser, WASI |
 | **`:map`** | Static map rendering: Web Mercator projection, image framing, tile download + cache, PNG output (`java.awt` / `ImageIO`). **JVM-only.** No default tile source — see [`map/README.md`](map/README.md) for the usage-policy obligations. | JVM only |

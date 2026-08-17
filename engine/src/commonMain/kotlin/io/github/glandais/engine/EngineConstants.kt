@@ -65,6 +65,24 @@ object EngineConstants {
     const val DEFAULT_MAX_LEAN_ANGLE_RAD: Double = DEFAULT_MAX_LEAN_ANGLE_DEG * PI / 180.0
     const val DEFAULT_MAX_SPEED_KMH: Double = 100.0
 
+    // ---- Physiology (Critical Power model) ------------------------------------
+
+    /**
+     * Critical Power (W) — the sustainable power of the 2-parameter CP model `P = W′/t + CP`.
+     *
+     * GoldenCheetah's shipped fallback when no athlete zone data is available. A default, not
+     * a claim about any particular rider : published "average professional" values range from
+     * 386 to 440 W.
+     */
+    const val DEFAULT_CRITICAL_POWER_W: Double = 250.0
+
+    /**
+     * W′ (J) — the finite work capacity available above [DEFAULT_CRITICAL_POWER_W].
+     *
+     * GoldenCheetah's shipped fallback. Typical range 10 000–40 000 J.
+     */
+    const val DEFAULT_W_PRIME_J: Double = 20_000.0
+
     // ---- Aerodynamics ---------------------------------------------------------
 
     const val DEFAULT_DRAG_COEFFICIENT: Double = 0.7

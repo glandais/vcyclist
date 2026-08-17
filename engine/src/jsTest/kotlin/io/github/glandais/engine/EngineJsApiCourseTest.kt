@@ -56,9 +56,9 @@ class EngineJsApiCourseTest {
     }
 
     @Test
-    fun `fieldDefinitions exposes the 36 entries with the expected props`() {
+    fun `fieldDefinitions exposes the 37 entries with the expected props`() {
         val defs = fieldDefinitions()
-        assertEquals(36, defs.size)
+        assertEquals(37, defs.size)
         assertTrue(defs.any { it.prop == "elevation" }, "missing 'elevation' entry")
         assertTrue(defs.any { it.prop == "speed" }, "missing 'speed' entry")
         // Sanity-check the carried metadata for one known entry.

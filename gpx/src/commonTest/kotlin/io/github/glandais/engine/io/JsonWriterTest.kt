@@ -23,10 +23,10 @@ class JsonWriterTest {
         assertTrue(json.contains("\"elevation\":[]"))
     }
 
-    // ---- 2. all fields, 3 points : 36 series of 3 values -----------------------
+    // ---- 2. all fields, 3 points : 37 series of 3 values -----------------------
 
     @Test
-    fun all_fields_produces_36_series_of_3_values_each() {
+    fun all_fields_produces_37_series_of_3_values_each() {
         val p = Path(3)
         val json = JsonWriter.write(p)
         for (field in PointField.entries) {

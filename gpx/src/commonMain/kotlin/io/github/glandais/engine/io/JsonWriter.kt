@@ -7,7 +7,7 @@ import io.github.glandais.engine.path.PointField
  * Options for [JsonWriter.write].
  *
  * @property fields columns to export, in order. `null` = every [PointField], in
- *   [PointField.entries] order (the 36-field default).
+ *   [PointField.entries] order (the 37-field default).
  * @property pretty indentation for human readability. `false` (default) = compact, single line,
  *   which minimises transfer size for a browser round-trip.
  * @property decimals fractional digits for every numeric value. `null` = shortest representation
@@ -29,7 +29,7 @@ data class JsonOptions(
  * differs on purpose — see the "Steps" section of task g07. gpx2web emits one object per point
  * (`points: [{distance: 0.0, elevation: 120.4, ...}, ...]`), repeating every field name once per
  * point. A chart library consumes series, not points : the column-oriented shape below avoids
- * repeating up to 36 field names per point (~3x smaller) and maps directly onto a Chart.js
+ * repeating up to 37 field names per point (~3x smaller) and maps directly onto a Chart.js
  * dataset (`{label: "elevation", data: fields.elevation}`).
  *
  * `commonMain`, no `kotlinx-serialization` : the document has a fixed, simple shape, so a

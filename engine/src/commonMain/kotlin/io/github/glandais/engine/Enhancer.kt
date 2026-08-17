@@ -12,6 +12,7 @@ import io.github.glandais.engine.physics.PowerProviderConstant
 import io.github.glandais.engine.physics.RhoProviderEstimate
 import io.github.glandais.engine.physics.VirtualizeService
 import io.github.glandais.engine.physics.WindProviderNone
+import io.github.glandais.engine.physiology.WPrimeBalanceComputer
 
 /**
  * Top-level enhancement pipeline : transforms a raw GPS [Path] into a physics-aware
@@ -30,7 +31,8 @@ import io.github.glandais.engine.physics.WindProviderNone
  * 5. compute max speeds (cornering + braking).
  * 6. virtualize track (time-stepping simulation).
  * 7. resample to 1 Hz.
- * 8. simplify with Douglas-Peucker 3D.
+ * 8. annotate W′ balance (Critical Power model) — writes one field, changes no other.
+ * 9. simplify with Douglas-Peucker 3D.
  *
  * Stateless ; safe for concurrent calls.
  */
@@ -133,6 +135,13 @@ object Enhancer {
         // Step 4 : 1 Hz resample.
         if (options.computeOnePointPerSecond) {
             path = PointPerSecond.computeOnePointPerSecond(path)
+        }
+
+        // Step 4b : W′ balance. Annotation only — reads `pComputedPower`, writes `wPrimeBalance`,
+        // touches nothing else. Runs before simplification so it integrates the full-resolution
+        // power trace ; Douglas-Peucker then carries the values it keeps.
+        if (options.wPrimeBalance.enabled) {
+            WPrimeBalanceComputer.compute(path, options.wPrimeBalance)
         }
 
         // Step 5 : simplify.
