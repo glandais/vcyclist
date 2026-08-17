@@ -435,15 +435,29 @@ bake those bugs into the Kotlin test suite. On the two tiny inline fixtures the 
 differ by more than the 0.5 % budget purely because of the missing last point — on
 `GARMIN_GPX` a single 1.17 m segment is 7.9 % of a 14 m trace:
 
+Re-measured 2026-08-17 against `virtual-cyclist` 1.3.1, both sides carrying the corrected
+constants:
+
 | fixture | metric | TS (clock-pinned) | Kotlin (asserted) | Δ rel | cause |
 |---|---|---|---|---|---|
-| SAMPLE | totalDistance | 418.20859360948475 | 420.04525064910683 | 4.4e-03 | one missing segment |
-| SAMPLE | durationMs | 48000 | 49000 | 2.0e-02 | one missing 1 Hz sample |
-| SAMPLE | elevationGain | 0.21591593782602558 | 0.2189461508746149 | 1.4e-02 | one missing segment |
-| SAMPLE | elevationLoss | -0.3083313825662799 | -0.3083313825632672 | **9.8e-12** | ULP |
+| SAMPLE | totalDistance | 418.2189961559547 | 420.0556496172967 | 4.4e-03 | one missing segment |
+| SAMPLE | durationMs | 49000 | 49000 | **0** | was 2.0e-02 — see below |
+| SAMPLE | elevationGain | 0.21471861131141168 | 0.21774882435903464 | 1.4e-02 | one missing segment |
+| SAMPLE | elevationLoss | -0.307134056051666 | -0.30713405604768695 | **1.3e-11** | ULP |
 | GARMIN | totalDistance | 13.75769637229516 | 14.929920010888091 | 7.9e-02 | one missing segment |
 | GARMIN | durationMs | 5000 | 5000 | 0 | — |
 | GARMIN | elevationLoss | -0.004688886304762718 | -0.004834919456122577 | 3.0e-02 | one missing segment |
+
+`SAMPLE.durationMs` now agrees **exactly**, where it used to differ by one 1 Hz sample: the
+slightly slower simulated ride pushes the TS side over the same second boundary the Kotlin
+side was already past. The remaining gaps are unchanged in both size and cause — this is the
+missing-last-point divergence (#2), not anything the constants touched.
+
+The Kotlin `SAMPLE` numbers moved (distance 2.5e-05, gain 5.5e-03, loss 3.9e-03 rel) and were
+refreshed in `ParityFixtures.kt`. Note **which test caught it**: `EnhancerParityTest` checks
+elevation gain against an absolute ±1 m band, so a 5.5e-03 relative drift on a 0.22 m value is
+invisible to it. `tools/wasi/test_engine.py` reads the same fixture and checks it at ±0.5 %
+relative, and failed. The WASI host and the JVM agree to the digit — only the fixture was stale.
 
 The fixture values are now **TS-corroborated**: each Kotlin number is accompanied by the
 measured TS number and a quantified reason for the gap. That is the meaningful upgrade from

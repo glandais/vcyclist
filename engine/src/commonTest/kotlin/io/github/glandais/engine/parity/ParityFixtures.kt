@@ -77,16 +77,24 @@ object ParityFixtures {
      */
     val SAMPLE =
         ParityMetrics(
-            // updated for Phase 2bis (task 31): PointPerDistance integrated.
+            // Refreshed 2026-08-17 : physics constants corrected (G = 9.80665, wheel *radius*
+            // 0.35 m, maxBrakeG 0.4 — see docs/research/07 §7.2). Kotlin moved by
+            // distance 2.5e-05, gain 5.5e-03, loss 3.9e-03 rel ; durationMs and pointCount
+            // unchanged. The gain shift alone exceeds the 0.5 % budget, which is why these
+            // values are refreshed rather than left : `EnhancerParityTest` checks gain with an
+            // absolute ±1 m band and could not see it, but `tools/wasi/test_engine.py` checks
+            // it at ±0.5 % relative on a 0.22 m value and caught it.
             //
-            // TS reference measured 2026-07-27 (clock-pinned), and the gap to each value:
-            //   totalDistance  418.20859360948475   rel 4.4e-03  (one missing ~1.8 m segment)
-            //   durationMs      48000               rel 2.0e-02  (one missing 1 Hz sample)
-            //   elevationGain    0.21591593782602558 rel 1.4e-02 (one missing segment)
-            //   elevationLoss   -0.3083313825662799  rel 9.8e-12 (ULP — the smoother agrees)
-            totalDistance = 420.04525064910683,
-            totalElevationGain = 0.2189461508746149,
-            totalElevationLoss = -0.3083313825632672,
+            // TS reference re-measured 2026-08-17 against virtual-cyclist 1.3.1 (clock-pinned),
+            // which carries the same constants, and the gap to each value:
+            //   totalDistance  418.2189961559547    rel 4.4e-03  (one missing ~1.8 m segment)
+            //   durationMs      49000               rel 0        (was 2.0e-02 — the TS side now
+            //                                                     produces the same 1 Hz count)
+            //   elevationGain    0.21471861131141168 rel 1.4e-02 (one missing segment)
+            //   elevationLoss   -0.307134056051666   rel 1.3e-11 (ULP — the smoother agrees)
+            totalDistance = 420.0556496172967,
+            totalElevationGain = 0.21774882435903464,
+            totalElevationLoss = -0.30713405604768695,
             pointCount = 3,
             durationMs = 49_000.0,
         )
@@ -101,7 +109,10 @@ object ParityFixtures {
         ParityMetrics(
             // updated for Phase 2bis (task 31): PointPerDistance integrated.
             //
-            // TS reference measured 2026-07-27 (clock-pinned), and the gap to each value:
+            // TS reference re-measured 2026-08-17 against virtual-cyclist 1.3.1 (clock-pinned) ;
+            // every value below is unchanged from the 2026-07-27 measurement, and the Kotlin
+            // side did not move either — this trace is too short to accumulate the constants'
+            // effect. Gap to each value:
             //   totalDistance   13.75769637229516     rel 7.9e-02  (one missing 1.17 m segment
             //                                                       — 7.9 % of a 14 m trace)
             //   durationMs       5000                 rel 0        (exact)
