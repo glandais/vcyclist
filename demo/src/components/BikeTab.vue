@@ -1,6 +1,4 @@
 <script setup lang="ts">
-import Button from 'primevue/button';
-import Panel from 'primevue/panel';
 import type { BikeDto } from '~/engine-shim';
 import { PRESETS } from '~/types';
 import SliderInput from './SliderInput.vue';
@@ -44,30 +42,33 @@ const resetToDefault = () => {
         >
             <label class="block font-semibold text-gray-800 mb-3 text-base">🚲 Wheel Size</label>
             <div class="flex flex-wrap gap-3">
-                <Button
+                <UButton
                     @click="applyWheelPreset('650b')"
-                    outlined
-                    severity="secondary"
+                    variant="outline"
+                    color="neutral"
+                    block
                     class="flex-1 min-w-[90px]"
                 >
                     650b
-                </Button>
-                <Button
+                </UButton>
+                <UButton
                     @click="applyWheelPreset('700c')"
-                    outlined
-                    severity="secondary"
+                    variant="outline"
+                    color="neutral"
+                    block
                     class="flex-1 min-w-[90px]"
                 >
                     700c
-                </Button>
-                <Button
+                </UButton>
+                <UButton
                     @click="applyWheelPreset('29er')"
-                    outlined
-                    severity="secondary"
+                    variant="outline"
+                    color="neutral"
+                    block
                     class="flex-1 min-w-[90px]"
                 >
                     29er
-                </Button>
+                </UButton>
             </div>
         </div>
 
@@ -81,57 +82,72 @@ const resetToDefault = () => {
             tooltip="Rolling resistance coefficient (lower = faster)"
         />
 
-        <Panel toggleable :collapsed="true" class="mt-6">
-            <template #header>
-                <span class="font-semibold text-gray-700">⚙️ Advanced Settings</span>
+        <UCollapsible class="mt-6 rounded-lg border border-gray-200">
+            <template #default="{ open }">
+                <button
+                    type="button"
+                    class="flex w-full items-center justify-between p-4 cursor-pointer"
+                >
+                    <span class="font-semibold text-gray-700">⚙️ Advanced Settings</span>
+                    <span class="text-xs text-gray-500">{{ open ? '▲' : '▼' }}</span>
+                </button>
             </template>
-            <SliderInput
-                :model-value="modelValue.wheelRadiusM"
-                @update:model-value="updateField('wheelRadiusM', $event)"
-                label="Wheel Radius"
-                unit="m"
-                :min="0.3"
-                :max="0.9"
-                :step="0.005"
-                tooltip="Wheel radius in meters"
-            />
+            <template #content>
+                <div class="p-4 pt-0">
+                    <SliderInput
+                        :model-value="modelValue.wheelRadiusM"
+                        @update:model-value="updateField('wheelRadiusM', $event)"
+                        label="Wheel Radius"
+                        unit="m"
+                        :min="0.3"
+                        :max="0.9"
+                        :step="0.005"
+                        tooltip="Wheel radius in meters"
+                    />
 
-            <SliderInput
-                :model-value="modelValue.inertiaFront"
-                @update:model-value="updateField('inertiaFront', $event)"
-                label="Front Wheel Inertia"
-                unit="kg⋅m²"
-                :min="0.03"
-                :max="0.1"
-                :step="0.005"
-                tooltip="Rotational inertia of front wheel"
-            />
+                    <SliderInput
+                        :model-value="modelValue.inertiaFront"
+                        @update:model-value="updateField('inertiaFront', $event)"
+                        label="Front Wheel Inertia"
+                        unit="kg⋅m²"
+                        :min="0.03"
+                        :max="0.1"
+                        :step="0.005"
+                        tooltip="Rotational inertia of front wheel"
+                    />
 
-            <SliderInput
-                :model-value="modelValue.inertiaRear"
-                @update:model-value="updateField('inertiaRear', $event)"
-                label="Rear Wheel Inertia"
-                unit="kg⋅m²"
-                :min="0.03"
-                :max="0.1"
-                :step="0.005"
-                tooltip="Rotational inertia of rear wheel"
-            />
+                    <SliderInput
+                        :model-value="modelValue.inertiaRear"
+                        @update:model-value="updateField('inertiaRear', $event)"
+                        label="Rear Wheel Inertia"
+                        unit="kg⋅m²"
+                        :min="0.03"
+                        :max="0.1"
+                        :step="0.005"
+                        tooltip="Rotational inertia of rear wheel"
+                    />
 
-            <SliderInput
-                :model-value="modelValue.efficiency * 100"
-                @update:model-value="updateField('efficiency', $event / 100)"
-                label="Drivetrain Efficiency"
-                unit="%"
-                :min="90"
-                :max="100"
-                :step="0.1"
-                tooltip="Power transmission efficiency"
-            />
+                    <SliderInput
+                        :model-value="modelValue.efficiency * 100"
+                        @update:model-value="updateField('efficiency', $event / 100)"
+                        label="Drivetrain Efficiency"
+                        unit="%"
+                        :min="90"
+                        :max="100"
+                        :step="0.1"
+                        tooltip="Power transmission efficiency"
+                    />
 
-            <Button @click="resetToDefault" severity="danger" outlined class="w-full mt-6">
-                🔄 Reset to Defaults
-            </Button>
-        </Panel>
+                    <UButton
+                        @click="resetToDefault"
+                        color="error"
+                        variant="outline"
+                        class="w-full mt-6"
+                    >
+                        🔄 Reset to Defaults
+                    </UButton>
+                </div>
+            </template>
+        </UCollapsible>
     </div>
 </template>
