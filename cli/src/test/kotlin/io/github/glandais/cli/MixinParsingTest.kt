@@ -12,6 +12,7 @@ import io.github.glandais.engine.RoadCondition
 import io.github.glandais.engine.path.Path
 import io.github.glandais.engine.physics.PowerProviderConstant
 import io.github.glandais.engine.physics.PowerProviderDurability
+import io.github.glandais.engine.physics.PowerProviderSlewLimited
 import io.github.glandais.engine.physics.WindProviderConstant
 import io.github.glandais.engine.physics.WindProviderNone
 import picocli.CommandLine
@@ -233,6 +234,21 @@ class MixinParsingTest {
         assertTrue(provider is PowerProviderDurability)
         assertEquals(300.0, provider.criticalPowerW)
         assertEquals(EngineConstants.DEFAULT_CYCLIST_POWER_W, provider.powerW)
+    }
+
+    @Test
+    fun `case 05f — the slew limiter wraps whatever provider was chosen`() {
+        assertEquals(0.0, parse().cyclist.maxSlewWPerS, "off unless asked for")
+        assertTrue(parse().cyclist.toPowerProvider() is PowerProviderConstant)
+
+        val limited = parse("--cyclist-slew", "40").cyclist.toPowerProvider()
+        assertTrue(limited is PowerProviderSlewLimited)
+        assertEquals(40.0, limited.maxSlewWPerS)
+        assertTrue(limited.delegate is PowerProviderConstant)
+
+        val both = parse("--cyclist-slew", "40", "--cyclist-durability").cyclist.toPowerProvider()
+        assertTrue(both is PowerProviderSlewLimited)
+        assertTrue(both.delegate is PowerProviderDurability, "it must wrap, not replace")
     }
 
     // ---- Drift guard ---------------------------------------------------------

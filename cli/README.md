@@ -131,8 +131,8 @@ removing the old entry points, and it feeds the g20 correspondence matrix.
 | `--bike-crr`, `--bike-inertia-front`, `--bike-inertia-rear`, `--bike-wheel-radius`, `--bike-efficiency` | same names | |
 
 Options with no gpx2web equivalent, added because vcyclist's pipeline exposes them:
-`--json`, `--road-condition`, `--cyclist-cp`, `--cyclist-durability`, `--bike-max-pedal-angle`,
-`--[no-]virtualize`, `--[no-]simplify`, `--simplify-tolerance`,
+`--json`, `--road-condition`, `--cyclist-cp`, `--cyclist-durability`, `--cyclist-slew`,
+`--bike-max-pedal-angle`, `--[no-]virtualize`, `--[no-]simplify`, `--simplify-tolerance`,
 `--[no-]one-point-per-second`, `--max-size`, `--zoom`, `--margin`, `--cache`, `--quiet`.
 
 ### `--road-condition`
@@ -217,6 +217,21 @@ The reason is that it fires exactly where the rider is already limited by corner
 power applied there was being thrown away by the speed cap anyway (and showing up as `pBrake`).
 So the change is mostly to the *power trace*, which stops depicting a rider pedalling into a
 corner they are simultaneously braking for.
+
+### `--cyclist-slew`
+
+Limits how fast the rider's power may change, in W/s (`0`, the default, is off). 50 W/s is
+Zignoli & Biral's figure — a hard constraint in their optimal-control formulation, *not* a
+measurement of what a rider can do.
+
+With a constant power target there is little to smooth, so the cost is small (`stelvio.gpx`
+578 → 581 s, `sample.gpx` 19 215 → 19 218 s) and it shows up in two places only: the start of a
+ride, and the re-acceleration out of every corner where `--bike-max-pedal-angle` cut power. That
+second one is worth noting — the cut-off is deliberately *not* rate-limited, so power drops
+instantly at the lean threshold and ramps back gradually, which is the "drop quickly and locally,
+rise gradually" asymmetry the pacing literature describes, arrived at without modelling it.
+
+It becomes load-bearing when a provider reacts to terrain, which is what it is really for.
 
 ## Exit codes
 

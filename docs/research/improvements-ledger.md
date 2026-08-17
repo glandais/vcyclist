@@ -11,7 +11,8 @@ entry (R7, R12, R19, R21).
 - Date of assessment: 2026-08-17
 - Assessed against: `develop` @ `0f979af`
 - Shipped since: **R15** (W′bal output field), **R12** (`pBrake`), **R9** (`RoadCondition`),
-  **R17** (`PowerProviderDurability`), **R10** (pedal-strike cut-off)
+  **R17** (`PowerProviderDurability`), **R10** (pedal-strike cut-off),
+  **R18** (`PowerProviderSlewLimited`)
 - Sources read: all 8 research chapters + `EngineConstants`, `Cyclist`, `MaxSpeedComputer`,
   `PowerComputer`, `VirtualizeService`, `PowerProviderConstantWithTiring`,
   `CyclistPowerProviderBase`, the four resistive providers, `RhoProvider`, `AeroProvider`,
@@ -54,13 +55,14 @@ items buy is a ride trace a human recognises as their own.
 | R15 | W′bal as an **output** field (ODE form) | **High** | **Very low** | ✅ |
 | R16 | W′bal as a **behaviour** driver (CP-aware provider) | High | High | ⚪ |
 | R17 | Durability: decay on supra-CP work, not elapsed time | Med-high | Low | ✅ |
-| R18 | Power slew-rate limit (50 W/s) | Medium | Low | 🔵 |
+| R18 | Power slew-rate limit (50 W/s) | Medium | Low | ✅ |
 | R19 | Pacing heuristic (ramp up slow / drop fast, anticipation) | Medium | Medium | ⚪ |
 | R20 | RPE + Hazard Score | Low-med | Low | ⚪ |
 | R21 | Fuelling / glycogen state variable | Low | High | ❌ (for now) |
 | R22 | Optimal-pacing solver as rider behaviour | Negative | Very high | ❌ |
 
-Recommended order if acted on: ~~R15~~ → ~~R12~~ → ~~R9~~ → ~~R17~~ → ~~R10~~ → **R18**, then re-assess R16/R11.
+Recommended order if acted on: ~~R15 → R12 → R9 → R17 → R10 → R18~~ — **all shipped**. Re-assess
+R16 (CP-aware provider) and R11 (friction ellipse) next ; R19 is the natural follow-on to R18.
 
 ## A. Mechanical layer — closed
 
@@ -475,12 +477,37 @@ optimum. So R18/R19 must be justified as *realism of the power trace*, never as 
 predicted time. If a pacing heuristic moves finish time by more than ~0.5 %, that is a **bug
 signal, not a feature**.
 
-### R18 — Power slew-rate limit 🔵 **recommended**
+### R18 — Power slew-rate limit ✅
 
-Zignoli & Biral use **50 W/s**. Nothing currently stops `CyclistPowerProviderBase` from stepping
-power discontinuously, and [`04 §4.3`](04-behavioral-modeling.md) names a discontinuous step at each
-gradient change as *the* specific artefact to avoid. Cheap, local to one class, and it is the part
-of R19 that needs no anticipation machinery.
+Zignoli & Biral use **50 W/s**. Nothing stopped `CyclistPowerProviderBase` from stepping power
+discontinuously, and [`04 §4.3`](04-behavioral-modeling.md) names a discontinuous step at each
+gradient change as *the* specific artefact to avoid. Cheap, and it is the part of R19 that needs no
+anticipation machinery.
+
+#### What landed
+
+`PowerProviderSlewLimited(delegate, maxSlewWPerS = 50.0)` — a **decorator**, not a change to
+`CyclistPowerProviderBase`. Two reasons: the base class is shared by `object` singletons
+(`PowerProviderFromData`), so putting mutable state there would make it global; and a decorator
+composes, `PowerProviderSlewLimited(PowerProviderDurability(…))`. `--cyclist-slew` on the CLI, off
+by default.
+
+**The 50 W/s figure was checked against the source, not the summary.** Zignoli's appendix lists
+*"vWnmax = 50 W/s, maximal power output variation"* as a hard constraint, with the rate of change of
+power *also* penalised in the cost function — so quoting it as a slew bound is right. It remains a
+**modelling bound, not a physiological measurement**: nobody has measured how fast a rider can
+change power.
+
+Measured cost is small — `stelvio.gpx` 578 → 581 s, `sample.gpx` 19 215 → 19 218 s — and that is
+expected: with a *constant* power target there is nothing to smooth except the start of the ride and
+the corner exits. Worst observed |ΔP/Δt| between pedalling points on `sample.gpx` drops from 62 to
+48 W/s. It becomes load-bearing only when a provider reacts to terrain, which is R19.
+
+**One emergent property worth keeping.** The pedal-strike cut-off (R10) is applied downstream in
+`MuscularPowerProvider` and is deliberately *not* rate-limited, so power drops instantly at the lean
+threshold and ramps back at 50 W/s on the way out. That is the "drop quickly and locally, rise
+gradually" asymmetry [`04 §4.3`](04-behavioral-modeling.md) describes — reproduced without modelling
+it, from two independent constraints.
 
 ### R19 — Pacing heuristic ⚪
 
@@ -536,12 +563,23 @@ predicting TTE (1–2), RPE linear in elapsed time (0–3).
 
 ## F. Cross-cutting notes
 
+- **A unit inconsistency, inherited from TS.** `PointField.ELAPSED` and `DT` declare **ms**, and
+  `VirtualizeService` writes ms — but `Path.computeDerivedData` rewrites both in **seconds**
+  (`(time − timeStart) / 1000`, `(Δtime) / 2000`), and it runs last, so a finished path carries
+  seconds under a field labelled ms. CSV and JSON export inherit the wrong label. The TS reference
+  does exactly the same (`Path.ts:219`), so this is inherited, not introduced. Providers are
+  unaffected — they run *during* the simulation, where the millisecond values are still in place —
+  which is precisely why it has gone unnoticed. Fixing it is a deliberate divergence from TS and
+  was left out of R18's scope. Found writing the R18 pipeline test.
 - **Robustness found on the way.** R12's test fixtures walked into two hangs/blowups in code paths
   the pipeline protects but public API does not: `PowerComputer.getDt` never converges on a
   zero-length segment (`dx == 0` makes its search tolerance 0), and a `Path` whose `speedMax` is
   still zero-initialised simulates to `Infinity`. The first is fixed and pinned by
   `VirtualizeZeroLengthTest`; the second is only reachable by calling `virtualizeTrack` without
-  `MaxSpeedComputer` and is left as-is, recorded here.
+  `MaxSpeedComputer` and is left as-is, recorded here. R18 then surfaced a third: `PowerComputer.getDx`
+  let the kinetic-energy radicand go negative when the balance removes all the speed within `dt`
+  (`sqrt` → `NaN` → every comparison in `getDt` reads false → a near-zero `dt` and a garbage speed).
+  Clamped at zero, which is what the physics says: the rider has slowed to `MINIMAL_SPEED`.
 - **Output movement.** R9, R10, R11, R16, R17, R18 all move pipeline output; R12 and R15 do not
   (they add fields without changing the trajectory — R15 shipped with a test pinning exactly
   that). Anything in the first group is a behavioural change to re-smoke through the CLI, and a

@@ -6,6 +6,7 @@ import io.github.glandais.engine.RoadCondition
 import io.github.glandais.engine.physics.CyclistPowerProvider
 import io.github.glandais.engine.physics.PowerProviderConstant
 import io.github.glandais.engine.physics.PowerProviderDurability
+import io.github.glandais.engine.physics.PowerProviderSlewLimited
 import picocli.CommandLine
 
 /**
@@ -115,6 +116,14 @@ class CyclistMixin {
     )
     var durability: Boolean = false
 
+    @field:CommandLine.Option(
+        names = ["--cyclist-slew"],
+        description = [
+            "Limit how fast power may change, in W/s; 0 disables the limit (default: \${DEFAULT-VALUE})",
+        ],
+    )
+    var maxSlewWPerS: Double = 0.0
+
     fun toCyclist(): Cyclist =
         Cyclist(
             massKg = massKg,
@@ -126,7 +135,12 @@ class CyclistMixin {
         )
 
     /** Power is a separate strategy in vcyclist — see the class KDoc. */
-    fun toPowerProvider(): CyclistPowerProvider =
+    fun toPowerProvider(): CyclistPowerProvider {
+        val base = basePowerProvider()
+        return if (maxSlewWPerS > 0.0) PowerProviderSlewLimited(base, maxSlewWPerS) else base
+    }
+
+    private fun basePowerProvider(): CyclistPowerProvider =
         if (durability) {
             PowerProviderDurability(
                 powerW = powerW,

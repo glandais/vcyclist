@@ -43,7 +43,15 @@ object PowerComputer {
      * Energy-conservation integrator. Computes the distance travelled during [dt] s given
      * the current power balance [pSum] and current [currentSpeed].
      *
-     * `v_new = max(√(v_old² + 2·dt·P / m_eq), MINIMAL_SPEED)`, `Δx = (v_old + v_new)·dt/2`.
+     * `v_new = max(√(max(0, v_old² + 2·dt·P / m_eq)), MINIMAL_SPEED)`, `Δx = (v_old + v_new)·dt/2`.
+     *
+     * The inner clamp matters. When the balance is negative enough to remove all of the kinetic
+     * energy within [dt] — a rider coasting, braking, or stalling on a climb — the radicand goes
+     * negative, `sqrt` returns `NaN`, and `max(NaN, MINIMAL_SPEED)` is `NaN` on every target. That
+     * `NaN` propagates into [getDt], whose comparisons then all read false, so the binary search
+     * converges on a near-zero `dt` and `VirtualizeService` derives a wildly wrong speed from it.
+     * Physically the answer is simply that the rider has slowed to [EngineConstants.MINIMAL_SPEED],
+     * which is what the clamp says. Found via the R18 slew limiter, which starts a ride at 0 W.
      */
     fun getDx(
         pSum: Double,
@@ -53,7 +61,7 @@ object PowerComputer {
     ): Double {
         val newSpeed =
             max(
-                sqrt((dt * pSum) / (0.5 * equivalentMass) + currentSpeed * currentSpeed),
+                sqrt(max(0.0, (dt * pSum) / (0.5 * equivalentMass) + currentSpeed * currentSpeed)),
                 EngineConstants.MINIMAL_SPEED,
             )
         return (currentSpeed + newSpeed) * dt / 2.0

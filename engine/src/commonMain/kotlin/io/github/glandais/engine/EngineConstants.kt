@@ -57,6 +57,17 @@ object EngineConstants {
     const val DEFAULT_CYCLIST_POWER_W: Double = 280.0
 
     /**
+     * Maximum rate of change of cyclist power (W/s), used by
+     * [io.github.glandais.engine.physics.PowerProviderSlewLimited].
+     *
+     * Zignoli & Biral's appendix lists it as a hard constraint of their optimal-control
+     * formulation — *"vWnmax = 50 W/s, maximal power output variation"* — alongside a cost term
+     * penalising the rate of change of power. It is a **modelling bound, not a physiological
+     * measurement**: no source measures how fast a rider can actually change power.
+     */
+    const val DEFAULT_MAX_POWER_SLEW_W_PER_S: Double = 50.0
+
+    /**
      * Braking deceleration (g). The pitch-over (stoppie) ceiling is 0.56–0.63 g, but measured
      * riders only use **0.41 ± 0.07 g** in combined braking — ~60–65 % of the limit.
      *
