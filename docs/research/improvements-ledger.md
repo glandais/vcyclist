@@ -576,7 +576,7 @@ and that is a different design, not a coefficient.
 
 Design §12 question 1 calls the corridor "a fiction" without width data, and the feasibility study
 called OSM ingestion the true blocking dependency for the whole racing line. Task
-[`t08`](../tasks/t08-osm-highway-width.md) built it. It is not a dependency, because the data is
+[`t14`](../tasks/t14-osm-highway-width.md) built it. It is not a dependency, because the data is
 not there.
 
 Two real router exports (gpx.studio) carry `highway` and `surface` on every track point and

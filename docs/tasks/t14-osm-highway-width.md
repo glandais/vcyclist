@@ -1,4 +1,10 @@
-# t08 — Road width from the OSM `highway` class
+# t14 — Road width from the OSM `highway` class
+
+> Numbered **t14** to match design §11, which reserves it for "OSM `width`/`lanes`/
+> `junction=roundabout` ingestion" and lists it as the only real fix for §12 question 1. It is out
+> of the design's own numbered sequence — t08–t10 (roundabouts, junctions, DP fallback) are not
+> implemented — because §12 question 1 was the more consequential open question. The measurement
+> below is what it turned out to be worth.
 
 ## Goal
 
@@ -46,6 +52,10 @@ Task notes record what it would be worth.
 ## Depends on
 
 [t02](t02-road-width.md) — `ROAD_WIDTH` and the extension plumbing.
+
+Note this task covers only the `highway` half of design t14. `junction=roundabout` ingestion
+belongs with the roundabout detector (design t08), which is not implemented; `width` and `lanes`
+ingestion is unimplementable, because — see below — routers do not emit either tag.
 
 ## Steps
 

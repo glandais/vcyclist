@@ -10,7 +10,12 @@
 > [`t01`](../tasks/t01-nan-default-curvature-field.md), [`t02`](../tasks/t02-road-width.md),
 > [`t03`](../tasks/t03-curvature-estimator.md),
 > [`t04`](../tasks/t04-corner-detector-corridor.md), [`t05`](../tasks/t05-offset-qp.md),
-> [`t07`](../tasks/t07-enhancer-integration.md).
+> [`t07`](../tasks/t07-enhancer-integration.md), [`t14`](../tasks/t14-osm-highway-width.md).
+>
+> **§11's t14 answers §12 question 1 with a no.** The `highway` half of it shipped; the `width` and
+> `lanes` halves cannot, because no router emits either tag. Measured, inferring width from the road
+> class is worth 0.005 % against a flat default, so the corridor remains a global assumption and
+> this was never the blocking dependency the feasibility study took it for. Ledger **R26**.
 >
 > Further corrections the implementation measured, beyond the feasibility study's list:
 >
