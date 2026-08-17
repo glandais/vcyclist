@@ -35,7 +35,7 @@ class GravPowerProviderTest {
 
     @Test
     fun five_percent_climb_at_5ms_80kg_matches_reference() {
-        // P = -80 × 9.8 × 5 × sin(atan(0.05)) ≈ -195.626 W
+        // P = -80 × 9.80665 × 5 × sin(atan(0.05)) ≈ -195.76 W
         val (cp, path) = cp(speed = 5.0, grade = 0.05, mass = 80.0)
         val p = GravPowerProvider.powerAt(cp, path, 0)
         val expected = -80.0 * EngineConstants.G * 5.0 * sin(atan(0.05))
@@ -46,7 +46,7 @@ class GravPowerProviderTest {
 
     @Test
     fun ten_percent_climb_at_5ms_80kg_matches_reference() {
-        // P = -80 × 9.8 × 5 × sin(atan(0.10)) ≈ -390.05 W
+        // P = -80 × 9.80665 × 5 × sin(atan(0.10)) ≈ -390.31 W
         val (cp, path) = cp(speed = 5.0, grade = 0.10, mass = 80.0)
         val p = GravPowerProvider.powerAt(cp, path, 0)
         val expected = -80.0 * EngineConstants.G * 5.0 * sin(atan(0.10))

@@ -67,9 +67,9 @@ class MaxSpeedComputerTest {
         assertEquals(2.0, path.speedMax(1), tolTight)
 
         // Cornering limit (straight) is clamped to maxSpeedMS (≈ 27.778)
-        // Braking limit : √(2² + 2 × 0.6 × 9.8 × 10) ≈ √(4 + 117.6) = √121.6 ≈ 11.0272
+        // Braking limit : √(2² + 2 × 0.4 × 9.80665 × 10) ≈ √(4 + 78.45) = √82.45 ≈ 9.0803
         val expectedBraking = sqrt(2.0 * 2.0 + 2.0 * cyclist.maxBrakeMS2 * 10.0)
-        // Cornering : straight → MAX_RADIUS=200 → √(9.8 × 200 × tan(35°)) ≈ √(1372.0) ≈ 37.04
+        // Cornering : straight → MAX_RADIUS=200 → √(9.80665 × 200 × tan(35°)) ≈ √(1372.0) ≈ 37.04
         // → clamped to maxSpeedMS (27.778)
         val expectedCornering = cyclist.maxSpeedMS
         val expected = minOf(expectedBraking, expectedCornering)
@@ -97,7 +97,7 @@ class MaxSpeedComputerTest {
         val expectedRadius = 30.0 / (PI / 2.0)
         assertEquals(expectedRadius, path.radius(2), tolMid)
 
-        // Cornering limit at i=2 : √(9.8 × 19.0986 × tan(35°))
+        // Cornering limit at i=2 : √(9.80665 × 19.0986 × tan(35°))
         val expectedCornering = sqrt(EngineConstants.G * expectedRadius * cyclist.tanMaxLeanAngle)
         assertEquals(expectedCornering, path.speedMaxIncline(2), tolMid)
         assertTrue(expectedCornering < cyclist.maxSpeedMS, "cornering limit should be below maxSpeedMS in a tight turn")
@@ -229,36 +229,36 @@ class MaxSpeedComputerTest {
 
         // Radius for i=2 (middle) should be exactly 30 m
         assertEquals(30.0, path.radius(2), tolMid)
-        val expectedVMax = sqrt(9.8 * 30.0 * tan(35.0 * PI / 180.0))
-        // ≈ √(9.8 × 30 × 0.7002) ≈ √205.86 ≈ 14.348... but spec says 14.36 m/s.
-        // tan(35°) = 0.70021, 9.8 × 30 × 0.70021 = 205.86, √ ≈ 14.348. Spec rounds to 14.36. Either is fine within 1e-3.
+        val expectedVMax = sqrt(EngineConstants.G * 30.0 * tan(35.0 * PI / 180.0))
+        // ≈ √(9.80665 × 30 × 0.7002) ≈ √206.00 ≈ 14.353... but spec says 14.36 m/s.
+        // tan(35°) = 0.70021, 9.80665 × 30 × 0.70021 = 206.00, √ ≈ 14.353. Spec rounds to 14.36.
         assertEquals(expectedVMax, path.speedMaxIncline(2), 1e-3)
         // Sentinel check : value is in [14.3, 14.4]
         assertTrue(expectedVMax in 14.3..14.4, "expected ≈ 14.36 m/s, got $expectedVMax")
     }
 
-    // 13 — sentinel braking : v_f=0, d=10 m, a=0.6×9.8 → v_0 ≈ 10.84 m/s.
+    // 13 — sentinel braking : v_f=0, d=10 m, a=0.4×9.80665 → v_0 ≈ 8.86 m/s.
     @Test
-    fun sentinel_braking_vf0_d10m_a5_88_yields_10_84_ms() {
+    fun sentinel_braking_vf0_d10m_a3_92_yields_8_86_ms() {
         // Two-point path : compute braking limit at index 0 with v_f = 0 at index 1.
         // We achieve v_f = 0 by overriding the END_SPEED_MS via a different approach :
         // simulate by computing the formula directly through the public API requires v_f at i+1.
         // The algorithm sets v_f=2 m/s at the last point — so we can't directly test 0 → 0.
-        // Instead : test the FORMULA via a 2-point setup where v_f=2 (last), d=10, a=5.88
-        //   v_0 = √(2² + 2×5.88×10) = √(4 + 117.6) = √121.6 ≈ 11.0272
-        // For exact 0-as-vf sentinel : verify √(0² + 2 × 5.88 × 10) = √117.6 ≈ 10.8443 m/s
+        // Instead : test the FORMULA via a 2-point setup where v_f=2 (last), d=10, a=3.9227
+        //   v_0 = √(2² + 2×3.9227×10) = √(4 + 78.453) = √82.453 ≈ 9.0803
+        // For exact 0-as-vf sentinel : verify √(0² + 2 × 3.9227 × 10) = √78.453 ≈ 8.8574 m/s
         val cyclist = Cyclist()
-        val a = cyclist.maxBrakeMS2 // 5.88
-        assertEquals(5.88, a, 1e-6)
+        val a = cyclist.maxBrakeMS2 // 3.9227
+        assertEquals(3.92266, a, 1e-5)
         val v0 = sqrt(0.0 * 0.0 + 2.0 * a * 10.0)
-        assertEquals(10.8443, v0, 1e-3)
-        // And confirm via the computer's public path : with v_f=2, d=10 → √(4+117.6) ≈ 11.027
+        assertEquals(8.8574, v0, 1e-3)
+        // And confirm via the computer's public path : with v_f=2, d=10 → √(4+78.45) ≈ 9.080
         val distances = doubleArrayOf(0.0, 10.0)
         val bearings = doubleArrayOf(0.0, 0.0)
         val path = buildSynthPath(distances, bearings)
         val course = Course(path, cyclist = cyclist)
         MaxSpeedComputer.computeMaxSpeeds(course)
-        val braking = sqrt(2.0 * 2.0 + 2.0 * a * 10.0) // ≈ 11.0272
+        val braking = sqrt(2.0 * 2.0 + 2.0 * a * 10.0) // ≈ 9.0803
         // speedMax(0) = min(cornering, braking). Cornering = 27.778 (clamped). So result = braking.
         assertEquals(braking, path.speedMax(0), 1e-3)
     }
@@ -267,7 +267,7 @@ class MaxSpeedComputerTest {
     @Test
     fun tight_corner_clamps_speedMax_below_braking_limit() {
         // 5 points, distances 0/0.25/0.5/0.75/1, bearings showing total Δ = π over 1 m
-        // → radius clamped to 5 → cornering = √(9.8 × 5 × tan(35°)) ≈ √(34.31) ≈ 5.86 m/s
+        // → radius clamped to 5 → cornering = √(9.80665 × 5 × tan(35°)) ≈ √(34.33) ≈ 5.86 m/s
         val distances = doubleArrayOf(0.0, 0.25, 0.5, 0.75, 1.0)
         val bearings = doubleArrayOf(0.0, 0.5, 1.0, 2.0, PI)
         val path = buildSynthPath(distances, bearings)

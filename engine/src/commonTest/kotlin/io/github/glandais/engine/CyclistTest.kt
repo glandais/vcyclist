@@ -39,7 +39,7 @@ class CyclistTest {
 
     @Test
     fun max_brake_ms2_is_g_units_times_g() {
-        val expected = 0.6 * 9.8
+        val expected = 0.4 * EngineConstants.G
         assertTrue(abs(Cyclist.DEFAULT.maxBrakeMS2 - expected) < 1e-12)
     }
 

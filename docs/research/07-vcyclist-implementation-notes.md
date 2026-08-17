@@ -22,7 +22,14 @@ which do not exist in the codebase at all.
 
 ## 7.2 Concrete findings to act on
 
-### (a) `DEFAULT_WHEEL_RADIUS_M = 0.7` is a diameter, not a radius
+> **Status (2026-08-17)**: (a), (b), (c) are applied and (d) documented, in **all three
+> projects** — vcyclist (`EngineConstants`), virtual-cyclist (`src/constants/constants.ts`)
+> and gpx2web (`Constants.java`), plus their CLI mixins, demo presets and docs. The parity
+> fixtures held inside the 0.5 % budget and were not regenerated. Still open from (b): brake
+> actuation lag; from (d): a wet/dry µ switch and the pedal-strike power cut-off; from (e):
+> yaw- and posture-dependent CdA.
+
+### (a) `DEFAULT_WHEEL_RADIUS_M = 0.7` is a diameter, not a radius — ✅ **fixed**
 
 `Bike.kt:11` documents it as *"Wheel radius in meters (default 0.7 = 700c with 25mm tire)"*. A 700c
 wheel with a 25 mm tyre has a radius of **~0.35 m**; 0.7 m is its diameter. Martin et al. use
@@ -45,7 +52,7 @@ Check `docs/parity.md` before touching it, and check whether the TS reference ha
 so, fixing it is a deliberate divergence to document, like the two `VirtualizeService` fixes
 already documented in `CLAUDE.md`).
 
-### (b) `DEFAULT_MAX_BRAKE_G = 0.6` is the theoretical limit, not realistic behaviour
+### (b) `DEFAULT_MAX_BRAKE_G = 0.6` is the theoretical limit, not realistic behaviour — ✅ **fixed**
 
 Measured values from §5.2:
 
@@ -59,12 +66,12 @@ descenders leave margin everywhere, not just in lean angle.
 Add brake actuation lag (~0.13 s) to the braking-point calculation if you want the extra realism —
 `MaxSpeedComputer.computeBrakingLimit` currently assumes instantaneous onset.
 
-### (c) `G = 9.8` vs 9.80665
+### (c) `G = 9.8` vs 9.80665 — ✅ **fixed**
 
 A 0.07 % systematic error on both the gravity and rolling terms. Almost certainly deliberate for TS
 parity — worth a one-line comment saying so, since it reads as a typo.
 
-### (d) The 35° lean default is a good number — and now has a literature anchor
+### (d) The 35° lean default is a good number — and now has a literature anchor — ✅ **documented**
 
 `MaxSpeedComputer` computes `v_max = √(g · R · tan θ_lean)`. That is algebraically
 `v_max = √(µ · g · R)` with **µ ≡ tan θ_lean**, i.e. vcyclist's lean-angle parameter *is* a friction

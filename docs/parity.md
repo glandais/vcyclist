@@ -8,10 +8,16 @@ numerical relationship between the two implementations, the divergences found, a
 parity strategy that follows from them.
 
 Measured on all 7 sample GPX files, stage by stage across the whole `Enhancer` pipeline.
-Re-measured 2026-07-28 against **`virtual-cyclist` 1.3.0** (`6bf256e`) and **`elevation`
-3.2.3**; the `clock-pinned` figures are byte-identical to the 2026-07-27 baseline taken
-against `virtual-cyclist` @ `develop` and `elevation` 3.2.2, so nothing in this document
-moved with those releases.
+Re-measured 2026-08-17 against **`virtual-cyclist` 1.3.1** (`046688e`), the release that
+carries the same constant corrections as this port (`G = 9.80665`, wheel **radius** 0.35 m,
+`maxBrakeG` 0.4 — see [`docs/research/07`](research/07-vcyclist-implementation-notes.md#72-concrete-findings-to-act-on)).
+**No divergence class changed**: every field-level verdict is the same as the 2026-07-28 run
+against 1.3.0 (`6bf256e`) / `elevation` 3.2.3, which was itself byte-identical to the
+2026-07-27 baseline. Both sides moved together, as intended. Only the point counts shifted —
+the simulated rides are slightly slower, so they yield a few more 1 Hz samples — and one
+consequence of that is recorded under Douglas-Peucker below. The 2026-08-17 sweep ran
+`clock-pinned` only (the fidelity mode) and skipped the DEM sweep, which these constants do
+not touch.
 
 The harness is committed in [`tools/parity/`](../tools/parity/README.md) and is
 re-runnable: `./tools/parity/run-all.sh`.
@@ -50,11 +56,17 @@ this section.
 | `03-smooth` | 5011 | 2061 | 7040 | 68293 | 6998 | 1929 | 14121 |
 | `04-maxspeed` | 5011 | 2061 | 7040 | 68293 | 6998 | 1929 | 14121 |
 | `05-virtualize` | 5010/**5011** | 2060/**2061** | 7039/**7040** | 68292/**68293** | 6997/**6998** | 1928/**1929** | 14120/**14121** |
-| `06-pointpersecond` | 903/**904** | 384/**385** | 2002 | 19158 | 1987/**1988** | 574/**575** | 2879/**2880** |
-| `07-simplify` | 78 | 41 | 81 | 1018 | 85 | 43 | 188 |
+| `06-pointpersecond` | 903/**904** | 385 | 2004 | 19168/**19169** | 1996 | 576/**577** | 2882/**2883** |
+| `07-simplify` | 79 | 39 | 80 | 1014 | 83/**85** | 43 | 187 |
 
-Douglas-Peucker returns **identical point counts on all 7 fixtures** — the feared
-equidistant-tiebreak divergence does not occur in practice.
+Douglas-Peucker returns identical point counts on **6 of 7** fixtures. On `sports-tracker` it
+now returns **83 (TS) vs 85 (Kotlin)**. This is new as of the 2026-08-17 sweep and is *not* a
+port defect : that fixture is the one where the 1 Hz stage now agrees exactly (1996 both
+sides, where it used to be 1987/1988), so the two sides feed DP inputs that differ only by
+ULP-scale noise, and DP's keep/drop decision is a threshold on those values — a point sitting
+within ULPs of the 10 m tolerance falls on either side of it. The feared equidistant-tiebreak
+divergence is therefore real but confined to points that are, by construction, at the
+tolerance boundary.
 
 ### Stages 00 → 04: ULP-clean
 
@@ -423,15 +435,29 @@ bake those bugs into the Kotlin test suite. On the two tiny inline fixtures the 
 differ by more than the 0.5 % budget purely because of the missing last point — on
 `GARMIN_GPX` a single 1.17 m segment is 7.9 % of a 14 m trace:
 
+Re-measured 2026-08-17 against `virtual-cyclist` 1.3.1, both sides carrying the corrected
+constants:
+
 | fixture | metric | TS (clock-pinned) | Kotlin (asserted) | Δ rel | cause |
 |---|---|---|---|---|---|
-| SAMPLE | totalDistance | 418.20859360948475 | 420.04525064910683 | 4.4e-03 | one missing segment |
-| SAMPLE | durationMs | 48000 | 49000 | 2.0e-02 | one missing 1 Hz sample |
-| SAMPLE | elevationGain | 0.21591593782602558 | 0.2189461508746149 | 1.4e-02 | one missing segment |
-| SAMPLE | elevationLoss | -0.3083313825662799 | -0.3083313825632672 | **9.8e-12** | ULP |
+| SAMPLE | totalDistance | 418.2189961559547 | 420.0556496172967 | 4.4e-03 | one missing segment |
+| SAMPLE | durationMs | 49000 | 49000 | **0** | was 2.0e-02 — see below |
+| SAMPLE | elevationGain | 0.21471861131141168 | 0.21774882435903464 | 1.4e-02 | one missing segment |
+| SAMPLE | elevationLoss | -0.307134056051666 | -0.30713405604768695 | **1.3e-11** | ULP |
 | GARMIN | totalDistance | 13.75769637229516 | 14.929920010888091 | 7.9e-02 | one missing segment |
 | GARMIN | durationMs | 5000 | 5000 | 0 | — |
 | GARMIN | elevationLoss | -0.004688886304762718 | -0.004834919456122577 | 3.0e-02 | one missing segment |
+
+`SAMPLE.durationMs` now agrees **exactly**, where it used to differ by one 1 Hz sample: the
+slightly slower simulated ride pushes the TS side over the same second boundary the Kotlin
+side was already past. The remaining gaps are unchanged in both size and cause — this is the
+missing-last-point divergence (#2), not anything the constants touched.
+
+The Kotlin `SAMPLE` numbers moved (distance 2.5e-05, gain 5.5e-03, loss 3.9e-03 rel) and were
+refreshed in `ParityFixtures.kt`. Note **which test caught it**: `EnhancerParityTest` checks
+elevation gain against an absolute ±1 m band, so a 5.5e-03 relative drift on a 0.22 m value is
+invisible to it. `tools/wasi/test_engine.py` reads the same fixture and checks it at ±0.5 %
+relative, and failed. The WASI host and the JVM agree to the digit — only the fixture was stale.
 
 The fixture values are now **TS-corroborated**: each Kotlin number is accompanied by the
 measured TS number and a quantified reason for the gap. That is the meaningful upgrade from

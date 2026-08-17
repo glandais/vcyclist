@@ -20,19 +20,19 @@ class BikeTest {
 
     @Test
     fun wheel_diameter_is_twice_radius() {
-        val expected = 2.0 * 0.7
+        val expected = 2.0 * 0.35
         assertTrue(abs(Bike.DEFAULT.wheelDiameterM - expected) < 1e-12)
     }
 
     @Test
     fun wheel_circumference_is_two_pi_radius() {
-        val expected = 2.0 * PI * 0.7
+        val expected = 2.0 * PI * 0.35
         assertTrue(abs(Bike.DEFAULT.wheelCircumferenceM - expected) < 1e-12)
     }
 
     @Test
     fun equivalent_mass_is_total_inertia_over_radius_squared() {
-        val expected = 0.12 / (0.7 * 0.7)
+        val expected = 0.12 / (0.35 * 0.35)
         assertTrue(abs(Bike.DEFAULT.equivalentMass - expected) < 1e-9)
     }
 

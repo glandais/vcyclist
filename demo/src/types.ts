@@ -73,7 +73,7 @@ export const PRESETS: Record<'beginner' | 'recreational' | 'pro', Preset> = {
             crr: 0.005,
             inertiaFront: 0.06,
             inertiaRear: 0.08,
-            wheelRadiusM: 0.7,
+            wheelRadiusM: 0.35,
             efficiency: 0.96,
         },
         cyclist: {
@@ -92,7 +92,7 @@ export const PRESETS: Record<'beginner' | 'recreational' | 'pro', Preset> = {
             crr: 0.004,
             inertiaFront: 0.05,
             inertiaRear: 0.07,
-            wheelRadiusM: 0.7,
+            wheelRadiusM: 0.35,
             efficiency: 0.976,
         },
         cyclist: {
@@ -111,7 +111,7 @@ export const PRESETS: Record<'beginner' | 'recreational' | 'pro', Preset> = {
             crr: 0.003,
             inertiaFront: 0.04,
             inertiaRear: 0.06,
-            wheelRadiusM: 0.7,
+            wheelRadiusM: 0.35,
             efficiency: 0.985,
         },
         cyclist: {
