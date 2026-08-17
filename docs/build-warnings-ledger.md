@@ -218,6 +218,9 @@ webpack performance recommendations: … lazy load some parts of your applicatio
 
 Three warnings per over-limit bundle (asset limit, entrypoint limit, recommendation block).
 
+**Investigated 2026-08-17 — the warning points at an artefact nobody ships; the real cost is
+elsewhere.** See [E1 investigation](#e1-investigation).
+
 Largest contributors to `engine.js`: `fit-kotlin-sdk.js` 1.13 MiB, `xmlutil-core.js` 402 KiB,
 `kotlin-kotlin-stdlib.js` 392 KiB, `kotlinx-coroutines-core.js` 194 KiB, `vcyclist-gpx.js` 144 KiB,
 `vcyclist-elevation.js` 106 KiB, `vcyclist-engine.js` 98.2 KiB, `vcyclist-fit.js` 35.5 KiB
@@ -304,7 +307,7 @@ counts 5 and not 2.
 | C5 | Warning (Windows portability) | 1 | `EnhanceCommandTest.kt:268` | first-party | ✅ fixed |
 | C6 | Warning | 1 | `UnitDump.kt:229` | first-party | ➖ moot (harness deleted upstream) |
 | D1 | Becomes an error later | 1 | 4 × `build.gradle.kts` | KGP | 🟡 documented, deferred to w08 |
-| E1 | Perf advisory | 6 | `engine.js`, `fit.js` | first-party + deps | ⬜ open |
+| E1 | Perf advisory (mis-targeted) | 6 | `engine.js`, `fit.js` | first-party + deps | 🟡 measured, needs a call |
 | E2 | Benign (investigated) | 429 | Kotlin/JS modules | third-party | ✅ closed, no action |
 | F1 | Noise | 4 | KGP mocha wiring | third-party | ⬜ not ours |
 | F2 | Noise | 14 | ktlint's embedded compiler | third-party | ⬜ not ours |
@@ -362,8 +365,9 @@ own when `develop` dropped the parity harness.
   pointless Node test tasks. Recorded in `docs/kotlin-wasm-wasi.md` §1 instead, where it had been
   filed as a "Beta2 roughness" — it persists on 2.4.20-RC, so it is KGP behaviour, and it closes the
   first of w08's three re-verification questions early. Re-check at 2.4.20 final.
-- **E1** — `engine.js` at 996 KiB needs real work (code splitting or a leaner browser surface), not a
-  build-config tweak. Still open.
+- **E1** — measured, not yet acted on: the warning is about an unshipped bundle, while the real cost is
+  1.2 MB of dead FIT encoder in the deployed demo. See [E1 investigation](#e1-investigation) for the
+  options, one of which is an API-shape decision.
 - **E2** — investigated and closed as benign; see [E2 investigation](#e2-investigation).
 - **F1 / F2** — third-party: KGP's own mocha wiring, and ktlint's embedded compiler 2.1.0.
 - **G1** — wiring `:demo` into `build` would make every contributor's `./gradlew build` run npm
@@ -422,3 +426,77 @@ Failed to parse source map from '<path>/Foo.kt' file: Error: ENOENT: no such fil
 resolves nowhere — the only one of the 429 that names a file of ours. The working entry is present, so
 mapping into that file is unaffected; the duplicate is a compiler artefact around the `.js.kt`
 per-target naming. Recorded rather than chased.
+
+## E1 investigation
+
+*2026-08-17. Question: is the 996 KiB `engine.js` a real cost, and to whom?*
+
+### Nobody downloads the bundle the warning is about
+
+`engine.js` and `fit.js` come from `binaries.executable()`, whose browser webpack output exists to run
+the Karma tests. What actually ships is a different artefact:
+
+| Channel | Artefact | Built by |
+|---|---|---|
+| npm `@glandais/vcyclist-engine` | **library** distribution | `jsBrowserProductionLibraryDistribution` |
+| Maven Central | JVM / klib | — |
+| GitHub Release | CLI jar, `.wasm` | `:cli:executableJar`, `:engine:wasmModule` |
+
+`demo/package.json`'s `prebuild` also asks for the *library* distribution, not the executable. So the
+webpack size warning is fired at a file that reaches no consumer — which is why it should not be the
+thing that gets optimised.
+
+### Where the cost actually lands
+
+The deployed demo is what real visitors download. Measured on a fresh `:demo:assemble`:
+
+| Chunk | Raw | Gzipped |
+|---|---|---|
+| `engine-*.js` | 1 011 KiB | **254 KiB** |
+| `nuxtui-*.js` | 555 KiB | 163 KiB |
+| `chartjs-*.js` | 166 KiB | 57 KiB |
+| `leaflet-*.js` | 145 KiB | 42 KiB |
+
+Attributing the engine chunk by `sourcesContent` in its sourcemap (2 543 KiB of unminified sources):
+
+| Source | Share |
+|---|---|
+| `fit-kotlin-sdk.js` | **45.6 %** |
+| `xmlutil-core.js` | 15.8 % |
+| `kotlin-kotlin-stdlib.js` | 15.4 % |
+| `kotlinx-coroutines-core.js` | 7.6 % |
+| `vcyclist-gpx.js` | 5.7 % |
+| `vcyclist-elevation.js` | 4.2 % |
+| `vcyclist-engine.js` | 3.9 % |
+| `vcyclist-fit.js` | 1.4 % |
+| `kotlinx-atomicfu.js` | 0.4 % |
+
+**47 % of the chunk is FIT encoding, and the demo never uses it.** `demo/src` contains no FIT, CSV or
+JSON export — `grep` for `pathToFit`, `toFit`, `download`, `createObjectURL` finds only
+`writeGpx` in `engine-shim.ts`. `xmlutil` by contrast is genuinely needed: it parses the GPX.
+
+### Why it cannot simply be tree-shaken
+
+- `engine-shim.ts` does `import * as ns from '@glandais/vcyclist-engine'`, which forfeits tree-shaking
+  before the bundler even starts.
+- More fundamentally, Kotlin/JS emits **per-module** granularity in UMD/CommonJS, so `pathToFit` pulls
+  `vcyclist-fit.js` → `fit-kotlin-sdk.js` in wholesale regardless of what the consumer imports.
+- Splitting `pathToFit` into its own npm package is blocked by an existing architectural constraint:
+  `Path` handles cannot cross a bundle boundary, which is precisely why the FIT façade lives in
+  `:engine` (see `docs/publishing.md`, *`:fit` on npm*).
+
+Tried and rejected: `kotlin.js.ir.output.granularity=per-file`, the setting that would let a bundler
+drop `pathToFit`. It requires `useEsModules()` (the compiler says so outright); with ESM enabled on all
+four JS modules it **compiles clean, but the property has no observable effect** on Kotlin 2.4.20-RC —
+output stays at 13 per-module files, and the demo chunk is byte-identical. Reverted; ESM alone would
+also flip the published package format, which is a breaking change for CommonJS consumers.
+
+### Open options (none taken — this needs a decision)
+
+1. **Reclassify the warning.** It fires on a non-shipped bundle; the honest fix is to say so rather than
+   optimise for it. Cheap, but mutes a signal if `engine.js` ever becomes a deliverable.
+2. **Cut FIT out of the demo's chunk.** Worth ~120 KiB gzipped for every visitor. Needs an engine-side
+   split, which the `Path`-handle constraint blocks — so it means a deliberate API change (e.g. a
+   handle-free FIT entry point), not a build tweak.
+3. **Re-test per-file granularity** on Kotlin 2.4.20 final (task w08), where the property may work
+   again; combine with named imports in `engine-shim.ts`.
