@@ -1,7 +1,8 @@
-@file:OptIn(UnsafeWasmMemoryApi::class)
+@file:OptIn(UnsafeWasmMemoryApi::class, ExperimentalWasmInterop::class)
 
 package io.github.glandais.elevation
 
+import kotlin.wasm.ExperimentalWasmInterop
 import kotlin.wasm.WasmImport
 import kotlin.wasm.unsafe.UnsafeWasmMemoryApi
 import kotlin.wasm.unsafe.withScopedMemoryAllocator

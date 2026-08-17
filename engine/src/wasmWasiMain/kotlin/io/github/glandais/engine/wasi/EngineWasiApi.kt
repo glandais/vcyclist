@@ -1,4 +1,4 @@
-@file:OptIn(UnsafeWasmMemoryApi::class)
+@file:OptIn(UnsafeWasmMemoryApi::class, ExperimentalWasmInterop::class)
 
 package io.github.glandais.engine.wasi
 
@@ -28,6 +28,7 @@ import io.github.glandais.engine.physics.RhoProviderEstimate
 import io.github.glandais.fit.toFitBytes
 import kotlin.time.Duration.Companion.milliseconds
 import kotlin.time.Instant
+import kotlin.wasm.ExperimentalWasmInterop
 import kotlin.wasm.WasmExport
 import kotlin.wasm.WasmImport
 import kotlin.wasm.unsafe.UnsafeWasmMemoryApi
