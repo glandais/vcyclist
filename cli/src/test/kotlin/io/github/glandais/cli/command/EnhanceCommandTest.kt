@@ -264,8 +264,10 @@ class EnhanceCommandTest {
         assertEquals("", result.out.trim(), "expected silence on success, got: ${result.out}")
     }
 
+    // No double quotes in the name: they are illegal in Windows filenames, and the name reaches the
+    // filesystem through the test-report and class-file names.
     @Test
-    fun `case 14 — xlsx is refused with a pointer to csv, not "unknown option"`() {
+    fun `case 14 — xlsx is refused with a pointer to csv, not an unknown-option parse error`() {
         // A gpx2web user typing --xlsx should learn it was dropped and what to use instead,
         // rather than be left wondering whether they mistyped.
         val result = run("enhance", gpxFixture().path, "--xlsx", File(work, "o.xlsx").path)
