@@ -25,7 +25,12 @@
 
         /* Path mapping */
         "paths": {
-            "~/*": ["./src/*"]
+            "~/*": ["./src/*"],
+            /* Mirrors the resolve.alias in vite.config.ts — the engine is read from the Gradle
+               build output, not from node_modules. */
+            "@glandais/vcyclist-engine": [
+                "../engine/build/dist/js/productionLibrary/vcyclist-engine.d.ts"
+            ]
         }
     },
     "include": ["src/**/*.ts", "src/**/*.tsx", "src/**/*.vue"],
