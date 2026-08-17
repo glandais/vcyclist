@@ -249,7 +249,7 @@ l'altitude), qui n'a pas d'équivalent gpx2web.
 | `power.cyclist.CyclistPowerProvider` | porté | `…engine.physics.CyclistPowerProvider` (`:engine`) | |
 | `power.cyclist.CyclistPowerProviderBase` | porté | `CyclistPowerProviderBase` (`:engine`) | |
 | `power.cyclist.PowerProviderConstant` | porté | `PowerProviderConstant` (`:engine`) | |
-| `power.cyclist.PowerProviderConstantWithTiring` | porté | `PowerProviderConstantWithTiring` (`:engine`) | |
+| `power.cyclist.PowerProviderConstantWithTiring` | porté puis **remplacé** | `PowerProviderDurability` (`:engine`) | La décroissance en temps écoulé n'avait aucune source ; la durabilité est pondérée par l'intensité (travail au-dessus de CP). Voir `docs/research/improvements-ledger.md` R17. |
 | `power.cyclist.PowerProviderFromData` | porté | `PowerProviderFromData` (`:engine`) | CLI : `--gpx-power`. |
 | `power.cyclist.MuscularPowerProvider` | porté | `MuscularPowerProvider` (`:engine`) | |
 | `power.cyclist.Harmonic` | porté | `…engine.physics.Harmonic` (`:engine`) | |

@@ -131,7 +131,7 @@ removing the old entry points, and it feeds the g20 correspondence matrix.
 | `--bike-crr`, `--bike-inertia-front`, `--bike-inertia-rear`, `--bike-wheel-radius`, `--bike-efficiency` | same names | |
 
 Options with no gpx2web equivalent, added because vcyclist's pipeline exposes them:
-`--json`, `--road-condition`, `--[no-]virtualize`, `--[no-]simplify`, `--simplify-tolerance`,
+`--json`, `--road-condition`, `--cyclist-cp`, `--cyclist-durability`, `--[no-]virtualize`, `--[no-]simplify`, `--simplify-tolerance`,
 `--[no-]one-point-per-second`, `--max-size`, `--zoom`, `--margin`, `--cache`, `--quiet`.
 
 ### `--road-condition`
@@ -178,6 +178,26 @@ the API can never disagree:
 `--cyclist-power` also behaves differently under the hood: gpx2web stores power on its cyclist
 model, while vcyclist treats it as a power strategy. The option is the same; only the internals
 moved.
+
+### `--cyclist-durability`
+
+By default the simulated rider holds `--cyclist-power` for the whole ride. `--cyclist-durability`
+fades it with accumulated work **above `--cyclist-cp`** (default 250 W), which is what the
+durability literature measures: 10–20 % power decline after only 2.5–15 kJ/kg of supra-CP work,
+versus < 5 % after comparable volumes below it. Time alone does not tire the rider — intensity
+does.
+
+| Route | constant | `--cyclist-durability` | cost |
+|---|---|---|---|
+| `strava.gpx` (20.8 km, 48 min) | 2 882 s | 2 887 s | +0.17 % |
+| `sample.gpx` (128.6 km, 5.3 h) | 19 168 s | 19 466 s | **+1.6 %** |
+
+That ordering is the point: at 280 W against a 250 W CP, five hours accumulates ~7 kJ/kg of
+supra-CP work and ~5 % of fade by the finish, while a 48-minute ride accumulates almost none.
+
+The default fade rate is deliberately at the **conservative** end of the published band — those
+decrements were measured mostly on short maximal efforts, and the same study found *no* effect on
+a 12-minute time trial. See `PowerProviderDurability`'s KDoc.
 
 ## Exit codes
 

@@ -6,7 +6,7 @@ import io.github.glandais.engine.Cyclist
 import io.github.glandais.engine.climb.ClimbOptions
 import io.github.glandais.engine.path.Path
 import io.github.glandais.engine.physics.PowerProviderConstant
-import io.github.glandais.engine.physics.PowerProviderConstantWithTiring
+import io.github.glandais.engine.physics.PowerProviderDurability
 import io.github.glandais.engine.physics.PowerProviderFromData
 import io.github.glandais.engine.physics.WindProviderConstant
 import io.github.glandais.engine.physics.WindProviderNone
@@ -82,9 +82,10 @@ class WasiOptionsTest {
     @Test
     fun `the three power provider types are recognised`() {
         assertIs<PowerProviderConstant>(json("""{"type":"constant","power":220}""").toCyclistPowerProvider())
-        assertIs<PowerProviderConstantWithTiring>(
-            json("""{"type":"constant_tiring","power":220,"tiringDuration":3600}""").toCyclistPowerProvider(),
-        )
+        val durability =
+            json("""{"type":"durability","power":220,"criticalPower":240}""").toCyclistPowerProvider()
+        assertIs<PowerProviderDurability>(durability)
+        assertEquals(240.0, durability.criticalPowerW)
         assertSame(PowerProviderFromData, json("""{"type":"from_data"}""").toCyclistPowerProvider())
     }
 

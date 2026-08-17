@@ -10,7 +10,8 @@ entry (R7, R12, R19, R21).
 
 - Date of assessment: 2026-08-17
 - Assessed against: `develop` @ `0f979af`
-- Shipped since: **R15** (W′bal output field), **R12** (`pBrake`), **R9** (`RoadCondition`)
+- Shipped since: **R15** (W′bal output field), **R12** (`pBrake`), **R9** (`RoadCondition`),
+  **R17** (`PowerProviderDurability`)
 - Sources read: all 8 research chapters + `EngineConstants`, `Cyclist`, `MaxSpeedComputer`,
   `PowerComputer`, `VirtualizeService`, `PowerProviderConstantWithTiring`,
   `CyclistPowerProviderBase`, the four resistive providers, `RhoProvider`, `AeroProvider`,
@@ -52,14 +53,14 @@ items buy is a ride trace a human recognises as their own.
 | R14 | Posture-dependent CdA | Medium | Med (unbounded validation) | ⚪ |
 | R15 | W′bal as an **output** field (ODE form) | **High** | **Very low** | ✅ |
 | R16 | W′bal as a **behaviour** driver (CP-aware provider) | High | High | ⚪ |
-| R17 | Durability: decay on supra-CP work, not elapsed time | Med-high | Low | 🔵 |
+| R17 | Durability: decay on supra-CP work, not elapsed time | Med-high | Low | ✅ |
 | R18 | Power slew-rate limit (50 W/s) | Medium | Low | 🔵 |
 | R19 | Pacing heuristic (ramp up slow / drop fast, anticipation) | Medium | Medium | ⚪ |
 | R20 | RPE + Hazard Score | Low-med | Low | ⚪ |
 | R21 | Fuelling / glycogen state variable | Low | High | ❌ (for now) |
 | R22 | Optimal-pacing solver as rider behaviour | Negative | Very high | ❌ |
 
-Recommended order if acted on: ~~R15~~ → ~~R12~~ → ~~R9~~ → **R17 → R10 → R18**, then re-assess R16/R11.
+Recommended order if acted on: ~~R15~~ → ~~R12~~ → ~~R9~~ → ~~R17~~ → **R10 → R18**, then re-assess R16/R11.
 
 ## A. Mechanical layer — closed
 
@@ -357,12 +358,12 @@ Deferred behind R15/R17 because the literature supplies **no control law** — C
 state, and the mapping from state to power is ours to invent and own. Building it after R15 means
 the state variable is already validated and observable in output before anything depends on it.
 
-### R17 — Durability: decay on supra-CP work, not elapsed time 🔵 **recommended**
+### R17 — Durability: decay on supra-CP work, not elapsed time ✅
 
 **Under-weighted by ch. 07**, which folds durability into the fuelling item (R21) and inherits its
 weak evidence grade. It deserves its own row, because it is a fix to code that already exists.
 
-`PowerProviderConstantWithTiring.kt:37` decays power as
+`PowerProviderConstantWithTiring` decayed power as
 `c = max(0.5, 1 − 0.6·elapsed/durationSeconds)` — open-loop on **elapsed time**, which is precisely
 the formulation [`02 §2.2`](02-physiological-modeling.md) says is wrong. The systematic review is
 explicit: durability is **intensity-weighted, not kJ-weighted, and certainly not time-weighted** —
@@ -377,6 +378,42 @@ larger sub-CP volumes.
   power as hard as sprint power overfits the headline. Population is male professional cyclists.
 - **Do not implement** the specific figures "CP −0.06 vs −0.007 W/kg; W′ −3.02 kJ after 2000 kJ" —
   refuted 0–3.
+
+#### What landed
+
+`PowerProviderDurability`, plus `--cyclist-durability` / `--cyclist-cp` on the CLI — and
+**`PowerProviderConstantWithTiring` is removed**, not deprecated. It shipped first as a new provider
+alongside the old one (rewriting a public class in place would have silently changed every existing
+caller's output); the API owner's call was to delete the old one outright, so the elapsed-time decay
+is gone from the codebase rather than left as a documented trap.
+
+That makes this a **breaking change** across three surfaces: the Kotlin class, the JS façade's
+`power.type = "constant_tiring"` (now `"durability"`, with `tiringDuration` → `criticalPower`), and
+the WASI JSON ABI (same rename, `docs/wasm-wasi-abi.md` updated). The frozen WIT spike under
+`tools/wasi-component/` still describes `constant-tiring`; it is a replay artifact of the w13
+experiment, not built by Gradle, and was left alone deliberately.
+
+Two judgement calls worth pinning:
+
+- **The fade rate is conservative on purpose.** The default reaches 10 % at 15 kJ/kg — the *bottom*
+  of the published band at the *top* of its work range. The band is dominated by short maximal
+  efforts (−53.8 % at 5 s), while Spragg found **no effect on a 12-minute TT**. A simulated rider
+  holding a sustained target is the 12-minute case. Applying the headline to sustained power would
+  be exactly the overfitting §2.2 warns about, so the rate is a parameter, not a constant.
+- **It is the only stateful provider.** The supra-CP dose is a path integral; recomputing it per
+  point would be O(n²). The accumulator is keyed on `pointIndex` — re-reading a point counts once,
+  a backwards index resets — and it is single-simulation, non-concurrent by contract.
+
+Measured (CLI, `--no-fix-elevation`, 280 W against CP 250):
+
+| Route | constant | durability | cost |
+|---|---|---|---|
+| `strava.gpx` (20.8 km, 48 min) | 2 882 s | 2 887 s | +0.17 % |
+| `sample.gpx` (128.6 km, 5.3 h) | 19 168 s | 19 466 s | **+1.6 %** |
+
+The ordering is the result that matters: five hours above CP accumulates ~7 kJ/kg and ~5 % of fade
+by the finish, 48 minutes accumulates almost nothing. Under the old elapsed-time model both rides
+would have faded by the same fraction of their own duration.
 
 ### R21 — Fuelling / glycogen ❌ (for now)
 

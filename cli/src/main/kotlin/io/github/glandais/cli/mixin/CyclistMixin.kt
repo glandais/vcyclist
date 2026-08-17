@@ -5,6 +5,7 @@ import io.github.glandais.engine.EngineConstants
 import io.github.glandais.engine.RoadCondition
 import io.github.glandais.engine.physics.CyclistPowerProvider
 import io.github.glandais.engine.physics.PowerProviderConstant
+import io.github.glandais.engine.physics.PowerProviderDurability
 import picocli.CommandLine
 
 /**
@@ -100,6 +101,20 @@ class CyclistMixin {
     )
     var maxSpeedKmH: Double = EngineConstants.DEFAULT_MAX_SPEED_KMH
 
+    @field:CommandLine.Option(
+        names = ["--cyclist-cp"],
+        description = ["Critical Power in watts, used by --cyclist-durability (default: \${DEFAULT-VALUE})"],
+    )
+    var criticalPowerW: Double = EngineConstants.DEFAULT_CRITICAL_POWER_W
+
+    @field:CommandLine.Option(
+        names = ["--cyclist-durability"],
+        description = [
+            "Fade power with accumulated work above --cyclist-cp instead of holding it constant",
+        ],
+    )
+    var durability: Boolean = false
+
     fun toCyclist(): Cyclist =
         Cyclist(
             massKg = massKg,
@@ -111,7 +126,16 @@ class CyclistMixin {
         )
 
     /** Power is a separate strategy in vcyclist — see the class KDoc. */
-    fun toPowerProvider(): CyclistPowerProvider = PowerProviderConstant(powerW, useHarmonics = useHarmonics)
+    fun toPowerProvider(): CyclistPowerProvider =
+        if (durability) {
+            PowerProviderDurability(
+                powerW = powerW,
+                criticalPowerW = criticalPowerW,
+                useHarmonics = useHarmonics,
+            )
+        } else {
+            PowerProviderConstant(powerW, useHarmonics = useHarmonics)
+        }
 
     /**
      * Case-insensitive [RoadCondition] parsing : `--road-condition=wet` is what anyone types, and

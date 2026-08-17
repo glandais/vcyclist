@@ -2,6 +2,7 @@ package io.github.glandais.engine.wasi
 
 import io.github.glandais.engine.Bike
 import io.github.glandais.engine.Cyclist
+import io.github.glandais.engine.EngineConstants
 import io.github.glandais.engine.EnhanceOptions
 import io.github.glandais.engine.SimplifyPathOptions
 import io.github.glandais.engine.climb.ClimbOptions
@@ -9,7 +10,7 @@ import io.github.glandais.engine.io.CsvOptions
 import io.github.glandais.engine.io.JsonOptions
 import io.github.glandais.engine.physics.CyclistPowerProvider
 import io.github.glandais.engine.physics.PowerProviderConstant
-import io.github.glandais.engine.physics.PowerProviderConstantWithTiring
+import io.github.glandais.engine.physics.PowerProviderDurability
 import io.github.glandais.engine.physics.PowerProviderFromData
 import io.github.glandais.engine.physics.Wind
 import io.github.glandais.engine.physics.WindProvider
@@ -130,7 +131,7 @@ internal fun JsonObj?.toWindProvider(): WindProvider {
     )
 }
 
-private val POWER_KEYS = setOf("type", "power", "useHarmonics", "tiringDuration")
+private val POWER_KEYS = setOf("type", "power", "useHarmonics", "criticalPower")
 
 /** Read a `PowerProviderDto`-shaped object; `null` → 250 W constant, as on the JS side. */
 internal fun JsonObj?.toCyclistPowerProvider(): CyclistPowerProvider {
@@ -142,24 +143,21 @@ internal fun JsonObj?.toCyclistPowerProvider(): CyclistPowerProvider {
                 power = double("power", DEFAULT_POWER_W),
                 useHarmonics = bool("useHarmonics", false),
             )
-        "constant_tiring" ->
-            PowerProviderConstantWithTiring(
-                power = double("power", DEFAULT_POWER_W),
+        "durability" ->
+            PowerProviderDurability(
+                powerW = double("power", DEFAULT_POWER_W),
+                criticalPowerW = double("criticalPower", EngineConstants.DEFAULT_CRITICAL_POWER_W),
                 useHarmonics = bool("useHarmonics", false),
-                durationSeconds = double("tiringDuration", DEFAULT_TIRING_DURATION_S),
             )
         "from_data" -> PowerProviderFromData
         else -> throw IllegalArgumentException(
-            "unknown power provider type '$type' — expected constant, constant_tiring or from_data",
+            "unknown power provider type '$type' — expected constant, durability or from_data",
         )
     }
 }
 
 /** Same figure the JS façade uses when a caller omits the power. */
 private const val DEFAULT_POWER_W = 250.0
-
-/** Same figure the JS façade uses for `constant_tiring` when `tiringDuration` is omitted. */
-private const val DEFAULT_TIRING_DURATION_S = 7200.0
 
 private val CLIMB_KEYS =
     setOf(

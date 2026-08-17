@@ -338,8 +338,9 @@ Up to five optional sub-objects; each is the matching JS DTO, field for field.
 - `wind.windDirection` is in **degrees** and names the direction the wind blows *toward*. It is
   the same convention `vcDominantHeadwindAzimuth` returns, so that value feeds straight back in —
   no 180° flip.
-- `power.type` is `constant`, `constant_tiring` (adds `tiringDuration`, in seconds) or
-  `from_data` (replays the power recorded in the input path). Anything else is `-3`.
+- `power.type` is `constant`, `durability` (adds `criticalPower`, in watts — power fades with
+  work done above it) or `from_data` (replays the power recorded in the input path). Anything else
+  is `-3`.
 
 ### `vcDetectClimbsJson` — options
 

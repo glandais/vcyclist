@@ -11,6 +11,7 @@ import io.github.glandais.engine.EngineConstants
 import io.github.glandais.engine.RoadCondition
 import io.github.glandais.engine.path.Path
 import io.github.glandais.engine.physics.PowerProviderConstant
+import io.github.glandais.engine.physics.PowerProviderDurability
 import io.github.glandais.engine.physics.WindProviderConstant
 import io.github.glandais.engine.physics.WindProviderNone
 import picocli.CommandLine
@@ -219,6 +220,19 @@ class MixinParsingTest {
                 .execute("--road-condition", "snow")
         assertNotEquals(0, code)
         assertContains(err.toString(), "--road-condition")
+    }
+
+    // ---- Durability ----------------------------------------------------------
+
+    @Test
+    fun `case 05e — power is constant unless durability is asked for`() {
+        assertTrue(parse().cyclist.toPowerProvider() is PowerProviderConstant)
+        assertEquals(EngineConstants.DEFAULT_CRITICAL_POWER_W, parse().cyclist.criticalPowerW)
+
+        val provider = parse("--cyclist-durability", "--cyclist-cp", "300").cyclist.toPowerProvider()
+        assertTrue(provider is PowerProviderDurability)
+        assertEquals(300.0, provider.criticalPowerW)
+        assertEquals(EngineConstants.DEFAULT_CYCLIST_POWER_W, provider.powerW)
     }
 
     // ---- Drift guard ---------------------------------------------------------

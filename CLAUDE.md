@@ -111,8 +111,11 @@ simulated rider *react* to a low W′ is a separate change — see
 
 - Resistive forces : `WheelBearingsPowerProvider`, `RollingResistancePowerProvider`,
   `GravPowerProvider`, `AeroPowerProvider` (Isvan model with wind).
-- Cyclist input : `CyclistPowerProvider` interface + `Constant`, `ConstantWithTiring`,
-  `FromData`, `Muscular` impls. `Base` class adds optional harmonic variations.
+- Cyclist input : `CyclistPowerProvider` interface + `Constant`, `Durability`, `FromData`,
+  `Muscular` impls. `Base` class adds optional harmonic variations. `PowerProviderDurability`
+  fades power with work accumulated **above CP** (intensity-weighted, per the durability
+  literature) ; it is the only **stateful** provider — one instance per simulation, no concurrent
+  use. It replaced `PowerProviderConstantWithTiring`, whose elapsed-time decay had no source.
 - `PowerComputer` integrates the energy equation `v_new = √(v_old² + 2·Δt·P / m_eq)` with
   `m_eq = m + (I_front + I_rear) / r²`.
 - `CoursePhysics` aggregates `Course(path, cyclist, bike)` + 4 providers (rho, aero, wind,

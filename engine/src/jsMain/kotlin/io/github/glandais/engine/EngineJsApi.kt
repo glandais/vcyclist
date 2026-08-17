@@ -27,7 +27,7 @@ import io.github.glandais.engine.path.dominantHeadwindAzimuthDeg
 import io.github.glandais.engine.physics.AeroProviderConstant
 import io.github.glandais.engine.physics.CyclistPowerProvider
 import io.github.glandais.engine.physics.PowerProviderConstant
-import io.github.glandais.engine.physics.PowerProviderConstantWithTiring
+import io.github.glandais.engine.physics.PowerProviderDurability
 import io.github.glandais.engine.physics.PowerProviderFromData
 import io.github.glandais.engine.physics.RhoProviderEstimate
 import io.github.glandais.engine.physics.Wind
@@ -156,8 +156,8 @@ external interface WindDto {
  * JS-side description of which [CyclistPowerProvider] to instantiate.
  *
  * - `type = "constant"` → [PowerProviderConstant] (requires [power], optional [useHarmonics]).
- * - `type = "constant_tiring"` → [PowerProviderConstantWithTiring] (requires [power] and
- *   [tiringDuration] in seconds, optional [useHarmonics]).
+ * - `type = "durability"` → [PowerProviderDurability] (requires [power], optional
+ *   [criticalPower] and [useHarmonics]) — power fades with work accumulated above CP.
  * - `type = "from_data"` → [PowerProviderFromData] singleton (replays `pInputPower` from the
  *   input path).
  */
@@ -165,7 +165,7 @@ external interface PowerProviderDto {
     val type: String
     val power: Double?
     val useHarmonics: Boolean?
-    val tiringDuration: Double?
+    val criticalPower: Double?
 }
 
 /**
@@ -444,7 +444,7 @@ private fun WindDto?.toWindProvider(): WindProvider {
  * Convert a JS [PowerProviderDto] (or `null` → 250 W constant) into a [CyclistPowerProvider].
  *
  * - `"constant"` → [PowerProviderConstant] (default 250 W if `power` omitted).
- * - `"constant_tiring"` → [PowerProviderConstantWithTiring] (default 7200 s duration).
+ * - `"durability"` → [PowerProviderDurability] (default CP 250 W).
  * - `"from_data"` → the [PowerProviderFromData] singleton.
  */
 private fun PowerProviderDto?.toCyclistPowerProvider(): CyclistPowerProvider {
@@ -455,11 +455,11 @@ private fun PowerProviderDto?.toCyclistPowerProvider(): CyclistPowerProvider {
                 power = power ?: 250.0,
                 useHarmonics = useHarmonics ?: false,
             )
-        "constant_tiring" ->
-            PowerProviderConstantWithTiring(
-                power = power ?: 250.0,
+        "durability" ->
+            PowerProviderDurability(
+                powerW = power ?: 250.0,
+                criticalPowerW = criticalPower ?: EngineConstants.DEFAULT_CRITICAL_POWER_W,
                 useHarmonics = useHarmonics ?: false,
-                durationSeconds = tiringDuration ?: 7200.0,
             )
         "from_data" -> PowerProviderFromData
         else -> error("Unknown PowerProviderDto.type: $type")
