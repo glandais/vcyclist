@@ -36,6 +36,21 @@ jobs:
 
       - run: ./gradlew check
 
+      # `check` already covers the demo's lint and typecheck: `:demo` registers a `check` task, and an
+      # unqualified task name runs in every project that has one. What it does *not* cover is the
+      # production Vite build — that lives under `:demo:assemble`, and `:demo` deliberately has no
+      # `build` task, so nothing on a PR ever runs it. Until this step, a change that linted and
+      # typechecked cleanly but broke `vite build` merged green and only failed later, in the gh-pages
+      # deploy, where the signal is a red deployment rather than a red review.
+      #
+      # Cheap here because `check` has already done `npmInstall`: what is left is the engine's library
+      # distribution plus Vite itself (2.6 s locally). Kept a separate step so the log says which half
+      # broke, and left out of `:demo`'s Gradle wiring on purpose — putting it in `build` would make
+      # every contributor pay npm install and Vite on an ordinary local build, and would make
+      # `clean build` need the network.
+      - name: Build the demo the way gh-pages will
+        run: ./gradlew :demo:npmBuild
+
       # Link the standalone WASI module and weigh it (task w06). Not part of `check` — packaging
       # is not verification — but worth doing on every PR: a size regression is caused by what
       # the exports reach, so it appears the moment someone widens the reachable graph, and it is

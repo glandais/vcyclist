@@ -278,8 +278,24 @@ one used to compile the project.
 
 `settings.gradle.kts` includes `:demo`, and `demo/build.gradle.kts` registers `assemble`, `check`
 and `clean` — but **no `build` task**. In the full run the only demo task that executed was
-`:demo:clean`. Consequence: `npmBuild`, `npmTypecheck` and `npmLint` never run as part of
-`clean build`, so the Vue/Vite demo's typecheck and lint are outside the standard build gate.
+`:demo:clean`.
+
+**Correction (2026-08-17).** As first written this entry overstated the gap. `:demo` *does* register a
+`check` task, and an unqualified task name runs in every project that has one, so `./gradlew check` —
+which is what `check.yml` runs on every PR — already covers `npmInstall`, `npmLint` and `npmTypecheck`.
+Verified with `./gradlew check --dry-run | grep demo`. The demo's lint and typecheck were never
+ungated.
+
+The real gap was narrower: the **production Vite build** (`npmBuild`, via `:demo:assemble`) ran only in
+`gh-pages.yml`, on push to `develop` — after merge. A change that linted and typechecked but broke
+`vite build` merged green and surfaced as a failed deployment. Closed by a `:demo:npmBuild` step in
+`check.yml`, deliberately in CI rather than in `:demo`'s Gradle wiring, so local `build` stays free of
+npm and the network.
+
+Reading the workflows also turned up an unrelated flaw: `gh-pages.yml`'s path filter omitted `fit/**`,
+while `@glandais/vcyclist-engine` embeds `vcyclist-fit.js`. A FIT-only change therefore altered the
+bundle Pages serves without triggering a redeploy — a silent staleness, with nothing red to show it.
+`fit/**` added.
 
 ### G2 — Documented toolchain versions drifted from actual
 
@@ -311,7 +327,7 @@ counts 5 and not 2.
 | E2 | Benign (investigated) | 429 | Kotlin/JS modules | third-party | ✅ closed, no action |
 | F1 | Noise | 4 | KGP mocha wiring | third-party | ⬜ not ours |
 | F2 | Noise | 14 | ktlint's embedded compiler | third-party | ⬜ not ours |
-| G1 | Coverage gap | 1 | `demo/build.gradle.kts` | first-party | ⬜ open, needs a decision |
+| G1 | Coverage gap (narrower than filed) | 1 | `.github/workflows/` | first-party | ✅ fixed in CI |
 | G2 | Doc drift | 5 | `CLAUDE.md` | first-party | ✅ fixed |
 
 ## Resolution
@@ -370,8 +386,10 @@ own when `develop` dropped the parity harness.
   options, one of which is an API-shape decision.
 - **E2** — investigated and closed as benign; see [E2 investigation](#e2-investigation).
 - **F1 / F2** — third-party: KGP's own mocha wiring, and ktlint's embedded compiler 2.1.0.
-- **G1** — wiring `:demo` into `build` would make every contributor's `./gradlew build` run npm
-  install + vite. That is a build-time policy call, not a warning fix.
+- **G1** — resolved in CI instead of in Gradle: a `:demo:npmBuild` step in `check.yml` closes the only
+  real hole (the Vite build never running pre-merge), while `build` stays npm-free locally. Wiring
+  `:demo` into `build` was rejected for that reason. The entry as originally filed was wrong about lint
+  and typecheck — see the correction under G1.
 
 ## E2 investigation
 

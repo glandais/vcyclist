@@ -4,10 +4,16 @@ on:
   push:
     branches: [develop]
     paths:
+      # Everything whose JS reaches the deployed bundle. `fit/**` belongs here even though the demo
+      # exposes no FIT feature: `@glandais/vcyclist-engine` embeds `vcyclist-fit.js` (the FIT façade
+      # lives in `:engine` because `Path` handles cannot cross a bundle boundary), so a FIT-only
+      # change alters what Pages serves. Without it the deploy simply never fires and the site keeps
+      # serving the previous bundle — stale, with nothing red anywhere to say so.
       - 'demo/**'
       - 'engine/**'
       - 'gpx/**'
       - 'elevation/**'
+      - 'fit/**'
       - 'gradle/**'
       - 'build.gradle.kts'
       - 'settings.gradle.kts'
