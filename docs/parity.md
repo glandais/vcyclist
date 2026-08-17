@@ -469,10 +469,24 @@ Tolerances are unchanged, and the measurement justifies them rather than assumin
 |---|---|---|
 | `totalDistance` | ±0.5 % | Stages 00-04 agree to 1e-12 rel; post-virtualize drift stays ≤ 5.6e-4 rel on all 7 fixtures |
 | `durationMs` | ±0.5 % | Same band; time axis is bit-identical to `04-maxspeed` |
-| `elevationGain` / `elevationLoss` | ±1 m | Smoother is bit-comparable (1.8e-10 m); the band covers Terrarium resolution once `fixElevation` is on |
+| `elevationGain` / `elevationLoss` | ±0.5 % (floor 1e-6 m) | Smoother is bit-comparable (1.8e-10 m), so the band is not there to absorb smoother noise |
 | Point count | not asserted | Justified: identical on all 7 fixtures at every stage except the two explained by divergence #2 |
 
-Tightening below 0.5 % is **not** warranted: the drift is real, it accumulates with trace
+**Tightened 2026-08-17.** The elevation band used to be an absolute **±1 m**, justified by
+Terrarium tile resolution. That justification never applied to *these* assertions: both inline
+fixtures run `fixElevation = false`, so no DEM is consulted and the gains are sub-metre by
+construction (SAMPLE gains 0.22 m). A ±1 m band on a 0.22 m value asserts nothing, and it let a
+5.5e-03 relative drift through when the physics constants were corrected — `tools/wasi/test_engine.py`,
+reading the same fixture at ±0.5 % relative, is what caught it. `EnhancerParityTest` now uses
+±0.5 % relative with a 1e-6 m absolute floor (so GARMIN's expected gain of exactly 0.0 stays
+assertable), and asserts elevation **loss** as well, which it previously did not check at all.
+Verified to bite: restoring the pre-correction fixture value fails
+`sample_elevation_gain_within_tolerance`. The ±1 m Terrarium band still belongs anywhere
+`fixElevation = true` — see the *Numerical tolerances* section of `CLAUDE.md`.
+
+Point count remains unasserted here (the WASI reference-host suite does assert it).
+
+Tightening the other metrics below 0.5 % is **not** warranted: the drift is real, it accumulates with trace
 length, and the two tiny inline fixtures are the least representative traces available.
 
 ## Refresh checklist
