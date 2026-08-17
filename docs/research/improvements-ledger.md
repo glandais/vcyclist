@@ -10,7 +10,7 @@ entry (R7, R12, R19, R21).
 
 - Date of assessment: 2026-08-17
 - Assessed against: `develop` @ `0f979af`
-- Shipped since: **R15** (W′bal output field)
+- Shipped since: **R15** (W′bal output field), **R12** (`pBrake`)
 - Sources read: all 8 research chapters + `EngineConstants`, `Cyclist`, `MaxSpeedComputer`,
   `PowerComputer`, `VirtualizeService`, `PowerProviderConstantWithTiring`,
   `CyclistPowerProviderBase`, the four resistive providers, `RhoProvider`, `AeroProvider`,
@@ -47,7 +47,7 @@ items buy is a ride trace a human recognises as their own.
 | R9 | Wet/dry µ condition preset | **High** | **Very low** | 🔵 |
 | R10 | Pedal-strike power cut-off at high lean | Med-high | Low | 🔵 |
 | R11 | Friction ellipse (combined braking + cornering) | Medium | Medium | ⚪ |
-| R12 | **Brake power as a `PointField`** | **High** | **Very low** | 🔵 |
+| R12 | **Brake power as a `PointField`** | **High** | **Very low** | ✅ |
 | R13 | Brake actuation lag (0.13 s) | Negligible | Low | ❌ |
 | R14 | Posture-dependent CdA | Medium | Med (unbounded validation) | ⚪ |
 | R15 | W′bal as an **output** field (ODE form) | **High** | **Very low** | ✅ |
@@ -59,7 +59,7 @@ items buy is a ride trace a human recognises as their own.
 | R21 | Fuelling / glycogen state variable | Low | High | ❌ (for now) |
 | R22 | Optimal-pacing solver as rider behaviour | Negative | Very high | ❌ |
 
-Recommended order if acted on: ~~R15~~ → **R12 → R9 → R17 → R10 → R18**, then re-assess R16/R11.
+Recommended order if acted on: ~~R15~~ → ~~R12~~ → **R9 → R17 → R10 → R18**, then re-assess R16/R11.
 
 ## A. Mechanical layer — closed
 
@@ -198,7 +198,7 @@ explain the direction of that gap better than the µ value does.
 Deferred rather than recommended because it changes the backward pass's structure (the braking limit
 becomes lean-dependent, so the pass has to iterate or approximate), where R9/R10 are local.
 
-### R12 — Brake power as a `PointField` 🔵 **recommended — not proposed by the research**
+### R12 — Brake power as a `PointField` ✅ **not proposed by the research**
 
 `VirtualizeService.kt:77` enforces `speedMax` by clipping: `speedNew = speedMax`, then
 `dt = 2·dx/(v+v′)`. The kinetic energy removed is **silently discarded** — no provider records it,
@@ -208,12 +208,38 @@ no field carries it.
 **−200 to −460 W of braking** alongside the 600–700 W re-accelerations. vcyclist currently produces
 the second and not the first: its power trace has no braking in it at all.
 
-- **Cost**: record the discarded energy (`½·m_eq·(v_uncapped² − v_max²)/dt`) into a new field. No
-  physics changes, no pipeline stage, no change to any other field — the trajectory is identical
-  either way.
-- **Value**: it is the cheapest change that makes the output *look* like a real ride file, and it
-  makes R10 and R11 observable when they land. It also gives `:map` and the demo something to draw.
-- Follows the `CLAUDE.md` codegen workflow (edit `PointField`, run `:codegen:run`).
+**Implemented** as `PointField.P_BRAKE` (#38), written by `PowerComputer.computeCyclistPower`.
+
+It landed in a different place than planned, and the difference matters. Rather than measuring the
+clip in `VirtualizeService`, it records `min(0, pComputedWheelPower)` — the exact quantity the
+existing `max(0.0, powerWheel)` was throwing away. That is the same energy, but expressed as an
+invariant of the inverse problem rather than a second bookkeeping path, so the two cannot drift.
+
+**A capped speed is not automatically braking.** Holding 3 m/s on the flat costs ~20 W, so the
+inverse problem attributes a capped flat segment to a rider *soft-pedalling*, and `pBrake` stays 0.
+Only a deceleration the resistive forces cannot explain is recorded. That is the conservative
+reading and it is the one that matches corner entries — but note it also means the simulated rider
+never brakes *and* pedals at once, which a real one does.
+
+Measured on the shipped fixtures (CLI defaults, 280 W, no elevation fix, post-simplification):
+
+| Route | Braking points | Peak | Mean while braking |
+|---|---|---|---|
+| `stelvio.gpx` (3.5 km) | 26 % | −3 867 W | −1 115 W |
+| `sample.gpx` (128 km) | 6.9 % | −5 371 W | −1 708 W |
+
+Two checks on those numbers:
+
+- **They sit at the configured limit, not above it.** Worst observed
+  `|pBrake| / (m·0.4g·v)` is 0.86 (stelvio) and 1.18 (sample, the overshoot being the end-of-interval
+  speed used in the ratio). Braking power is bounded by `m·a_max·v` by construction, and a test
+  asserts it on a `MaxSpeedComputer`-derived course.
+- **They are an order of magnitude above the research's figure, and the research is the one to
+  distrust.** [`05 §5.4`](05-cornering-braking-descending.md) quotes *"hard braking of −200 to
+  −460 W"*. Reading Zignoli's Figure 2 caption directly: that is the tail of a **normalised
+  probability distribution** of power, not a bound on braking power. The kinematics settle it —
+  0.4 g at 15 m/s on an 80 kg system *is* 4.7 kW, and no bicycle sheds 40 km/h of speed at 460 W.
+  Chapter 05 should not be quoted as a magnitude target.
 
 ### R13 — Brake actuation lag ❌
 
@@ -396,6 +422,12 @@ predicting TTE (1–2), RPE linear in elapsed time (0–3).
 
 ## F. Cross-cutting notes
 
+- **Robustness found on the way.** R12's test fixtures walked into two hangs/blowups in code paths
+  the pipeline protects but public API does not: `PowerComputer.getDt` never converges on a
+  zero-length segment (`dx == 0` makes its search tolerance 0), and a `Path` whose `speedMax` is
+  still zero-initialised simulates to `Infinity`. The first is fixed and pinned by
+  `VirtualizeZeroLengthTest`; the second is only reachable by calling `virtualizeTrack` without
+  `MaxSpeedComputer` and is left as-is, recorded here.
 - **Output movement.** R9, R10, R11, R16, R17, R18 all move pipeline output; R12 and R15 do not
   (they add fields without changing the trajectory — R15 shipped with a test pinning exactly
   that). Anything in the first group is a behavioural change to re-smoke through the CLI, and a

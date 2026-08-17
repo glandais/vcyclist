@@ -368,4 +368,13 @@ abstract class GeneratedPath(
     ) {
         data[i * PointField.COUNT + 36] = v
     }
+
+    fun pBrake(i: Int): Double = data[i * PointField.COUNT + 37]
+
+    fun setPBrake(
+        i: Int,
+        v: Double,
+    ) {
+        data[i * PointField.COUNT + 37] = v
+    }
 }

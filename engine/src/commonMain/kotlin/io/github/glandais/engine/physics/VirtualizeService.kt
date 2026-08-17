@@ -16,6 +16,10 @@ import io.github.glandais.engine.path.PointField
  *
  * Reference : virtual-cyclist TS `VirtualizeService.ts`. Iteration cap : 100 000.
  *
+ * The `speedMax` clip below is the simulation's **braking model** : the excess kinetic energy is
+ * simply dropped. It is not lost from the *output* though — `PowerComputer.computeCyclistPower`
+ * recovers it as `pBrake`, since a negative wheel power is exactly the energy this clip removed.
+ *
  * Notes :
  * - The output [Path] has the same fixed size as the input. The simulation runs from
  *   `i = 1` to `i = n - 1` (inclusive) ; the last point is simulated like all the others
@@ -67,6 +71,24 @@ object VirtualizeService {
         var iter = 0
         while (i < n) {
             val dx = input.distance(i) - input.distance(i - 1)
+
+            if (dx <= 0.0) {
+                // Duplicate GPS point : no distance covered, so no time passes and the state
+                // carries over unchanged. `PointPerDistance(1, 2)` removes these before the
+                // simulation in the normal pipeline, but `virtualizeTrack` is public and a raw
+                // GPX can hold repeated fixes — and `getDt` cannot answer "how long to cover
+                // 0 m" (its search tolerance is `dx / 10_000_000`, i.e. 0, and never converges).
+                copyAllFields(input, i, out, i)
+                out.setTime(i, timeMs)
+                out.setElapsed(i, timeMs - startTimeMs)
+                out.setDx(i, 0.0)
+                out.setDt(i, 0.0)
+                out.setSpeed(i, speed)
+                out.setVirtSpeedCurrent(i, speed)
+                i++
+                continue
+            }
+
             val pSum = PowerComputer.getNewPower(course, out, i - 1, withCyclist = true)
             var dt = PowerComputer.getDt(pSum, mEq, speed, dx)
             var speedNew = 2.0 * dx / dt - speed

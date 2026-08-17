@@ -77,7 +77,7 @@ Browser demos (in `:elevation`) :
 
 ### `Path` model (`:gpx`)
 
-- `Path` extends `GeneratedPath(size)` and stores **37 fields × `DoubleArray`** flat. Fields
+- `Path` extends `GeneratedPath(size)` and stores **38 fields × `DoubleArray`** flat. Fields
   defined in `gpx/src/commonMain/.../path/PointField.kt` (single source of truth).
 - `GeneratedPath.kt` and `PointFieldAccessors.kt` are **generated** by the `:codegen` module.
   After editing `PointField`, run `./gradlew :codegen:run` (or follow the regen instructions
@@ -119,6 +119,9 @@ simulated rider *react* to a low W′ is a separate change — see
   cyclistPower).
 - Conventions : resistive powers are **negative**, cyclist input is **positive**, gravity is
   negative climbing / positive descending.
+- `pBrake` (**not in TS**) records the energy `VirtualizeService`'s `speedMax` clip removes, as
+  `min(0, pComputedWheelPower)` — negative, at the wheel, so **not** divided by drivetrain
+  efficiency. A speed cap the rider merely sits at is not braking : resistance alone explains it.
 
 ### Kotlin/JS ↔ JS interop
 

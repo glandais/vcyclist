@@ -196,4 +196,9 @@ internal val POINT_FIELD_ACCESSORS: List<PointFieldAccessor> =
             GeneratedPath::wPrimeBalance,
             GeneratedPath::setWPrimeBalance,
         ),
+        PointFieldAccessor(
+            PointField.P_BRAKE,
+            GeneratedPath::pBrake,
+            GeneratedPath::setPBrake,
+        ),
     )

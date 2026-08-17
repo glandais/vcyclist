@@ -4,7 +4,7 @@ import java.io.File
 
 /*
  * Codegen for gpx/src/commonMain/kotlin/io/github/glandais/engine/path/
- *   - GeneratedPath.kt        (abstract class with 37 typed accessor pairs + generic get/set)
+ *   - GeneratedPath.kt        (abstract class with 38 typed accessor pairs + generic get/set)
  *   - PointFieldAccessors.kt  (POINT_FIELD_ACCESSORS list bound to GeneratedPath member refs)
  *
  * Run from vcyclist/ root after editing PointField.kt:
@@ -60,9 +60,10 @@ private val FIELDS =
         FieldSpec("HEART_RATE", "heartRate"),
         FieldSpec("CADENCE", "cadence"),
         FieldSpec("W_PRIME_BALANCE", "wPrimeBalance"),
+        FieldSpec("P_BRAKE", "pBrake"),
     )
 
-private const val EXPECTED_COUNT = 37
+private const val EXPECTED_COUNT = 38
 
 fun main() {
     require(FIELDS.size == EXPECTED_COUNT) {

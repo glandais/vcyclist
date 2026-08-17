@@ -195,10 +195,21 @@ enum class PointField(
      * Remaining anaerobic work capacity, in joules — the W′ balance of the Critical Power
      * model, written by `WPrimeBalanceComputer` (`:engine`).
      *
-     * **Not a TS field.** `virtual-cyclist` has 36 fields ; this is the 37ᵗʰ and has no
-     * counterpart there, so parity dumps compare the first 36 only.
+     * **Not a TS field.** `virtual-cyclist` has 36 fields and no physiological layer at all.
      */
     W_PRIME_BALANCE("wPrimeBalance", "joules", "W′ balance (J)", PointFieldCategory.PHYSIOLOGICAL),
+
+    /**
+     * Braking power (W, ≤ 0) — the wheel power a rider must *remove* to hold the speed limits
+     * `MaxSpeedComputer` computed, written by `PowerComputer.computeCyclistPower` (`:engine`).
+     *
+     * Declared last so no existing ordinal moves, but it belongs to
+     * [PointFieldCategory.POWER_PHYSICS] : it is a resistive term like drag or gravity, and it
+     * carries the same sign convention (negative removes energy).
+     *
+     * **Not a TS field.** The TS reference discards this energy silently.
+     */
+    P_BRAKE("pBrake", "watts", "Braking power", PointFieldCategory.POWER_PHYSICS),
     ;
 
     /** Field index in the per-point `DoubleArray` slot (== [ordinal]). */
@@ -206,7 +217,7 @@ enum class PointField(
 
     companion object {
         /** Number of fields per point. Single source of truth for codegen (task 11). */
-        const val COUNT: Int = 37
+        const val COUNT: Int = 38
 
         private val byPropMap: Map<String, PointField> = entries.associateBy { it.prop }
 

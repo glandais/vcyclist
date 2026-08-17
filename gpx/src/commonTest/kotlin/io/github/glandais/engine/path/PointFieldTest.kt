@@ -7,21 +7,21 @@ import kotlin.test.assertTrue
 
 class PointFieldTest {
     @Test
-    fun `37 fields exactly`() {
-        assertEquals(37, PointField.entries.size)
-        assertEquals(37, PointField.COUNT)
+    fun `38 fields exactly`() {
+        assertEquals(38, PointField.entries.size)
+        assertEquals(38, PointField.COUNT)
     }
 
     @Test
     fun `ordinals are unique`() {
         val ordinals = PointField.entries.map { it.ordinal }
-        assertEquals(37, ordinals.toSet().size)
+        assertEquals(38, ordinals.toSet().size)
     }
 
     @Test
     fun `props are unique and non-blank`() {
         val props = PointField.entries.map { it.prop }
-        assertEquals(37, props.toSet().size)
+        assertEquals(38, props.toSet().size)
         assertTrue(props.all { it.isNotBlank() })
     }
 
@@ -58,7 +58,7 @@ class PointFieldTest {
         assertEquals(1, PointField.byCategory(PointFieldCategory.RADIUS).size)
         assertEquals(1, PointField.byCategory(PointFieldCategory.AERO_COEF).size)
         assertEquals(2, PointField.byCategory(PointFieldCategory.CYCLIST_WIND).size)
-        assertEquals(4, PointField.byCategory(PointFieldCategory.POWER_PHYSICS).size)
+        assertEquals(5, PointField.byCategory(PointFieldCategory.POWER_PHYSICS).size)
         assertEquals(6, PointField.byCategory(PointFieldCategory.POWER_CYCLIST).size)
         assertEquals(3, PointField.byCategory(PointFieldCategory.POWER_POST).size)
         assertEquals(4, PointField.byCategory(PointFieldCategory.SPEED).size)
@@ -69,7 +69,7 @@ class PointFieldTest {
     @Test
     fun `all fields are partitioned across categories`() {
         val sum = PointFieldCategory.entries.sumOf { PointField.byCategory(it).size }
-        assertEquals(37, sum)
+        assertEquals(38, sum)
     }
 
     @Test
