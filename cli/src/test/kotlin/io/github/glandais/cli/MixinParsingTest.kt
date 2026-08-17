@@ -11,6 +11,7 @@ import io.github.glandais.engine.EngineConstants
 import io.github.glandais.engine.RoadCondition
 import io.github.glandais.engine.path.Path
 import io.github.glandais.engine.physics.PowerProviderConstant
+import io.github.glandais.engine.physics.PowerProviderCriticalPower
 import io.github.glandais.engine.physics.PowerProviderDurability
 import io.github.glandais.engine.physics.PowerProviderSlewLimited
 import io.github.glandais.engine.physics.WindProviderConstant
@@ -226,14 +227,32 @@ class MixinParsingTest {
     // ---- Durability ----------------------------------------------------------
 
     @Test
-    fun `case 05e — power is constant unless durability is asked for`() {
+    fun `case 05e — the power model selects the provider`() {
         assertTrue(parse().cyclist.toPowerProvider() is PowerProviderConstant)
         assertEquals(EngineConstants.DEFAULT_CRITICAL_POWER_W, parse().cyclist.criticalPowerW)
+        assertEquals(EngineConstants.DEFAULT_W_PRIME_J, parse().cyclist.wPrimeJ)
 
-        val provider = parse("--cyclist-durability", "--cyclist-cp", "300").cyclist.toPowerProvider()
-        assertTrue(provider is PowerProviderDurability)
-        assertEquals(300.0, provider.criticalPowerW)
-        assertEquals(EngineConstants.DEFAULT_CYCLIST_POWER_W, provider.powerW)
+        val durability =
+            parse("--cyclist-model", "durability", "--cyclist-cp", "300").cyclist.toPowerProvider()
+        assertTrue(durability is PowerProviderDurability)
+        assertEquals(300.0, durability.criticalPowerW)
+        assertEquals(EngineConstants.DEFAULT_CYCLIST_POWER_W, durability.powerW)
+
+        val cp =
+            parse("--cyclist-model", "critical-power", "--cyclist-wprime", "25000")
+                .cyclist
+                .toPowerProvider()
+        assertTrue(cp is PowerProviderCriticalPower)
+        assertEquals(25_000.0, cp.wPrimeJ)
+    }
+
+    @Test
+    fun `case 05g — an unknown power model is rejected`() {
+        val err = StringWriter()
+        val code =
+            CommandLine(Harness()).setErr(PrintWriter(err)).execute("--cyclist-model", "sprint")
+        assertNotEquals(0, code)
+        assertContains(err.toString(), "--cyclist-model")
     }
 
     @Test
@@ -246,7 +265,8 @@ class MixinParsingTest {
         assertEquals(40.0, limited.maxSlewWPerS)
         assertTrue(limited.delegate is PowerProviderConstant)
 
-        val both = parse("--cyclist-slew", "40", "--cyclist-durability").cyclist.toPowerProvider()
+        val both =
+            parse("--cyclist-slew", "40", "--cyclist-model", "durability").cyclist.toPowerProvider()
         assertTrue(both is PowerProviderSlewLimited)
         assertTrue(both.delegate is PowerProviderDurability, "it must wrap, not replace")
     }

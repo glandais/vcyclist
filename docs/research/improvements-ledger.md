@@ -12,7 +12,7 @@ entry (R7, R12, R19, R21).
 - Assessed against: `develop` @ `0f979af`
 - Shipped since: **R15** (W′bal output field), **R12** (`pBrake`), **R9** (`RoadCondition`),
   **R17** (`PowerProviderDurability`), **R10** (pedal-strike cut-off),
-  **R18** (`PowerProviderSlewLimited`)
+  **R18** (`PowerProviderSlewLimited`), **R16** (`PowerProviderCriticalPower`)
 - Sources read: all 8 research chapters + `EngineConstants`, `Cyclist`, `MaxSpeedComputer`,
   `PowerComputer`, `VirtualizeService`, `PowerProviderConstantWithTiring`,
   `CyclistPowerProviderBase`, the four resistive providers, `RhoProvider`, `AeroProvider`,
@@ -52,8 +52,8 @@ items buy is a ride trace a human recognises as their own.
 | R12 | **Brake power as a `PointField`** | **High** | **Very low** | ✅ |
 | R13 | Brake actuation lag (0.13 s) | Negligible | Low | ❌ |
 | R14 | Posture-dependent CdA | Medium | Med (unbounded validation) | ⚪ |
-| R15 | W′bal as an **output** field (ODE form) | **High** | **Very low** | ✅ |
-| R16 | W′bal as a **behaviour** driver (CP-aware provider) | High | High | ⚪ |
+| R15 | W′bal as an **output** field (ODE form) | **High** | **Very low** | ✅ (units fixed in R16) |
+| R16 | W′bal as a **behaviour** driver (CP-aware provider) | High | High | ✅ |
 | R17 | Durability: decay on supra-CP work, not elapsed time | Med-high | Low | ✅ |
 | R18 | Power slew-rate limit (50 W/s) | Medium | Low | ✅ |
 | R19 | Pacing heuristic (ramp up slow / drop fast, anticipation) | Medium | Medium | ⚪ |
@@ -61,8 +61,9 @@ items buy is a ride trace a human recognises as their own.
 | R21 | Fuelling / glycogen state variable | Low | High | ❌ (for now) |
 | R22 | Optimal-pacing solver as rider behaviour | Negative | Very high | ❌ |
 
-Recommended order if acted on: ~~R15 → R12 → R9 → R17 → R10 → R18~~ — **all shipped**. Re-assess
-R16 (CP-aware provider) and R11 (friction ellipse) next ; R19 is the natural follow-on to R18.
+Recommended order if acted on: ~~R15 → R12 → R9 → R17 → R10 → R18 → R16~~ — **all shipped**.
+Left: **R11** (friction ellipse), **R19** (pacing heuristic — the natural follow-on to R16 and
+R18), **R14** and **R20**.
 
 ## A. Mechanical layer — closed
 
@@ -371,6 +372,12 @@ what was planned:
 
 τ is not yet exposed as configuration (Bartram's elite form) — still open.
 
+⚠ **Corrected by R16.** The pass integrated `path.dt(i) / 1000.0`, but a finished path carries `dt`
+in *seconds*, so the balance was under-integrated by 1000×. The measurement once quoted here — a
+5.3 h ride at 280 W against CP 250 spending 568 J — was that bug, not a finding. With the fix the
+same ride empties the 20 kJ reserve and holds it at zero, which is the honest verdict on riding
+30 W above CP for five hours.
+
 R15 was essentially free: `PointPerSecond` already delivers the 1 Hz grid the recursion assumes.
 
 - Use the **differential (ODE)** form. Skiba himself calls the integral form *"theoretically
@@ -385,14 +392,60 @@ R15 was essentially free: `PointPerSecond` already delivers the 1 Hz grid the re
 - Label the output as an approximation of a mechanism the field is actively replacing: [`02`](02-physiological-modeling.md)
   reports hydraulic three-component models **outperforming** W′bal on intermittent recovery.
 
-### R16 — CP-aware `CyclistPowerProvider` ⚪
+### R16 — CP-aware `CyclistPowerProvider` ✅
 
-The step that makes the simulated rider *behave* like a rider: back off when W′ is low, spend it on
-climbs, using `ClimbDetector` for lookahead. High value, and correctly identified by ch. 07.
+The step that makes the simulated rider *behave* like a rider: back off when W′ is low. High value,
+and correctly identified by ch. 07.
 
-Deferred behind R15/R17 because the literature supplies **no control law** — CP/W′ are descriptive
-state, and the mapping from state to power is ours to invent and own. Building it after R15 means
-the state variable is already validated and observable in output before anything depends on it.
+#### What landed
+
+`PowerProviderCriticalPower(powerW, criticalPowerW, wPrimeJ, taperStartFraction)`. It carries a
+running W′ balance — via literally the same `WPrimeBalanceComputer.step` the post-pipeline field
+uses, so the rider's bookkeeping and the reported field cannot drift — and rations its target:
+full power until half the reserve is gone, then linearly back toward CP.
+
+**The state is the literature's, the taper is ours**, and the KDoc says so. CP and W′ are
+descriptive; no source maps a reserve level to a power target.
+
+One property worth recording because it was not designed: **the approach to CP is asymptotic.**
+Below the taper point the depletion rate is itself proportional to what is left, so the reserve
+decays exponentially (time constant `taperStartFraction × W′ / (target − CP)` = 100 s at the
+defaults) and power converges on CP without ever quite arriving or dipping below it. A test pins
+the exponential.
+
+Scope kept deliberately narrow: **no gradient or wind modulation, no lookahead.** Those are pacing
+decisions rather than fatigue state, they are listed under R19, and §4.5 is emphatic that
+optimal-pacing models are prescriptive rather than descriptive.
+
+Measured against `constant` (280 W, CP 250 W):
+
+| Route | `constant` | `critical-power` | cost |
+|---|---|---|---|
+| `stelvio.gpx` (3.5 km, 10 min) | 578 s | 579 s | +0.2 % |
+| `strava.gpx` (20.8 km) | 2 891 s | 3 060 s | +5.8 % |
+| `sample.gpx` (128.6 km, 5.3 h) | 19 215 s | 20 810 s | **+8.3 %** |
+
+Short rides barely move, because the reserve is never exhausted; long ones move a lot, because
+`constant` was letting the rider hold 280 W against a 250 W CP for five hours. This is the largest
+behavioural change of the series, and it is opt-in.
+
+The CLI's three power models are now one `--cyclist-model=constant|durability|critical-power`
+selector; R17's `--cyclist-durability` flag was folded into it before either shipped.
+
+#### And it caught a bug in R15
+
+Comparing the provider's internal reserve against the `wPrimeBalance` field showed them disagreeing
+by three orders of magnitude. The field was right in shape and wrong in scale:
+`WPrimeBalanceComputer.compute` read `path.dt(i) / 1000.0`, but a *finished* path carries `dt` in
+**seconds** (see the cross-cutting note below), so every interval was 1000× too short. That is why
+the R15 entry originally reported a five-hour ride 30 W above CP as having spent **568 J of a
+20 kJ reserve** — it should empty the reserve in about eleven minutes, which is what it now does.
+Fixed by reading `time`, which means milliseconds everywhere, and pinned by an end-to-end test.
+
+A second, smaller finding from the same comparison: the W′ pass runs *before* `PathSimplifier`, and
+the simplifier keeps points on 3D geometry with no knowledge of this field — so a simplified path
+carries a **sampled** W′bal trace and a deep trough between two kept points can vanish. Recorded in
+the KDoc.
 
 ### R17 — Durability: decay on supra-CP work, not elapsed time ✅
 
@@ -569,8 +622,11 @@ predicting TTE (1–2), RPE linear in elapsed time (0–3).
   seconds under a field labelled ms. CSV and JSON export inherit the wrong label. The TS reference
   does exactly the same (`Path.ts:219`), so this is inherited, not introduced. Providers are
   unaffected — they run *during* the simulation, where the millisecond values are still in place —
-  which is precisely why it has gone unnoticed. Fixing it is a deliberate divergence from TS and
-  was left out of R18's scope. Found writing the R18 pipeline test.
+  which is precisely why it had gone unnoticed — **except** `WPrimeBalanceComputer`, which runs
+  after the pipeline, read `dt`, and was silently 1000× out until R16 compared it against a
+  provider's own state. Anything reading an interval outside the simulation must use `time`, which
+  is milliseconds everywhere. Fixing the underlying convention is a deliberate divergence from TS
+  and remains open.
 - **Robustness found on the way.** R12's test fixtures walked into two hangs/blowups in code paths
   the pipeline protects but public API does not: `PowerComputer.getDt` never converges on a
   zero-length segment (`dx == 0` makes its search tolerance 0), and a `Path` whose `speedMax` is

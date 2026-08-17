@@ -44,6 +44,14 @@ import kotlin.math.min
  * [computeOnePointPerSecond][io.github.glandais.engine.EnhanceOptions.computeOnePointPerSecond]
  * is off. On a 1 Hz path the two agree to first order.
  *
+ * ## Where it sits in the pipeline
+ *
+ * It runs **before** `PathSimplifier`, so the balance is integrated at full resolution — but the
+ * simplifier then keeps points on 3D geometry alone, with no knowledge of this field. A simplified
+ * path therefore carries a *sampled* W′bal trace, and a deep trough between two kept points can
+ * disappear from the output entirely. Read the field as an annotation of the points that survived,
+ * not as a minimum over the ride.
+ *
  * ## What this does *not* model
  *
  * - **Exhaustion has no consequence.** `W′bal` is clamped at 0 and the rider keeps producing the
@@ -75,7 +83,14 @@ object WPrimeBalanceComputer {
         path.setWPrimeBalance(0, balance)
 
         for (i in 1 until path.size) {
-            val dtSeconds = path.dt(i) / 1000.0
+            // Interval from `time`, NOT from `dt` or `elapsed`. Those two are written in
+            // milliseconds by `VirtualizeService` and then **rewritten in seconds** by
+            // `Path.computeDerivedData` (`(time − timeStart) / 1000`, `Δtime / 2000`), which runs
+            // last — so a finished path carries seconds under fields that `PointField` declares as
+            // ms. Reading `dt` here under-integrated the whole balance by a factor of 1000, which
+            // is how a five-hour ride 30 W above CP came out having spent 568 J of a 20 kJ
+            // reserve. `time` has one meaning everywhere: milliseconds.
+            val dtSeconds = (path.time(i) - path.time(i - 1)) / 1000.0
             val power = path.pComputedPower(i)
             if (dtSeconds.isFinite() && dtSeconds > 0.0 && power.isFinite()) {
                 balance = step(balance, power, cp, wPrime, dtSeconds)

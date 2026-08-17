@@ -5,6 +5,7 @@ import io.github.glandais.engine.EngineConstants
 import io.github.glandais.engine.RoadCondition
 import io.github.glandais.engine.physics.CyclistPowerProvider
 import io.github.glandais.engine.physics.PowerProviderConstant
+import io.github.glandais.engine.physics.PowerProviderCriticalPower
 import io.github.glandais.engine.physics.PowerProviderDurability
 import io.github.glandais.engine.physics.PowerProviderSlewLimited
 import picocli.CommandLine
@@ -104,17 +105,26 @@ class CyclistMixin {
 
     @field:CommandLine.Option(
         names = ["--cyclist-cp"],
-        description = ["Critical Power in watts, used by --cyclist-durability (default: \${DEFAULT-VALUE})"],
+        description = ["Critical Power in watts, used by every model but 'constant' (default: \${DEFAULT-VALUE})"],
     )
     var criticalPowerW: Double = EngineConstants.DEFAULT_CRITICAL_POWER_W
 
     @field:CommandLine.Option(
-        names = ["--cyclist-durability"],
+        names = ["--cyclist-wprime"],
+        description = ["Anaerobic work capacity W' in joules, used by 'critical-power' (default: \${DEFAULT-VALUE})"],
+    )
+    var wPrimeJ: Double = EngineConstants.DEFAULT_W_PRIME_J
+
+    @field:CommandLine.Option(
+        names = ["--cyclist-model"],
+        converter = [PowerModelConverter::class],
         description = [
-            "Fade power with accumulated work above --cyclist-cp instead of holding it constant",
+            "How the rider chooses power: \${COMPLETION-CANDIDATES} (default: \${DEFAULT-VALUE}). " +
+                "'durability' fades with work above CP; 'critical-power' spends a W' reserve and " +
+                "settles at CP.",
         ],
     )
-    var durability: Boolean = false
+    var powerModel: PowerModel = PowerModel.CONSTANT
 
     @field:CommandLine.Option(
         names = ["--cyclist-slew"],
@@ -141,15 +151,48 @@ class CyclistMixin {
     }
 
     private fun basePowerProvider(): CyclistPowerProvider =
-        if (durability) {
-            PowerProviderDurability(
-                powerW = powerW,
-                criticalPowerW = criticalPowerW,
-                useHarmonics = useHarmonics,
-            )
-        } else {
-            PowerProviderConstant(powerW, useHarmonics = useHarmonics)
+        when (powerModel) {
+            PowerModel.CONSTANT -> PowerProviderConstant(powerW, useHarmonics = useHarmonics)
+            PowerModel.DURABILITY ->
+                PowerProviderDurability(
+                    powerW = powerW,
+                    criticalPowerW = criticalPowerW,
+                    useHarmonics = useHarmonics,
+                )
+            PowerModel.CRITICAL_POWER ->
+                PowerProviderCriticalPower(
+                    powerW = powerW,
+                    criticalPowerW = criticalPowerW,
+                    wPrimeJ = wPrimeJ,
+                    useHarmonics = useHarmonics,
+                )
         }
+
+    /** The three ways the simulated rider can choose its power. */
+    enum class PowerModel(
+        val cliName: String,
+    ) {
+        /** Hold [powerW] for the whole ride. */
+        CONSTANT("constant"),
+
+        /** Fade with work accumulated above CP — [PowerProviderDurability]. */
+        DURABILITY("durability"),
+
+        /** Spend a W' reserve, then settle at CP — [PowerProviderCriticalPower]. */
+        CRITICAL_POWER("critical-power"),
+        ;
+
+        override fun toString(): String = cliName
+    }
+
+    /** Case-insensitive [PowerModel] parsing, accepting the hyphenated CLI spelling. */
+    class PowerModelConverter : CommandLine.ITypeConverter<PowerModel> {
+        override fun convert(value: String): PowerModel =
+            PowerModel.entries.firstOrNull { it.cliName.equals(value, ignoreCase = true) }
+                ?: throw CommandLine.TypeConversionException(
+                    "expected one of ${PowerModel.entries.map { it.cliName }} but was '$value'",
+                )
+    }
 
     /**
      * Case-insensitive [RoadCondition] parsing : `--road-condition=wet` is what anyone types, and

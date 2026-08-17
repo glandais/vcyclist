@@ -111,11 +111,14 @@ simulated rider *react* to a low W′ is a separate change — see
 
 - Resistive forces : `WheelBearingsPowerProvider`, `RollingResistancePowerProvider`,
   `GravPowerProvider`, `AeroPowerProvider` (Isvan model with wind).
-- Cyclist input : `CyclistPowerProvider` interface + `Constant`, `Durability`, `FromData`,
-  `Muscular` impls. `Base` class adds optional harmonic variations. `PowerProviderDurability`
+- Cyclist input : `CyclistPowerProvider` interface + `Constant`, `Durability`, `CriticalPower`,
+  `FromData`, `Muscular` impls. `Base` class adds optional harmonic variations. `PowerProviderDurability`
   fades power with work accumulated **above CP** (intensity-weighted, per the durability
-  literature) ; it is the only **stateful** provider — one instance per simulation, no concurrent
-  use. It replaced `PowerProviderConstantWithTiring`, whose elapsed-time decay had no source.
+  literature). `PowerProviderCriticalPower` carries a running W′ balance — the same
+  `WPrimeBalanceComputer.step` the post-pipeline field uses — and tapers its target toward CP as
+  the reserve empties. Both are **stateful**, as is `PowerProviderSlewLimited` : one instance per
+  simulation, no concurrent use, keyed on `pointIndex`. They replaced
+  `PowerProviderConstantWithTiring`, whose elapsed-time decay had no source.
 - `PowerComputer` integrates the energy equation `v_new = √(v_old² + 2·Δt·P / m_eq)` with
   `m_eq = m + (I_front + I_rear) / r²`.
 - `CoursePhysics` aggregates `Course(path, cyclist, bike)` + 4 providers (rho, aero, wind,
@@ -221,6 +224,18 @@ bump with `[skip ci]` and pushes it back to `develop`).
   use `org.junit.Test` and `org.junit.Assert.*` there, not JUnit 5. Kotlin and Java sources of a
   test compilation see each other, so anything Java cannot express (a `suspend` lambda, a default
   argument) goes in a `JvmBridgeFixtures` object next to it.
+
+### `elapsed` and `dt` are seconds after the pipeline, not ms
+
+`PointField.ELAPSED` and `DT` declare **ms**, and `VirtualizeService` writes ms — but
+`Path.computeDerivedData` rewrites both in **seconds** (`(time − timeStart) / 1000`, `Δtime / 2000`)
+and runs last, so a finished path carries seconds under fields labelled ms. The TS reference does
+the same (`Path.ts:219`), so it is inherited, not introduced.
+
+Consequence for new code: **read `time` (unambiguously ms) when you need an interval outside the
+simulation.** Providers are safe because they run *during* it, where the millisecond values are
+still in place — `WPrimeBalanceComputer` runs after, read `dt`, and silently under-integrated the
+whole W′ balance by 1000× until R16 caught it.
 
 ### Numerical tolerances
 

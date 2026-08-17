@@ -131,8 +131,8 @@ removing the old entry points, and it feeds the g20 correspondence matrix.
 | `--bike-crr`, `--bike-inertia-front`, `--bike-inertia-rear`, `--bike-wheel-radius`, `--bike-efficiency` | same names | |
 
 Options with no gpx2web equivalent, added because vcyclist's pipeline exposes them:
-`--json`, `--road-condition`, `--cyclist-cp`, `--cyclist-durability`, `--cyclist-slew`,
-`--bike-max-pedal-angle`, `--[no-]virtualize`, `--[no-]simplify`, `--simplify-tolerance`,
+`--json`, `--road-condition`, `--cyclist-model`, `--cyclist-cp`, `--cyclist-wprime`,
+`--cyclist-slew`, `--bike-max-pedal-angle`, `--[no-]virtualize`, `--[no-]simplify`, `--simplify-tolerance`,
 `--[no-]one-point-per-second`, `--max-size`, `--zoom`, `--margin`, `--cache`, `--quiet`.
 
 ### `--road-condition`
@@ -180,25 +180,39 @@ the API can never disagree:
 model, while vcyclist treats it as a power strategy. The option is the same; only the internals
 moved.
 
-### `--cyclist-durability`
+### `--cyclist-model`
 
-By default the simulated rider holds `--cyclist-power` for the whole ride. `--cyclist-durability`
-fades it with accumulated work **above `--cyclist-cp`** (default 250 W), which is what the
-durability literature measures: 10–20 % power decline after only 2.5–15 kJ/kg of supra-CP work,
-versus < 5 % after comparable volumes below it. Time alone does not tire the rider — intensity
-does.
+How the simulated rider chooses its power. `--cyclist-cp` (default 250 W) and `--cyclist-wprime`
+(default 20 kJ) feed the two physiological models.
 
-| Route | constant | `--cyclist-durability` | cost |
+| Model | Behaviour |
+|---|---|
+| `constant` (default) | Holds `--cyclist-power` for the whole ride, however long it is |
+| `durability` | Fades it with accumulated work **above CP** — intensity tires the rider, not time |
+| `critical-power` | Spends a finite W′ reserve above CP, then settles at CP; recovers when easing off |
+
+`durability` implements what the durability literature measures: 10–20 % power decline after only
+2.5–15 kJ/kg of supra-CP work, versus < 5 % after comparable volumes below it. Its default fade
+rate is deliberately at the **conservative** end of that band — those decrements were measured
+mostly on short maximal efforts, and the same study found *no* effect on a 12-minute time trial.
+
+`critical-power` is the one that changes how a ride *reads*: the rider goes hard while the reserve
+lasts, drifts back to CP as it empties, and gets it back on descents. The taper itself is a
+project-owned heuristic — the literature supplies the state, not a control law.
+
+Measured against `constant` at the default 280 W and CP 250 W:
+
+| Route | `constant` | `critical-power` | cost |
 |---|---|---|---|
-| `strava.gpx` (20.8 km, 48 min) | 2 882 s | 2 887 s | +0.17 % |
-| `sample.gpx` (128.6 km, 5.3 h) | 19 168 s | 19 466 s | **+1.6 %** |
+| `stelvio.gpx` (3.5 km, 10 min) | 578 s | 579 s | +0.2 % |
+| `strava.gpx` (20.8 km) | 2 891 s | 3 060 s | +5.8 % |
+| `sample.gpx` (128.6 km, 5.3 h) | 19 215 s | 20 810 s | **+8.3 %** |
 
-That ordering is the point: at 280 W against a 250 W CP, five hours accumulates ~7 kJ/kg of
-supra-CP work and ~5 % of fade by the finish, while a 48-minute ride accumulates almost none.
+Short rides barely move — the reserve is never exhausted. Long ones move a lot, because `constant`
+was letting the rider hold 280 W against a 250 W CP for five hours, which the `wPrimeBalance`
+column shows bottoming out at zero and staying there.
 
-The default fade rate is deliberately at the **conservative** end of the published band — those
-decrements were measured mostly on short maximal efforts, and the same study found *no* effect on
-a 12-minute time trial. See `PowerProviderDurability`'s KDoc.
+Providers compose: `--cyclist-slew` wraps whichever model is selected.
 
 ### `--bike-max-pedal-angle`
 

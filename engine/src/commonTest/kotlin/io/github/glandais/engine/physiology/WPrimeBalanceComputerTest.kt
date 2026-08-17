@@ -4,6 +4,7 @@ import io.github.glandais.elevation.MathConstants
 import io.github.glandais.engine.EngineConstants
 import io.github.glandais.engine.EnhanceOptions
 import io.github.glandais.engine.Enhancer
+import io.github.glandais.engine.SimplifyPathOptions
 import io.github.glandais.engine.WPrimeBalanceOptions
 import io.github.glandais.engine.path.Path
 import io.github.glandais.engine.path.PointField
@@ -27,7 +28,8 @@ class WPrimeBalanceComputerTest {
     ): Path =
         Path(n).apply {
             for (i in 0 until n) {
-                setDt(i, if (i == 0) 0.0 else dtMs)
+                // `time`, not `dt`: see the note in WPrimeBalanceComputer.compute.
+                setTime(i, i * dtMs)
                 setPComputedPower(i, power)
             }
         }
@@ -49,7 +51,7 @@ class WPrimeBalanceComputerTest {
     fun `recovery below CP follows the closed-form exponential`() {
         // Start depleted, then recover at 100 W below CP for 60 s.
         val path = Path(2)
-        path.setDt(1, 60_000.0)
+        path.setTime(1, 60_000.0)
         path.setPComputedPower(1, cp - 100.0)
         WPrimeBalanceComputer.compute(path, options)
 
@@ -130,12 +132,12 @@ class WPrimeBalanceComputerTest {
     // ---- 3. Gaps carry forward rather than poisoning the trace -----------------
 
     @Test
-    fun `non-finite power or dt carries the previous balance forward`() {
+    fun `non-finite power or time carries the previous balance forward`() {
         val path = Path(4)
-        for (i in 1 until 4) path.setDt(i, 1000.0)
+        for (i in 0 until 4) path.setTime(i, i * 1000.0)
         path.setPComputedPower(1, cp + 1000.0) // −1000 J
         path.setPComputedPower(2, Double.NaN) // ignored
-        path.setDt(3, Double.NaN) // ignored
+        path.setTime(3, Double.NaN) // ignored
         path.setPComputedPower(3, cp + 1000.0)
 
         WPrimeBalanceComputer.compute(path, options)
@@ -244,6 +246,49 @@ class WPrimeBalanceComputerTest {
             for (i in 0 until out.size) {
                 assertEquals(EngineConstants.DEFAULT_W_PRIME_J, out.wPrimeBalance(i), 1e-6)
             }
+        }
+
+    /** 10 km of flat road — long enough that 280 W against CP 250 must empty a 20 kJ reserve. */
+    private fun longFlatPath(): Path {
+        val n = 1000
+        val p = Path(n)
+        for (i in 0 until n) {
+            p.setLatitude(i, 45.0 * MathConstants.DEG_TO_RAD)
+            p.setLongitude(i, (3.0 + i * 1.27e-4) * MathConstants.DEG_TO_RAD)
+            p.setElevation(i, 100.0)
+            p.setTime(i, i * 1000.0)
+        }
+        p.computeDerivedData()
+        return p
+    }
+
+    @Test
+    fun `a long ride above CP drains the reserve through the real pipeline`() =
+        runTest {
+            // The units regression: `dt` and `elapsed` come out of the pipeline in seconds while
+            // `PointField` calls them ms, so reading them here under-integrated by 1000x and a
+            // five-hour ride 30 W over CP appeared to spend 568 J of a 20 kJ reserve.
+            val out =
+                Enhancer.enhanceCourseDefault(
+                    longFlatPath(),
+                    // Simplification off: a dead-straight flat line collapses to its two endpoints
+                    // under Douglas-Peucker, and with it every intermediate W′bal value.
+                    options =
+                        EnhanceOptions(
+                            fixElevation = false,
+                            simplifyPath = SimplifyPathOptions(enabled = false),
+                        ),
+                )
+            val rideS = (out.time(out.size - 1) - out.time(0)) / 1000.0
+            val supraCpJ = (EngineConstants.DEFAULT_CYCLIST_POWER_W - 250.0) * rideS
+
+            assertTrue(supraCpJ > EngineConstants.DEFAULT_W_PRIME_J, "fixture is too short to test this")
+            // Not exactly zero at the finish: MaxSpeedComputer brakes to its end-of-track
+            // sentinel, so the last seconds are ridden at no power and the reserve recovers a
+            // little. Before the units fix this read 19 432 J — i.e. barely touched.
+            val left = out.wPrimeBalance(out.size - 1)
+            assertTrue(left < 0.05 * EngineConstants.DEFAULT_W_PRIME_J, "reserve barely touched: $left J")
+            assertEquals(0.0, (0 until out.size).minOf { out.wPrimeBalance(it) }, 1e-9, "…and it did empty")
         }
 
     // ---- 6. Agreement with GoldenCheetah's Euler recursion at 1 Hz --------------
