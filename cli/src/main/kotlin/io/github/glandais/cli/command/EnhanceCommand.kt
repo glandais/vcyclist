@@ -25,12 +25,15 @@ import io.github.glandais.engine.physics.PowerProviderFromData
 import io.github.glandais.engine.physics.RhoProviderEstimate
 import io.github.glandais.engine.trajectory.CorridorMode
 import io.github.glandais.engine.trajectory.CurvatureOptions
+import io.github.glandais.engine.trajectory.RacingLine
 import io.github.glandais.engine.trajectory.RacingLineOptions
 import io.github.glandais.fit.toFitBytes
 import kotlinx.coroutines.runBlocking
 import picocli.CommandLine
 import java.io.File
 import java.util.concurrent.Callable
+import kotlin.math.PI
+import kotlin.math.abs
 import kotlin.time.Instant
 
 /**
@@ -207,6 +210,15 @@ class EnhanceCommand : Callable<Int> {
     var roadWidthM: Double = RacingLineOptions.DEFAULT.defaultRoadWidthM
 
     @field:CommandLine.Option(
+        names = ["--racing-line-report"],
+        description = [
+            "Print what the racing line decided, corner by corner, without needing to diff",
+            "the output GPX. Works whether or not --racing-line is applied.",
+        ],
+    )
+    var racingLineReport: Boolean = false
+
+    @field:CommandLine.Option(
         names = ["--one-point-per-second"],
         negatable = true,
         description = ["Resample to 1 Hz before simplifying (default: true)"],
@@ -333,6 +345,58 @@ class EnhanceCommand : Callable<Int> {
         for (i in 0 until path.size) path.setRoadWidth(i, roadWidthM)
     }
 
+    /**
+     * Print what the racing line decided, corner by corner.
+     *
+     * Deliberately independent of whether `--racing-line` is applied: the analysis takes a `Path`
+     * and returns numbers, so asking what the stage *would* do never moves a coordinate. A stage
+     * that rewrites every position in a rider's file should be answerable without being run.
+     *
+     * Printed before the pipeline, on the densified-but-unsimulated path, which is the geometry the
+     * stage itself would see.
+     */
+    private fun printRacingLineReport(
+        path: Path,
+        options: EnhanceOptions,
+    ) {
+        val out = spec.commandLine().out
+        val report = RacingLine.analyze(path, options.racingLine)
+        if (report == null) {
+            out.println("  racing line: path too short or degenerate to analyse")
+            return
+        }
+        out.println(
+            "  racing line: ${report.corners.size} corner(s), corridor up to " +
+                "%.2f m wide, %d iterations, converged=%s".format(
+                    report.maxCorridorWidthM,
+                    report.newtonIterations,
+                    report.converged,
+                ),
+        )
+        if (report.corners.isEmpty()) return
+        out.println("    %-6s %-8s %8s %8s %8s %8s".format("at m", "kind", "turn deg", "R road", "R line", "offset"))
+        for (corner in report.corners) {
+            var tightestLine = Double.MAX_VALUE
+            var worstOffset = 0.0
+            for (i in corner.fromIndex until corner.untilIndex) {
+                val k = report.trajectoryCurvature[i]
+                val r = if (abs(k) < 1e-12) Double.POSITIVE_INFINITY else 1.0 / abs(k)
+                if (r < tightestLine) tightestLine = r
+                if (abs(report.lateralOffsetM[i]) > abs(worstOffset)) worstOffset = report.lateralOffsetM[i]
+            }
+            out.println(
+                "    %-6.0f %-8s %8.1f %8.1f %8.1f %8.2f".format(
+                    path.distance(corner.fromIndex),
+                    corner.kind.name,
+                    corner.turnRad * 180.0 / PI,
+                    corner.radiusQ20M,
+                    tightestLine,
+                    worstOffset,
+                ),
+            )
+        }
+    }
+
     private fun processOne(
         input: File,
         inputCount: Int,
@@ -348,6 +412,7 @@ class EnhanceCommand : Callable<Int> {
         val paths = document.tracksAsPaths()
         paths.forEach(::applyRoadWidthOverride)
         require(paths.isNotEmpty()) { "no track with any point" }
+        if (racingLineReport) paths.forEach { printRacingLineReport(it, options) }
 
         if (!quiet) {
             out.println(

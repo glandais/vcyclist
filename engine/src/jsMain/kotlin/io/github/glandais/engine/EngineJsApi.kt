@@ -35,6 +35,7 @@ import io.github.glandais.engine.physics.WindProviderConstant
 import io.github.glandais.engine.physics.WindProviderNone
 import io.github.glandais.engine.trajectory.CorridorMode
 import io.github.glandais.engine.trajectory.CurvatureOptions
+import io.github.glandais.engine.trajectory.RacingLine
 import io.github.glandais.engine.trajectory.RacingLineOptions
 import io.github.glandais.fit.toFitBytes
 import kotlinx.coroutines.DelicateCoroutinesApi
@@ -923,3 +924,110 @@ fun detectClimbsWithOptions(
             ),
         ).map { it.toDto() }
         .toTypedArray()
+
+// ── Racing-line inspection ───────────────────────────────────────────────────────────────────
+
+/**
+ * One detected bend, as the racing-line analysis sees it.
+ *
+ * @see analyzeRacingLine
+ */
+external interface CornerDto {
+    val fromIndex: Int
+    val untilIndex: Int
+    val apexIndex: Int
+
+    /** `"GENTLE"`, `"CORNER"` or `"HAIRPIN"`. */
+    val kind: String
+    val turnRad: Double
+
+    /** `+1` turning left, `-1` turning right. */
+    val direction: Int
+
+    /** 20th percentile of `1/|κ|` over the span — robust to the clothoid ends a mean is biased by. */
+    val radiusQ20M: Double
+    val radiusMinM: Double
+    val lengthM: Double
+}
+
+/**
+ * What the racing-line stage decided, without applying it.
+ *
+ * Every array has one entry per path station. `corridorLo`/`corridorHi` bound the lateral offset in
+ * metres, positive to the left; `lateralOffsetM` is the line that was solved for inside them.
+ */
+external interface RacingLineReportDto {
+    val size: Int
+    val corners: Array<CornerDto>
+
+    /** Curvature of the road itself, m⁻¹, positive turning left. */
+    val centerlineCurvature: DoubleArray
+
+    /** Curvature of the solved line, same convention. */
+    val trajectoryCurvature: DoubleArray
+    val corridorLo: DoubleArray
+    val corridorHi: DoubleArray
+    val roadHalfWidthM: DoubleArray
+    val lateralOffsetM: DoubleArray
+
+    /** Widest the corridor gets anywhere, `hi − lo`, in metres. */
+    val maxCorridorWidthM: Double
+    val newtonIterations: Int
+
+    /** Final residual relative to the initial gradient — scale-free, so comparable across routes. */
+    val relativeGradient: Double
+    val converged: Boolean
+    val activeConstraints: Int
+}
+
+private fun cornerObj(c: io.github.glandais.engine.trajectory.CornerSpan): CornerDto {
+    val o = js("({})")
+    o.fromIndex = c.fromIndex
+    o.untilIndex = c.untilIndex
+    o.apexIndex = c.apexIndex
+    o.kind = c.kind.name
+    o.turnRad = c.turnRad
+    o.direction = c.direction
+    o.radiusQ20M = c.radiusQ20M
+    o.radiusMinM = c.radiusMinM
+    o.lengthM = c.lengthM
+    return o.unsafeCast<CornerDto>()
+}
+
+/**
+ * Analyse what the racing line *would* do to [path], without touching it.
+ *
+ * Read-only by construction — it takes a `Path` and returns numbers, so asking the question can
+ * never move a coordinate. That is the point: the stage rewrites every position it is applied to,
+ * and being able to inspect the corridor it assumed and the offset it chose is what makes that
+ * inspectable rather than merely optional.
+ *
+ * Returns `null` for a path too short or too degenerate to analyse, matching the Kotlin API's
+ * contract of declining rather than guessing.
+ *
+ * The [options] are the same `racingLine*` keys [enhance] accepts; `enabled` is ignored here, since
+ * calling this *is* the request.
+ */
+@JsExport
+fun analyzeRacingLine(
+    path: Path,
+    options: EnhanceOptionsDto? = null,
+): RacingLineReportDto? {
+    val racingLine = options.toEnhanceOptions().racingLine
+    val report = RacingLine.analyze(path, racingLine) ?: return null
+    val o = js("({})")
+    o.size = report.size
+    o.corners = report.corners.map { cornerObj(it) }.toTypedArray()
+    o.centerlineCurvature = report.centerlineCurvature
+    o.trajectoryCurvature = report.trajectoryCurvature
+    o.corridorLo = report.corridorLo
+    o.corridorHi = report.corridorHi
+    o.roadHalfWidthM = report.roadHalfWidthM
+    o.lateralOffsetM = report.lateralOffsetM
+    o.maxCorridorWidthM = report.maxCorridorWidthM
+    o.newtonIterations = report.newtonIterations
+    o.relativeGradient = report.relativeGradient
+    o.converged = report.converged
+    o.activeConstraints = report.activeConstraints
+    return o.unsafeCast<RacingLineReportDto>()
+}
