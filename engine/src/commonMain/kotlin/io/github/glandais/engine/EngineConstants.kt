@@ -39,6 +39,18 @@ object EngineConstants {
     const val DEFAULT_WHEEL_RADIUS_M: Double = 0.35
     const val DEFAULT_DRIVETRAIN_EFFICIENCY: Double = 0.976
 
+    /**
+     * Lean angle (°) beyond which the rider stops pedalling for pedal-ground clearance.
+     *
+     * Zignoli (2020) states this twice and inconsistently : *"the maximal power output was reduced
+     * to zero for roll angles greater than 5°"* in the methods, `W_max = 0 if |φ| ≥ 20°` in the
+     * appendix. 5° is implausibly low — a rider leans further than that on any bend — so 20° is
+     * taken as the value and the disagreement recorded here rather than averaged away.
+     *
+     * Set [Bike.maxPedalingLeanAngleDeg] to 90 (or more) to disable the cut-off entirely.
+     */
+    const val DEFAULT_MAX_PEDALING_LEAN_ANGLE_DEG: Double = 20.0
+
     // ---- Cyclist defaults -----------------------------------------------------
 
     const val DEFAULT_CYCLIST_MASS_KG: Double = 80.0

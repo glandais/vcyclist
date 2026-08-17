@@ -131,7 +131,8 @@ removing the old entry points, and it feeds the g20 correspondence matrix.
 | `--bike-crr`, `--bike-inertia-front`, `--bike-inertia-rear`, `--bike-wheel-radius`, `--bike-efficiency` | same names | |
 
 Options with no gpx2web equivalent, added because vcyclist's pipeline exposes them:
-`--json`, `--road-condition`, `--cyclist-cp`, `--cyclist-durability`, `--[no-]virtualize`, `--[no-]simplify`, `--simplify-tolerance`,
+`--json`, `--road-condition`, `--cyclist-cp`, `--cyclist-durability`, `--bike-max-pedal-angle`,
+`--[no-]virtualize`, `--[no-]simplify`, `--simplify-tolerance`,
 `--[no-]one-point-per-second`, `--max-size`, `--zoom`, `--margin`, `--cache`, `--quiet`.
 
 ### `--road-condition`
@@ -198,6 +199,24 @@ supra-CP work and ~5 % of fade by the finish, while a 48-minute ride accumulates
 The default fade rate is deliberately at the **conservative** end of the published band — those
 decrements were measured mostly on short maximal efforts, and the same study found *no* effect on
 a 12-minute time trial. See `PowerProviderDurability`'s KDoc.
+
+### `--bike-max-pedal-angle`
+
+Past this lean angle (default **20°**) the inside pedal would strike the road, so the simulated
+rider stops pedalling and coasts through the corner. `90` disables the cut-off.
+
+It fires often but costs little, which is the interesting part:
+
+| Route | pedals up | time cost |
+|---|---|---|
+| `stelvio.gpx` | 38 % of points | +0.35 % |
+| `strava.gpx` | 21 % | +0.31 % |
+| `sample.gpx` | 19 % | +0.25 % |
+
+The reason is that it fires exactly where the rider is already limited by cornering or braking —
+power applied there was being thrown away by the speed cap anyway (and showing up as `pBrake`).
+So the change is mostly to the *power trace*, which stops depicting a rider pedalling into a
+corner they are simultaneously braking for.
 
 ## Exit codes
 

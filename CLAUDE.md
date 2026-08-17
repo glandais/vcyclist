@@ -125,6 +125,10 @@ simulated rider *react* to a low W′ is a separate change — see
 - `Cyclist.maxLeanAngleDeg` **is** a tyre friction coefficient : `v_max = √(g·R·tan θ)` is
   `√(µ·g·R)`, so `Cyclist.mu == tanMaxLeanAngle`. [`RoadCondition`] is the preset that sets µ and
   braking together (`DRY` reproduces the shipped defaults bit-for-bit ; `WET` is 40 % of the grip).
+- **Pedal-strike clearance** (**not in TS**) : `MuscularPowerProvider` delivers no power past
+  `Bike.maxPedalingLeanAngleDeg` (20°), lean being `atan(v²/(g·R))` from the path's own `speed` and
+  `radius`. Set 90 to disable. It fails *open* when `radius` is absent — `MaxSpeedComputer` may not
+  have run — because failing closed would zero a whole ride.
 - `pBrake` (**not in TS**) records the energy `VirtualizeService`'s `speedMax` clip removes, as
   `min(0, pComputedWheelPower)` — negative, at the wheel, so **not** divided by drivetrain
   efficiency. A speed cap the rider merely sits at is not braking : resistance alone explains it.

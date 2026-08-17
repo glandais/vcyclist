@@ -39,6 +39,15 @@ class BikeMixin {
     )
     var efficiency: Double = EngineConstants.DEFAULT_DRIVETRAIN_EFFICIENCY
 
+    @field:CommandLine.Option(
+        names = ["--bike-max-pedal-angle"],
+        description = [
+            "Lean angle in degrees past which the rider stops pedalling for pedal clearance; " +
+                "90 disables the cut-off (default: \${DEFAULT-VALUE})",
+        ],
+    )
+    var maxPedalingLeanAngleDeg: Double = EngineConstants.DEFAULT_MAX_PEDALING_LEAN_ANGLE_DEG
+
     fun toBike(): Bike =
         Bike(
             crr = crr,
@@ -46,5 +55,6 @@ class BikeMixin {
             inertiaRear = inertiaRear,
             wheelRadiusM = wheelRadiusM,
             efficiency = efficiency,
+            maxPedalingLeanAngleDeg = maxPedalingLeanAngleDeg,
         )
 }

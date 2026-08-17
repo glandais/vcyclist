@@ -97,7 +97,8 @@ internal fun JsonObj?.toCyclist(): Cyclist {
     )
 }
 
-private val BIKE_KEYS = setOf("crr", "inertiaFront", "inertiaRear", "wheelRadiusM", "efficiency")
+private val BIKE_KEYS =
+    setOf("crr", "inertiaFront", "inertiaRear", "wheelRadiusM", "efficiency", "maxPedalingLeanAngleDeg")
 
 /** Read a `BikeDto`-shaped object; `null` or absent fields fall back to [Bike]'s defaults. */
 internal fun JsonObj?.toBike(): Bike {
@@ -110,6 +111,7 @@ internal fun JsonObj?.toBike(): Bike {
         inertiaRear = double("inertiaRear", d.inertiaRear),
         wheelRadiusM = double("wheelRadiusM", d.wheelRadiusM),
         efficiency = double("efficiency", d.efficiency),
+        maxPedalingLeanAngleDeg = double("maxPedalingLeanAngleDeg", d.maxPedalingLeanAngleDeg),
     )
 }
 

@@ -11,7 +11,7 @@ entry (R7, R12, R19, R21).
 - Date of assessment: 2026-08-17
 - Assessed against: `develop` @ `0f979af`
 - Shipped since: **R15** (W′bal output field), **R12** (`pBrake`), **R9** (`RoadCondition`),
-  **R17** (`PowerProviderDurability`)
+  **R17** (`PowerProviderDurability`), **R10** (pedal-strike cut-off)
 - Sources read: all 8 research chapters + `EngineConstants`, `Cyclist`, `MaxSpeedComputer`,
   `PowerComputer`, `VirtualizeService`, `PowerProviderConstantWithTiring`,
   `CyclistPowerProviderBase`, the four resistive providers, `RhoProvider`, `AeroProvider`,
@@ -46,7 +46,7 @@ items buy is a ride trace a human recognises as their own.
 | R7 | Distance as the integration variable | — | — | ✔ |
 | R8 | Vertical-curvature rolling term | Negligible | Med-high | ❌ |
 | R9 | Wet/dry µ condition preset | **High** | **Very low** | ✅ |
-| R10 | Pedal-strike power cut-off at high lean | Med-high | Low | 🔵 |
+| R10 | Pedal-strike power cut-off at high lean | Med-high | Low | ✅ |
 | R11 | Friction ellipse (combined braking + cornering) | Medium | Medium | ⚪ |
 | R12 | **Brake power as a `PointField`** | **High** | **Very low** | ✅ |
 | R13 | Brake actuation lag (0.13 s) | Negligible | Low | ❌ |
@@ -60,7 +60,7 @@ items buy is a ride trace a human recognises as their own.
 | R21 | Fuelling / glycogen state variable | Low | High | ❌ (for now) |
 | R22 | Optimal-pacing solver as rider behaviour | Negative | Very high | ❌ |
 
-Recommended order if acted on: ~~R15~~ → ~~R12~~ → ~~R9~~ → ~~R17~~ → **R10 → R18**, then re-assess R16/R11.
+Recommended order if acted on: ~~R15~~ → ~~R12~~ → ~~R9~~ → ~~R17~~ → ~~R10~~ → **R18**, then re-assess R16/R11.
 
 ## A. Mechanical layer — closed
 
@@ -211,7 +211,7 @@ a dry one even on a dead-straight route, because every track ends and `MaxSpeedC
 its end-of-track sentinel with the weaker wet deceleration. That is a fixed ~1 s at the finish,
 which is why the straight-route test asserts < 0.5 % rather than 0.
 
-### R10 — Pedal-strike power cut-off 🔵 **recommended, with a caveat**
+### R10 — Pedal-strike power cut-off ✅
 
 Zignoli zeroes pedal power above a roll-angle threshold for pedal-ground clearance. vcyclist's rider
 currently pedals at full power through a hairpin.
@@ -226,6 +226,40 @@ currently pedals at full power through a hairpin.
   will move time on technical routes.
 - **Source disagrees with itself**: 5° in the methods text, 20° in the appendix. Treat 20° as the
   value, expose it, and say in the KDoc that the source is inconsistent.
+
+#### What landed
+
+`MuscularPowerProvider` — the single funnel for cyclist power into the balance, and the right place
+for a *bike geometry* constraint — delivers nothing past `Bike.maxPedalingLeanAngleDeg` (default
+20°, `90` disables). Lean is `atan(v²/(g·R))` from the path's own `speed` and `radius`, compared in
+`tan` space so there is no `atan` per point. `--bike-max-pedal-angle` on the CLI, plus the JS and
+WASI DTOs.
+
+It **fails open** when `radius` is absent (zero, negative, non-finite — which is the state when
+`MaxSpeedComputer` has not run): failing closed would zero a rider's power for an entire ride.
+
+The provider is still called when the pedals are up, so `pCyclistProvidedOptimalPower` keeps showing
+the rider's *intent* while `pCyclistProvidedMuscular` goes to zero — the difference between the two
+slots is the cut-off. One accounting nit recorded in the KDoc: `PowerProviderDurability` accumulates
+its dose from what it returned, not from what survives the cut-off, so it slightly over-counts work
+in corners.
+
+**The caveat above proved right, and the consequence was the opposite of alarming.** The cut-off
+fires in every grip-limited corner (as predicted — at `speedMax` the lean *is* `maxLeanAngleDeg`),
+which is 19–38 % of points on real fixtures, yet it costs only 0.25–0.35 % of time:
+
+| Route | pedals up | time cost |
+|---|---|---|
+| `stelvio.gpx` | 38 % of points | +0.35 % |
+| `strava.gpx` | 21 % | +0.31 % |
+| `sample.gpx` (128 km) | 19 % | +0.25 % |
+
+The reason is worth recording: it fires exactly where the rider is *already* limited by cornering or
+braking, so the power it removes was being thrown away by the speed clip anyway — it was showing up
+as `pBrake` (R12). The old model had the rider pedalling at 280 W into a corner it was simultaneously
+braking for. So R10 is a fix to the **power trace**, not to the finish time, and it is the first of
+these changes to move the default output at all — by well under the 0.5 % that used to be the parity
+budget.
 
 ### R11 — Friction ellipse (combined braking + cornering) ⚪
 

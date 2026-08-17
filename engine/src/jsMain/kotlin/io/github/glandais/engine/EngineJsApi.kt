@@ -137,6 +137,9 @@ external interface BikeDto {
     val inertiaRear: Double
     val wheelRadiusM: Double
     val efficiency: Double
+
+    /** Lean angle (°) past which the rider stops pedalling; `90` disables the cut-off. */
+    val maxPedalingLeanAngleDeg: Double?
 }
 
 /**
@@ -427,6 +430,8 @@ private fun BikeDto?.toBike(): Bike {
         inertiaRear = inertiaRear,
         wheelRadiusM = wheelRadiusM,
         efficiency = efficiency,
+        maxPedalingLeanAngleDeg =
+            maxPedalingLeanAngleDeg ?: EngineConstants.DEFAULT_MAX_PEDALING_LEAN_ANGLE_DEG,
     )
 }
 
