@@ -89,6 +89,11 @@ Le projet TypeScript `virtual-cyclist` (simulateur de cyclisme basé physique av
 | 37 | Demo — UI complète (17 composants Vue + Chart.js + Leaflet + 6 tabs + FieldsSidebar) | ✅ | `bdd7c16` | — (parité TS, typecheck/lint/build verts) |
 | 38 | Demo — intégration Gradle (`:demo:assemble`) + GPX samples + README | ✅ | `3416e9b` | — (Gradle assemble vert, 7 samples GPX, demo/dist 14 MB) |
 | 39 | Demo — déploiement GitHub Pages (optionnel, stretch) | ✅ | `8b976b1` | — (workflow + base conditionnel, vérification post-merge) |
+| **— Phase 10 : rattrapage démo / façade JS sur le ledger recherche —** | | | | |
+| 40 | Demo — réparer la rupture R17 (`constant_tiring` → `durability`) + presets `maxBrakeG` (R2) | ✅ | — | — (typecheck/lint/build verts, smoke Node : `constant_tiring` lève, `durability` +1,25 % sur sample.gpx) |
+| 41 | Engine — façade JS : rattrapage R9, R15, R16, R18, R19 | ⬜ | — | — |
+| 42 | Demo — UI des modèles du ledger (R9, R10, R15, R16, R18, R19) | ⬜ | — | — |
+| 43 | Garde-fou de parité cœur / CLI / façade JS / shim démo | ⬜ | — | — |
 
 **Cumul `:elevation` après Phase 1 + extras** : 20 classes de tests, **193 tests** (commonTest 182 + jvmTest 11 dont 6 opt-in) × 3 targets en mode standard = **557 exécutions** vertes (offline).
 
@@ -582,6 +587,30 @@ retrait de la cible Kotlin/Wasm) — guide d'interop Kotlin/JS ↔ JS & décodag
 - §5 — fetch + `createImageBitmap` + canvas pour décoder WebP côté browser
 - §6 — pattern `expect`/`actual` complet (commonMain + jsMain + jvmMain TwelveMonkeys)
 - Référence à citer dans chaque tâche qui touche au fetcher de tuiles ou à l'export JS.
+
+---
+
+## Phase 10 — Rattrapage démo / façade JS sur le ledger recherche
+
+**Constat** : la démo n'a pas été touchée depuis `dc27bcf` (R1-R4), alors que R9, R10, R11, R12,
+R15, R16, R17, R18 et R19 ont toutes livré depuis. Elle en est à deux niveaux de retard —
+la façade JS n'expose pas cinq de ces entrées, et la démo n'utilise pas celles qu'elle expose.
+Le renommage de R17 (`constant_tiring` → `durability`) l'a en outre **cassée** : un des trois
+modèles de puissance de l'onglet Power fait lever `EngineJsApi`.
+
+| Fiche | Portée |
+|---|---|
+| [`40`](tasks/40-demo-r17-breakage.md) | Réparer la rupture R17 et les valeurs par défaut fausses depuis R2. Rien d'autre. |
+| [`41`](tasks/41-js-facade-ledger-catchup.md) | Rendre R9, R15, R16, R18, R19 **atteignables** depuis JS. Aucune UI, aucun défaut modifié. |
+| [`42`](tasks/42-demo-ledger-ui.md) | Les mettre dans l'UI de la démo, plus R10 (déjà exposé, jamais câblé). |
+| [`43`](tasks/43-facade-parity-guard.md) | Garde-fou : la même dérive s'est produite trois fois (voir `g29`, `g31`, `g33`). |
+
+**Ordre** : `40` d'abord (la démo est cassée), puis `41` → `42`, et `43` en dernier — un garde-fou
+posé avant `41` s'installerait rouge.
+
+**Critère de fin** : la démo simule un coureur à jour du ledger — route sèche ou mouillée, réserve
+W′ dépensée, allure adaptée au terrain, pédales relevées dans les épingles — et une capacité
+ajoutée au cœur sans être relayée vers JS fait échouer le build.
 
 ---
 
