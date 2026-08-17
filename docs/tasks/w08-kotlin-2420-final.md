@@ -2,7 +2,8 @@
 
 ## Goal
 
-Le projet est sur `2.4.20-Beta2` uniquement parce que le support wasmtime de KGP y est apparu.
+Le projet est sur `2.4.20-RC` (la fiche disait `2.4.20-Beta2` ; la montée en RC a eu lieu depuis)
+uniquement parce que le support wasmtime de KGP est apparu dans cette ligne.
 Publier des artefacts (JVM, JS *et* WASI — la Beta recompile tout) depuis une Beta n'est pas
 acceptable : cette fiche fait le passage à la version finale et re-vérifie les points que le POC
 avait notés comme « rugosités de la Beta ».
@@ -34,6 +35,16 @@ avait notés comme « rugosités de la Beta ».
    déplace ; c'est attendu, il faut juste que le garde-fou de taille reste pertinent.
 5. **Mettre à jour** `docs/kotlin-wasm-wasi.md` (§1, §4, §5, §8) et la ligne « Tools » de
    `CLAUDE.md`.
+6. **Re-tester `kotlin.js.ir.output.granularity=per-file`** — reporté ici depuis E1 du
+   [ledger des avertissements](../build-warnings-ledger.md#e1-investigation). Mesuré sur
+   `2.4.20-RC` : la propriété exige `useEsModules()`, compile proprement avec, et n'a **aucun
+   effet observable** (sortie toujours en 13 modules, chunk de la démo identique au byte). C'est
+   la seule voie propre pour que le bundler élimine `pathToFit` et, avec lui, les 47 % du chunk
+   `engine` de la démo qui sont l'encodeur FIT — inutilisé par la démo. Si la propriété fonctionne
+   en 2.4.20 final : basculer `engine-shim.ts` sur des imports nommés et re-mesurer
+   `demo/dist/assets/engine-*.js` (référence à battre : 1 011 KiB brut / 254 KiB gzip). Attention,
+   `useEsModules()` change le format du paquet npm publié — c'est cassant pour un consommateur
+   CommonJS, donc à décider séparément, pas à activer en passant.
 
 ## Outputs
 
@@ -47,6 +58,8 @@ avait notés comme « rugosités de la Beta ».
 - [ ] Les exports du module inspectés (`wasmtime objdump` ou wasmtime-py) : forme réacteur
       confirmée, pas de régression sur `_initialize`/`_start`.
 - [ ] Les trois points de §8 « Ouvert » du doc sont soit fermés, soit ré-écrits avec l'état 2.4.20.
+- [ ] `granularity=per-file` re-testé : soit il fonctionne et E1 devient actionnable, soit le
+      ledger est mis à jour avec l'état 2.4.20 final.
 
 ## Done when
 

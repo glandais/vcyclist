@@ -307,7 +307,7 @@ counts 5 and not 2.
 | C5 | Warning (Windows portability) | 1 | `EnhanceCommandTest.kt:268` | first-party | ✅ fixed |
 | C6 | Warning | 1 | `UnitDump.kt:229` | first-party | ➖ moot (harness deleted upstream) |
 | D1 | Becomes an error later | 1 | 4 × `build.gradle.kts` | KGP | 🟡 documented, deferred to w08 |
-| E1 | Perf advisory (mis-targeted) | 6 | `engine.js`, `fit.js` | first-party + deps | 🟡 measured, needs a call |
+| E1 | Perf advisory (mis-targeted) | 6 | `engine.js`, `fit.js` | first-party + deps | 🟡 measured, deferred to w08 |
 | E2 | Benign (investigated) | 429 | Kotlin/JS modules | third-party | ✅ closed, no action |
 | F1 | Noise | 4 | KGP mocha wiring | third-party | ⬜ not ours |
 | F2 | Noise | 14 | ktlint's embedded compiler | third-party | ⬜ not ours |
@@ -500,3 +500,10 @@ also flip the published package format, which is a breaking change for CommonJS 
    handle-free FIT entry point), not a build tweak.
 3. **Re-test per-file granularity** on Kotlin 2.4.20 final (task w08), where the property may work
    again; combine with named imports in `engine-shim.ts`.
+
+**Decision (2026-08-17): option 3.** E1 is parked until the compiler is stable — the clean fix is the
+granularity setting, and re-testing it costs nothing once w08 happens, whereas an API change made now
+would be spending a `Path`-handle redesign to work around a compiler bug that may not survive the
+release. Carried as step 6 and a validation box of
+[`docs/tasks/w08-kotlin-2420-final.md`](tasks/w08-kotlin-2420-final.md), with the numbers to beat, so
+it cannot quietly evaporate. The demo keeps shipping ~120 KiB gzipped of unused FIT until then.
