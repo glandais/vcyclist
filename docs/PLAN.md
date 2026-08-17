@@ -91,7 +91,7 @@ Le projet TypeScript `virtual-cyclist` (simulateur de cyclisme basé physique av
 | 39 | Demo — déploiement GitHub Pages (optionnel, stretch) | ✅ | `8b976b1` | — (workflow + base conditionnel, vérification post-merge) |
 | **— Phase 10 : rattrapage démo / façade JS sur le ledger recherche —** | | | | |
 | 40 | Demo — réparer la rupture R17 (`constant_tiring` → `durability`) + presets `maxBrakeG` (R2) | ✅ | — | — (typecheck/lint/build verts, smoke Node : `constant_tiring` lève, `durability` +1,25 % sur sample.gpx) |
-| 41 | Engine — façade JS : rattrapage R9, R15, R16, R18, R19 | ⬜ | — | — |
+| 41 | Engine — façade JS : rattrapage R9, R15, R16, R18, R19 | ✅ | — | 11 (jsTest, `EngineJsApiLedgerTest`) |
 | 42 | Demo — UI des modèles du ledger (R9, R10, R15, R16, R18, R19) | ⬜ | — | — |
 | 43 | Garde-fou de parité cœur / CLI / façade JS / shim démo | ⬜ | — | — |
 

@@ -27,8 +27,11 @@ import io.github.glandais.engine.path.dominantHeadwindAzimuthDeg
 import io.github.glandais.engine.physics.AeroProviderConstant
 import io.github.glandais.engine.physics.CyclistPowerProvider
 import io.github.glandais.engine.physics.PowerProviderConstant
+import io.github.glandais.engine.physics.PowerProviderCriticalPower
 import io.github.glandais.engine.physics.PowerProviderDurability
 import io.github.glandais.engine.physics.PowerProviderFromData
+import io.github.glandais.engine.physics.PowerProviderSlewLimited
+import io.github.glandais.engine.physics.PowerProviderTerrainPacing
 import io.github.glandais.engine.physics.RhoProviderEstimate
 import io.github.glandais.engine.physics.Wind
 import io.github.glandais.engine.physics.WindProvider
@@ -110,6 +113,28 @@ external interface EnhanceOptionsDto {
     val simplifyEnabled: Boolean?
     val simplifyToleranceM: Double?
     val simplifyZExaggeration: Double?
+
+    /**
+     * W′ balance annotation pass (ledger R15). Defaults to `true`, which is what JS callers have
+     * been getting all along — [WPrimeBalanceOptions] is enabled by default and nothing here ever
+     * overrode it, so the `wPrimeBalance` field was already being written, at CP 250 W / W′ 20 kJ.
+     * These three fields make it *calibrable*, they do not turn it on.
+     */
+    val wPrimeBalanceEnabled: Boolean?
+
+    /**
+     * CP (W) for the W′ balance **field**.
+     *
+     * This is **not** automatically [PowerProviderDto.criticalPower]. The two are independent by
+     * design (see [WPrimeBalanceOptions] for why CP/W′ live on the options rather than on
+     * [Cyclist]), so passing different values here and on the power provider yields a W′bal trace
+     * that does not describe the rider being simulated. Legitimate — reporting one rider's effort
+     * against another's physiology — but rarely intended.
+     */
+    val wPrimeBalanceCriticalPower: Double?
+
+    /** W′ (J) for the W′ balance field. Same independence caveat as [wPrimeBalanceCriticalPower]. */
+    val wPrimeBalanceWPrime: Double?
 }
 
 /**
@@ -125,6 +150,20 @@ external interface CyclistDto {
     val maxLeanAngleDeg: Double
     val maxBrakeG: Double
     val maxSpeedKmH: Double
+
+    /**
+     * Road surface preset (ledger R9) : `"dry"` (the default) or `"wet"`, case-insensitive. Sets
+     * cornering grip and braking together — wet cuts cornering speed by 1.58× and braking to
+     * 0.23 g. Any other value throws.
+     *
+     * **The preset wins over [maxLeanAngleDeg] and [maxBrakeG] when present**, which is the
+     * opposite of the CLI, where an explicit `--cyclist-max-angle` overrides `--road-condition`.
+     * The CLI can tell "not given" from "given" because its fields are nullable ; here they are
+     * not, so a JS caller always supplies all six and "explicit wins" would make the preset
+     * unreachable. Omit `roadCondition` to keep the raw values — that is the pre-R9 behaviour, and
+     * `"dry"` reproduces the shipped defaults bit-for-bit anyway.
+     */
+    val roadCondition: String?
 }
 
 /**
@@ -161,14 +200,43 @@ external interface WindDto {
  * - `type = "constant"` → [PowerProviderConstant] (requires [power], optional [useHarmonics]).
  * - `type = "durability"` → [PowerProviderDurability] (requires [power], optional
  *   [criticalPower] and [useHarmonics]) — power fades with work accumulated above CP.
+ * - `type = "critical-power"` → [PowerProviderCriticalPower] (optional [criticalPower], [wPrime])
+ *   — spends a W′ reserve, then settles asymptotically at CP.
  * - `type = "from_data"` → [PowerProviderFromData] singleton (replays `pInputPower` from the
  *   input path).
+ *
+ * [pacing] and [maxSlewWPerS] are **decorators**, not types : they compose over whichever [type]
+ * was chosen, in the order the CLI uses — see [toCyclistPowerProvider].
  */
 external interface PowerProviderDto {
     val type: String
     val power: Double?
     val useHarmonics: Boolean?
+
+    /** CP (W) for `"durability"` and `"critical-power"`. Defaults to 250 W. */
     val criticalPower: Double?
+
+    /** W′ (J) for `"critical-power"` — the reserve spendable above CP. Defaults to 20 kJ. */
+    val wPrime: Double?
+
+    /**
+     * Terrain pacing (ledger R19) : harder uphill and into headwind, easier downhill, with a causal
+     * energy account so the effort is redistributed rather than added. Off by default.
+     *
+     * A heuristic with **no lookahead** — the rider reacts to the road it is on. Its magnitudes
+     * (gradient gain, the ~300 m ramp, the energy-budget window) are the project's own rather than
+     * sourced, so they are not exposed here ; use [PowerProviderTerrainPacing] directly from Kotlin
+     * to change them.
+     */
+    val pacing: Boolean?
+
+    /**
+     * Power slew-rate limit (ledger R18) in W/s ; `0` or omitted disables it. 50 is the value
+     * Zignoli & Biral use. Same semantics as the CLI's `--cyclist-slew`.
+     *
+     * Applied **outermost**, so it smooths whatever [type] and [pacing] produced.
+     */
+    val maxSlewWPerS: Double?
 }
 
 /**
@@ -379,6 +447,12 @@ private fun EnhanceOptionsDto?.toEnhanceOptions(): EnhanceOptions {
                 toleranceM = simplifyToleranceM ?: 10.0,
                 zExaggeration = simplifyZExaggeration ?: 3.0,
             ),
+        wPrimeBalance =
+            WPrimeBalanceOptions(
+                enabled = wPrimeBalanceEnabled ?: WPrimeBalanceOptions().enabled,
+                criticalPowerW = wPrimeBalanceCriticalPower ?: EngineConstants.DEFAULT_CRITICAL_POWER_W,
+                wPrimeJ = wPrimeBalanceWPrime ?: EngineConstants.DEFAULT_W_PRIME_J,
+            ),
     )
 }
 
@@ -411,15 +485,29 @@ private fun defaultJsOptions(): EnhanceOptions =
  */
 private fun CyclistDto?.toCyclist(): Cyclist {
     if (this == null) return Cyclist()
+    val condition = roadCondition?.toRoadCondition()
     return Cyclist(
         massKg = massKg,
-        maxBrakeG = maxBrakeG,
+        maxBrakeG = condition?.maxBrakeG ?: maxBrakeG,
         cd = cd,
         frontalAreaM2 = frontalAreaM2,
-        maxLeanAngleDeg = maxLeanAngleDeg,
+        maxLeanAngleDeg = condition?.leanAngleDeg ?: maxLeanAngleDeg,
         maxSpeedKmH = maxSpeedKmH,
     )
 }
+
+/**
+ * Parse the [CyclistDto.roadCondition] string. Case-insensitive, like the CLI's converter — `"wet"`
+ * is what anyone types. The enum itself is not exported : a Kotlin enum crossing to JavaScript
+ * arrives in a shape nobody wants to import just to say "it is raining" (the rule g29 settled on
+ * for `GpxPathKind`).
+ */
+private fun String.toRoadCondition(): RoadCondition =
+    RoadCondition.entries.firstOrNull { it.name.equals(this, ignoreCase = true) }
+        ?: error(
+            "Unknown CyclistDto.roadCondition: $this (expected one of " +
+                "${RoadCondition.entries.map { it.name.lowercase() }})",
+        )
 
 /** Convert a JS [BikeDto] (or `null` → defaults) into a [Bike]. */
 private fun BikeDto?.toBike(): Bike {
@@ -450,11 +538,29 @@ private fun WindDto?.toWindProvider(): WindProvider {
  *
  * - `"constant"` → [PowerProviderConstant] (default 250 W if `power` omitted).
  * - `"durability"` → [PowerProviderDurability] (default CP 250 W).
+ * - `"critical-power"` → [PowerProviderCriticalPower] (default CP 250 W, W′ 20 kJ).
  * - `"from_data"` → the [PowerProviderFromData] singleton.
+ *
+ * ## Composition order
+ *
+ * `base → pacing → slew`, identical to `CyclistMixin.toPowerProvider` : the fatigue model picks a
+ * target, terrain pacing redistributes it, and the rate limiter smooths whatever comes out, so the
+ * slew limit has the last word. The order is not a free choice — [PowerProviderSlewLimited] must
+ * see the final signal or it smooths something that is then stepped again — and it is shared with
+ * the CLI rather than re-decided here.
  */
 private fun PowerProviderDto?.toCyclistPowerProvider(): CyclistPowerProvider {
     if (this == null) return PowerProviderConstant(250.0, useHarmonics = false)
-    return when (type) {
+    var provider = basePowerProvider()
+    if (pacing == true) provider = PowerProviderTerrainPacing(provider)
+    val slew = maxSlewWPerS ?: 0.0
+    if (slew > 0.0) provider = PowerProviderSlewLimited(provider, slew)
+    return provider
+}
+
+/** The undecorated model named by [PowerProviderDto.type]. */
+private fun PowerProviderDto.basePowerProvider(): CyclistPowerProvider =
+    when (type) {
         "constant" ->
             PowerProviderConstant(
                 power = power ?: 250.0,
@@ -466,10 +572,16 @@ private fun PowerProviderDto?.toCyclistPowerProvider(): CyclistPowerProvider {
                 criticalPowerW = criticalPower ?: EngineConstants.DEFAULT_CRITICAL_POWER_W,
                 useHarmonics = useHarmonics ?: false,
             )
+        "critical-power" ->
+            PowerProviderCriticalPower(
+                powerW = power ?: 250.0,
+                criticalPowerW = criticalPower ?: EngineConstants.DEFAULT_CRITICAL_POWER_W,
+                wPrimeJ = wPrime ?: EngineConstants.DEFAULT_W_PRIME_J,
+                useHarmonics = useHarmonics ?: false,
+            )
         "from_data" -> PowerProviderFromData
         else -> error("Unknown PowerProviderDto.type: $type")
     }
-}
 
 /**
  * Enhance [path] using a fully custom [CoursePhysics] (cyclist + bike + wind + power provider).

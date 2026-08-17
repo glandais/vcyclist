@@ -29,6 +29,11 @@ export interface CyclistDto {
     readonly maxLeanAngleDeg: number;
     readonly maxBrakeG: number;
     readonly maxSpeedKmH: number;
+    /**
+     * Road surface preset: 'dry' (default) or 'wet'. Sets cornering grip and braking together.
+     * When present it OVERRIDES maxLeanAngleDeg and maxBrakeG — omit it to keep the raw values.
+     */
+    readonly roadCondition?: 'dry' | 'wet';
 }
 
 export interface BikeDto {
@@ -37,6 +42,8 @@ export interface BikeDto {
     readonly inertiaRear: number;
     readonly wheelRadiusM: number;
     readonly efficiency: number;
+    /** Lean angle (°) past which the rider stops pedalling; 90 disables the cut-off. */
+    readonly maxPedalingLeanAngleDeg?: number;
 }
 
 export interface WindDto {
@@ -45,11 +52,17 @@ export interface WindDto {
 }
 
 export interface PowerProviderDto {
-    readonly type: 'constant' | 'durability' | 'from_data';
+    readonly type: 'constant' | 'durability' | 'critical-power' | 'from_data';
     readonly power?: number; // W
     readonly useHarmonics?: boolean;
-    /** Critical power (W), `durability` only — power fades with work accumulated above it. */
+    /** Critical power (W) for 'durability' and 'critical-power'. Defaults to 250 W. */
     readonly criticalPower?: number;
+    /** W′ (J), 'critical-power' only — the reserve spendable above CP. Defaults to 20 kJ. */
+    readonly wPrime?: number;
+    /** Terrain pacing: harder uphill and into headwind, easier downhill. Off by default. */
+    readonly pacing?: boolean;
+    /** Power slew limit in W/s; 0 or omitted disables it. 50 is the literature value. */
+    readonly maxSlewWPerS?: number;
 }
 
 export interface EnhanceOptionsDto {
@@ -60,6 +73,12 @@ export interface EnhanceOptionsDto {
     readonly simplifyEnabled?: boolean;
     readonly simplifyToleranceM?: number;
     readonly simplifyZExaggeration?: number;
+    /** W′ balance annotation pass. Already on by default — these three make it calibrable. */
+    readonly wPrimeBalanceEnabled?: boolean;
+    /** CP (W) for the wPrimeBalance FIELD — independent of PowerProviderDto.criticalPower. */
+    readonly wPrimeBalanceCriticalPower?: number;
+    /** W′ (J) for the wPrimeBalance field. */
+    readonly wPrimeBalanceWPrime?: number;
 }
 
 export interface FieldDefinitionDto {

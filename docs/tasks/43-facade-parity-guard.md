@@ -82,11 +82,22 @@ revue ; c'est faible comme garantie mais c'est ce que la structure du projet per
 laissé passer R17 : le `.d.ts` généré par Kotlin/JS disait `durability`, le shim disait
 `constant_tiring`, et rien ne les compare.
 
-Piste à trancher : faire dériver le shim du `.d.ts` généré plutôt que de le maintenir. Le `.d.ts`
-type les `Path` en `any` (ce sont des classes Kotlin/JS opaques), donc une reprise brute perdrait
-en confort ; mais les **DTO**, eux, sortent avec leur forme exacte et pourraient être réexportés
-au lieu d'être redéclarés. À défaut, un test de démo qui importe le `.d.ts` et assigne un DTO
-littéral à son type : ça échoue à la compilation le jour où un champ est renommé.
+**Mesuré pendant `41`, et cela ferme une piste** : Kotlin/JS **n'émet aucun corps** pour un
+`external interface`. Dans le `.d.ts` généré, `CyclistDto`, `BikeDto`, `PowerProviderDto` et
+`EnhanceOptionsDto` n'apparaissent que par leur *nom*, dans la signature de `enhanceWithCourse` ;
+les seules interfaces avec un corps (`FitDecodeError`…) viennent d'une dépendance tierce
+`@JsExport`ée. Faire dériver le shim du `.d.ts`, ou même y assigner un littéral pour le typecheck,
+est donc **impossible** — il n'y a rien à quoi se comparer. C'est aussi la vraie raison pour
+laquelle ce fichier est écrit à la main, et pourquoi il dérive.
+
+Il reste deux pistes, à trancher :
+
+- exporter les DTO en `data class` `@JsExport`ée plutôt qu'en `external interface`, ce qui leur
+  donnerait un corps dans le `.d.ts` — mais change la façon dont un appelant JS les construit
+  (littéral d'objet aujourd'hui), donc c'est une rupture d'API, pas un ajout ;
+- garder le shim manuel et le couvrir par un test qui envoie **chaque** valeur de `type` et chaque
+  champ au vrai moteur, à la façon du smoke Node de `40`. Ça ne compare pas des types, mais ça
+  attrape le renommage, qui est le cas qui a fait mal.
 
 Attention au piège de `g29` : le `.d.ts` de `build/dist/js/productionLibrary/` n'est pas
 régénéré par `jsBrowserDistribution` ; le frais est celui de `compileSync/js/main/…`.
@@ -128,7 +139,7 @@ la même erreur que le test « par point » de R11, qui serait passé par chance
 - [ ] Décision tranchée et **motivée** sur `sealed` (le coût API est réel, le refuser est une
       réponse acceptable si la liste manuelle est testée)
 - [ ] Table de couverture cœur / CLI / JS
-- [ ] Position tranchée sur le shim de la démo
+- [ ] Position tranchée sur le shim de la démo (dériver du `.d.ts` est exclu — voir étape 4)
 - [ ] Ligne dans `CLAUDE.md`
 - [ ] `./gradlew check` + `ktlintCheck` + typecheck démo verts
 

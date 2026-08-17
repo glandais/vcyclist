@@ -164,13 +164,68 @@ signe ou d'ordre de grandeur signale un câblage faux, pas une tolérance à él
 
 ## Done when
 
-- [ ] `roadCondition` sur `CyclistDto`, préséance sur les champs bruts documentée
-- [ ] `wPrime`, `pacing`, `slew` et `type: "critical-power"` sur `PowerProviderDto`
-- [ ] Ordre de composition `base → pacing → slew` partagé avec le CLI, pas redécidé
-- [ ] Trois champs W′bal sur `EnhanceOptionsDto`
-- [ ] Cas 1 vérifié (aucune sortie ne bouge à DTO inchangé)
-- [ ] `.d.ts` inspecté, `engine-shim.ts` à jour
-- [ ] `./gradlew check` + `ktlintCheck` verts
+- [x] `roadCondition` sur `CyclistDto`, préséance sur les champs bruts documentée
+- [x] `wPrime`, `pacing`, `maxSlewWPerS` et `type: "critical-power"` sur `PowerProviderDto`
+- [x] Ordre de composition `base → pacing → slew` partagé avec le CLI, pas redécidé
+- [x] Trois champs W′bal sur `EnhanceOptionsDto`
+- [x] Cas 1 vérifié (aucune sortie ne bouge à DTO inchangé)
+- [x] `.d.ts` inspecté, `engine-shim.ts` à jour
+- [x] `./gradlew check` + `ktlintCheck` verts
+
+## Résultat
+
+11 tests dans `EngineJsApiLedgerTest` (jsTest), verts sur Node et navigateur. `./gradlew check` +
+`ktlintCheck` + typecheck/lint de la démo verts.
+
+### Deux écarts assumés par rapport à la fiche
+
+**Le slew est un nombre, pas un booléen.** La fiche prévoyait `slew: Boolean?` au motif que les
+magnitudes de R18/R19 ne devaient pas sortir. Mais le CLI expose déjà `--cyclist-slew` en W/s avec
+`0` pour désactiver : inventer une forme différente côté JS aurait créé exactement l'écart entre
+surfaces que la fiche `43` cherche à empêcher. La règle devient donc « suivre le CLI », plus simple
+et plus défendable que « ne pas exposer les magnitudes » : le slew sort en `maxSlewWPerS: Double?`,
+et les magnitudes de *pacing* (gains de pente, fenêtre de 300 m, compte d'énergie) restent cachées —
+le CLI ne les expose pas non plus.
+
+**`roadCondition` écrase, alors que le CLI laisse gagner l'explicite.** Les champs de `CyclistDto`
+ne sont pas nullables : un appelant JS fournit toujours les six, donc « l'explicite gagne » rendrait
+le preset inatteignable. Documenté dans le KDoc avec la raison, et l'omission conserve le
+comportement pré-R9.
+
+### Ce que les tests ont appris
+
+Trois échecs sur les premiers jets, tous instructifs :
+
+- **`pCyclistProvidedOptimalPower` n'est pas la sortie des décorateurs.** Il est écrit par
+  `CyclistPowerProviderBase`, donc par le provider le plus *interne* : il enregistre l'intention du
+  coureur avant pacing et avant slew. La valeur décorée est celle que reçoit
+  `MuscularPowerProvider`, qui écrit `pCyclistProvidedMuscular`. Mesurer le slew sur le mauvais
+  champ donnait 551 W/s pour une limite à 50.
+- **Le dernier point d'une trace n'est jamais simulé** : le provider n'y est pas appelé et le champ
+  reste à sa valeur d'initialisation. Une chute 300 → 0 W apparaît donc en fin de trace et n'est pas
+  un freinage. Le test `commonTest` de R18 l'ignorait déjà, via son filtre sur les zéros posé pour
+  une autre raison (R10).
+- **Le cut-off anti-pédale (R10) se déclenche en ligne droite.** `MaxSpeedComputer` sature le rayon
+  à 200 m et `atan(v²/(g·200))` dépasse 20° vers 28 m/s : une descente rapide lève les pédales sans
+  le moindre virage. Les cas R18 passent donc `maxPedalingLeanAngleDeg: 90`.
+
+### Une assertion retirée parce qu'elle était fausse
+
+La fiche demandait de vérifier que le run *non* limité viole la borne de 50 W/s, pour prouver que le
+test n'est pas vide. **Il ne la viole pas** : mesuré à 0 W/s. Avec une cible de puissance constante
+il n'y a rien à lisser sauf le départ — ce que le ledger dit noir sur blanc de R18, qui ne devient
+porteur qu'avec un provider réactif au terrain. L'assertion discriminante est donc le départ : sans
+limite le coureur apparaît à 300 W au premier point, avec limite il part plus bas et monte à
+exactement 50 W/s. Garder la borne seule aurait produit un test vert et vide.
+
+### Le `.d.ts` ne peut pas servir de source pour le shim
+
+Vérifié sur le fichier généré : Kotlin/JS **n'émet aucun corps** pour un `external interface`. Les
+DTO n'apparaissent que par leur *nom* dans la signature de `enhanceWithCourse` ; les seules
+interfaces avec un corps dans le `.d.ts` (`FitDecodeError`…) viennent d'une dépendance tierce
+`@JsExport`ée. C'est la raison pour laquelle `demo/src/engine-shim.ts` est écrit à la main, et cela
+**invalide l'étape 4 de la fiche `43`** telle qu'elle était rédigée : on ne peut pas dériver le shim
+du `.d.ts`. La fiche est corrigée en conséquence.
 
 ## Notes
 
