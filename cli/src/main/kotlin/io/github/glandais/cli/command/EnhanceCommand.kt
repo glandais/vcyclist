@@ -23,7 +23,9 @@ import io.github.glandais.engine.path.Path
 import io.github.glandais.engine.physics.AeroProviderConstant
 import io.github.glandais.engine.physics.PowerProviderFromData
 import io.github.glandais.engine.physics.RhoProviderEstimate
+import io.github.glandais.engine.trajectory.CorridorMode
 import io.github.glandais.engine.trajectory.CurvatureOptions
+import io.github.glandais.engine.trajectory.RacingLineOptions
 import io.github.glandais.fit.toFitBytes
 import kotlinx.coroutines.runBlocking
 import picocli.CommandLine
@@ -173,6 +175,38 @@ class EnhanceCommand : Callable<Int> {
     var curvature: Boolean? = null
 
     @field:CommandLine.Option(
+        names = ["--racing-line"],
+        negatable = true,
+        description = [
+            "Ride the optimal trajectory through corners instead of the recorded line.",
+            "REWRITES EVERY COORDINATE of the output; the originals are kept in the",
+            "sourceLatitude/sourceLongitude fields. (default: \${DEFAULT-VALUE})",
+        ],
+    )
+    var racingLine: Boolean? = null
+
+    @field:CommandLine.Option(
+        names = ["--corridor"],
+        description = [
+            "Which part of the road the racing line may use: lane, lane-left, full-road.",
+            "'lane' keeps to your own side and never crosses the centreline.",
+            "'full-road' uses the whole carriageway - CLOSED ROADS AND TIME TRIALS ONLY,",
+            "it is illegal on any open road. (default: \${DEFAULT-VALUE})",
+        ],
+    )
+    var corridor: String = RacingLineOptions.DEFAULT.corridor.id
+
+    @field:CommandLine.Option(
+        names = ["--road-width"],
+        description = [
+            "Road width in metres, assumed where the GPX carries none. The racing line's",
+            "gain is proportional to this, so a wrong value is proportionally wrong.",
+            "(default: \${DEFAULT-VALUE})",
+        ],
+    )
+    var roadWidthM: Double = RacingLineOptions.DEFAULT.defaultRoadWidthM
+
+    @field:CommandLine.Option(
         names = ["--one-point-per-second"],
         negatable = true,
         description = ["Resample to 1 Hz before simplifying (default: true)"],
@@ -271,6 +305,12 @@ class EnhanceCommand : Callable<Int> {
             computeOnePointPerSecond = onePointPerSecond ?: true,
             simplifyPath = SimplifyPathOptions(enabled = simplify ?: true, toleranceM = simplifyToleranceM),
             curvature = CurvatureOptions(enabled = curvature ?: CurvatureOptions.DEFAULT.enabled),
+            racingLine =
+                RacingLineOptions(
+                    enabled = racingLine ?: RacingLineOptions.DEFAULT.enabled,
+                    corridor = CorridorMode.byId(corridor),
+                    defaultRoadWidthM = roadWidthM,
+                ),
         )
 
     private fun processOne(

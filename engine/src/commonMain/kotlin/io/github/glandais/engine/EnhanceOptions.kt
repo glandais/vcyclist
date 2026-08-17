@@ -1,6 +1,7 @@
 package io.github.glandais.engine
 
 import io.github.glandais.engine.trajectory.CurvatureOptions
+import io.github.glandais.engine.trajectory.RacingLineOptions
 
 /**
  * Options for [io.github.glandais.engine.path.Path] simplification via Douglas-Peucker 3D.
@@ -55,6 +56,9 @@ data class WPrimeBalanceOptions(
  * @param simplifyPath Douglas-Peucker simplification options (task 23)
  * @param curvature curvature-estimation options — writes `trajectoryCurvature`, which
  *   `MaxSpeedComputer` prefers over its own windowed estimate
+ * @param racingLine optimal-trajectory options. Off by default: enabling it **moves every
+ *   coordinate**. When on it supersedes [curvature], since it writes the curvature of the line
+ *   actually ridden rather than of the centreline.
  */
 data class EnhanceOptions(
     val fixElevation: Boolean = true,
@@ -66,6 +70,7 @@ data class EnhanceOptions(
     // inserting ahead of it would silently re-map an existing Java call site.
     val wPrimeBalance: WPrimeBalanceOptions = WPrimeBalanceOptions(),
     val curvature: CurvatureOptions = CurvatureOptions(),
+    val racingLine: RacingLineOptions = RacingLineOptions(),
 ) {
     companion object {
         /** All steps enabled with TS-compatible defaults. */

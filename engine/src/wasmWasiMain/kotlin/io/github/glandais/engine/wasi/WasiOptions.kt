@@ -16,7 +16,9 @@ import io.github.glandais.engine.physics.Wind
 import io.github.glandais.engine.physics.WindProvider
 import io.github.glandais.engine.physics.WindProviderConstant
 import io.github.glandais.engine.physics.WindProviderNone
+import io.github.glandais.engine.trajectory.CorridorMode
 import io.github.glandais.engine.trajectory.CurvatureOptions
+import io.github.glandais.engine.trajectory.RacingLineOptions
 import kotlin.math.PI
 
 /**
@@ -48,6 +50,9 @@ private val ENHANCE_KEYS =
         "wPrimeBalanceCriticalPower",
         "wPrimeBalanceWPrime",
         "curvatureEnabled",
+        "racingLineEnabled",
+        "racingLineCorridor",
+        "racingLineRoadWidthM",
     )
 
 /**
@@ -80,8 +85,25 @@ internal fun JsonObj?.toEnhanceOptions(): EnhanceOptions {
                 wPrimeJ = double("wPrimeBalanceWPrime", defaults.wPrimeBalance.wPrimeJ),
             ),
         curvature = CurvatureOptions(enabled = bool("curvatureEnabled", defaults.curvature.enabled)),
+        racingLine =
+            RacingLineOptions(
+                enabled = bool("racingLineEnabled", defaults.racingLine.enabled),
+                corridor = corridor("racingLineCorridor", defaults.racingLine.corridor),
+                defaultRoadWidthM =
+                    double("racingLineRoadWidthM", defaults.racingLine.defaultRoadWidthM),
+            ),
     )
 }
+
+/** Corridor mode by name. Unknown values are an error here, like every other unknown WASI input. */
+private fun JsonObj.corridor(
+    key: String,
+    fallback: CorridorMode,
+): CorridorMode =
+    when (val raw = string(key, "")) {
+        "" -> fallback
+        else -> CorridorMode.byId(raw)
+    }
 
 private fun defaultWasiOptions(): EnhanceOptions =
     EnhanceOptions(
@@ -91,6 +113,7 @@ private fun defaultWasiOptions(): EnhanceOptions =
         computeOnePointPerSecond = false,
         simplifyPath = SimplifyPathOptions(enabled = false),
         curvature = CurvatureOptions(enabled = true),
+        racingLine = RacingLineOptions(enabled = false),
     )
 
 private val CYCLIST_KEYS =

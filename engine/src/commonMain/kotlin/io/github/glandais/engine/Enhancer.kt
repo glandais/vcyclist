@@ -14,6 +14,7 @@ import io.github.glandais.engine.physics.VirtualizeService
 import io.github.glandais.engine.physics.WindProviderNone
 import io.github.glandais.engine.physiology.WPrimeBalanceComputer
 import io.github.glandais.engine.trajectory.PathCurvature
+import io.github.glandais.engine.trajectory.RacingLine
 
 /**
  * Top-level enhancement pipeline : transforms a raw GPS [Path] into a physics-aware
@@ -29,9 +30,10 @@ import io.github.glandais.engine.trajectory.PathCurvature
  *    spacing so downstream physics (`MaxSpeedComputer`, `VirtualizeService`) operates on a
  *    dense, regular trace.
  * 4. smooth elevations (always runs — TS parity).
- * 4b. **curvature** : writes `trajectoryCurvature` from heading regression in a local planar
- *    frame. An annotation pass — no coordinate moves — but step 5 prefers it over its own
- *    windowed estimate, so it changes `radius` and `speedMax`. Not in TS.
+ * 4b. **curvature**, *or* the **racing line** : both write `trajectoryCurvature`, which step 5
+ *    prefers over its own windowed estimate. The curvature pass is an annotation and moves nothing;
+ *    the racing line replaces every coordinate with an optimised trajectory and is off by default.
+ *    Neither is in TS.
  * 5. compute max speeds (cornering + braking).
  * 6. virtualize track (time-stepping simulation).
  * 7. resample to 1 Hz.
@@ -122,10 +124,19 @@ object Enhancer {
         // Step 1d : smooth elevations (always runs — TS parity).
         path = ElevationStep.smoothElevation(path)
 
-        // Step 1e : curvature. Annotation only — writes `trajectoryCurvature` and nothing else,
-        // moves no coordinate. Placed here because the path is dense and its geometry is final,
-        // while `radius` / `speedMax` are still unwritten, so step 2 consumes it.
-        if (options.curvature.enabled) {
+        // Step 1e : curvature, or the racing line.
+        //
+        // These are alternatives, not a sequence. Both write `trajectoryCurvature`, and the racing
+        // line's is the curvature of the line *actually ridden* — which is the one the speed limits
+        // want. Running the annotation first would only compute the centreline's and have it
+        // overwritten.
+        //
+        // Placed here because the path is dense and its geometry is final, while `radius` and
+        // `speedMax` are still unwritten, so step 2 consumes whichever ran.
+        val racingLineApplied = options.racingLine.enabled
+        if (racingLineApplied) {
+            path = RacingLine.compute(path, options.racingLine)
+        } else if (options.curvature.enabled) {
             PathCurvature.compute(path, options.curvature)
         }
 
@@ -157,10 +168,19 @@ object Enhancer {
 
         // Step 5 : simplify.
         if (options.simplifyPath.enabled) {
+            // The racing line lives inside roughly 2.5 m of the centreline, so the default 10 m
+            // Douglas-Peucker tolerance would discard the entire deliverable — computed, written,
+            // and then simplified away. Cap it whenever the stage ran.
+            val tolerance =
+                if (racingLineApplied) {
+                    minOf(options.simplifyPath.toleranceM, options.racingLine.simplifyToleranceCapM)
+                } else {
+                    options.simplifyPath.toleranceM
+                }
             path =
                 PathSimplifier.simplify(
                     path,
-                    options.simplifyPath.toleranceM,
+                    tolerance,
                     options.simplifyPath.zExaggeration,
                 )
         }

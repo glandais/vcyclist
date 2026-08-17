@@ -33,7 +33,9 @@ import io.github.glandais.engine.physics.Wind
 import io.github.glandais.engine.physics.WindProvider
 import io.github.glandais.engine.physics.WindProviderConstant
 import io.github.glandais.engine.physics.WindProviderNone
+import io.github.glandais.engine.trajectory.CorridorMode
 import io.github.glandais.engine.trajectory.CurvatureOptions
+import io.github.glandais.engine.trajectory.RacingLineOptions
 import io.github.glandais.fit.toFitBytes
 import kotlinx.coroutines.DelicateCoroutinesApi
 import kotlinx.coroutines.GlobalScope
@@ -138,6 +140,19 @@ external interface EnhanceOptionsDto {
      * off restores the historical windowed estimate rather than saving work worth saving.
      */
     val curvatureEnabled: Boolean?
+
+    /**
+     * Optimal-trajectory ("racing line") stage. Off by default: enabling it **moves every
+     * coordinate** of the result. The original positions are preserved in `sourceLatitude` /
+     * `sourceLongitude`.
+     */
+    val racingLineEnabled: Boolean?
+
+    /** `"lane"` (default), `"lane-left"`, or `"full-road"` — closed roads and time trials only. */
+    val racingLineCorridor: String?
+
+    /** Road width assumed where the GPX supplies none, in metres. */
+    val racingLineRoadWidthM: Double?
 }
 
 /**
@@ -457,8 +472,17 @@ private fun EnhanceOptionsDto?.toEnhanceOptions(): EnhanceOptions {
                 wPrimeJ = wPrimeBalanceWPrime ?: EngineConstants.DEFAULT_W_PRIME_J,
             ),
         curvature = CurvatureOptions(enabled = curvatureEnabled ?: true),
+        racingLine =
+            RacingLineOptions(
+                enabled = racingLineEnabled ?: false,
+                corridor = parseCorridor(racingLineCorridor),
+                defaultRoadWidthM = racingLineRoadWidthM ?: RacingLineOptions.DEFAULT.defaultRoadWidthM,
+            ),
     )
 }
+
+/** Corridor mode by name, defaulting to the engine's own default rather than restating it. */
+private fun parseCorridor(name: String?): CorridorMode = if (name == null) RacingLineOptions.DEFAULT.corridor else CorridorMode.byId(name)
 
 /**
  * Safe defaults for browser/Node calls : skip elevation fetch (callers opt-in via
@@ -474,6 +498,7 @@ private fun defaultJsOptions(): EnhanceOptions =
         computeOnePointPerSecond = false,
         simplifyPath = SimplifyPathOptions(enabled = false),
         curvature = CurvatureOptions(enabled = true),
+        racingLine = RacingLineOptions(enabled = false),
     )
 
 // ── Expanded JS API (task 34) ────────────────────────────────────────────────────────────────

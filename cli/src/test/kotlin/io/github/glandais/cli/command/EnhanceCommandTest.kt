@@ -8,7 +8,9 @@ import io.github.glandais.elevation.ElevationProviderConfig
 import io.github.glandais.elevation.RawTile
 import io.github.glandais.engine.gpx.GpxParser
 import io.github.glandais.engine.gpx.tracksAsPaths
+import io.github.glandais.engine.trajectory.CorridorMode
 import io.github.glandais.engine.trajectory.CurvatureOptions
+import io.github.glandais.engine.trajectory.RacingLineOptions
 import picocli.CommandLine
 import java.io.File
 import java.io.PrintWriter
@@ -194,6 +196,24 @@ class EnhanceCommandTest {
         assertEquals(CurvatureOptions.DEFAULT.enabled, parsed().pipelineOptions().curvature.enabled)
         assertEquals(false, parsed("--no-curvature").pipelineOptions().curvature.enabled)
         assertEquals(true, parsed("--curvature").pipelineOptions().curvature.enabled)
+
+        // The racing line is off unless asked: enabling it rewrites every output coordinate.
+        assertEquals(RacingLineOptions.DEFAULT.enabled, parsed().pipelineOptions().racingLine.enabled)
+        assertEquals(false, parsed().pipelineOptions().racingLine.enabled)
+        assertEquals(true, parsed("--racing-line").pipelineOptions().racingLine.enabled)
+        assertEquals(false, parsed("--no-racing-line").pipelineOptions().racingLine.enabled)
+
+        // Corridor defaults to the rider's own lane, and full-road is reachable but explicit.
+        assertEquals(CorridorMode.LANE, parsed().pipelineOptions().racingLine.corridor)
+        assertEquals(
+            CorridorMode.FULL_ROAD,
+            parsed("--corridor", "full-road").pipelineOptions().racingLine.corridor,
+        )
+        assertEquals(
+            CorridorMode.LANE_LEFT,
+            parsed("--corridor", "lane-left").pipelineOptions().racingLine.corridor,
+        )
+        assertEquals(4.0, parsed("--road-width", "4").pipelineOptions().racingLine.defaultRoadWidthM)
 
         // Elevation correction is off unless asked: a CLI should not reach the network silently.
         assertEquals(false, parsed().pipelineOptions().fixElevation)

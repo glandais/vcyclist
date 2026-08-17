@@ -25,6 +25,32 @@ enum class CorridorMode {
      * and it is illegal on any open road — hence opt-in, never inferred.
      */
     FULL_ROAD,
+    ;
+
+    /** The spelling used on the CLI, in JSON options, and in the WASI ABI. */
+    val id: String
+        get() =
+            when (this) {
+                LANE -> "lane"
+                LANE_LEFT -> "lane-left"
+                FULL_ROAD -> "full-road"
+            }
+
+    companion object {
+        /**
+         * Parse a corridor mode from its [id].
+         *
+         * Lives here rather than in each façade so the CLI, the JS DTO and the WASI ABI cannot
+         * drift apart on what `"full-road"` means — three copies of a five-line mapping is three
+         * chances to accept a spelling on one surface and reject it on another. Enum names are
+         * accepted too, so `FULL_ROAD` works wherever `full-road` does.
+         */
+        fun byId(name: String): CorridorMode =
+            entries.firstOrNull { it.id.equals(name, ignoreCase = true) || it.name.equals(name, ignoreCase = true) }
+                ?: throw IllegalArgumentException(
+                    "Unknown corridor '$name': expected one of ${entries.joinToString(", ") { it.id }}",
+                )
+    }
 }
 
 /**
@@ -53,6 +79,8 @@ enum class CornerKind {
  * model at this layer would be double-counting. The corridor is geometry; grip belongs to the
  * rider.
  *
+ * @property enabled opt-in, and off by default because the stage **rewrites every coordinate of
+ *   the output**. That is not a refinement an existing caller asked for, so it has to be requested.
  * @property defaultRoadWidthM width assumed where the path carries none — two 3 m lanes. The
  *   corridor half-width is linear in this, so it is the single most consequential number here
  *   when no file supplies a width. See `docs/design/racing-line.md` §12 question 1.
@@ -95,8 +123,13 @@ enum class CornerKind {
  *   gradient**. Relative because the energy scales with route length in metres, so an absolute
  *   threshold would mean something different on every route.
  * @property boundEpsilonM how close to a corridor bound counts as being on it
+ * @property simplifyToleranceCapM the largest Douglas-Peucker tolerance allowed downstream once
+ *   this stage has run. The whole line lives inside roughly 2.5 m of the centreline, so the
+ *   pipeline's default 10 m tolerance would discard it wholesale — the deliverable would be
+ *   computed, written out, and then simplified away.
  */
 data class RacingLineOptions(
+    val enabled: Boolean = false,
     val defaultRoadWidthM: Double = 6.0,
     val edgeMarginM: Double = 0.5,
     val corridor: CorridorMode = CorridorMode.LANE,
@@ -118,6 +151,7 @@ data class RacingLineOptions(
     val gradientTolerance: Double = 1e-8,
     val boundEpsilonM: Double = 1e-6,
     val curvature: CurvatureOptions = CurvatureOptions.DEFAULT,
+    val simplifyToleranceCapM: Double = 2.0,
 ) {
     init {
         require(defaultRoadWidthM > 0.0) { "defaultRoadWidthM must be > 0" }

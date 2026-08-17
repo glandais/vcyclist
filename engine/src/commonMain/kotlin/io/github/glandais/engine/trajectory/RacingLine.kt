@@ -137,6 +137,25 @@ object RacingLine {
             out.setRoadWidth(i, source.roadWidth(i))
         }
         out.computeDerivedData()
+
+        // Re-measure the curvature of the line we actually built, rather than trusting the
+        // analytic offset formula.
+        //
+        // The analytic form is exact for a smooth `n`, but it reads `n''` off a finite second
+        // difference at 1–2 m spacing, where a 0.1 m wiggle between adjacent stations already looks
+        // like a 23 m bend. The solved offset has exactly such wiggles — a box-constrained solution
+        // is only C¹ where it meets a bound — so the analytic curvature spikes at every one of
+        // them, and `MaxSpeedComputer` reads those spikes as hairpins. Measured on the fixtures,
+        // that alone made rides 16–27 % *slower* than the centreline they were supposed to improve.
+        //
+        // Re-running the estimator fixes both halves of the problem. It applies the same
+        // multi-scale, noise-aware treatment the centreline gets, so the two are finally measured
+        // the same way and can be compared at all; and it reports the curvature of the geometry
+        // that was actually written, which is what the speed limits should follow.
+        // Forced on regardless of the caller's curvature flag: this stage owns the field when it
+        // runs, and leaving the analytic values behind for a caller who disabled the annotation
+        // pass would mean the field means different things depending on an unrelated option.
+        PathCurvature.compute(out, options.curvature.copy(enabled = true))
         return out
     }
 
