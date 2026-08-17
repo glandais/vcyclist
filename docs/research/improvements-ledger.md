@@ -72,6 +72,7 @@ deliberately skipped. The matrix lives in
 | R23 | **Curvature by heading regression in a planar frame** | **High (measured)** | Low | ✅ |
 | R24 | Racing line (optimal trajectory through corners) | Low (measured) | High | ✅ (opt-in) |
 | R25 | Time-weighted racing-line objective (IRLS toward `∫√κ ds`) | Negative (measured) | Medium | ❌ |
+| R26 | Road width from the OSM `highway` class | Negligible (measured) | Low | ✅ (shipped, ~0 effect) |
 
 Recommended order if acted on: ~~R15 → R12 → R9 → R17 → R10 → R18 → R16 → R11 → R19 → R23 → R24~~ —
 **all shipped**. Left: **R14** (posture CdA) and **R20** (RPE / Hazard Score), both deferred on
@@ -570,6 +571,50 @@ prior: **on this engine, refinements to the speed *envelope* buy fractions of a 
 rider spends 1–5 % of a ride against it.** Design §12 question 4 names what would actually be
 needed — a construct–simulate–reconstruct loop with two `VirtualizeService` runs per iteration —
 and that is a different design, not a coefficient.
+
+### R26 — Road width from the OSM `highway` class ✅, and worth almost nothing
+
+Design §12 question 1 calls the corridor "a fiction" without width data, and the feasibility study
+called OSM ingestion the true blocking dependency for the whole racing line. Task
+[`t08`](../tasks/t08-osm-highway-width.md) built it. It is not a dependency, because the data is
+not there.
+
+Two real router exports (gpx.studio) carry `highway` and `surface` on every track point and
+**neither carries `width` nor `lanes`**. The best available signal is therefore a road-class proxy,
+and on any one route it is close to constant: a 128 km sample is 69 % `secondary`, 23 % `tertiary`,
+6 % `primary`, 1 % `cycleway`.
+
+| run (128 km, `FULL_ROAD`) | duration | vs plain |
+|---|---|---|
+| plain, no racing line | 19 396 s | — |
+| racing line, inferred widths | 19 326 s | −0.36 % |
+| racing line, uniform 6.0 m | 19 327 s | −0.36 % |
+
+Inference against a flat default is worth **one second in five and a half hours**. `secondary`'s
+class-typical width is 6.0 m, which is already the default, so for two-thirds of the route the
+inference agrees with the guess it replaces.
+
+It ships anyway — it is cheap, it is correct, and it varies where the default cannot, which will
+matter on a route that genuinely changes character. But it does not close §12 question 1, and
+nothing available in GPX does. **The corridor is still a global assumption**, and `--road-width`
+is still the honest way to correct it.
+
+#### The finding that was worth more
+
+The same run showed `LANE` beating `FULL_ROAD`: **19 312 s against 19 326 s**. The legal corridor,
+which keeps to the rider's own side and never crosses the centreline, is *faster* than the one that
+uses the whole carriageway — because full-road weaving costs more distance than the extra corner
+speed returns. Same mechanism as R25. The mode that is safe to default is also the one to prefer,
+which is a happier alignment than this feature had any right to expect.
+
+#### What `surface` would be worth
+
+`surface` is parsed past and deliberately not ingested: nothing reads per-point grip, `µ` is a
+scalar on `Cyclist`, and making it per-point touches `MaxSpeedComputer`, the friction ellipse and
+the pedal-strike cut-off. It is nonetheless the more promising of the two tags, because grip enters
+`v_max = √(µgR)` directly and so moves the envelope *everywhere* rather than refining it where the
+envelope binds — the distinction R11, R24 and R25 all turn on. The caveat is that the available
+data is as thin here as for width: 4965 of 4966 tagged points on the 128 km sample are `asphalt`.
 
 ## C. Physiological
 
