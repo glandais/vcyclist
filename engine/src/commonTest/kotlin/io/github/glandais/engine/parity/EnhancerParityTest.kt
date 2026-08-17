@@ -18,11 +18,29 @@ import kotlin.test.assertTrue
  * Tolerances :
  * - distance : ±0.5 %
  * - durationMs : ±0.5 %
- * - elevation gain/loss : ±1 m (Terrarium tile resolution)
+ * - elevation gain/loss : ±0.5 %, with a 1e-6 m absolute floor for the zero case
+ *
+ * The elevation band used to be an absolute ±1 m, justified by Terrarium tile resolution.
+ * That justification does not apply here : these fixtures run `fixElevation = false`, so no
+ * DEM is consulted and the gains are sub-metre by construction (SAMPLE gains 0.22 m). A ±1 m
+ * band on a 0.22 m value asserts nothing — it let a 5.5e-03 relative drift through when the
+ * physics constants were corrected, and `tools/wasi/test_engine.py`, which reads the same
+ * fixture at ±0.5 % relative, is what caught it. Tightened to match.
  *
  * See `docs/parity.md` for the rationale.
  */
 class EnhancerParityTest {
+    private companion object {
+        /** Relative band shared by every metric below. */
+        const val REL_TOLERANCE = 0.005
+
+        /**
+         * Absolute floor for the elevation metrics, so a expected-zero value (GARMIN gains
+         * nothing) stays assertable instead of demanding exact equality against float noise.
+         */
+        const val ELEVATION_FLOOR_M = 1e-6
+    }
+
     // ---------------------------------------------------------------------- Helpers
 
     /**
@@ -90,7 +108,7 @@ class EnhancerParityTest {
     ) {
         val rel = abs(out.totalDistance - ref.totalDistance) / ref.totalDistance
         assertTrue(
-            rel < 0.005,
+            rel < REL_TOLERANCE,
             "[$label] totalDistance drift ${rel * 100}% (kt=${out.totalDistance}, ref=${ref.totalDistance})",
         )
     }
@@ -102,7 +120,7 @@ class EnhancerParityTest {
     ) {
         val rel = abs(out.durationMs - ref.durationMs) / ref.durationMs
         assertTrue(
-            rel < 0.005,
+            rel < REL_TOLERANCE,
             "[$label] durationMs drift ${rel * 100}% (kt=${out.durationMs}, ref=${ref.durationMs})",
         )
     }
@@ -111,11 +129,26 @@ class EnhancerParityTest {
         label: String,
         out: Path,
         ref: ParityMetrics,
+    ) = assertElevationMatches(label, "gain", out.elevationGain, ref.totalElevationGain)
+
+    private fun assertElevationLossMatches(
+        label: String,
+        out: Path,
+        ref: ParityMetrics,
+    ) = assertElevationMatches(label, "loss", out.elevationLoss, ref.totalElevationLoss)
+
+    /** ±0.5 % relative, with an absolute floor so an expected 0.0 stays assertable. */
+    private fun assertElevationMatches(
+        label: String,
+        what: String,
+        actual: Double,
+        expected: Double,
     ) {
-        val delta = abs(out.elevationGain - ref.totalElevationGain)
+        val delta = abs(actual - expected)
+        val allowed = maxOf(abs(expected) * REL_TOLERANCE, ELEVATION_FLOOR_M)
         assertTrue(
-            delta < 1.0,
-            "[$label] elevation gain drift $delta m (kt=${out.elevationGain}, ref=${ref.totalElevationGain})",
+            delta <= allowed,
+            "[$label] elevation $what drift $delta m > $allowed m (kt=$actual, ref=$expected)",
         )
     }
 
@@ -150,6 +183,13 @@ class EnhancerParityTest {
             assertElevationGainMatches("sample", out, ParityFixtures.SAMPLE)
         }
 
+    @Test
+    fun sample_elevation_loss_within_tolerance() =
+        runTest {
+            val out = runPipeline(GpxFixtures.SAMPLE_GPX)
+            assertElevationLossMatches("sample", out, ParityFixtures.SAMPLE)
+        }
+
     // ----------------------------------------------------------------------- GARMIN
 
     @Test
@@ -179,6 +219,13 @@ class EnhancerParityTest {
         runTest {
             val out = runPipeline(GpxFixtures.GARMIN_GPX)
             assertElevationGainMatches("garmin", out, ParityFixtures.GARMIN)
+        }
+
+    @Test
+    fun garmin_elevation_loss_within_tolerance() =
+        runTest {
+            val out = runPipeline(GpxFixtures.GARMIN_GPX)
+            assertElevationLossMatches("garmin", out, ParityFixtures.GARMIN)
         }
 
     // ----------------------------------------------------- Diagnostics (one-shot)
