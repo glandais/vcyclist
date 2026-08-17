@@ -8,3 +8,7 @@ node_modules/
 # Python bytecode from the WASI reference host (tools/wasi)
 __pycache__/
 *.pyc
+
+# Publisher PDFs of the papers cited in docs/research/ (SAGE / IMechE / Springer).
+# Kept locally for reference ; not redistributable, so never committed.
+docs/research/*.pdf

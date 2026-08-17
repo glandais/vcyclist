@@ -13,7 +13,7 @@ Mapping the research onto the current codebase. This is the actionable chapter.
 | Wheel bearing losses as a separate term | ✅ `WheelBearingsPowerProvider` |
 | Rotational inertia in `m_eq` | ✅ `PowerComputer.equivalentMass` — but see §7.2 |
 | Air density from altitude **and temperature** | ✅ `RhoProviderEstimate` (full ISA) is **better than the literature's** `ρ = 1.225·e^(−0.00011856·h)`, which has no temperature term at all |
-| Cornering limit from radius and lean angle | ✅ `MaxSpeedComputer` — and the 35° lean cap (tan ≈ 0.70) is a *sub-optimal* limit, which §5.3's early/late-apex finding says is the realistic choice |
+| Cornering limit `v_max ≅ √(µgR)` | ✅ `MaxSpeedComputer` uses `√(g·R·tan θ_lean)`, which is the same equation with `µ ≡ tan θ`. See §7.2(d) — the default is well chosen |
 | Corner radius estimated from a GPS polyline | ✅ `computeRadiusWindowed` — **the literature offers no method for this at all**, so this is ahead of the published state of the art |
 | Backward pass propagating braking limits from corner exit | ✅ `MaxSpeedComputer` single backward pass |
 
@@ -64,7 +64,34 @@ Add brake actuation lag (~0.13 s) to the braking-point calculation if you want t
 A 0.07 % systematic error on both the gravity and rolling terms. Almost certainly deliberate for TS
 parity — worth a one-line comment saying so, since it reads as a typo.
 
-### (d) CdA is a constant; the literature makes it yaw-dependent
+### (d) The 35° lean default is a good number — and now has a literature anchor
+
+`MaxSpeedComputer` computes `v_max = √(g · R · tan θ_lean)`. That is algebraically
+`v_max = √(µ · g · R)` with **µ ≡ tan θ_lean**, i.e. vcyclist's lean-angle parameter *is* a friction
+coefficient wearing a different hat. With `DEFAULT_MAX_LEAN_ANGLE_DEG = 35°`, **µ_effective = 0.70**.
+
+Against Zignoli's measured values (§5.1):
+
+| Condition | µ | Equivalent lean angle |
+|---|---|---|
+| Dry asphalt (physical limit) | 0.90 | 42.0° |
+| **vcyclist default** | **0.70** | **35.0°** |
+| Wet asphalt (physical limit) | 0.36 | 19.8° |
+
+So the default sits at **78 % of dry grip** — a sensible "confident rider leaving margin", and
+consistent with the finding that real descenders ride below the physics-optimal line. Two cheap
+improvements:
+
+- Expose a **wet/dry condition** that swaps `µ` to ~0.36 (≈20° lean). This is the single largest
+  realism lever on a twisty descent: wet cuts cornering speed by **1.58×**.
+- Consider re-expressing the parameter as `µ` directly, since that is the form every source uses
+  and it makes the wet/dry mapping obvious. `tanMaxLeanAngle` is already the value being consumed.
+
+Also worth knowing: Zignoli's model **zeroes pedal power above a roll-angle threshold** (20° in his
+appendix) for pedal-strike clearance. vcyclist has no such term — a rider currently pedals at full
+power through a hairpin.
+
+### (e) CdA is a constant; the literature makes it yaw-dependent
 
 `AeroProvider` returns a single `aeroCoef`. Martin interpolates CdA across yaw
 (0.269 / 0.265 / 0.265 / 0.255 m² at 0/5/10/15°) — though for his TT position the variation is
@@ -97,11 +124,23 @@ open-loop. Replacing the decay with a W′bal-driven rule makes the simulated ri
 rider: back off when W′ is low, spend it on climbs. The existing `ClimbDetector` gives you the
 lookahead needed for the anticipation behaviour in §4.3.
 
-**3. A pacing heuristic — not an optimiser.** §4.4 is decisive here: the full DP takes **53 minutes
-for an 18 km route**, which is a non-starter for a pipeline stage. But §4.4 also shows **±5 % errors
-in CP/AWC cost only ~1 % in trial time** — the optimum is flat. Implement the qualitative rules
-(harder uphill and into headwind, ease downhill and with tailwind; spend W′ *before* a descent
-because it cannot be spent *during* one) and capture most of the available gain cheaply.
+**3. A pacing heuristic — not an optimiser.** §4.4 is decisive: the full DP takes **53 minutes for
+an 18 km route**, a non-starter for a pipeline stage. And you lose almost nothing by approximating:
+**±5 % errors in CP/AWC cost only ~1 % in trial time**, the whole optimum is worth **1–3 %** on
+realistic courses, and a real professional already rides within **1.2 %** of it. Implement the
+qualitative rules and capture most of the gain for none of the cost:
+
+- Harder uphill and into headwind, easier downhill and with tailwind.
+- **Ramp up gradually over several hundred metres** approaching a climb; **drop off quickly and
+  locally** on a descent (the asymmetry from Bach et al. — a discontinuous power step at each
+  gradient change is the specific thing to avoid).
+- Spend W′ *before* a descent, because it cannot be spent usefully *during* one; expect to recover
+  ~8 % of W′ through the descent and spend it on the next climb.
+- Prioritise **climb-plus-descent** sequences: that shape is worth 2.84 % versus 1.41 % for a pure
+  climb and 0.45 % for flat. Rolling terrain is where a pacing model earns its keep; flat routes
+  barely repay the effort.
+- Consider a **power slew-rate limit** (Zignoli & Biral use 50 W/s) so the simulated rider cannot
+  step power instantaneously.
 
 **4. Fuelling as a second state variable.** Glycogen depletion from
 [`02b`](02b-fuelling-and-thermal.md), driven by mechanical work through gross efficiency. Note the

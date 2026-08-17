@@ -37,7 +37,23 @@ Two independent later formulations reproduce the same structure:
   `F_pot + F_air + F_bear + F_roll + F_kin = (η · l_c)/(γ · r_w) · F_ped`
   with `F_kin = (m + I_w/r_w²) · a`.
 
-**Known discrepancies between the three** (decide deliberately, don't average them):
+A fourth formulation, **Sundström & Bäckström (2017)** (read directly from
+[`10.1177@1754337117700550.pdf`](10.1177@1754337117700550.pdf)), adds two refinements the others
+lack:
+
+- **Rolling resistance carries a vertical-curvature term**:
+  `F_RR = C_RR · m · (g·cos α + v²/R_v)` where `R_v = [1+(y′)²]^{3/2}/y″` is the course's radius of
+  curvature *in the vertical plane*. The extra normal force in a compression (valley bottom, dip)
+  raises rolling drag. Absent from Martin — and directly relevant on undulating terrain.
+- The motion equation is transformed so that **distance, not time, is the independent variable**,
+  *"so that the numerical solver can stop at a predetermined distance"*. For a GPX-driven simulator
+  whose route is defined by distance, that is arguably the more natural integration domain than
+  vcyclist's current time-stepping.
+
+Their bearing term `F_BR = b₁ + b₂·v` matches Dahmen's `β₀ + β₁·v`, and their CdA **varies with
+yaw** per Fintelman et al. — corroborating §1.5 from an independent source.
+
+**Known discrepancies between the four** (decide deliberately, don't average them):
 
 | Point | Martin | Dahmen | Danek |
 |---|---|---|---|
@@ -172,14 +188,12 @@ Three caveats that matter for implementation:
    Do not generalise it to a road bike on the hoods.
 3. Values are group means. The paper's own interpolation example uses subject-specific 0.258/0.257.
 
-## 1.6 What is NOT covered — cornering, braking, descents
+## 1.6 Lateral dynamics are covered separately
 
-**No verified source in the first research pass addresses lateral dynamics at all.** Every
-physical claim above is longitudinal power balance only. Maximum cornering speed, braking
-deceleration, line choice through bends and descent speed caps are covered in
-[`04-behavioral-modeling.md`](04-behavioral-modeling.md) and
-[`05-cornering-braking-descending.md`](05-cornering-braking-descending.md) from the second
-research pass — treat their evidence grade separately from this document's.
+Every claim above is **longitudinal power balance only**. Maximum cornering speed, friction
+coefficients, braking deceleration, lean limits, line choice and descent speed are in
+[`05-cornering-braking-descending.md`](05-cornering-braking-descending.md), which is now on
+equally solid ground (`v_max ≅ √(µgR)`, µ = 0.9 dry / 0.36 wet).
 
 ## Sources
 
@@ -191,3 +205,6 @@ research pass — treat their evidence grade separately from this document's.
   <https://kops.uni-konstanz.de/bitstream/123456789/18440/2/dahmen_validation.pdf>
 - Danek, Sławiński & Stanoev. arXiv:2005.04229 (**unrefereed preprint**) — power model, air-density
   formula, and a Monte-Carlo CdA/Crr fit on real segment data. <https://arxiv.org/pdf/2005.04229>
+- Sundström D, Bäckström M. *Optimization of pacing strategies for variable wind conditions in road
+  cycling.* Proc IMechE Part P, 2017. DOI 10.1177/1754337117700550.
+  → [`10.1177@1754337117700550.pdf`](10.1177@1754337117700550.pdf)
