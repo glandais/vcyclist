@@ -201,4 +201,9 @@ internal val POINT_FIELD_ACCESSORS: List<PointFieldAccessor> =
             GeneratedPath::pBrake,
             GeneratedPath::setPBrake,
         ),
+        PointFieldAccessor(
+            PointField.TRAJECTORY_CURVATURE,
+            GeneratedPath::trajectoryCurvature,
+            GeneratedPath::setTrajectoryCurvature,
+        ),
     )

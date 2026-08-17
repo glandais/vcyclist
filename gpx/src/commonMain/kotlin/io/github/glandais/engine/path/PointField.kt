@@ -14,6 +14,11 @@ package io.github.glandais.engine.path
  * @property notSelectable hidden from generic per-field selection UI (e.g. latitude/time)
  * @property anglesInRadians true if the value is stored in radians and exposing a degrees getter
  *   is recommended (deferred to task 12)
+ * @property nanDefault true if a freshly allocated `Path` must read `Double.NaN` for this slot
+ *   rather than `0.0`. Use it for any field whose *absence* is meaningful and whose natural
+ *   zero would be misread as a value — a `0.0` curvature, for instance, is a straight line, not
+ *   "not computed". Readers of such a field gate on `isNaN()`; without the flag every such
+ *   sentinel is dead on arrival. Costs one write per point per flagged field at construction.
  */
 enum class PointField(
     val prop: String,
@@ -22,6 +27,7 @@ enum class PointField(
     val category: PointFieldCategory,
     val notSelectable: Boolean = false,
     val anglesInRadians: Boolean = false,
+    val nanDefault: Boolean = false,
 ) {
     // --- Coordinates ---------------------------------------------------------
     LATITUDE(
@@ -210,6 +216,29 @@ enum class PointField(
      * **Not a TS field.** The TS reference discards this energy silently.
      */
     P_BRAKE("pBrake", "watts", "Braking power", PointFieldCategory.POWER_PHYSICS),
+
+    /**
+     * Signed curvature of the ridden trajectory, in m⁻¹, positive turning **left** — written by
+     * the curvature estimator in `:engine`'s `trajectory` package, and read by
+     * `MaxSpeedComputer` in preference to its own windowed bearing-difference estimate.
+     *
+     * [nanDefault] is `true` and load-bearing: `MaxSpeedComputer` gates on `isNaN()` to decide
+     * whether the estimator ran. A zero default would read as "present, radius 1e9", which is
+     * indistinguishable from a straight road and would silently suppress every cornering limit.
+     *
+     * Note the sign convention is **not** `Path.bearing`'s — that one is `atan2(-dy, dx)`,
+     * screen-style and clockwise-from-east. This field follows the standard math azimuth of the
+     * local planar frame it is computed in.
+     *
+     * **Not a TS field.** The TS reference has no curvature field.
+     */
+    TRAJECTORY_CURVATURE(
+        "trajectoryCurvature",
+        "1/m",
+        "Trajectory curvature (1/m, + = left)",
+        PointFieldCategory.RADIUS,
+        nanDefault = true,
+    ),
     ;
 
     /** Field index in the per-point `DoubleArray` slot (== [ordinal]). */
@@ -217,7 +246,7 @@ enum class PointField(
 
     companion object {
         /** Number of fields per point. Single source of truth for codegen (task 11). */
-        const val COUNT: Int = 38
+        const val COUNT: Int = 39
 
         private val byPropMap: Map<String, PointField> = entries.associateBy { it.prop }
 

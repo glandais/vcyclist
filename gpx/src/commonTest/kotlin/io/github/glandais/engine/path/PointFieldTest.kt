@@ -7,21 +7,21 @@ import kotlin.test.assertTrue
 
 class PointFieldTest {
     @Test
-    fun `38 fields exactly`() {
-        assertEquals(38, PointField.entries.size)
-        assertEquals(38, PointField.COUNT)
+    fun `39 fields exactly`() {
+        assertEquals(39, PointField.entries.size)
+        assertEquals(39, PointField.COUNT)
     }
 
     @Test
     fun `ordinals are unique`() {
         val ordinals = PointField.entries.map { it.ordinal }
-        assertEquals(38, ordinals.toSet().size)
+        assertEquals(39, ordinals.toSet().size)
     }
 
     @Test
     fun `props are unique and non-blank`() {
         val props = PointField.entries.map { it.prop }
-        assertEquals(38, props.toSet().size)
+        assertEquals(39, props.toSet().size)
         assertTrue(props.all { it.isNotBlank() })
     }
 
@@ -40,6 +40,19 @@ class PointFieldTest {
         assertEquals(35, PointField.CADENCE.ordinal)
     }
 
+    /**
+     * Pins the exact set of NaN-defaulted fields. Flagging a field is a wire-format-visible
+     * decision — every consumer of that slot must gate on `isNaN()` — so it should never happen
+     * as a side effect of adding a field.
+     */
+    @Test
+    fun `nanDefault is declared on exactly the intended fields`() {
+        assertEquals(
+            listOf("trajectoryCurvature"),
+            PointField.entries.filter { it.nanDefault }.map { it.prop },
+        )
+    }
+
     @Test
     fun `byProp round-trip`() {
         for (f in PointField.entries) {
@@ -55,7 +68,7 @@ class PointFieldTest {
         assertEquals(1, PointField.byCategory(PointFieldCategory.ANGLES).size)
         assertEquals(1, PointField.byCategory(PointFieldCategory.ELEVATION).size)
         assertEquals(1, PointField.byCategory(PointFieldCategory.GRADE).size)
-        assertEquals(1, PointField.byCategory(PointFieldCategory.RADIUS).size)
+        assertEquals(2, PointField.byCategory(PointFieldCategory.RADIUS).size)
         assertEquals(1, PointField.byCategory(PointFieldCategory.AERO_COEF).size)
         assertEquals(2, PointField.byCategory(PointFieldCategory.CYCLIST_WIND).size)
         assertEquals(5, PointField.byCategory(PointFieldCategory.POWER_PHYSICS).size)
@@ -69,7 +82,7 @@ class PointFieldTest {
     @Test
     fun `all fields are partitioned across categories`() {
         val sum = PointFieldCategory.entries.sumOf { PointField.byCategory(it).size }
-        assertEquals(38, sum)
+        assertEquals(39, sum)
     }
 
     @Test
@@ -115,6 +128,7 @@ class PointFieldTest {
                 "rpm",
                 "aero",
                 "joules",
+                "1/m",
             )
         for (f in PointField.entries) {
             assertTrue(f.unit in allowed, "Unexpected unit '${f.unit}' for $f")

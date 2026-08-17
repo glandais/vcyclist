@@ -18,8 +18,18 @@ abstract class GeneratedPath(
      * Zero-initialised, matching the TS `AbstractPath` backing store
      * (`new Float64Array(...)`). "Absent" is signalled by writing `Double.NaN`
      * explicitly — see `GpxToPath`, which does so for absent sensor fields.
+     *
+     * Slots whose [PointField] declares `nanDefault = true` are the exception:
+     * they are NaN-filled below, because their natural zero is a legal value and
+     * would be indistinguishable from "never written".
      */
     protected val data: DoubleArray = DoubleArray(size * PointField.COUNT)
+
+    init {
+        for (i in 0 until size) {
+            data[i * PointField.COUNT + 38] = Double.NaN // trajectoryCurvature
+        }
+    }
 
     /** Generic read by [field]. */
     fun get(
@@ -376,5 +386,14 @@ abstract class GeneratedPath(
         v: Double,
     ) {
         data[i * PointField.COUNT + 37] = v
+    }
+
+    fun trajectoryCurvature(i: Int): Double = data[i * PointField.COUNT + 38]
+
+    fun setTrajectoryCurvature(
+        i: Int,
+        v: Double,
+    ) {
+        data[i * PointField.COUNT + 38] = v
     }
 }

@@ -3,6 +3,7 @@ package io.github.glandais.engine.path
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFailsWith
+import kotlin.test.assertTrue
 
 /** Concrete subclass used only by tests (the production [GeneratedPath] is abstract). */
 private class TestPath(
@@ -27,6 +28,43 @@ class GeneratedPathTest {
     fun `data length is size times COUNT`() {
         val path = TestPath(7)
         assertEquals(7 * PointField.COUNT, path.internalDataSize())
+    }
+
+    /**
+     * The load-bearing test for the `nanDefault` mechanism.
+     *
+     * `MaxSpeedComputer` gates on `trajectoryCurvature(i).isNaN()` to decide whether the
+     * curvature estimator ran. If a fresh [GeneratedPath] ever reads `0.0` there instead, the
+     * sentinel is dead: a zero curvature is a legal value meaning "straight", so every point
+     * would be treated as estimator-written and the cornering limits would be computed from a
+     * radius of 1e9. Equally, if the NaN fill ever leaked into a non-flagged slot, every
+     * unwritten field in the codebase would become NaN and propagate through the whole pipeline.
+     */
+    @Test
+    fun `a fresh path reads NaN for nanDefault fields and zero for all others`() {
+        val size = 3
+        val path = TestPath(size)
+        val flagged = PointField.entries.filter { it.nanDefault }
+        assertTrue(flagged.isNotEmpty(), "no field declares nanDefault - this test would be vacuous")
+        for (i in 0 until size) {
+            for (field in PointField.entries) {
+                val v = path.get(i, field)
+                if (field.nanDefault) {
+                    assertTrue(v.isNaN(), "$field at i=$i should default to NaN, was $v")
+                } else {
+                    assertEquals(0.0, v, "$field at i=$i should default to 0.0, was $v")
+                }
+            }
+        }
+    }
+
+    @Test
+    fun `nanDefault fields are still writable and readable`() {
+        val path = TestPath(2)
+        path.setTrajectoryCurvature(1, -0.05)
+        assertEquals(-0.05, path.trajectoryCurvature(1))
+        // the untouched row keeps its sentinel
+        assertTrue(path.trajectoryCurvature(0).isNaN())
     }
 
     @Test

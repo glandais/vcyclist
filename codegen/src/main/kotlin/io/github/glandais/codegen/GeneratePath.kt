@@ -4,7 +4,7 @@ import java.io.File
 
 /*
  * Codegen for gpx/src/commonMain/kotlin/io/github/glandais/engine/path/
- *   - GeneratedPath.kt        (abstract class with 38 typed accessor pairs + generic get/set)
+ *   - GeneratedPath.kt        (abstract class with 39 typed accessor pairs + generic get/set)
  *   - PointFieldAccessors.kt  (POINT_FIELD_ACCESSORS list bound to GeneratedPath member refs)
  *
  * Run from vcyclist/ root after editing PointField.kt:
@@ -18,6 +18,8 @@ import java.io.File
 private data class FieldSpec(
     val enumName: String,
     val prop: String,
+    /** Mirrors `PointField.nanDefault` — flagged slots are NaN-filled at construction. */
+    val nanDefault: Boolean = false,
 )
 
 // Keep in sync with gpx/src/commonMain/kotlin/io/github/glandais/engine/path/PointField.kt
@@ -61,9 +63,10 @@ private val FIELDS =
         FieldSpec("CADENCE", "cadence"),
         FieldSpec("W_PRIME_BALANCE", "wPrimeBalance"),
         FieldSpec("P_BRAKE", "pBrake"),
+        FieldSpec("TRAJECTORY_CURVATURE", "trajectoryCurvature", nanDefault = true),
     )
 
-private const val EXPECTED_COUNT = 38
+private const val EXPECTED_COUNT = 39
 
 fun main() {
     require(FIELDS.size == EXPECTED_COUNT) {
@@ -98,13 +101,30 @@ private fun buildGeneratedPath(): String =
         appendLine("        require(size >= 0) { \"Negative size: \$size\" }")
         appendLine("    }")
         appendLine()
+        val nanFields = FIELDS.withIndex().filter { it.value.nanDefault }
         appendLine("    /**")
         appendLine("     * Zero-initialised, matching the TS `AbstractPath` backing store")
         appendLine("     * (`new Float64Array(...)`). \"Absent\" is signalled by writing `Double.NaN`")
         appendLine("     * explicitly — see `GpxToPath`, which does so for absent sensor fields.")
+        if (nanFields.isNotEmpty()) {
+            appendLine("     *")
+            appendLine("     * Slots whose [PointField] declares `nanDefault = true` are the exception:")
+            appendLine("     * they are NaN-filled below, because their natural zero is a legal value and")
+            appendLine("     * would be indistinguishable from \"never written\".")
+        }
         appendLine("     */")
         appendLine("    protected val data: DoubleArray = DoubleArray(size * PointField.COUNT)")
         appendLine()
+        if (nanFields.isNotEmpty()) {
+            appendLine("    init {")
+            appendLine("        for (i in 0 until size) {")
+            nanFields.forEach { (idx, f) ->
+                appendLine("            data[i * PointField.COUNT + $idx] = Double.NaN // ${f.prop}")
+            }
+            appendLine("        }")
+            appendLine("    }")
+            appendLine()
+        }
         appendLine("    /** Generic read by [field]. */")
         appendLine("    fun get(")
         appendLine("        i: Int,")

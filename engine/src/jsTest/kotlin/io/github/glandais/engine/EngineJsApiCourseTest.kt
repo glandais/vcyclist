@@ -3,6 +3,7 @@
 package io.github.glandais.engine
 
 import io.github.glandais.engine.gpx.GpxFixtures
+import io.github.glandais.engine.path.PointField
 import kotlinx.coroutines.await
 import kotlinx.coroutines.test.runTest
 import kotlin.test.Test
@@ -56,9 +57,9 @@ class EngineJsApiCourseTest {
     }
 
     @Test
-    fun `fieldDefinitions exposes the 38 entries with the expected props`() {
+    fun `fieldDefinitions exposes the 39 entries with the expected props`() {
         val defs = fieldDefinitions()
-        assertEquals(38, defs.size)
+        assertEquals(PointField.COUNT, defs.size)
         assertTrue(defs.any { it.prop == "elevation" }, "missing 'elevation' entry")
         assertTrue(defs.any { it.prop == "speed" }, "missing 'speed' entry")
         // Sanity-check the carried metadata for one known entry.
