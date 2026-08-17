@@ -1,3 +1,11 @@
+## [3.1.1](https://github.com/glandais/vcyclist/compare/v3.1.0...v3.1.1) (2026-08-17)
+
+
+### Bug Fixes
+
+* **build:** give the browser tests the same 30 s mocha timeout as Node ([#47](https://github.com/glandais/vcyclist/issues/47)) ([cfe1035](https://github.com/glandais/vcyclist/commit/cfe10357e5590e848d2c7caae2af243a6329ae87))
+* **engine:** correct physics constants from the research review ([#45](https://github.com/glandais/vcyclist/issues/45)) ([dc27bcf](https://github.com/glandais/vcyclist/commit/dc27bcfb93fab280eac3af28f0ef02bbf41ce14e)), closes [#2](https://github.com/glandais/vcyclist/issues/2)
+
 # [3.1.0](https://github.com/glandais/vcyclist/compare/v3.0.0...v3.1.0) (2026-07-31)
 
 
