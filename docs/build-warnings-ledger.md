@@ -240,8 +240,8 @@ at the default log level:
 | `kotlin-kotlin-stdlib.js` | 10 |
 | `kotlinx-atomicfu.js` | 5 |
 
-Not yet inspected — the detail needs `--info` or a webpack `stats` bump. Three of these modules are
-first-party (`vcyclist-gpx`, `vcyclist-engine`, `vcyclist-elevation`, `vcyclist-fit`).
+**Inspected 2026-08-17 — verdict: benign, no action.** See
+[E2 investigation](#e2-investigation) below for how it was measured and why nothing was changed.
 
 ## F. Test-infrastructure noise
 
@@ -305,7 +305,7 @@ counts 5 and not 2.
 | C6 | Warning | 1 | `UnitDump.kt:229` | first-party | ➖ moot (harness deleted upstream) |
 | D1 | Becomes an error later | 1 | 4 × `build.gradle.kts` | KGP | 🟡 documented, deferred to w08 |
 | E1 | Perf advisory | 6 | `engine.js`, `fit.js` | first-party + deps | ⬜ open |
-| E2 | Unknown (uninspected) | ~429 | Kotlin/JS modules | mixed | ⬜ open |
+| E2 | Benign (investigated) | 429 | Kotlin/JS modules | third-party | ✅ closed, no action |
 | F1 | Noise | 4 | KGP mocha wiring | third-party | ⬜ not ours |
 | F2 | Noise | 14 | ktlint's embedded compiler | third-party | ⬜ not ours |
 | G1 | Coverage gap | 1 | `demo/build.gradle.kts` | first-party | ⬜ open, needs a decision |
@@ -362,8 +362,63 @@ own when `develop` dropped the parity harness.
   pointless Node test tasks. Recorded in `docs/kotlin-wasm-wasi.md` §1 instead, where it had been
   filed as a "Beta2 roughness" — it persists on 2.4.20-RC, so it is KGP behaviour, and it closes the
   first of w08's three re-verification questions early. Re-check at 2.4.20 final.
-- **E1 / E2** — `engine.js` at 996 KiB and the ~429 uninspected per-module webpack warnings need real
-  investigation (a `stats` bump to even read them), not a quick fix.
+- **E1** — `engine.js` at 996 KiB needs real work (code splitting or a leaner browser surface), not a
+  build-config tweak. Still open.
+- **E2** — investigated and closed as benign; see [E2 investigation](#e2-investigation).
 - **F1 / F2** — third-party: KGP's own mocha wiring, and ktlint's embedded compiler 2.1.0.
 - **G1** — wiring `:demo` into `build` would make every contributor's `./gradlew build` run npm
   install + vite. That is a build-time policy call, not a warning fix.
+
+## E2 investigation
+
+*2026-08-17. Question: what are the ~429 warnings webpack counts per module but never prints?*
+
+### How they were read
+
+`stats.warnings = true` does **not** surface them, and neither does `--info`: they are not compilation
+warnings. They are `ModuleWarning`s attached to individual modules, reachable only through the API. A
+throwaway webpack plugin walking `compilation.modules` and calling `module.getWarnings()` produced all
+429, which were then classified. The plugin was temporary and is **not** committed — nothing in the
+build was left behind by this investigation.
+
+### What they are
+
+All 429 are a **single** message shape, from `source-map-loader`:
+
+```
+Failed to parse source map from '<path>/Foo.kt' file: Error: ENOENT: no such file or directory
+```
+
+365 distinct missing `.kt` files, by root:
+
+| Root | Files | Whose |
+|---|---|---|
+| `/runner/work/...` | 160 | `fit-kotlin-sdk`, path baked in by its GitHub Actions build |
+| `/Users/runner/...` | 101 | `xmlutil`, same but a macOS runner |
+| `/opt/buildAgent/...` | 53 | JetBrains TeamCity — stdlib, coroutines, atomicfu |
+| local `build/js/packages/...` | 51 | Kotlin stdlib / JS-runtime sources KGP does not materialise |
+
+### Why no action
+
+- **Not our sources.** The counts are attributed to the bundle module, which made `vcyclist-*` look
+  implicated — but every missing file is a Kotlin stdlib or third-party source. Our own code is
+  referenced by relative path (`../../../../../engine/src/commonMain/…`), resolves, and debugs
+  normally. 26 of the 39 sources in `vcyclist-engine.js.map` are ours and all resolve.
+- **They are never printed.** `grep -c "Failed to parse source map"` over two full `clean build` logs
+  returns **0**. They surface only as the `[N warnings]` counts above, and they do **not** feed the
+  `compiled with 3 warnings` total — so they were never hiding E1's size warnings, which was the
+  original worry.
+- **`ignoreWarnings` does not touch them.** A narrow `config.ignoreWarnings = [/Failed to parse source
+  map/]` was tried on all three modules and changed the output *not at all* (byte-identical webpack
+  blocks apart from timings). It was reverted rather than committed as a no-op that looks like a fix.
+- Actually removing the counts would mean excluding stdlib and library JS from `source-map-loader`, i.e.
+  fighting KGP's own webpack wiring and risking the source mapping that does work. Not worth it for
+  something that never reaches the console.
+
+### One real curiosity, deliberately left alone
+
+`vcyclist-elevation.js.map` lists `TileFetcher.js.kt` **twice**: once correctly as
+`../../../../../elevation/src/jsMain/…/TileFetcher.js.kt`, and once as a bare `TileFetcher.js.kt` that
+resolves nowhere — the only one of the 429 that names a file of ours. The working entry is present, so
+mapping into that file is unaffected; the duplicate is a compiler artefact around the `.js.kt`
+per-target naming. Recorded rather than chased.
