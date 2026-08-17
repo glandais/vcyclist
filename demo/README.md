@@ -27,8 +27,11 @@ python -m http.server -d demo/dist 8000
 
 ## Architecture
 
-The Vue 3 app imports `@glandais/vcyclist-engine` via a `file:` link to the
-Gradle output (`../engine/build/dist/js/productionLibrary/`). The engine is the
+The Vue 3 app imports `@glandais/vcyclist-engine` via a Vite `resolve.alias` onto the
+Gradle output (`../engine/build/dist/js/productionLibrary/`), mirrored by a `paths` entry
+in `tsconfig.json`. It is deliberately **not** an npm `file:` dependency: that made
+Dependabot fail the whole directory with "couldn't fetch all your path-based
+dependencies", so the demo's own dependencies were never updated. The engine is the
 Kotlin/JS compiled output of the `:engine` module — same physics, same GPX
 parser, same DEM-fix pipeline as the JVM CLI (see [`../README.md`](../README.md)).
 
