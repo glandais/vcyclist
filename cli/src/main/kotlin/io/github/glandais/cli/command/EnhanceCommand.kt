@@ -313,6 +313,26 @@ class EnhanceCommand : Callable<Int> {
                 ),
         )
 
+    /**
+     * Stamp `--road-width` onto every point when the user actually typed it.
+     *
+     * Without this the flag is a no-op on any file a modern router produced. `GpxToPath` infers a
+     * width from the OSM `highway` class, and file-derived data outranks an option default — so on
+     * a route tagged `highway=secondary` the inferred 6.0 m would silently beat `--road-width 3`,
+     * and the user would see no change at all.
+     *
+     * The precedence a typed flag deserves is above both inference *and* the file's own width: a
+     * class-typical figure is a guess, a file's `<roadwidth>` is somebody else's measurement, and
+     * an explicit argument is this user telling us about this road. Checked against
+     * `hasMatchedOption` rather than against the default value, so passing the default explicitly
+     * still counts as being told.
+     */
+    private fun applyRoadWidthOverride(path: Path) {
+        val matched = spec.commandLine().parseResult?.hasMatchedOption("--road-width") ?: false
+        if (!matched) return
+        for (i in 0 until path.size) path.setRoadWidth(i, roadWidthM)
+    }
+
     private fun processOne(
         input: File,
         inputCount: Int,
@@ -326,6 +346,7 @@ class EnhanceCommand : Callable<Int> {
 
         val document = GpxParser.parse(input.readText())
         val paths = document.tracksAsPaths()
+        paths.forEach(::applyRoadWidthOverride)
         require(paths.isNotEmpty()) { "no track with any point" }
 
         if (!quiet) {

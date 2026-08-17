@@ -278,6 +278,7 @@ object GpxParser {
                         temperatureC = ext.temperatureC,
                         powerW = ext.powerW,
                         roadWidthM = ext.roadWidthM,
+                        highway = ext.highway,
                     )
                 else -> Unit
             }
@@ -292,6 +293,7 @@ object GpxParser {
             temperatureC = ext.temperatureC,
             powerW = ext.powerW,
             roadWidthM = ext.roadWidthM,
+            highway = ext.highway,
         )
     }
 
@@ -414,6 +416,13 @@ object GpxParser {
                         "roadwidth" -> {
                             readNumeric(reader)?.let { ext.roadWidthM = ext.roadWidthM ?: it }
                         }
+                        // OSM way classification, as routers stamp it. A width proxy, not a width:
+                        // see `OsmHighway`. Unlike the numeric leaves this one is free text, so it
+                        // is read as such and validated by the mapping rather than by the parser.
+                        "highway" -> {
+                            val text = readElementText(reader).trim()
+                            if (text.isNotEmpty() && ext.highway == null) ext.highway = text
+                        }
                         else -> {
                             // Recurse into containers (e.g. <TrackPointExtension>) and other
                             // wrapper elements ; their child leaves carry the values we want.
@@ -490,5 +499,6 @@ object GpxParser {
         var temperatureC: Double? = null,
         var powerW: Double? = null,
         var roadWidthM: Double? = null,
+        var highway: String? = null,
     )
 }

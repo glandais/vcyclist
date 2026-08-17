@@ -94,6 +94,11 @@ data class GpxTrack(
      * positional calls keep compiling.
      */
     val roadWidthM: Double? = null,
+    /**
+     * OSM `highway` classification, when a router stamped one. Used as a width proxy where no
+     * explicit width is given — see `OsmHighway`.
+     */
+    val highway: String? = null,
 ) {
     /**
      * All points of all segments, concatenated in document order. Kept as the pre-g02 accessor so
@@ -145,4 +150,9 @@ data class GpxTrackPoint(
      * positional constructions keep compiling.
      */
     val roadWidthM: Double? = null,
+    /**
+     * OSM `highway` classification, when a router stamped one. Used as a width proxy where no
+     * explicit width is given — see `OsmHighway`.
+     */
+    val highway: String? = null,
 )

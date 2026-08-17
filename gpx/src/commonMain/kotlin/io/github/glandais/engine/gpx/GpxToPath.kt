@@ -138,10 +138,14 @@ private fun pointsToPath(
         path.setHeartRate(i, p.heartRate?.toDouble() ?: Double.NaN)
         path.setCadence(i, p.cadence?.toDouble() ?: Double.NaN)
         path.setTemperature(i, p.temperatureC ?: Double.NaN)
-        // A point's own width wins over the track default. Implausible values become NaN rather
-        // than being clamped into range: a transcription error must not turn into a legal
-        // corridor, because the racing-line gain is linear in the width it is given.
-        val width = p.roadWidthM ?: trackRoadWidthM
+        // Width precedence: the point's own value, then the track default, then what the OSM way
+        // class implies. Explicit data always beats inference, and inference never manufactures a
+        // width for a class it does not recognise — the reader's own default applies instead.
+        //
+        // Implausible values become NaN rather than being clamped into range: a transcription error
+        // must not turn into a legal corridor, because the racing-line gain is linear in the width
+        // it is given.
+        val width = p.roadWidthM ?: trackRoadWidthM ?: OsmHighway.defaultWidthM(p.highway)
         path.setRoadWidth(i, if (width != null && width in PLAUSIBLE_ROAD_WIDTH_M) width else Double.NaN)
     }
     path.computeDerivedData()
