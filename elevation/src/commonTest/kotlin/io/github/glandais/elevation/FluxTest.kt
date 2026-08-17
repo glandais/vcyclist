@@ -1,6 +1,11 @@
+// `runCurrent()` — the only way to observe in-flight concurrency without advancing virtual time —
+// is `@ExperimentalCoroutinesApi`.
+@file:OptIn(ExperimentalCoroutinesApi::class)
+
 package io.github.glandais.elevation
 
 import kotlinx.coroutines.CompletableDeferred
+import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.async
 import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.test.runTest

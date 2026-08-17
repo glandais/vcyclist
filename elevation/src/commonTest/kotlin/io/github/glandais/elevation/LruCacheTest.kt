@@ -1,6 +1,11 @@
+// `runCurrent()` — used here to let both coroutines reach the cache before the gate opens — is
+// `@ExperimentalCoroutinesApi`.
+@file:OptIn(ExperimentalCoroutinesApi::class)
+
 package io.github.glandais.elevation
 
 import kotlinx.coroutines.CompletableDeferred
+import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.async
 import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.test.runTest

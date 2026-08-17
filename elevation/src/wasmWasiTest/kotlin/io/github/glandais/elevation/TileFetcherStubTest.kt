@@ -142,7 +142,15 @@ class TileFetcherStubTest {
 
             val elevations = provider.setElevations(listOf(LatLon(0.0, 0.0)), interpolation = false)
 
-            assertTrue(elevations.single().elevation != null, "the injected tile must yield an elevation")
+            // `CoordinatesElevation.elevation` is a non-nullable Double, so a `!= null` check here
+            // asserted nothing. What the test means is that the value came from the injected tile:
+            // (0, 0) is the centre of the zoom-0 tile, i.e. pixel (2, 2) of a 4 × 4 one.
+            assertEquals(
+                InlineTerrariumTileFixture.elevationAt(2, 2).toDouble(),
+                elevations.single().elevation,
+                1e-9,
+                "the injected tile must yield the elevation it encodes",
+            )
             assertEquals(listOf("cache://0/0/0"), requested, "exactly one tile, served from the caller's map")
         }
 }
