@@ -4,8 +4,9 @@
 > the curvature estimator of §3.1–3.3 with the `MaxSpeedComputer` hook of §8.2 (ledger
 > [**R23**](../research/improvements-ledger.md)), and the corridor, corner detector, offset QP and
 > pipeline integration of §3.4–3.6, §3.8, §3.11 and §8 (ledger **R24**, opt-in via
-> `racingLine.enabled`). **Not** implemented: time weighting (§3.7), roundabouts (§5), junction
-> reconstruction (§3.10) and the lattice-DP fallback (§3.9). Task specs:
+> `racingLine.enabled`). **Rejected on measurement**: time weighting (§3.7) — implemented in full
+> and reverted, see ledger **R25**. **Not** implemented: roundabouts (§5), junction reconstruction
+> (§3.10) and the lattice-DP fallback (§3.9). Task specs:
 > [`t01`](../tasks/t01-nan-default-curvature-field.md), [`t02`](../tasks/t02-road-width.md),
 > [`t03`](../tasks/t03-curvature-estimator.md),
 > [`t04`](../tasks/t04-corner-detector-corridor.md), [`t05`](../tasks/t05-offset-qp.md),
@@ -20,8 +21,14 @@
 > - **§3.6's exact offset curvature must not be written straight out.** It reads `n''` off a finite
 >   difference, and a box-constrained solution's bound kinks turn into spurious hairpins — 16–27 %
 >   slower rides until the curvature was instead re-measured on the materialised path.
-> - **The objective needs the §3.7 saturation mask even without time weighting**, or it amplifies
->   jitter: `n'' ≈ −κ` integrated twice is a random walk.
+> - **The objective needs a saturation mask**, or it amplifies jitter: `n'' ≈ −κ` integrated twice
+>   is a random walk. A fixed 200 m radius measures better than §3.7's rider-derived
+>   `R_sat = v_max²/(µg)`, which is 112 m at the defaults and costs 0.3–0.6 pp on every fixture.
+> - **§3.7's IRLS reweighting makes rides slower**, by 0.2–0.8 pp — enough to turn `strava`'s gain
+>   into a loss. Weighting on the solved line's curvature, as §3.7 specifies, is worse still: it
+>   drives a 15 m hairpin to a 3.3 m line, because the weights are read off the same spiky analytic
+>   curvature that §3.6 must not be trusted for. And `gradeApexCoupling` changes nothing measurable
+>   at all. See **R25**.
 >
 > Maintainer decisions taken since, which override the text below where they disagree:
 >

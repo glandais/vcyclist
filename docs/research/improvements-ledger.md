@@ -71,6 +71,7 @@ deliberately skipped. The matrix lives in
 | R22 | Optimal-pacing solver as rider behaviour | Negative | Very high | ❌ |
 | R23 | **Curvature by heading regression in a planar frame** | **High (measured)** | Low | ✅ |
 | R24 | Racing line (optimal trajectory through corners) | Low (measured) | High | ✅ (opt-in) |
+| R25 | Time-weighted racing-line objective (IRLS toward `∫√κ ds`) | Negative (measured) | Medium | ❌ |
 
 Recommended order if acted on: ~~R15 → R12 → R9 → R17 → R10 → R18 → R16 → R11 → R19 → R23 → R24~~ —
 **all shipped**. Left: **R14** (posture CdA) and **R20** (RPE / Hazard Score), both deferred on
@@ -528,6 +529,47 @@ The corridor is also still a fiction on any route without width data: the gain i
 assumed road width, so `defaultRoadWidthM = 6.0` being wrong by 2× makes the whole result wrong by
 2×, in an unknown direction. Design §12 question 1 remains the honest caveat, and `--road-width` is
 exposed precisely so a user who knows better can say so.
+
+### R25 — Time weighting of the racing-line objective ❌
+
+`docs/design/racing-line.md` §3.7: reweight the trajectory objective toward `∫√κ ds` by IRLS, mask
+it with the rider-derived saturation radius `R_sat = v_max²/(µg)`, and bias the apex late on uphill
+exits. Implemented in full, measured, and reverted. Task
+[`t06`](../tasks/t06-time-weighting.md) keeps the detail.
+
+Duration against the plain centreline, `FULL_ROAD`, lower is better:
+
+| variant | `stelvio` | `strava` | `sample` |
+|---|---|---|---|
+| **R24 as shipped** (fixed 200 m mask, no reweighting) | **+0.07 %** | **−0.54 %** | **−0.81 %** |
+| `R_sat` mask (112 m), no reweighting | +0.27 % | +0.08 % | −0.51 % |
+| `R_sat` mask + 2 IRLS rounds | +0.36 % | +0.29 % | −0.67 % |
+| … + grade coupling 0.15 | +0.36 % | +0.29 % | −0.67 % |
+
+The premise is sound and the implementation is not the problem: cornering time really is
+`√(1/µg)·∫√κ ds`, so `∫κ² ds` really is the wrong objective, and IRLS really does target the right
+one. What fails is what the reweighting does to the *balance* of the energy. Normalising `ρ` to a
+masked mean of 1 leaves `ρ < 1` at the tight apexes that matter and near the ceiling on the gentle
+stretches beside them, so effort moves away from the corners worth optimising. The line weaves
+more — `strava` grows to 21 408 m against 21 148 m — and the extra distance costs more than the
+corner speed returns.
+
+Two details worth keeping:
+
+- **Weighting on the solved line's curvature, as the design specifies, is actively unstable.** It
+  drove a 15 m hairpin to a 3.3 m line, because the analytic offset curvature spikes at every
+  corridor-bound kink (see R24) and the weights then collapse at the spikes and saturate beside
+  them. Weighting on the reference curvature avoids that, and still loses.
+- **Grade coupling changed nothing to three significant figures** on any fixture. It was a
+  hand-tuned scalar standing in for a variational result, and it turns out not to express anything
+  the geometry responds to.
+
+This is the third entry now — after R11 and R24 — where constraint algebra was predicted to move
+the clock and measurement said otherwise. The pattern is consistent enough to be worth stating as a
+prior: **on this engine, refinements to the speed *envelope* buy fractions of a percent, because a
+rider spends 1–5 % of a ride against it.** Design §12 question 4 names what would actually be
+needed — a construct–simulate–reconstruct loop with two `VirtualizeService` runs per iteration —
+and that is a different design, not a coefficient.
 
 ## C. Physiological
 
