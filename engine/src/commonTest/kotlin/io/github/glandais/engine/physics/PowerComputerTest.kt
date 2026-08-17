@@ -37,7 +37,7 @@ class PowerComputerTest {
     fun equivalentMass_defaults_match_80_plus_inertia_over_r_squared() {
         val course = Course(Path(1))
         val mEq = PowerComputer.equivalentMass(course)
-        assertEquals(80.0 + 0.12 / 0.49, mEq, tolStrict)
+        assertEquals(80.0 + 0.12 / 0.1225, mEq, tolStrict)
         // Cross-check via CoursePhysics overload.
         val cp = CoursePhysics(course)
         assertEquals(mEq, PowerComputer.equivalentMass(cp), 0.0)
@@ -228,8 +228,8 @@ class PowerComputerTest {
         val course = Course(path)
         val cp = CoursePhysics(course)
         val mEq = PowerComputer.equivalentMass(course)
-        // Sanity check the mEq numeric value matches the spec narrative (≈ 80.2449).
-        assertEquals(80.2449, mEq, 1e-4)
+        // Sanity check the mEq numeric value matches the spec narrative (≈ 80.9796).
+        assertEquals(80.9796, mEq, 1e-4)
 
         PowerComputer.computeCyclistPower(cp, path, mEq, i = 1)
 

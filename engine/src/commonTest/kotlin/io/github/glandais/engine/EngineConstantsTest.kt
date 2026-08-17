@@ -8,8 +8,8 @@ import kotlin.test.assertTrue
 
 class EngineConstantsTest {
     @Test
-    fun g_is_9_8() {
-        assertEquals(9.8, EngineConstants.G)
+    fun g_is_standard_gravity() {
+        assertEquals(9.80665, EngineConstants.G)
     }
 
     @Test
@@ -33,8 +33,8 @@ class EngineConstantsTest {
     }
 
     @Test
-    fun default_wheel_radius_is_0_7() {
-        assertEquals(0.7, EngineConstants.DEFAULT_WHEEL_RADIUS_M)
+    fun default_wheel_radius_is_0_35() {
+        assertEquals(0.35, EngineConstants.DEFAULT_WHEEL_RADIUS_M)
     }
 
     @Test
@@ -53,8 +53,8 @@ class EngineConstantsTest {
     }
 
     @Test
-    fun default_max_brake_g_is_0_6() {
-        assertEquals(0.6, EngineConstants.DEFAULT_MAX_BRAKE_G)
+    fun default_max_brake_g_is_0_4() {
+        assertEquals(0.4, EngineConstants.DEFAULT_MAX_BRAKE_G)
     }
 
     @Test

@@ -43,10 +43,10 @@ class RollingResistancePowerProviderTest {
 
     @Test
     fun flat_road_matches_analytic_value() {
-        // P = -1 × 80 × 9.8 × 10 × 0.004 = -31.36
+        // P = -1 × 80 × 9.80665 × 10 × 0.004 = -31.381
         val (cp, path) = cp(speed = 10.0, grade = 0.0, mass = 80.0, crr = 0.004)
         val p = RollingResistancePowerProvider.powerAt(cp, path, 0)
-        assertEquals(-31.36, p, tol)
+        assertEquals(-31.38128, p, tol)
     }
 
     @Test
@@ -78,10 +78,10 @@ class RollingResistancePowerProviderTest {
 
     @Test
     fun custom_mass_and_crr_matches_analytic_value() {
-        // P = -cos(atan(0)) × 85 × 9.8 × 5 × 0.005 = -1 × 85 × 9.8 × 5 × 0.005 = -20.825
+        // P = -cos(atan(0)) × 85 × 9.80665 × 5 × 0.005 = -1 × 85 × 9.80665 × 5 × 0.005 = -20.83913125
         val (cp, path) = cp(speed = 5.0, grade = 0.0, mass = 85.0, crr = 0.005)
         val p = RollingResistancePowerProvider.powerAt(cp, path, 0)
-        assertEquals(-20.825, p, tol)
+        assertEquals(-20.83913125, p, tol)
     }
 
     @Test

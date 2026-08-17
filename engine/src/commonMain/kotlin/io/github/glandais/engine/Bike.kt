@@ -8,7 +8,7 @@ import kotlin.math.PI
  * @param crr Rolling resistance coefficient (dimensionless)
  * @param inertiaFront Front wheel rotational inertia (kg·m²)
  * @param inertiaRear Rear wheel rotational inertia (kg·m²)
- * @param wheelRadiusM Wheel radius in meters (default 0.7 = 700c with 25mm tire)
+ * @param wheelRadiusM Wheel radius in meters (default 0.35 = 700c with 25mm tire, i.e. a 0.7 m diameter)
  * @param efficiency Drivetrain efficiency (0..1, dimensionless)
  */
 data class Bike(

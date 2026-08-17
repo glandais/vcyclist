@@ -329,7 +329,7 @@ Up to five optional sub-objects; each is the matching JS DTO, field for field.
 {"cyclist": {"massKg": 72, "cd": 0.7, "frontalAreaM2": 0.5,
              "maxLeanAngleDeg": 35, "maxBrakeG": 0.6, "maxSpeedKmH": 100},
  "bike": {"crr": 0.004, "inertiaFront": 0.0771, "inertiaRear": 0.1055,
-          "wheelRadiusM": 0.7, "efficiency": 0.95},
+          "wheelRadiusM": 0.35, "efficiency": 0.95},
  "wind": {"windSpeed": 5.0, "windDirection": 270},
  "power": {"type": "constant", "power": 250, "useHarmonics": false},
  "options": {"computeOnePointPerSecond": true}}
