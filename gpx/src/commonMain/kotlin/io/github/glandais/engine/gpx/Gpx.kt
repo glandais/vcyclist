@@ -88,6 +88,12 @@ data class GpxTrack(
      * behaviour of every caller that does not care.
      */
     val kind: GpxPathKind = GpxPathKind.TRACK,
+    /**
+     * Track-level default road width in metres, from `<trk><extensions><roadwidth>`. Applies to
+     * every point that does not carry its own. Last parameter, like [kind], so existing
+     * positional calls keep compiling.
+     */
+    val roadWidthM: Double? = null,
 ) {
     /**
      * All points of all segments, concatenated in document order. Kept as the pre-g02 accessor so
@@ -134,4 +140,9 @@ data class GpxTrackPoint(
     val temperatureC: Double? = null,
     /** Power in watts. */
     val powerW: Double? = null,
+    /**
+     * Rideable road width in metres, from a `<roadwidth>` extension. Appended last so existing
+     * positional constructions keep compiling.
+     */
+    val roadWidthM: Double? = null,
 )

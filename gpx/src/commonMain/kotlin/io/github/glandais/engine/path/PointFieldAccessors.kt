@@ -206,4 +206,9 @@ internal val POINT_FIELD_ACCESSORS: List<PointFieldAccessor> =
             GeneratedPath::trajectoryCurvature,
             GeneratedPath::setTrajectoryCurvature,
         ),
+        PointFieldAccessor(
+            PointField.ROAD_WIDTH,
+            GeneratedPath::roadWidth,
+            GeneratedPath::setRoadWidth,
+        ),
     )

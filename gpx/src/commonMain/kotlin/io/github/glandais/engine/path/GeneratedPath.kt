@@ -28,6 +28,7 @@ abstract class GeneratedPath(
     init {
         for (i in 0 until size) {
             data[i * PointField.COUNT + 38] = Double.NaN // trajectoryCurvature
+            data[i * PointField.COUNT + 39] = Double.NaN // roadWidth
         }
     }
 
@@ -395,5 +396,14 @@ abstract class GeneratedPath(
         v: Double,
     ) {
         data[i * PointField.COUNT + 38] = v
+    }
+
+    fun roadWidth(i: Int): Double = data[i * PointField.COUNT + 39]
+
+    fun setRoadWidth(
+        i: Int,
+        v: Double,
+    ) {
+        data[i * PointField.COUNT + 39] = v
     }
 }

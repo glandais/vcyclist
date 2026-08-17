@@ -7,21 +7,21 @@ import kotlin.test.assertTrue
 
 class PointFieldTest {
     @Test
-    fun `39 fields exactly`() {
-        assertEquals(39, PointField.entries.size)
-        assertEquals(39, PointField.COUNT)
+    fun `40 fields exactly`() {
+        assertEquals(40, PointField.entries.size)
+        assertEquals(40, PointField.COUNT)
     }
 
     @Test
     fun `ordinals are unique`() {
         val ordinals = PointField.entries.map { it.ordinal }
-        assertEquals(39, ordinals.toSet().size)
+        assertEquals(40, ordinals.toSet().size)
     }
 
     @Test
     fun `props are unique and non-blank`() {
         val props = PointField.entries.map { it.prop }
-        assertEquals(39, props.toSet().size)
+        assertEquals(40, props.toSet().size)
         assertTrue(props.all { it.isNotBlank() })
     }
 
@@ -48,7 +48,7 @@ class PointFieldTest {
     @Test
     fun `nanDefault is declared on exactly the intended fields`() {
         assertEquals(
-            listOf("trajectoryCurvature"),
+            listOf("trajectoryCurvature", "roadWidth"),
             PointField.entries.filter { it.nanDefault }.map { it.prop },
         )
     }
@@ -77,12 +77,13 @@ class PointFieldTest {
         assertEquals(4, PointField.byCategory(PointFieldCategory.SPEED).size)
         assertEquals(3, PointField.byCategory(PointFieldCategory.ENVIRONMENTAL).size)
         assertEquals(3, PointField.byCategory(PointFieldCategory.PHYSIOLOGICAL).size)
+        assertEquals(1, PointField.byCategory(PointFieldCategory.ROAD).size)
     }
 
     @Test
     fun `all fields are partitioned across categories`() {
         val sum = PointFieldCategory.entries.sumOf { PointField.byCategory(it).size }
-        assertEquals(39, sum)
+        assertEquals(40, sum)
     }
 
     @Test
@@ -141,10 +142,10 @@ class PointFieldTest {
     }
 
     @Test
-    fun `14 categories with unique ids`() {
-        assertEquals(14, PointFieldCategory.entries.size)
+    fun `15 categories with unique ids`() {
+        assertEquals(15, PointFieldCategory.entries.size)
         assertEquals(
-            14,
+            15,
             PointFieldCategory.entries
                 .map { it.id }
                 .toSet()

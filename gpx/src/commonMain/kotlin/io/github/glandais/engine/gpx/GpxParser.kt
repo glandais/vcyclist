@@ -147,6 +147,8 @@ object GpxParser {
         var name: String? = null
         var type: String? = null
         val segments = mutableListOf<GpxSegment>()
+        // A track-level <extensions> may declare a default road width for every point below it.
+        val trackExt = ExtensionsAccumulator()
         while (reader.hasNext()) {
             val ev = reader.next()
             when (ev) {
@@ -154,14 +156,21 @@ object GpxParser {
                     when (reader.localName) {
                         "name" -> name = readElementText(reader).trim().ifEmpty { null }
                         "type" -> type = readElementText(reader).trim().ifEmpty { null }
+                        "extensions" -> parseExtensions(reader, trackExt)
                         "trkseg" -> segments.add(parseTrackSegment(reader))
                         else -> skipElement(reader)
                     }
-                EventType.END_ELEMENT -> return GpxTrack(name = name, type = type, segments = segments)
+                EventType.END_ELEMENT ->
+                    return GpxTrack(
+                        name = name,
+                        type = type,
+                        segments = segments,
+                        roadWidthM = trackExt.roadWidthM,
+                    )
                 else -> Unit
             }
         }
-        return GpxTrack(name = name, type = type, segments = segments)
+        return GpxTrack(name = name, type = type, segments = segments, roadWidthM = trackExt.roadWidthM)
     }
 
     /**
@@ -268,6 +277,7 @@ object GpxParser {
                         cadence = ext.cadence,
                         temperatureC = ext.temperatureC,
                         powerW = ext.powerW,
+                        roadWidthM = ext.roadWidthM,
                     )
                 else -> Unit
             }
@@ -281,6 +291,7 @@ object GpxParser {
             cadence = ext.cadence,
             temperatureC = ext.temperatureC,
             powerW = ext.powerW,
+            roadWidthM = ext.roadWidthM,
         )
     }
 
@@ -394,6 +405,15 @@ object GpxParser {
                                 ext.temperatureC = ext.temperatureC ?: it
                             }
                         }
+                        // `roadwidth` only — deliberately NOT the bare `width`. Matching is on
+                        // local name and this function recurses into unknown containers, so
+                        // claiming `width` would also swallow `<gpx_style:line><width>3</width>`,
+                        // where the value is a rendering line width in **pixels**. A 3 px line
+                        // would silently become a 3 m road. `<vc:roadWidth>` lowercases to this
+                        // same local name, so files this project writes still round-trip.
+                        "roadwidth" -> {
+                            readNumeric(reader)?.let { ext.roadWidthM = ext.roadWidthM ?: it }
+                        }
                         else -> {
                             // Recurse into containers (e.g. <TrackPointExtension>) and other
                             // wrapper elements ; their child leaves carry the values we want.
@@ -469,5 +489,6 @@ object GpxParser {
         var cadence: Int? = null,
         var temperatureC: Double? = null,
         var powerW: Double? = null,
+        var roadWidthM: Double? = null,
     )
 }

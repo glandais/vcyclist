@@ -70,9 +70,9 @@ fun GpxDocument.tracksAsPaths(kinds: Set<GpxPathKind> = ALL_KINDS): List<Path> =
 fun GpxDocument.segmentsAsPaths(kinds: Set<GpxPathKind> = ALL_KINDS): List<Path> =
     tracks
         .filter { it.kind in kinds }
-        .flatMap { it.segments }
-        .filter { it.points.isNotEmpty() }
-        .map { it.toPath() }
+        .flatMap { track -> track.segments.map { track.roadWidthM to it } }
+        .filter { it.second.points.isNotEmpty() }
+        .map { (trackWidth, segment) -> segment.toPath(trackWidth) }
 
 /**
  * Both containers — the default selection of [tracksAsPaths] and [segmentsAsPaths].
@@ -95,7 +95,7 @@ internal val ALL_KINDS: Set<GpxPathKind> = GpxPathKind.entries.toSet()
  *
  * Point-level conversion is described on [GpxSegment.toPath].
  */
-fun GpxTrack.toPath(): Path = pointsToPath(points)
+fun GpxTrack.toPath(): Path = pointsToPath(points, roadWidthM)
 
 /**
  * Materialise a [Path] from a single [GpxSegment]:
@@ -111,7 +111,19 @@ fun GpxTrack.toPath(): Path = pointsToPath(points)
  */
 fun GpxSegment.toPath(): Path = pointsToPath(points)
 
-private fun pointsToPath(points: List<GpxTrackPoint>): Path {
+/** As [GpxSegment.toPath], with the enclosing track's default road width applied. */
+internal fun GpxSegment.toPath(trackRoadWidthM: Double?): Path = pointsToPath(points, trackRoadWidthM)
+
+/**
+ * Widths outside this range are not roads. Anything narrower cannot be ridden two abreast and is
+ * almost certainly a footpath value or a unit mix-up; anything wider is a runway or a typo.
+ */
+private val PLAUSIBLE_ROAD_WIDTH_M = 2.5..20.0
+
+private fun pointsToPath(
+    points: List<GpxTrackPoint>,
+    trackRoadWidthM: Double? = null,
+): Path {
     val path = Path(points.size)
     for ((i, p) in points.withIndex()) {
         path.setLatitude(i, p.latitudeDeg * MathConstants.DEG_TO_RAD)
@@ -126,6 +138,11 @@ private fun pointsToPath(points: List<GpxTrackPoint>): Path {
         path.setHeartRate(i, p.heartRate?.toDouble() ?: Double.NaN)
         path.setCadence(i, p.cadence?.toDouble() ?: Double.NaN)
         path.setTemperature(i, p.temperatureC ?: Double.NaN)
+        // A point's own width wins over the track default. Implausible values become NaN rather
+        // than being clamped into range: a transcription error must not turn into a legal
+        // corridor, because the racing-line gain is linear in the width it is given.
+        val width = p.roadWidthM ?: trackRoadWidthM
+        path.setRoadWidth(i, if (width != null && width in PLAUSIBLE_ROAD_WIDTH_M) width else Double.NaN)
     }
     path.computeDerivedData()
     return path

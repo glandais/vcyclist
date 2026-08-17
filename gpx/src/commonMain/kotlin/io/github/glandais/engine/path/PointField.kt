@@ -239,6 +239,25 @@ enum class PointField(
         PointFieldCategory.RADIUS,
         nanDefault = true,
     ),
+
+    /**
+     * Rideable road width in metres, from a GPX `roadwidth` extension — whatever the source
+     * claims is ridable, which is not necessarily the full carriageway.
+     *
+     * [nanDefault] is `true` because `0.0` is not "unknown", it is a road nobody can ride on.
+     * Readers substitute their own default on `isNaN()`.
+     *
+     * Only ever populated from a file or an explicit hint — nothing infers it from geometry. The
+     * racing-line corridor half-width is linear in it, so a wrong width is a proportionally wrong
+     * trajectory; see `docs/design/racing-line.md` §12 question 1.
+     *
+     * Categorised as [PointFieldCategory.ROAD] rather than `COORDINATES`: the coordinate group is
+     * TS-parity and its membership *and order* are pinned by a test, so a field the TS reference
+     * does not have cannot join it.
+     *
+     * **Not a TS field.**
+     */
+    ROAD_WIDTH("roadWidth", "meters", "Road width (m)", PointFieldCategory.ROAD, nanDefault = true),
     ;
 
     /** Field index in the per-point `DoubleArray` slot (== [ordinal]). */
@@ -246,7 +265,7 @@ enum class PointField(
 
     companion object {
         /** Number of fields per point. Single source of truth for codegen (task 11). */
-        const val COUNT: Int = 39
+        const val COUNT: Int = 40
 
         private val byPropMap: Map<String, PointField> = entries.associateBy { it.prop }
 

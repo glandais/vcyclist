@@ -27,6 +27,10 @@ object GpxWriter {
     private const val NS_GPX = "http://www.topografix.com/GPX/1/1"
     private const val NS_XSI = "http://www.w3.org/2001/XMLSchema-instance"
     private const val NS_GARMIN_TPX = "http://www.garmin.com/xmlschemas/TrackPointExtension/v1"
+
+    /** This project's own extension namespace, for values no standard schema defines. */
+    private const val NS_VCYCLIST = "https://github.com/glandais/vcyclist/xmlschemas/v1"
+    private const val PREFIX_VCYCLIST = "vc"
     private const val PREFIX_XSI = "xsi"
     private const val PREFIX_GARMIN_TPX = "gpxtpx"
     private const val SCHEMA_LOCATION = "$NS_GPX http://www.topografix.com/GPX/1/1/gpx.xsd"
@@ -110,6 +114,10 @@ object GpxWriter {
         // would be valid but noise, and would break a byte comparison with gpx2web's output.
         // `xsi` stays either way — it carries schemaLocation, which is about GPX itself.
         if (writeExtensions) w.setPrefix(PREFIX_GARMIN_TPX, NS_GARMIN_TPX)
+        // `vc` is declared only when something actually uses it, so a file with no widths is
+        // byte-identical to what this writer produced before the namespace existed.
+        val hasRoadWidth = writeExtensions && document.tracks.any { t -> t.points.any { it.roadWidthM != null } }
+        if (hasRoadWidth) w.setPrefix(PREFIX_VCYCLIST, NS_VCYCLIST)
 
         w.startTag(NS_GPX, "gpx", "")
         // Root attributes.
@@ -119,6 +127,7 @@ object GpxWriter {
         w.namespaceAttr("", NS_GPX)
         w.namespaceAttr(PREFIX_XSI, NS_XSI)
         if (writeExtensions) w.namespaceAttr(PREFIX_GARMIN_TPX, NS_GARMIN_TPX)
+        if (hasRoadWidth) w.namespaceAttr(PREFIX_VCYCLIST, NS_VCYCLIST)
         w.attribute(NS_XSI, "schemaLocation", PREFIX_XSI, SCHEMA_LOCATION)
 
         writeMetadata(w, document.name)
@@ -226,11 +235,18 @@ object GpxWriter {
 
         val hasGarminExt = p.heartRate != null || p.cadence != null || p.temperatureC != null
         val hasPower = p.powerW != null
-        if (writeExtensions && (hasGarminExt || hasPower)) {
+        val hasRoadWidth = p.roadWidthM != null
+        if (writeExtensions && (hasGarminExt || hasPower || hasRoadWidth)) {
             w.startTag(NS_GPX, "extensions", "")
             if (hasPower) {
                 // <power> at extensions root, non-namespaced — matches sample.gpx convention.
                 writeSimpleText(w, "power", p.powerW.toString())
+            }
+            if (hasRoadWidth) {
+                // Namespaced, unlike <power>: no standard schema defines a road width, so this is
+                // ours to declare rather than to squat on a bare name. It lowercases to the same
+                // local name the parser accepts, so the round-trip closes.
+                writeNamespaced(w, NS_VCYCLIST, "roadWidth", PREFIX_VCYCLIST, p.roadWidthM.toString())
             }
             if (hasGarminExt) {
                 w.startTag(NS_GARMIN_TPX, "TrackPointExtension", PREFIX_GARMIN_TPX)

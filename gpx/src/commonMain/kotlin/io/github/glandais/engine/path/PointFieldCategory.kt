@@ -25,4 +25,12 @@ enum class PointFieldCategory(
     SPEED("speed", "Speed & Motion"),
     ENVIRONMENTAL("environmental", "Environmental"),
     PHYSIOLOGICAL("physiological", "Physiological"),
+
+    /**
+     * Properties of the road itself rather than of the ride over it.
+     *
+     * **Not a TS category** — appended last, after the thirteen the TS `fieldDefinitions.ts`
+     * defines, so no existing category's position moves.
+     */
+    ROAD("road", "Road"),
 }
