@@ -57,7 +57,7 @@ const applyPreset = (preset: keyof typeof PRESETS) => {
     newValue.bike = structuredClone(PRESETS[preset].bike);
     newValue.cyclist = structuredClone(PRESETS[preset].cyclist);
     newValue.power.power = PRESETS[preset].power;
-    newValue.power.tiringDuration = PRESETS[preset].tiringDuration;
+    newValue.power.criticalPower = PRESETS[preset].criticalPower;
     emit('update:modelValue', newValue);
 };
 </script>

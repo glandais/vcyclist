@@ -45,10 +45,11 @@ export interface WindDto {
 }
 
 export interface PowerProviderDto {
-    readonly type: 'constant' | 'constant_tiring' | 'from_data';
+    readonly type: 'constant' | 'durability' | 'from_data';
     readonly power?: number; // W
     readonly useHarmonics?: boolean;
-    readonly tiringDuration?: number; // seconds
+    /** Critical power (W), `durability` only — power fades with work accumulated above it. */
+    readonly criticalPower?: number;
 }
 
 export interface EnhanceOptionsDto {

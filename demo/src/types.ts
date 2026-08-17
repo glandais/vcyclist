@@ -25,7 +25,9 @@ export interface WindDemo {
 
 export enum PowerSourceType {
     constant = 'constant',
-    constant_tiring = 'constant_tiring',
+    // Replaced 'constant_tiring' (ledger R17): the elapsed-time decay was removed from the
+    // engine outright, in favour of a fade driven by work accumulated above CP.
+    durability = 'durability',
     // Renamed from 'source' for parity with the Kotlin/JS PowerProviderDto type.
     from_data = 'from_data',
 }
@@ -34,8 +36,8 @@ export interface PowerParams {
     type: PowerSourceType;
     power: number;
     useHarmonics: boolean;
-    // Duration in seconds after which power stabilizes at 50%
-    tiringDuration: number;
+    // Critical power (W). The durability model fades power with the work accumulated above it.
+    criticalPower: number;
 }
 
 export interface DemoEnhanceOptions {
@@ -63,8 +65,9 @@ export interface Preset {
     bike: BikeDto;
     cyclist: CyclistDto;
     power: number;
-    // Duration in seconds after which power stabilizes at 50%
-    tiringDuration: number;
+    // Critical power (W), used by the durability model. Set at ~90 % of the preset's target
+    // power so the fade has something to bite on; the engine default is 250 W.
+    criticalPower: number;
 }
 
 export const PRESETS: Record<'beginner' | 'recreational' | 'pro', Preset> = {
@@ -79,13 +82,13 @@ export const PRESETS: Record<'beginner' | 'recreational' | 'pro', Preset> = {
         cyclist: {
             massKg: 90,
             maxLeanAngleDeg: 35,
-            maxBrakeG: 0.4,
+            maxBrakeG: 0.35,
             cd: 0.8,
             frontalAreaM2: 0.53,
             maxSpeedKmH: 60,
         },
         power: 180,
-        tiringDuration: 3600,
+        criticalPower: 160,
     },
     recreational: {
         bike: {
@@ -97,14 +100,14 @@ export const PRESETS: Record<'beginner' | 'recreational' | 'pro', Preset> = {
         },
         cyclist: {
             massKg: 80,
-            maxBrakeG: 0.6,
+            maxBrakeG: 0.4,
             cd: 0.7,
             frontalAreaM2: 0.45,
             maxLeanAngleDeg: 42,
             maxSpeedKmH: 80,
         },
         power: 230,
-        tiringDuration: 7200,
+        criticalPower: 210,
     },
     pro: {
         bike: {
@@ -116,14 +119,14 @@ export const PRESETS: Record<'beginner' | 'recreational' | 'pro', Preset> = {
         },
         cyclist: {
             massKg: 73,
-            maxBrakeG: 0.7,
+            maxBrakeG: 0.5,
             cd: 0.6,
             frontalAreaM2: 0.39,
             maxLeanAngleDeg: 50,
             maxSpeedKmH: 120,
         },
         power: 340,
-        tiringDuration: 14400,
+        criticalPower: 310,
     },
 };
 
@@ -147,6 +150,6 @@ export const DEFAULT_CONFIG: Config = {
         type: PowerSourceType.constant,
         power: PRESETS.recreational.power,
         useHarmonics: false,
-        tiringDuration: PRESETS.recreational.tiringDuration,
+        criticalPower: PRESETS.recreational.criticalPower,
     },
 };

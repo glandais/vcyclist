@@ -9,9 +9,9 @@ const powerSourceItems = [
         description: 'Steady power output throughout the ride',
     },
     {
-        value: PowerSourceType.constant_tiring,
-        label: 'Constant with Fatigue',
-        description: 'Power decreases over time (realistic endurance)',
+        value: PowerSourceType.durability,
+        label: 'Durability',
+        description: 'Power fades with the work accumulated above critical power',
     },
     {
         value: PowerSourceType.from_data,
@@ -78,36 +78,35 @@ const updateField = <K extends keyof PowerParams>(field: K, value: PowerParams[K
             </div>
 
             <div
-                v-if="modelValue.type === PowerSourceType.constant_tiring"
+                v-if="modelValue.type === PowerSourceType.durability"
                 class="mt-8 pt-6 border-t-2 border-gray-200"
             >
                 <SliderInput
-                    :model-value="modelValue.tiringDuration / 3600"
-                    @update:model-value="updateField('tiringDuration', $event * 3600)"
-                    label="Fatigue Duration"
-                    unit="hours"
-                    :min="1"
-                    :max="6"
-                    :step="0.5"
-                    tooltip="Time until power stabilizes at 50% of initial power"
+                    :model-value="modelValue.criticalPower"
+                    @update:model-value="updateField('criticalPower', $event)"
+                    label="Critical Power"
+                    unit="W"
+                    :min="100"
+                    :max="450"
+                    :step="5"
+                    tooltip="Power the rider can hold indefinitely. Only work above it counts toward fatigue."
                 />
 
                 <div class="mt-6 p-4 bg-amber-50 rounded-lg border-l-4 border-amber-500">
                     <p class="text-gray-800 mb-3 m-0">
-                        <strong>Fatigue Model:</strong> Power decreases linearly from 100% to 50%
-                        over {{ (modelValue.tiringDuration / 3600).toFixed(1) }} hours.
+                        <strong>Durability model:</strong> fatigue is driven by the work accumulated
+                        <em>above</em> critical power, not by elapsed time — riding at or below CP
+                        costs nothing. The default fade reaches 10&nbsp;% at 15&nbsp;kJ/kg of
+                        supra-CP work.
                     </p>
-                    <ul class="pl-6 m-0 text-gray-700 text-sm space-y-1">
-                        <li>Start: {{ modelValue.power }}W (100%)</li>
-                        <li>
-                            {{ ((modelValue.tiringDuration / 3600) * 0.5).toFixed(1) }}h:
-                            {{ Math.round(modelValue.power * 0.75) }}W (75%)
-                        </li>
-                        <li>
-                            {{ (modelValue.tiringDuration / 3600).toFixed(1) }}h+:
-                            {{ Math.round(modelValue.power * 0.5) }}W (50%)
-                        </li>
-                    </ul>
+                    <p v-if="modelValue.power <= modelValue.criticalPower" class="m-0 text-sm">
+                        At {{ modelValue.power }}W against a {{ modelValue.criticalPower }}W CP the
+                        rider never goes above CP, so power will not fade at all.
+                    </p>
+                    <p v-else class="m-0 text-sm">
+                        {{ modelValue.power - modelValue.criticalPower }}W above CP — fade builds up
+                        the longer that is held.
+                    </p>
                 </div>
             </div>
         </div>

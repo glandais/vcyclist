@@ -1,6 +1,6 @@
 import type { Ref } from 'vue';
 import { onUnmounted, watch } from 'vue';
-import { type Config, DEFAULT_CONFIG } from '~/types';
+import { type Config, DEFAULT_CONFIG, PowerSourceType } from '~/types';
 
 const STORAGE_KEY = 'vcyclist-demo-config';
 const DEBOUNCE_MS = 1000;
@@ -21,12 +21,40 @@ const serializeConfig = (config: Config): SerializableConfig => {
 };
 
 /**
+ * Bring a config saved by an older build up to the current shape.
+ *
+ * The engine dropped the elapsed-time fatigue provider in ledger R17, so a stored
+ * `power.type === 'constant_tiring'` now makes `enhanceWithCourse` throw
+ * (`Unknown PowerProviderDto.type`). Map it onto the durability model that replaced it; the
+ * old `tiringDuration` has no equivalent — fatigue is driven by supra-CP work, not by a
+ * duration — so it is dropped and CP falls back to the default.
+ */
+const migrateConfig = (data: SerializableConfig): SerializableConfig => {
+    // Read as an untyped bag: the value on disk may predate the current PowerParams shape.
+    const power = data.power as unknown as
+        | (Omit<Partial<Config['power']>, 'type'> & { type?: string })
+        | undefined;
+    if (power?.type === 'constant_tiring') {
+        data.power = {
+            type: PowerSourceType.durability,
+            power: power.power ?? DEFAULT_CONFIG.power.power,
+            useHarmonics: power.useHarmonics ?? DEFAULT_CONFIG.power.useHarmonics,
+            criticalPower: DEFAULT_CONFIG.power.criticalPower,
+        };
+    } else if (power && power.criticalPower === undefined) {
+        data.power = { ...DEFAULT_CONFIG.power, ...power } as Config['power'];
+    }
+    return data;
+};
+
+/**
  * Convert serializable format back to Config.
  */
 const deserializeConfig = (data: SerializableConfig): Config => {
+    const migrated = migrateConfig(data);
     return {
-        ...data,
-        selectedFields: new Set<string>(data.selectedFields),
+        ...migrated,
+        selectedFields: new Set<string>(migrated.selectedFields),
     };
 };
 

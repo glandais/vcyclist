@@ -40,12 +40,12 @@ export function useGPXDemo(config: Ref<Config>): UseGPXDemoReturn {
         switch (p.type) {
             case PowerSourceType.constant:
                 return { type: 'constant', power: p.power, useHarmonics: p.useHarmonics };
-            case PowerSourceType.constant_tiring:
+            case PowerSourceType.durability:
                 return {
-                    type: 'constant_tiring',
+                    type: 'durability',
                     power: p.power,
                     useHarmonics: p.useHarmonics,
-                    tiringDuration: p.tiringDuration,
+                    criticalPower: p.criticalPower,
                 };
             case PowerSourceType.from_data:
                 return { type: 'from_data' };
