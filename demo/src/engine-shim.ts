@@ -79,6 +79,55 @@ export interface EnhanceOptionsDto {
     readonly wPrimeBalanceCriticalPower?: number;
     /** W′ (J) for the wPrimeBalance field. */
     readonly wPrimeBalanceWPrime?: number;
+    /** Curvature estimation. On by default; it corrects `radius` and `speedMax`. */
+    readonly curvatureEnabled?: boolean;
+    /**
+     * Optimal-trajectory stage. Off by default: it MOVES EVERY COORDINATE of the result. The
+     * originals survive in the `sourceLatitude` / `sourceLongitude` fields.
+     */
+    readonly racingLineEnabled?: boolean;
+    /** 'lane' (default), 'lane-left', or 'full-road' — closed roads and time trials only. */
+    readonly racingLineCorridor?: 'lane' | 'lane-left' | 'full-road';
+    /** Road width assumed where the GPX supplies none, in metres. */
+    readonly racingLineRoadWidthM?: number;
+}
+
+/** One detected bend, as the racing-line report describes it. */
+export interface CornerDto {
+    readonly fromIndex: number;
+    readonly untilIndex: number;
+    readonly apexIndex: number;
+    readonly kind: string;
+    /** How far the bend turns, in radians. */
+    readonly turnRad: number;
+    /** +1 or -1. */
+    readonly direction: number;
+    readonly radiusQ20M: number;
+    readonly radiusMinM: number;
+    readonly lengthM: number;
+}
+
+/**
+ * What the racing-line stage would do, without doing it.
+ *
+ * The per-point arrays are all `size` long and indexed like the path. `corridorLo`/`corridorHi`
+ * and `lateralOffsetM` are signed lateral offsets in metres from the reference line, **positive
+ * to the left** of the direction of travel.
+ */
+export interface RacingLineReportDto {
+    readonly size: number;
+    readonly corners: CornerDto[];
+    readonly centerlineCurvature: Float64Array;
+    readonly trajectoryCurvature: Float64Array;
+    readonly corridorLo: Float64Array;
+    readonly corridorHi: Float64Array;
+    readonly roadHalfWidthM: Float64Array;
+    readonly lateralOffsetM: Float64Array;
+    readonly maxCorridorWidthM: number;
+    readonly newtonIterations: number;
+    readonly relativeGradient: number;
+    readonly converged: boolean;
+    readonly activeConstraints: number;
 }
 
 export interface FieldDefinitionDto {
@@ -151,6 +200,14 @@ export const fieldDefinitions: () => FieldDefinitionDto[] = ns.fieldDefinitions;
 export const pathLatitudeDeg: (path: Path, i: number) => number = ns.pathLatitudeDeg;
 export const pathLongitudeDeg: (path: Path, i: number) => number = ns.pathLongitudeDeg;
 export const detectClimbs: (path: Path) => ClimbDto[] = ns.detectClimbs;
+/**
+ * Ask what the racing-line stage would build, without building it — read-only, moves nothing.
+ * Returns `null` when the path cannot be projected (too short, or too near a pole).
+ */
+export const analyzeRacingLine: (
+    path: Path,
+    options?: EnhanceOptionsDto | null
+) => RacingLineReportDto | null = ns.analyzeRacingLine;
 export const detectClimbsWithOptions: (
     path: Path,
     minMinClimbElevationM: number,

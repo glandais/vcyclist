@@ -1,6 +1,7 @@
 import type { Ref } from 'vue';
 import { ref } from 'vue';
 import {
+    analyzeRacingLine,
     enhanceWithCourse,
     parseGpx,
     pathDurationMs,
@@ -11,12 +12,17 @@ import {
     type EnhanceOptionsDto,
     type Path,
     type PowerProviderDto,
+    type RacingLineReportDto,
     type WindDto,
 } from '~/engine-shim';
 import { type Config, PowerSourceType, SLEW_W_PER_S } from '~/types';
 
 export interface UseGPXDemoReturn {
     currentPath: Ref<Path | null>;
+    /** The path as parsed, before enhancement — the reference the racing-line report indexes. */
+    originalPath: Ref<Path | null>;
+    /** The corridor and offsets behind the current path, or `null` when the stage did not run. */
+    racingLineReport: Ref<RacingLineReportDto | null>;
     isProcessing: Ref<boolean>;
     statusText: Ref<string>;
     fileName: Ref<string>;
@@ -28,6 +34,7 @@ export interface UseGPXDemoReturn {
 export function useGPXDemo(config: Ref<Config>): UseGPXDemoReturn {
     const originalPath: Ref<Path | null> = ref(null);
     const currentPath: Ref<Path | null> = ref(null);
+    const racingLineReport: Ref<RacingLineReportDto | null> = ref(null);
     const isProcessing = ref(false);
     const statusText = ref('');
     const fileName = ref('');
@@ -134,6 +141,10 @@ export function useGPXDemo(config: Ref<Config>): UseGPXDemoReturn {
             wPrimeBalanceWPrime: e.wPrimeBalance.linkToPowerModel
                 ? config.value.power.wPrime
                 : e.wPrimeBalance.wPrime,
+            curvatureEnabled: e.curvature.enabled,
+            racingLineEnabled: e.racingLine.enabled,
+            racingLineCorridor: e.racingLine.corridor,
+            racingLineRoadWidthM: e.racingLine.roadWidthM,
         };
     };
 
@@ -143,6 +154,7 @@ export function useGPXDemo(config: Ref<Config>): UseGPXDemoReturn {
             const path = parseGpx(gpxContent);
             originalPath.value = path;
             currentPath.value = path;
+            racingLineReport.value = null;
             fileName.value = filename;
             console.log('GPX parsed successfully:', {
                 filename,
@@ -205,6 +217,17 @@ export function useGPXDemo(config: Ref<Config>): UseGPXDemoReturn {
                 buildEnhanceOptionsDto()
             );
             currentPath.value = enhanced;
+            // Analyse the INPUT path, not the enhanced one. The enhanced path has already had
+            // the stage applied, so analysing it describes the corridor around a second
+            // optimisation pass — a corridor nobody rode in. Caught by the map's own geometry
+            // check, which reported a 4.5 m disagreement before this was the input path.
+            //
+            // The sampling still differs from what the stage saw: the pipeline densifies to ~2 m
+            // before the trajectory stage, so the corridor drawn here is computed on the recorded
+            // spacing. Same road and same options, slightly coarser outline.
+            racingLineReport.value = config.value.enhance.racingLine.enabled
+                ? analyzeRacingLine(originalPath.value, buildEnhanceOptionsDto())
+                : null;
             console.log('Path enhancement completed:', {
                 points: pathSize(enhanced),
                 distance: pathTotalDistance(enhanced),
@@ -220,6 +243,8 @@ export function useGPXDemo(config: Ref<Config>): UseGPXDemoReturn {
 
     return {
         currentPath,
+        originalPath,
+        racingLineReport,
         isProcessing,
         statusText,
         fileName,

@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import type { DemoEnhanceOptions } from '~/types';
+import type { CorridorMode, DemoEnhanceOptions } from '~/types';
 import SliderInput from './SliderInput.vue';
 
 const props = defineProps<{
@@ -29,6 +29,35 @@ const updateSimplifyField = <K extends keyof DemoEnhanceOptions['simplifyPath']>
         },
     });
 };
+
+const updateRacingLineField = <K extends keyof DemoEnhanceOptions['racingLine']>(
+    field: K,
+    value: DemoEnhanceOptions['racingLine'][K]
+) => {
+    emit('update:modelValue', {
+        ...props.modelValue,
+        racingLine: { ...props.modelValue.racingLine, [field]: value },
+    });
+};
+
+const corridorItems = [
+    {
+        value: 'lane',
+        label: 'Own lane (right)',
+        description: 'Right-hand traffic. Never crosses the centreline.',
+    },
+    {
+        value: 'lane-left',
+        label: 'Own lane (left)',
+        description: 'Left-hand traffic — UK, AU, JP, IE.',
+    },
+    {
+        value: 'full-road',
+        label: 'Full road',
+        description:
+            'The whole carriageway. Closed roads and time trials only — illegal on an open road.',
+    },
+];
 
 const updateWPrimeField = <K extends keyof DemoEnhanceOptions['wPrimeBalance']>(
     field: K,
@@ -131,6 +160,88 @@ const updateWPrimeField = <K extends keyof DemoEnhanceOptions['wPrimeBalance']>(
                         >
                     </span>
                 </label>
+            </div>
+        </div>
+
+        <div class="mb-8 pt-6 border-t-2 border-gray-200">
+            <h4 class="text-lg font-semibold text-gray-700 mb-4">Trajectory</h4>
+
+            <label
+                class="flex items-start gap-3 p-4 bg-gray-50 border-2 border-gray-200 rounded-lg cursor-pointer hover:bg-gray-100 hover:border-blue-500 transition-all mb-4"
+            >
+                <UCheckbox
+                    :modelValue="modelValue.curvature.enabled"
+                    @update:modelValue="
+                        emit('update:modelValue', {
+                            ...modelValue,
+                            curvature: { enabled: !modelValue.curvature.enabled },
+                        })
+                    "
+                    class="mt-1"
+                />
+                <span class="flex flex-col gap-1">
+                    <strong class="text-gray-800">Estimate curvature properly</strong>
+                    <small class="text-gray-600 text-sm">
+                        Fits heading against arclength in a local plane instead of differencing
+                        bearings over a fixed number of points. Corrects the turn radius, so it
+                        corrects cornering speed — rides come out 0.2–9&nbsp;% slower and more
+                        honest. Turning it off restores the older estimate; it saves nothing.
+                    </small>
+                </span>
+            </label>
+
+            <label
+                class="flex items-start gap-3 p-4 bg-gray-50 border-2 border-gray-200 rounded-lg cursor-pointer hover:bg-gray-100 hover:border-blue-500 transition-all"
+            >
+                <UCheckbox
+                    :modelValue="modelValue.racingLine.enabled"
+                    @update:modelValue="
+                        updateRacingLineField('enabled', !modelValue.racingLine.enabled)
+                    "
+                    class="mt-1"
+                />
+                <span class="flex flex-col gap-1">
+                    <strong class="text-gray-800">Ride the racing line</strong>
+                    <small class="text-gray-600 text-sm">
+                        Straightens corners within the road, instead of tracking the centreline. Off
+                        by default because it <strong>moves every coordinate</strong> of the result
+                        — the map will show the line ridden, not the file you loaded.
+                    </small>
+                </span>
+            </label>
+
+            <div
+                v-if="modelValue.racingLine.enabled"
+                class="mt-6 p-6 bg-gray-50 rounded-lg border-l-4 border-violet-500"
+            >
+                <label class="block font-medium text-gray-800 text-base mb-3">Corridor:</label>
+                <URadioGroup
+                    name="corridor"
+                    variant="card"
+                    :items="corridorItems"
+                    :modelValue="modelValue.racingLine.corridor"
+                    @update:modelValue="updateRacingLineField('corridor', $event as CorridorMode)"
+                />
+
+                <div class="mt-6">
+                    <SliderInput
+                        :model-value="modelValue.racingLine.roadWidthM"
+                        @update:model-value="updateRacingLineField('roadWidthM', $event)"
+                        label="Assumed Road Width"
+                        unit="m"
+                        :min="3"
+                        :max="12"
+                        :step="0.5"
+                        tooltip="Used where the GPX carries no width of its own. The corridor is half this in lane mode."
+                    />
+                </div>
+
+                <p class="text-gray-700 text-sm m-0">
+                    Worth little on the clock — the gain is under a percent on most routes, and on
+                    some corners the line comes out <em>tighter</em> than the centreline. What it
+                    changes is the shape of the ride through a bend. The map draws the recorded
+                    road, the corridor and the chosen line together so the difference is visible.
+                </p>
             </div>
         </div>
 

@@ -23,6 +23,8 @@ useConfigPersistence(config);
 
 const {
     currentPath,
+    originalPath,
+    racingLineReport,
     isProcessing,
     statusText,
     fileName,
@@ -254,6 +256,8 @@ onMounted(() => {
                         :current-path="currentPath"
                         :hovered-info="hoveredInfo"
                         :climbs="climbs"
+                        :racing-line-report="racingLineReport"
+                        :original-path="originalPath"
                         @hover-change="handleHoverChange"
                     />
                 </div>

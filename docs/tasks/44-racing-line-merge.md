@@ -170,14 +170,76 @@ doit retrouver son fichier.
 
 ## Done when
 
-- [ ] Quatre conflits résolus, les deux côtés conservés
-- [ ] Les quatre clés dans `ENHANCE_OPTIONS_KEYS`
+- [x] Quatre conflits résolus, les deux côtés conservés
+- [x] Les quatre clés dans `ENHANCE_OPTIONS_KEYS`
 - [ ] Chaque `*_KEYS` collé sous son interface
 - [ ] Un test par clé, sur les deux façades
-- [ ] `docs/wasm-wasi-abi.md` à jour
+- [x] `docs/wasm-wasi-abi.md` à jour
 - [ ] R23/R24/R26 dans la matrice et le ledger ; sort de la phase T dans `PLAN.md` tranché
-- [ ] Démo : contrôles, shim, et la question de la carte tranchée
-- [ ] `./gradlew check` + `ktlintCheck` + typecheck/lint/build démo verts
+- [x] Démo : contrôles, shim, et la question de la carte tranchée
+- [x] `./gradlew check` + `ktlintCheck` + typecheck/lint/build démo verts
+
+## Résultat partiel — la fusion et la démo
+
+La fusion est faite (`b8c6986`), avec en prime `vcAnalyzeRacingLineJson` : `WasiParityTableTest`
+échouait **déjà sur `feat/racing-line`**, `t11` ayant ajouté `analyzeRacingLine` sans entrée dans
+`PARITY_TABLE`. Plutôt que d'inscrire le premier `NOT_PORTED` du projet, l'export a été porté.
+
+### La carte : trois tracés, et la question tranchée
+
+La fiche posait le problème sans le résoudre : le racing line **déplace toutes les coordonnées**,
+donc la carte montrerait un tracé qui n'est pas le fichier chargé. Retenu : superposer les trois,
+avec une légende, et **seulement quand l'étape a tourné**.
+
+| Tracé | Source | Rendu |
+|---|---|---|
+| Route enregistrée | `sourceLatitude` / `sourceLongitude` du chemin enrichi | gris, pointillé |
+| Corridor autorisé | `corridorLo` / `corridorHi` du rapport | bande violette |
+| Ligne suivie | `latitude` / `longitude` du chemin enrichi | rouge plein |
+
+### Le corridor n'est pas dessinable sans reconstruire une normale
+
+Le rapport donne des **décalages latéraux en mètres**, pas des coordonnées : la normale vit dans
+le repère plan du moteur, qui ne sort pas. Elle est donc reconstruite dans la démo — tangente
+locale en (est, nord), quart de tour anti-horaire, ce qui reproduit le `(−sin θ, cos θ)` de
+`RacingLine`.
+
+Une normale inversée dessinerait un corridor parfaitement plausible **du mauvais côté de la
+route**, et rien ne le dirait. D'où un auto-contrôle permanent : `sourceLat/Lon` plus le champ
+`lateralOffset`, tous deux écrits par l'étape, doivent redonner `latitude`/`longitude`. L'écart
+maximal est calculé à chaque tracé et journalisé au-delà de 1,5 m.
+
+**Il a servi immédiatement, et trois fois.**
+
+1. **4,46 m** au premier essai. Cause : le rapport était calculé sur le chemin *enrichi*, donc
+   déjà déplacé — un corridor autour d'une deuxième optimisation, que personne n'a parcourue.
+   Corrigé en analysant le chemin d'entrée. → 0,51 m.
+2. **Hypothèse du rééchantillonnage 1 Hz : fausse.** Testée en le désactivant, l'écart ne bouge
+   pas. Ce n'était pas ça.
+3. **Élargir la fenêtre de tangente à 5 m — pour coller au lissage du moteur — aggrave**, 0,51 →
+   0,69 m. Une corde de 10 m ne dit rien d'une épingle de 5 m de rayon, et les épingles sont
+   précisément là où les décalages sont grands. Ramenée à 1 m.
+
+Les 0,51 m restants sont un plancher : le moteur prend sa normale sur un repère lissé, et aucune
+corde passant par les points enregistrés ne le reproduit là où la route tourne brutalement entre
+deux échantillons. Le seuil d'alerte est donc à 1,5 m — au-dessus du bruit d'épingle, bien en
+dessous des ~6 m qu'afficherait une normale inversée.
+
+La fenêtre de tangente est exprimée **en mètres et non en nombre de points**, ce qui est la leçon
+de R23 appliquée à la démo : les deux appelants n'ont pas le même pas d'échantillonnage.
+
+### Ce que la démo expose
+
+Onglet Options, section « Trajectory » : estimation de courbure (R23, activée par défaut) et
+racing line (R24, désactivée par défaut, avec corridor et largeur de route). La largeur par défaut
+est **6 m parce que c'est `RacingLineOptions.defaultRoadWidthM`**, pas parce que 6 semblait
+raisonnable — la règle posée par `43` après l'affaire des 250/280 W.
+
+### Reste ouvert
+
+Les quatre points non cochés ci-dessus : les `*_KEYS` à rapprocher de leurs interfaces, un test
+par clé sur les deux façades, les lignes R23/R24/R26 dans la matrice et le ledger, et le sort de
+la phase T dans `PLAN.md`.
 
 ## Notes
 

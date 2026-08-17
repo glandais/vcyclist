@@ -55,6 +55,11 @@ const migrateConfig = (data: SerializableConfig): SerializableConfig => {
                 ...DEFAULT_CONFIG.enhance.wPrimeBalance,
                 ...(data.enhance.wPrimeBalance ?? {}),
             },
+            curvature: { ...DEFAULT_CONFIG.enhance.curvature, ...(data.enhance.curvature ?? {}) },
+            racingLine: {
+                ...DEFAULT_CONFIG.enhance.racingLine,
+                ...(data.enhance.racingLine ?? {}),
+            },
         };
     }
 

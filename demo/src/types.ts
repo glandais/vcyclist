@@ -74,7 +74,22 @@ export interface DemoEnhanceOptions {
         criticalPower: number;
         wPrime: number;
     };
+    // R23 — curvature by heading regression. On by default: it corrects `radius` and `speedMax`,
+    // so turning it off restores the older windowed estimate rather than saving anything.
+    curvature: {
+        enabled: boolean;
+    };
+    // R24 — the optimal trajectory. Off by default, and it must stay that way: it rewrites every
+    // coordinate, so a user who loads a file would otherwise get back a route that is not theirs.
+    racingLine: {
+        enabled: boolean;
+        corridor: CorridorMode;
+        roadWidthM: number;
+    };
 }
+
+/** Where the line is allowed to go. Mirrors the engine's `CorridorMode` wire names. */
+export type CorridorMode = 'lane' | 'lane-left' | 'full-road';
 
 export interface Config {
     selectedFields: Set<string>;
@@ -185,6 +200,9 @@ export const DEFAULT_CONFIG: Config = {
             criticalPower: PRESETS.recreational.criticalPower,
             wPrime: PRESETS.recreational.wPrime,
         },
+        curvature: { enabled: true },
+        // 6 m is RacingLineOptions.defaultRoadWidthM — two 3 m lanes. Not a demo-local guess.
+        racingLine: { enabled: false, corridor: 'lane', roadWidthM: 6 },
     },
     power: {
         type: PowerSourceType.constant,
