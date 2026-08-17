@@ -77,8 +77,13 @@ Browser demos (in `:elevation`) :
 
 ### `Path` model (`:gpx`)
 
-- `Path` extends `GeneratedPath(size)` and stores **38 fields × `DoubleArray`** flat. Fields
+- `Path` extends `GeneratedPath(size)` and stores **39 fields × `DoubleArray`** flat. Fields
   defined in `gpx/src/commonMain/.../path/PointField.kt` (single source of truth).
+- A field may declare `nanDefault = true`, which makes `:codegen` NaN-fill that slot at
+  construction instead of leaving it `0.0`. Use it whenever *absence* is meaningful and the
+  natural zero is a legal value — `trajectoryCurvature` is the first: a `0.0` curvature is a
+  straight line, not "not computed", so without the flag every `isNaN()` sentinel reading it is
+  dead and `MaxSpeedComputer` would cap the whole route.
 - `GeneratedPath.kt` and `PointFieldAccessors.kt` are **generated** by the `:codegen` module.
   After editing `PointField`, run `./gradlew :codegen:run` (or follow the regen instructions
   in `gpx/src/commonMain/.../path/GeneratedPath.kt` header).
@@ -94,7 +99,8 @@ Browser demos (in `:elevation`) :
 2. `fixElevation` (optional, needs `ElevationProvider`).
 3. `PointPerDistance(1, 2)` — refine for downstream physics.
 4. `smoothElevation` (150 m kernel, always).
-5. `MaxSpeedComputer` (always if `virtualizeTrack=true`).
+4b. `PathCurvature` — writes `trajectoryCurvature`, moves nothing. **Not in TS.**
+5. `MaxSpeedComputer` (always if `virtualizeTrack=true`) — prefers that field over its own estimate.
 6. `VirtualizeService` (time-stepping simulation).
 7. `PointPerSecond` (1 Hz uniform sampling).
 8. `WPrimeBalanceComputer` (W′ balance annotation) — **not in TS**, see below.
@@ -141,6 +147,16 @@ simulated rider *react* to a low W′ is a separate change — see
   `Bike.maxPedalingLeanAngleDeg` (20°), lean being `atan(v²/(g·R))` from the path's own `speed` and
   `radius`. Set 90 to disable. It fails *open* when `radius` is absent — `MaxSpeedComputer` may not
   have run — because failing closed would zero a whole ride.
+- **Curvature estimation** (**not in TS**, ledger R23) : `:engine`'s `trajectory` package regresses
+  unwrapped heading on arclength in a *single anchored* planar frame and writes
+  `trajectoryCurvature`; `MaxSpeedComputer` reads it in preference to its ±10-point bearing
+  difference. Retires three real defects — the `normalizeAngleDiff` ±π wrap (a bend under ~9.5 m
+  read as twice as open), the fixed *point*-count window (radius depended on the resampler), and
+  `computeBearing`'s `x = lon·cos(lat)` shear (4.2° at 6°E/45°N, growing with longitude). Rides get
+  **slower** by 0.2–9 %; `MEASURE=1 ./gradlew :engine:jvmTest --tests '*CurvatureMeasurementTest*'`
+  reproduces the table. Two non-obvious constraints, both found by measurement and both commented
+  at their call sites : heading must be regressed against the **smoothed** curve's own arclength,
+  and the scale-selection allowance must be measured from the trace at the **widest** window.
 - `pBrake` (**not in TS**) records the energy `VirtualizeService`'s `speedMax` clip removes, as
   `min(0, pComputedWheelPower)` — negative, at the wheel, so **not** divided by drivetrain
   efficiency. A speed cap the rider merely sits at is not braking : resistance alone explains it.
@@ -258,9 +274,13 @@ different ULPs. Use these tolerances :
 
 ### Adding a new `PointField`
 
-1. Edit `gpx/src/commonMain/.../path/PointField.kt`.
+1. Edit `gpx/src/commonMain/.../path/PointField.kt` (append last — ordinals are the wire format;
+   set `nanDefault = true` if the natural zero would be misread as a value).
 2. Run `./gradlew :codegen:run` (or invoke the regen script — see `:codegen/README.md`).
-3. Update unit tests : `PointFieldTest` count, `GeneratedPathTest` round-trip.
+3. Update unit tests : `PointFieldTest` count, `GeneratedPathTest` round-trip. **`COUNT` is a
+   three-way sync** — `PointField.COUNT`, `GeneratePath.FIELDS`, `GeneratePath.EXPECTED_COUNT` —
+   plus the JS façade's `fieldDefinitions` test, which binds to `PointField.COUNT` rather than a
+   literal so it does not become a fourth.
 4. The new field is now accessible via `path.<name>(i)` / `path.set<Name>(i, v)` and via the
    generic `path.get(i, field)` / `path.set(i, field, v)`.
 

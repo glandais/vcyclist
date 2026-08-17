@@ -69,10 +69,11 @@ deliberately skipped. The matrix lives in
 | R20 | RPE + Hazard Score | Low-med | Low | ⚪ |
 | R21 | Fuelling / glycogen state variable | Low | High | ❌ (for now) |
 | R22 | Optimal-pacing solver as rider behaviour | Negative | Very high | ❌ |
+| R23 | **Curvature by heading regression in a planar frame** | **High (measured)** | Low | ✅ |
 
-Recommended order if acted on: ~~R15 → R12 → R9 → R17 → R10 → R18 → R16 → R11 → R19~~ — **all
-shipped**. Left: **R14** (posture CdA) and **R20** (RPE / Hazard Score), both deferred on evidence
-rather than effort.
+Recommended order if acted on: ~~R15 → R12 → R9 → R17 → R10 → R18 → R16 → R11 → R19 → R23~~ —
+**all shipped**. Left: **R14** (posture CdA) and **R20** (RPE / Hazard Score), both deferred on
+evidence rather than effort.
 
 ## A. Mechanical layer — closed
 
@@ -398,6 +399,76 @@ Deferred on evidence, not on value: [`07 §7.2(e)`](07-vcyclist-implementation-n
 plainly that **no verified source covers this** — it would be a project-owned model with no
 literature to calibrate against, and its parameters would be invented. Worth doing eventually,
 worth labelling as ours when it lands.
+
+### R23 — Curvature by heading regression in a local planar frame ✅
+
+Not from the research chapters. It came out of the racing-line design work
+([`docs/design/racing-line.md`](../design/racing-line.md) §3.1–3.3, §8.2), whose feasibility study
+argued that the *estimator* — not the trajectory — was where the measurable value sat, and that
+the estimator could ship on its own. It did, as `:engine`'s `trajectory` package writing a
+`trajectoryCurvature` field that `MaxSpeedComputer` reads in preference to its own estimate.
+
+#### Three defects, all real, all verified in the code before the change
+
+1. **The ±π wrap.** `normalizeAngleDiff` folded the bearing difference into `(-π, π]`, but the
+   ±10-point window spans ~30 m at the 1–2 m spacing the pipeline resamples to, so any bend under
+   ~9.5 m radius turned further than π across it. It wrapped to a *smaller* angle, hence a
+   *larger* radius, hence a `√2` overspeed — at the tightest points on the route.
+2. **`Δs` coupling.** The window was a fixed *point* count, so every radius silently depended on
+   the resampler's spacing rather than on the road.
+3. **`computeBearing` shear.** `x = lon·cos(lat)` with *absolute* longitude gives
+   `∂x/∂lat = −lon·sin(lat)` — 4.2° of shear on a due-north segment at 6°E/45°N, growing linearly
+   with longitude.
+
+Because `radius` feeds the cornering limit, the R11 friction ellipse, `pBrake` and R10's
+pedal-strike cut-off, one wrong radius is wrong in four places.
+
+#### Measurement
+
+Old versus new through the full pipeline, `fixElevation` off, defaults otherwise — reproduce with
+`MEASURE=1 ./gradlew :engine:jvmTest --tests '*CurvatureMeasurementTest*' --rerun-tasks -i`:
+
+| fixture | dist | duration old → new | Δ | median radius old → new | p1 radius old → new |
+|---|---|---|---|---|---|
+| `stelvio` | 3.5 km | 579 s → 594 s | **+2.59 %** | 153.8 → 196.9 m | 10.6 → 5.0 m |
+| `strava` | 20.8 km | 2 892 s → 2 899 s | +0.24 % | 167.7 → 187.5 m | 13.1 → 16.2 m |
+| `sample` | 128.6 km | 19 220 s → 19 508 s | +1.50 % | 200.0 → 200.0 m | 14.1 → 10.0 m |
+| `garmin` | 3.8 km | 391 s → 426 s | **+8.95 %** | 121.7 → 142.3 m | 16.1 → 7.2 m |
+| `movescount` | 12.1 km | 2 006 s → 2 013 s | +0.35 % | 200.0 → 200.0 m | 12.1 → 10.9 m |
+
+The two columns move in *opposite* directions, and that is the whole result. The **median** radius
+rises everywhere: straight and gently-curved road, which is most of any ride, now reads straighter
+because the shear and the jitter are gone. The **1st percentile** falls on the curvy fixtures: the
+tight bends the wrap was flattening are finally resolved. Between 1.9 % and 5.1 % of points now
+report under half their previous radius.
+
+Rides therefore get **slower**, by 0.24 % to 8.95 %. That is well outside the project's 0.5 %
+aggregate-parity budget, so it shipped as a `fix` with baselines re-recorded rather than as a
+silent improvement. The `garmin` outlier is instructive: its p1 radius drops 16.1 → 7.2 m, and
+because `MaxSpeedComputer` propagates a low apex speed *backwards* through the braking envelope, a
+handful of newly-resolved corners slows a long approach — its envelope-binding time goes from
+2.1 % to 25.8 %.
+
+#### What it does not fix
+
+Nothing about apex *behaviour*. Like R11, this is constraint algebra: it makes the speed ceiling
+correct, and says nothing about how far below the ceiling a real rider actually corners — still
+the gap §5.7 names and no source parameterises.
+
+The residual bias is at the tight end, and it is honest rather than hidden: a 90° bend of radius
+`R` is only `πR/2` of arc, so the smoothing kernels take a real bite out of anything under ~10 m.
+Measured error is ~15 % high at `R = 5 m`, ~11 % at 6 m, under 2 % from 15 m up — high meaning
+*optimistic*. Narrowing the kernels further starts reporting noise as corners, which is the worse
+failure; `MIN_RADIUS_M = 5 m` clamps consumers regardless.
+
+Under noise the estimator degrades toward "no corner" rather than "invent one": 1.5 m of white
+lateral jitter on a straight yields a worst-case radius of ~265 m, beyond the 200 m at which the
+cornering limit stops being applied at all. Getting there took two corrections that are worth
+recording, because both looked right and were measurably wrong — see the comments in
+`CurvatureEstimator.computeCurvature` and `LocalFrame.project`: heading must be regressed against
+the *smoothed* curve's own arclength, not the raw path's; and the scale-selection allowance must be
+measured from the trace at the *widest* window, since a fixed allowance rejects wide windows first
+and a narrow-window measurement mistakes jitter for signal.
 
 ## C. Physiological
 

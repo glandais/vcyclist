@@ -1,5 +1,48 @@
 # Racing-Line (Optimal-Trajectory) Stage for vcyclist — Final Design
 
+> **Status update (2026-08-17).** This document is the *full* design. What has actually shipped is
+> its geometry half — the curvature estimator of §3.1–3.3 and the `MaxSpeedComputer` hook of §8.2,
+> with the lateral offset pinned to `n ≡ 0` — as ledger entry
+> [**R23**](../research/improvements-ledger.md), on the feasibility study's recommendation that the
+> estimator is where the measurable value sits. The QP, the corridor, corner detection, roundabouts
+> and junction reconstruction are **not** implemented. Task specs:
+> [`t01`](../tasks/t01-nan-default-curvature-field.md), [`t03`](../tasks/t03-curvature-estimator.md).
+>
+> Maintainer decisions taken since, which override the text below where they disagree:
+>
+> - **Corridor** stays `LANE` by default; `FULL_ROAD` requires an explicit opt-in documented as
+>   closed-road/TT only. OSM width ingestion (t14) is not a prerequisite for the estimator.
+> - **Original coordinates** will be preserved in two new `nanDefault` fields
+>   (`SOURCE_LATITUDE` / `SOURCE_LONGITUDE`) when the QP stage lands and starts moving points —
+>   §12 question 3 is answered, in favour of preservation. Not needed yet: nothing moves today.
+> - **`JunctionPolicy.AGGRESSIVE` is dropped**, per §12 question 5 — the policy is `OFF` or
+>   `DECLARED_ONLY` only. Fabricating road geometry that is not in the input, in a way that makes
+>   the simulated corner *faster* than reality, is not worth having behind any flag.
+>
+> Corrections to the text below, from [`racing-line-feasibility.md`](racing-line-feasibility.md):
+>
+> - Field counts are **38 → 41**, not 36 → 39; `W_PRIME_BALANCE` and `P_BRAKE` landed after this
+>   document's snapshot. (The estimator alone took it 38 → 39.)
+> - **§11's t13 is already shipped** as ledger R11 (`63aa84e`) — delete it.
+> - **§8.2's snippet is wrong**: it claims the caller still calls `setRadius`. It does not —
+>   `setRadius` is called only from inside `computeRadiusWindowed`, and an early return that skips
+>   it leaves `radius = 0.0`, which `computeBrakingLimit` reads as "straight road" and so disables
+>   the R11 friction ellipse at every point. The shipped hook writes it.
+> - **§10-T4's oracle is a knife-edge failure**: the inside-lane line gives exactly 15.00 m at
+>   δ = 180°, not `< 15.0`. The correct general statement is *≥ the centreline, with equality only
+>   at 180°* — for a 90° corner the inside-lane line is 36.0 m and genuinely faster.
+> - **§3.8's solver tolerances are not scale-invariant** (`‖g‖∞ < 1e-7`, `E(n) − 1e-12` on sums
+>   whose scale is `Σ Δs_i` in metres). Use a relative Armijo condition and normalise the gradient
+>   test before implementing the QP.
+> - **§8.2 omits the WASI surface** (`WasiOptions.ENHANCE_KEYS` rejects unknown keys, so w04 parity
+>   breaks the moment any other façade gains an option) and **§3.10's op-list reuse is impossible**
+>   — `PointPerDistance.Op` is private and in `:gpx`.
+> - **§5.1's noise co-benefit is unevidenced** in the fixtures this repo ships.
+>
+> Finally, two things the measurement contradicted outright, recorded in R23: the aggregate
+> `durationMs` bands in §10 are not reachable, and the estimator makes rides **slower**, not
+> faster, because correcting an optimistic radius can only lower a speed ceiling.
+
 **Status:** design, approved for implementation. **Module:** `:engine`, package `io.github.glandais.engine.trajectory`, `commonMain`.
 **Reference:** Zignoli & Biral 2020 (`docs/research/zignoli2020.pdf`) — curvilinear state `(s, n, α)`, corridor `|n| ≤ w/2`, `v_max = √(µ g R_traj)`, friction ellipse, `W_max = 0` for `|roll| ≥ 20°` (**Appendix**, not the body's 5° which applies to their pedal-clearance sub-case).
 
