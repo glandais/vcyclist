@@ -8,6 +8,7 @@ import io.github.glandais.engine.physics.PowerProviderConstant
 import io.github.glandais.engine.physics.PowerProviderCriticalPower
 import io.github.glandais.engine.physics.PowerProviderDurability
 import io.github.glandais.engine.physics.PowerProviderSlewLimited
+import io.github.glandais.engine.physics.PowerProviderTerrainPacing
 import picocli.CommandLine
 
 /**
@@ -127,6 +128,15 @@ class CyclistMixin {
     var powerModel: PowerModel = PowerModel.CONSTANT
 
     @field:CommandLine.Option(
+        names = ["--cyclist-pacing"],
+        description = [
+            "Ride harder uphill and into headwind, easier downhill and with tailwind. A heuristic, " +
+                "not an optimiser: increases are dispersed over ~300 m, decreases are immediate.",
+        ],
+    )
+    var terrainPacing: Boolean = false
+
+    @field:CommandLine.Option(
         names = ["--cyclist-slew"],
         description = [
             "Limit how fast power may change, in W/s; 0 disables the limit (default: \${DEFAULT-VALUE})",
@@ -144,10 +154,17 @@ class CyclistMixin {
             maxSpeedKmH = maxSpeedKmH,
         )
 
-    /** Power is a separate strategy in vcyclist — see the class KDoc. */
+    /**
+     * Power is a separate strategy in vcyclist — see the class KDoc.
+     *
+     * Composition order : the fatigue model chooses a target, terrain pacing redistributes it, and
+     * the slew limiter smooths whatever comes out — so the rate limit is the last word.
+     */
     fun toPowerProvider(): CyclistPowerProvider {
-        val base = basePowerProvider()
-        return if (maxSlewWPerS > 0.0) PowerProviderSlewLimited(base, maxSlewWPerS) else base
+        var provider = basePowerProvider()
+        if (terrainPacing) provider = PowerProviderTerrainPacing(provider)
+        if (maxSlewWPerS > 0.0) provider = PowerProviderSlewLimited(provider, maxSlewWPerS)
+        return provider
     }
 
     private fun basePowerProvider(): CyclistPowerProvider =

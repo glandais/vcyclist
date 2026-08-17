@@ -132,7 +132,7 @@ removing the old entry points, and it feeds the g20 correspondence matrix.
 
 Options with no gpx2web equivalent, added because vcyclist's pipeline exposes them:
 `--json`, `--road-condition`, `--cyclist-model`, `--cyclist-cp`, `--cyclist-wprime`,
-`--cyclist-slew`, `--bike-max-pedal-angle`, `--[no-]virtualize`, `--[no-]simplify`, `--simplify-tolerance`,
+`--cyclist-slew`, `--cyclist-pacing`, `--bike-max-pedal-angle`, `--[no-]virtualize`, `--[no-]simplify`, `--simplify-tolerance`,
 `--[no-]one-point-per-second`, `--max-size`, `--zoom`, `--margin`, `--cache`, `--quiet`.
 
 ### `--road-condition`
@@ -231,6 +231,32 @@ The reason is that it fires exactly where the rider is already limited by corner
 power applied there was being thrown away by the speed cap anyway (and showing up as `pBrake`).
 So the change is mostly to the *power trace*, which stops depicting a rider pedalling into a
 corner they are simultaneously braking for.
+
+### `--cyclist-pacing`
+
+Rides harder uphill and into a headwind, easier downhill and with a tailwind — with the one shape
+the sources are specific about: an **increase is dispersed over ~300 m, a decrease is immediate**.
+
+It is a heuristic, not an optimiser, and deliberately so: the best optimal-control model in the
+literature matches real professional riders' velocity for 18–32 % of course duration, and the only
+real-world trial of one was invalidated by a programming error. Every magnitude in the rule is
+ours; only the asymmetry is sourced.
+
+It also carries a **causal energy account** so that redistributing power does not become spending
+more of it. That is not a nicety — measured without one, the rule came out 10 % faster on 11 % more
+power, because climbs are slow and a boosted multiplier therefore applies for much more *time* than
+the descent discount does.
+
+| Route | time | mean power |
+|---|---|---|
+| `strava.gpx` (20.8 km, rolling) | 2 892 → 2 806 s (**−3.0 %**) | 252.6 → 247.7 W (−2.0 %) |
+| `sample.gpx` (128.6 km) | 19 220 → 18 710 s (**−2.7 %**) | 261.5 → 266.3 W (+1.8 %) |
+| `stelvio.gpx` (3.5 km, all climb) | 579 → 534 s (−7.8 %) | 232.1 → 239.1 W (+3.0 %) |
+
+The first two are in the 1–3 % band the literature reports for the whole pacing optimum, at roughly
+matched power — which is the comparison that means something. **`stelvio.gpx` is not**: it is a
+9-minute pure climb, so the rule raises power nearly everywhere and the account has no descent to
+claw it back on before the ride ends. Read that row as "rode harder", not "paced better".
 
 ### `--cyclist-slew`
 

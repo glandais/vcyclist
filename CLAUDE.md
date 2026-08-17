@@ -128,8 +128,11 @@ simulated rider *react* to a low W′ is a separate change — see
 - `Cyclist.maxLeanAngleDeg` **is** a tyre friction coefficient : `v_max = √(g·R·tan θ)` is
   `√(µ·g·R)`, so `Cyclist.mu == tanMaxLeanAngle`. [`RoadCondition`] is the preset that sets µ and
   braking together (`DRY` reproduces the shipped defaults bit-for-bit ; `WET` is 40 % of the grip).
-- `PowerProviderSlewLimited` (**not in TS**) is a **decorator** capping |ΔP| per second (50 W/s
-  default, Zignoli & Biral). Wrap any provider : `PowerProviderSlewLimited(PowerProviderDurability(…))`.
+- Two **decorators** (**not in TS**), composed outermost-last :
+  `PowerProviderTerrainPacing` (harder uphill / into headwind, rise dispersed over ~300 m, fall
+  immediate, with a causal energy account so it redistributes rather than adds) and
+  `PowerProviderSlewLimited` (caps |ΔP| per second, 50 W/s). The CLI wires them
+  `base → pacing → slew`.
 - **Friction ellipse** (**not in TS**) : `MaxSpeedComputer` spends one grip budget on cornering and
   braking together — `a_x = a_xmax·√(1 − (a_y/a_ymax)²)` — so a rider at full lean cannot brake.
   Solved by **bisection**, not fixed-point iteration : the map is decreasing and iterates oscillate

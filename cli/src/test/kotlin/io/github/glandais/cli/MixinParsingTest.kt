@@ -14,6 +14,7 @@ import io.github.glandais.engine.physics.PowerProviderConstant
 import io.github.glandais.engine.physics.PowerProviderCriticalPower
 import io.github.glandais.engine.physics.PowerProviderDurability
 import io.github.glandais.engine.physics.PowerProviderSlewLimited
+import io.github.glandais.engine.physics.PowerProviderTerrainPacing
 import io.github.glandais.engine.physics.WindProviderConstant
 import io.github.glandais.engine.physics.WindProviderNone
 import picocli.CommandLine
@@ -269,6 +270,24 @@ class MixinParsingTest {
             parse("--cyclist-slew", "40", "--cyclist-model", "durability").cyclist.toPowerProvider()
         assertTrue(both is PowerProviderSlewLimited)
         assertTrue(both.delegate is PowerProviderDurability, "it must wrap, not replace")
+    }
+
+    @Test
+    fun `case 05h — pacing and the slew limit wrap the model in order`() {
+        assertTrue(parse().cyclist.toPowerProvider() is PowerProviderConstant, "off by default")
+
+        val paced = parse("--cyclist-pacing").cyclist.toPowerProvider()
+        assertTrue(paced is PowerProviderTerrainPacing)
+        assertTrue(paced.delegate is PowerProviderConstant)
+
+        val all =
+            parse("--cyclist-pacing", "--cyclist-slew", "50", "--cyclist-model", "critical-power")
+                .cyclist
+                .toPowerProvider()
+        assertTrue(all is PowerProviderSlewLimited, "the rate limit must have the last word")
+        val inner = all.delegate
+        assertTrue(inner is PowerProviderTerrainPacing)
+        assertTrue(inner.delegate is PowerProviderCriticalPower)
     }
 
     // ---- Drift guard ---------------------------------------------------------

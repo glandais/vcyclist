@@ -13,7 +13,7 @@ entry (R7, R12, R19, R21).
 - Shipped since: **R15** (W′bal output field), **R12** (`pBrake`), **R9** (`RoadCondition`),
   **R17** (`PowerProviderDurability`), **R10** (pedal-strike cut-off),
   **R18** (`PowerProviderSlewLimited`), **R16** (`PowerProviderCriticalPower`),
-  **R11** (friction ellipse)
+  **R11** (friction ellipse), **R19** (`PowerProviderTerrainPacing`)
 - Sources read: all 8 research chapters + `EngineConstants`, `Cyclist`, `MaxSpeedComputer`,
   `PowerComputer`, `VirtualizeService`, `PowerProviderConstantWithTiring`,
   `CyclistPowerProviderBase`, the four resistive providers, `RhoProvider`, `AeroProvider`,
@@ -57,13 +57,14 @@ items buy is a ride trace a human recognises as their own.
 | R16 | W′bal as a **behaviour** driver (CP-aware provider) | High | High | ✅ |
 | R17 | Durability: decay on supra-CP work, not elapsed time | Med-high | Low | ✅ |
 | R18 | Power slew-rate limit (50 W/s) | Medium | Low | ✅ |
-| R19 | Pacing heuristic (ramp up slow / drop fast, anticipation) | Medium | Medium | ⚪ |
+| R19 | Pacing heuristic (ramp up slow / drop fast) | Medium | Medium | ✅ (no anticipation) |
 | R20 | RPE + Hazard Score | Low-med | Low | ⚪ |
 | R21 | Fuelling / glycogen state variable | Low | High | ❌ (for now) |
 | R22 | Optimal-pacing solver as rider behaviour | Negative | Very high | ❌ |
 
-Recommended order if acted on: ~~R15 → R12 → R9 → R17 → R10 → R18 → R16 → R11~~ — **all shipped**.
-Left: **R19** (pacing heuristic — the natural follow-on to R16 and R18), **R14** and **R20**.
+Recommended order if acted on: ~~R15 → R12 → R9 → R17 → R10 → R18 → R16 → R11 → R19~~ — **all
+shipped**. Left: **R14** (posture CdA) and **R20** (RPE / Hazard Score), both deferred on evidence
+rather than effort.
 
 ## A. Mechanical layer — closed
 
@@ -600,7 +601,7 @@ threshold and ramps back at 50 W/s on the way out. That is the "drop quickly and
 gradually" asymmetry [`04 §4.3`](04-behavioral-modeling.md) describes — reproduced without modelling
 it, from two independent constraints.
 
-### R19 — Pacing heuristic ⚪
+### R19 — Pacing heuristic ✅ (the reactive half)
 
 The qualitative rules from [`04 §4.3`](04-behavioral-modeling.md), worth capturing eventually:
 
@@ -612,10 +613,52 @@ The qualitative rules from [`04 §4.3`](04-behavioral-modeling.md), worth captur
 - Prioritise **climb-plus-descent** sequences — 2.84 % versus 1.41 % for a pure climb and 0.45 %
   flat. Flat routes barely repay the effort.
 
-Deferred because it needs R16's W′ state to be meaningful, and because the source hedges: Bach et al.
-quantify **no magnitude in watts or metres**, and reading "dispersed over several hundred metres" as
-*anticipatory* is an interpretive step beyond the quoted text. The 2 %/8 % figures are single-source,
-single-subject.
+#### What landed
+
+`PowerProviderTerrainPacing(delegate, …)` — a decorator, composing as
+`PowerProviderSlewLimited(PowerProviderTerrainPacing(PowerProviderCriticalPower(…)))`, and
+`--cyclist-pacing` on the CLI. It implements `raw = 1 + gradientGain·grade +
+headwindGainPerMS·headwind`, clamped, with **rises dispersed over 300 m and falls applied at once**.
+
+Two of the four bullets above shipped; two did not, on purpose:
+
+- **Anticipation is not implemented.** Reading Bach's "dispersed over several hundred metres" as
+  *anticipatory* is an interpretive step beyond the quote, the 2 %/8 % figures behind it are
+  single-source and single-subject, and lookahead is the first step toward the prescriptive
+  optimiser R22 forbids. The rider reacts to the road it is on.
+- **W′ scheduling is not implemented** either — choosing which climb to empty the reserve on is a
+  plan, not a state. The reserve stays R16's.
+
+Only the asymmetry is sourced; every magnitude is ours and labelled as such in the KDoc.
+
+#### The finding: a pacing rule without an energy account is just riding harder
+
+First measurement, before any budget: **10 % faster on 11 % more average power**. Climbs are slow,
+so a boosted multiplier applies for far more *time* than the descent discount does, and the whole
+"gain" was extra work. Any pacing heuristic that does not conserve energy will show this, and
+reporting the time alone would have been a fabricated result.
+
+So the rule now carries a **causal energy account**: joules spent above the delegate's target are
+remembered and the multiplier is pulled back in proportion, over a tolerance of ten minutes of
+riding. Nothing looks ahead — the rider simply notices it has been overspending. A test asserts the
+account closes within 5 % of total work; without it the assertion fails by a factor of two.
+
+Re-measured with the account:
+
+| Route | time | mean power | reading |
+|---|---|---|---|
+| `strava.gpx` (20.8 km, rolling) | −3.0 % | −2.0 % | a real gain, at lower power |
+| `sample.gpx` (128.6 km) | −2.7 % | +1.8 % | ~2 % genuine once the extra watts are discounted |
+| `stelvio.gpx` (3.5 km, all climb) | −7.8 % | +3.0 % | **not a valid comparison** |
+
+The first two land inside the **1–3 %** the literature reports for the *entire* pacing optimum,
+which is the most satisfying corroboration in this series — a rule with no optimiser in it, on real
+GPX, landing where the optimal-control papers say the whole prize is.
+
+`stelvio.gpx` is honest to report and dishonest to claim: a nine-minute pure climb gives the rule
+nothing to redistribute *to*, so it raises power almost everywhere and the account never gets a
+descent to settle on. That row says "rode harder", not "paced better" — and it is the same shape of
+error as the pre-account measurement, surviving at fixture scale.
 
 ### R22 — Optimal-pacing solver as rider behaviour ❌
 
