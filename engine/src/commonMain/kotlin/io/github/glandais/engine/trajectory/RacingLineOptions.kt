@@ -73,6 +73,28 @@ enum class CornerKind {
  * @property straightRadiusM what counts as straight for that purpose
  * @property widthSmoothWindowM arclength kernel applied to the width before it becomes a
  *   constraint — a step in the width is a step in the feasible set
+ * @property objectiveRadiusM bends gentler than this are left out of the objective entirely.
+ *   Downstream, `MaxSpeedComputer` applies no cornering limit at all beyond 200 m of radius, so
+ *   straightening anything gentler buys exactly zero time — while still costing lateral movement.
+ *   Worse, curvature at that scale is mostly measurement noise, and the objective's `n'' ≈ −κ`
+ *   response to noise is a double integral, which is a random walk: left unmasked the solver
+ *   *amplifies* jitter instead of ignoring it. This is a hard on/off mask; the graded time
+ *   weighting that replaces it is a separate task.
+ * @property steeringLengthM `L_R`; the `∫n'² ds` term is weighted `L_R⁻²`. To second order that
+ *   integral is exactly the excess length a weaving line pays for, and it is also the
+ *   steering-rate cost, so one term buys both.
+ * @property centeringLengthM `L_C`; the centring prior is weighted `L_C⁻⁴`. Besides pinning
+ *   straights, it is what makes the Hessian *strictly* positive definite — the other two terms
+ *   have a null space between them.
+ * @property maxNewtonIterations cap on projected-Newton iterations. The design predicts three to
+ *   six; measured, a tight single corner takes around 40 and everything else far fewer. The count
+ *   is bounded by how hard the corners are, **not** by route length — sixteen corners over 1286
+ *   stations converge in 16 iterations, four corners in 12 — so a generous cap costs nothing on a
+ *   long route and is what keeps a hard one from being truncated mid-solve.
+ * @property gradientTolerance stopping threshold on `‖g_F‖_∞` **relative to the initial
+ *   gradient**. Relative because the energy scales with route length in metres, so an absolute
+ *   threshold would mean something different on every route.
+ * @property boundEpsilonM how close to a corridor bound counts as being on it
  */
 data class RacingLineOptions(
     val defaultRoadWidthM: Double = 6.0,
@@ -89,6 +111,12 @@ data class RacingLineOptions(
     val straightRunM: Double = 150.0,
     val straightRadiusM: Double = 500.0,
     val widthSmoothWindowM: Double = 20.0,
+    val objectiveRadiusM: Double = 200.0,
+    val steeringLengthM: Double = 20.0,
+    val centeringLengthM: Double = 60.0,
+    val maxNewtonIterations: Int = 200,
+    val gradientTolerance: Double = 1e-8,
+    val boundEpsilonM: Double = 1e-6,
     val curvature: CurvatureOptions = CurvatureOptions.DEFAULT,
 ) {
     init {
@@ -105,6 +133,12 @@ data class RacingLineOptions(
         }
         require(selfProximityGapM > 0.0) { "selfProximityGapM must be > 0" }
         require(widthSmoothWindowM >= 0.0) { "widthSmoothWindowM must be >= 0" }
+        require(objectiveRadiusM > 0.0) { "objectiveRadiusM must be > 0" }
+        require(steeringLengthM > 0.0) { "steeringLengthM must be > 0" }
+        require(centeringLengthM > 0.0) { "centeringLengthM must be > 0" }
+        require(maxNewtonIterations > 0) { "maxNewtonIterations must be > 0" }
+        require(gradientTolerance > 0.0) { "gradientTolerance must be > 0" }
+        require(boundEpsilonM > 0.0) { "boundEpsilonM must be > 0" }
     }
 
     companion object {

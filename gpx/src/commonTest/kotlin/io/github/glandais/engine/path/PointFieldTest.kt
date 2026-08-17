@@ -7,21 +7,21 @@ import kotlin.test.assertTrue
 
 class PointFieldTest {
     @Test
-    fun `40 fields exactly`() {
-        assertEquals(40, PointField.entries.size)
-        assertEquals(40, PointField.COUNT)
+    fun `43 fields exactly`() {
+        assertEquals(43, PointField.entries.size)
+        assertEquals(43, PointField.COUNT)
     }
 
     @Test
     fun `ordinals are unique`() {
         val ordinals = PointField.entries.map { it.ordinal }
-        assertEquals(40, ordinals.toSet().size)
+        assertEquals(43, ordinals.toSet().size)
     }
 
     @Test
     fun `props are unique and non-blank`() {
         val props = PointField.entries.map { it.prop }
-        assertEquals(40, props.toSet().size)
+        assertEquals(43, props.toSet().size)
         assertTrue(props.all { it.isNotBlank() })
     }
 
@@ -48,7 +48,7 @@ class PointFieldTest {
     @Test
     fun `nanDefault is declared on exactly the intended fields`() {
         assertEquals(
-            listOf("trajectoryCurvature", "roadWidth"),
+            listOf("trajectoryCurvature", "roadWidth", "lateralOffset", "sourceLatitude", "sourceLongitude"),
             PointField.entries.filter { it.nanDefault }.map { it.prop },
         )
     }
@@ -77,13 +77,13 @@ class PointFieldTest {
         assertEquals(4, PointField.byCategory(PointFieldCategory.SPEED).size)
         assertEquals(3, PointField.byCategory(PointFieldCategory.ENVIRONMENTAL).size)
         assertEquals(3, PointField.byCategory(PointFieldCategory.PHYSIOLOGICAL).size)
-        assertEquals(1, PointField.byCategory(PointFieldCategory.ROAD).size)
+        assertEquals(4, PointField.byCategory(PointFieldCategory.ROAD).size)
     }
 
     @Test
     fun `all fields are partitioned across categories`() {
         val sum = PointFieldCategory.entries.sumOf { PointField.byCategory(it).size }
-        assertEquals(40, sum)
+        assertEquals(43, sum)
     }
 
     @Test
@@ -104,13 +104,24 @@ class PointFieldTest {
                 PointField.WIND_BEARING,
                 PointField.WIND_ALPHA,
                 PointField.WIND_DIRECTION,
+                PointField.SOURCE_LATITUDE,
+                PointField.SOURCE_LONGITUDE,
             )
         assertEquals(expected, PointField.entries.filter { it.anglesInRadians }.toSet())
     }
 
     @Test
     fun `notSelectable fields are latitude, longitude, time`() {
-        val expected = setOf(PointField.LATITUDE, PointField.LONGITUDE, PointField.TIME)
+        // The source coordinates join the list: they are storage for reversing the racing-line
+        // edit, not a quantity anyone plots.
+        val expected =
+            setOf(
+                PointField.LATITUDE,
+                PointField.LONGITUDE,
+                PointField.TIME,
+                PointField.SOURCE_LATITUDE,
+                PointField.SOURCE_LONGITUDE,
+            )
         assertEquals(expected, PointField.entries.filter { it.notSelectable }.toSet())
     }
 

@@ -4,7 +4,7 @@ import java.io.File
 
 /*
  * Codegen for gpx/src/commonMain/kotlin/io/github/glandais/engine/path/
- *   - GeneratedPath.kt        (abstract class with 40 typed accessor pairs + generic get/set)
+ *   - GeneratedPath.kt        (abstract class with 43 typed accessor pairs + generic get/set)
  *   - PointFieldAccessors.kt  (POINT_FIELD_ACCESSORS list bound to GeneratedPath member refs)
  *
  * Run from vcyclist/ root after editing PointField.kt:
@@ -65,9 +65,12 @@ private val FIELDS =
         FieldSpec("P_BRAKE", "pBrake"),
         FieldSpec("TRAJECTORY_CURVATURE", "trajectoryCurvature", nanDefault = true),
         FieldSpec("ROAD_WIDTH", "roadWidth", nanDefault = true),
+        FieldSpec("LATERAL_OFFSET", "lateralOffset", nanDefault = true),
+        FieldSpec("SOURCE_LATITUDE", "sourceLatitude", nanDefault = true),
+        FieldSpec("SOURCE_LONGITUDE", "sourceLongitude", nanDefault = true),
     )
 
-private const val EXPECTED_COUNT = 40
+private const val EXPECTED_COUNT = 43
 
 fun main() {
     require(FIELDS.size == EXPECTED_COUNT) {

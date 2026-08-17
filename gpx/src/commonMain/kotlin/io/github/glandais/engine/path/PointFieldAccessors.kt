@@ -211,4 +211,19 @@ internal val POINT_FIELD_ACCESSORS: List<PointFieldAccessor> =
             GeneratedPath::roadWidth,
             GeneratedPath::setRoadWidth,
         ),
+        PointFieldAccessor(
+            PointField.LATERAL_OFFSET,
+            GeneratedPath::lateralOffset,
+            GeneratedPath::setLateralOffset,
+        ),
+        PointFieldAccessor(
+            PointField.SOURCE_LATITUDE,
+            GeneratedPath::sourceLatitude,
+            GeneratedPath::setSourceLatitude,
+        ),
+        PointFieldAccessor(
+            PointField.SOURCE_LONGITUDE,
+            GeneratedPath::sourceLongitude,
+            GeneratedPath::setSourceLongitude,
+        ),
     )

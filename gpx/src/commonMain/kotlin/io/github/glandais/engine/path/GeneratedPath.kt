@@ -29,6 +29,9 @@ abstract class GeneratedPath(
         for (i in 0 until size) {
             data[i * PointField.COUNT + 38] = Double.NaN // trajectoryCurvature
             data[i * PointField.COUNT + 39] = Double.NaN // roadWidth
+            data[i * PointField.COUNT + 40] = Double.NaN // lateralOffset
+            data[i * PointField.COUNT + 41] = Double.NaN // sourceLatitude
+            data[i * PointField.COUNT + 42] = Double.NaN // sourceLongitude
         }
     }
 
@@ -405,5 +408,32 @@ abstract class GeneratedPath(
         v: Double,
     ) {
         data[i * PointField.COUNT + 39] = v
+    }
+
+    fun lateralOffset(i: Int): Double = data[i * PointField.COUNT + 40]
+
+    fun setLateralOffset(
+        i: Int,
+        v: Double,
+    ) {
+        data[i * PointField.COUNT + 40] = v
+    }
+
+    fun sourceLatitude(i: Int): Double = data[i * PointField.COUNT + 41]
+
+    fun setSourceLatitude(
+        i: Int,
+        v: Double,
+    ) {
+        data[i * PointField.COUNT + 41] = v
+    }
+
+    fun sourceLongitude(i: Int): Double = data[i * PointField.COUNT + 42]
+
+    fun setSourceLongitude(
+        i: Int,
+        v: Double,
+    ) {
+        data[i * PointField.COUNT + 42] = v
     }
 }

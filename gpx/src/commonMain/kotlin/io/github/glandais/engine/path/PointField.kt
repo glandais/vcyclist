@@ -258,6 +258,50 @@ enum class PointField(
      * **Not a TS field.**
      */
     ROAD_WIDTH("roadWidth", "meters", "Road width (m)", PointFieldCategory.ROAD, nanDefault = true),
+
+    /**
+     * Lateral offset of the ridden line from the reference line, in metres, **positive to the
+     * left** — written by the racing-line solver.
+     *
+     * `0.0` means "on the reference line", which is a perfectly ordinary answer, so [nanDefault]
+     * distinguishes it from "the solver never ran".
+     *
+     * **Not a TS field.**
+     */
+    LATERAL_OFFSET("lateralOffset", "meters", "Lateral offset (m, + = left)", PointFieldCategory.ROAD, nanDefault = true),
+
+    /**
+     * The latitude this point had before the racing-line stage moved it, in radians.
+     *
+     * The stage replaces every coordinate with *smoothed reference + offset*, which is what the
+     * physics should integrate but not necessarily what a caller wants back: map-matching, segment
+     * detection and "where was I actually" all need the recorded position. Storing it keeps the
+     * edit reversible instead of merely documented.
+     *
+     * Written only when the stage runs, and only then; [nanDefault] means "not moved".
+     *
+     * **Not a TS field.**
+     */
+    SOURCE_LATITUDE(
+        "sourceLatitude",
+        "radians",
+        "Original latitude before the racing line (radians)",
+        PointFieldCategory.ROAD,
+        notSelectable = true,
+        anglesInRadians = true,
+        nanDefault = true,
+    ),
+
+    /** Longitude counterpart of [SOURCE_LATITUDE]. */
+    SOURCE_LONGITUDE(
+        "sourceLongitude",
+        "radians",
+        "Original longitude before the racing line (radians)",
+        PointFieldCategory.ROAD,
+        notSelectable = true,
+        anglesInRadians = true,
+        nanDefault = true,
+    ),
     ;
 
     /** Field index in the per-point `DoubleArray` slot (== [ordinal]). */
@@ -265,7 +309,7 @@ enum class PointField(
 
     companion object {
         /** Number of fields per point. Single source of truth for codegen (task 11). */
-        const val COUNT: Int = 40
+        const val COUNT: Int = 43
 
         private val byPropMap: Map<String, PointField> = entries.associateBy { it.prop }
 

@@ -57,7 +57,7 @@ class EngineJsApiCourseTest {
     }
 
     @Test
-    fun `fieldDefinitions exposes the 39 entries with the expected props`() {
+    fun `fieldDefinitions exposes every PointField entry with the expected props`() {
         val defs = fieldDefinitions()
         assertEquals(PointField.COUNT, defs.size)
         assertTrue(defs.any { it.prop == "elevation" }, "missing 'elevation' entry")

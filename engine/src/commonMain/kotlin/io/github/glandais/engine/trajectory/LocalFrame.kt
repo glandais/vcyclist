@@ -105,6 +105,23 @@ internal object LocalFrame {
     }
 
     /**
+     * Inverse of the projection: planar metres back to `[latitude, longitude]` in radians.
+     *
+     * Exact, because the forward map is a fixed affine transform — `k = cos(lat0)` is a constant,
+     * not a per-point cosine. That is the whole reason the frame is anchored once instead of being
+     * re-derived per corner.
+     */
+    fun unproject(
+        frame: PlanarFrame,
+        x: Double,
+        y: Double,
+    ): DoubleArray {
+        val lat = frame.lat0 + y / EarthConstants.MEAN_RADIUS
+        val lon = frame.lon0 + x / (EarthConstants.MEAN_RADIUS * frame.k)
+        return doubleArrayOf(lat, lon)
+    }
+
+    /**
      * Overwrite [s] with the cumulative planar arclength of ([x], [y]).
      *
      * Strictly non-decreasing by construction, so every window search downstream can rely on
