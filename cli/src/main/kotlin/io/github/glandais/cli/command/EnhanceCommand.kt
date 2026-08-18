@@ -374,24 +374,39 @@ class EnhanceCommand : Callable<Int> {
                 ),
         )
         if (report.corners.isEmpty()) return
-        out.println("    %-6s %-8s %8s %8s %8s %8s".format("at m", "kind", "turn deg", "R road", "R line", "offset"))
+        out.println(
+            "    %-6s %-8s %8s %8s %8s %8s %-7s".format(
+                "at m",
+                "kind",
+                "turn deg",
+                "R road",
+                "R line",
+                "apex n",
+                "apex",
+            ),
+        )
         for (corner in report.corners) {
             var tightestLine = Double.MAX_VALUE
-            var worstOffset = 0.0
             for (i in corner.fromIndex until corner.untilIndex) {
                 val k = report.trajectoryCurvature[i]
                 val r = if (abs(k) < 1e-12) Double.POSITIVE_INFINITY else 1.0 / abs(k)
                 if (r < tightestLine) tightestLine = r
-                if (abs(report.lateralOffsetM[i]) > abs(worstOffset)) worstOffset = report.lateralOffsetM[i]
             }
+            // The offset *at the apex*, not the largest one over the span. An out-in-out line's
+            // biggest excursion is at entry or exit, so reporting the extreme says nothing about
+            // whether the apex was cut — which is the question anyone looking at this is asking.
+            // Inside is left of travel on a left turn, so `n·direction > 0` means the apex was cut.
+            val apexOffset = report.lateralOffsetM[corner.apexIndex]
+            val cutsApex = apexOffset * corner.direction > 0.0
             out.println(
-                "    %-6.0f %-8s %8.1f %8.1f %8.1f %8.2f".format(
+                "    %-6.0f %-8s %8.1f %8.1f %8.1f %8.2f %-7s".format(
                     path.distance(corner.fromIndex),
                     corner.kind.name,
                     corner.turnRad * 180.0 / PI,
                     corner.radiusQ20M,
                     tightestLine,
-                    worstOffset,
+                    apexOffset,
+                    if (cutsApex) "inside" else "OUTSIDE",
                 ),
             )
         }
