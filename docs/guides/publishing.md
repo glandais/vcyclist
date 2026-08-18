@@ -124,9 +124,12 @@ see the comment in `engine/build.gradle.kts`, which explains that `Path` handles
 bundle boundary. The JS output of `:fit` already ships *inside* `@glandais/vcyclist-engine` as
 `vcyclist-fit.js`, exactly as `:gpx` does.
 
-`:fit:npmPublishJs` is therefore **not in `publishCmd`**. The Gradle task still exists, so
-re-adding it is a one-line edit if `:fit` ever grows a JS API of its own. No documented import
-path resolves to that package name, so nothing breaks by its absence.
+`:fit` therefore has **no npm configuration at all**. The `npmPublishJs` task and the
+`@glandais/vcyclist-fit` package name were kept for a while as an affordance, in case `:fit` ever
+grew a JS API of its own; they have been removed, because configuration that has never run is a
+claim the build cannot back — it read as a package that exists. Re-adding it is a small edit if
+that day comes. No documented import path resolves to that package name, and none ever did: it was
+never published, in any version.
 
 `:fit` **is** published to Maven Central, where the JVM variant is fully functional.
 

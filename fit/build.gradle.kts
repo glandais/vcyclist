@@ -26,20 +26,11 @@ kotlin {
         binaries.executable()
         binaries.library()
         generateTypeScriptDefinitions()
-        compilations.named("main") {
-            packageJson {
-                customField("name", "@glandais/vcyclist-fit")
-                customField("publishConfig", mapOf("access" to "public"))
-                customField("license", "Apache-2.0")
-                customField(
-                    "repository",
-                    mapOf(
-                        "type" to "git",
-                        "url" to "https://github.com/glandais/vcyclist.git",
-                    ),
-                )
-            }
-        }
+        // No `packageJson` / `npmPublish*` here : `:fit` is NOT published to npm. Its JS output is
+        // inlined into the `@glandais/vcyclist-engine` bundle — `:engine` declares
+        // `api(project(":fit"))` and `EngineJsApi` exports `pathToFit` / `pathsToFit` — so a JS
+        // consumer already has the encoder from the one package they installed. Same policy, and
+        // same reason, as `:gpx`. See docs/guides/publishing.md.
     }
 
     // Library target only : `:fit` produces a klib, never a standalone `.wasm` (the single
@@ -69,7 +60,7 @@ kotlin {
         // `@garmin/fitsdk` is **test-only** since w12, and JS-only. Nothing in the encoder needs
         // it any more, but replaying its output through the vendor's own decoder is the strongest
         // check there is that this port emits real FIT — that is all `FitEncoderJsTest` does now.
-        // A JS consumer of `@glandais/vcyclist-fit` no longer installs it.
+        // A JS consumer of `@glandais/vcyclist-engine` no longer installs it.
         //
         // There is no JVM counterpart on purpose: `com.garmin:fit` declares the same
         // `com.garmin.fit.*` class names as `fit-kotlin-sdk`, so the two cannot share a
@@ -82,8 +73,14 @@ kotlin {
 
 // Maven Central publication (coordinates, POM, signing) is configured once for every
 // module in the root build.gradle.kts — see the `subprojects` block there.
-// npm publishing tasks — same shape as `:engine` / `:elevation`, and wired into
-// `.releaserc.json` alongside them.
+// This module is published to **Maven Central only**, as `io.github.glandais:vcyclist-fit`.
+//
+// It carried an `npmPublishJs` task and a `@glandais/vcyclist-fit` package name until now, kept
+// as an affordance in case `:fit` ever grew a JS API of its own. It never did, and the task was
+// deliberately absent from `publishCmd` in `.releaserc.json` the whole time — see the "decided:
+// not published" section of docs/guides/publishing.md — so the package was never published in any
+// version. Configuration that has never run is a claim the build cannot back, so it is gone; the
+// decision it encoded is unchanged, and re-adding it is a small edit if that day comes.
 //
 // The Garmin SDK licence question that dominated this file until w12 is **moot**: no
 // Garmin-published package is a dependency of anything vcyclist ships any more. The encoder sits
@@ -96,23 +93,6 @@ kotlin {
 // The FIT format is still Garmin's, so `fit-kotlin-sdk` carries the FIT Protocol License and a
 // consumer accepts those terms in practice. `docs/guides/publishing.md` records the full reasoning,
 // including the pre-w12 argument it replaces.
-val copyReadmeToJsPackage =
-    tasks.register<Copy>("copyReadmeToJsPackage") {
-        from(rootProject.layout.projectDirectory.file("README.md"))
-        into(layout.buildDirectory.dir("dist/js/productionLibrary"))
-    }
-
-tasks.register<Exec>("npmPublishJs") {
-    group = "publishing"
-    description = "Publish the Kotlin/JS library to npm as @glandais/vcyclist-fit"
-    dependsOn("jsBrowserProductionLibraryDistribution", copyReadmeToJsPackage)
-    workingDir =
-        layout.buildDirectory
-            .dir("dist/js/productionLibrary")
-            .get()
-            .asFile
-    commandLine("npm", "publish", "--access", "public")
-}
 
 // Gradle 9 strict validation : `jsBrowserProductionWebpack` (binaries.executable()) reads the
 // directory `jsProductionLibraryCompileSync` (binaries.library()) writes. Declare the ordering,
