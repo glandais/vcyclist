@@ -178,7 +178,7 @@ Location: tools/parity/src/main/kotlin/io/github/glandais/parity/UnitDump.kt lin
 
 - Code: `out["dp.$id.$i.ele"] = p.elevation ?: 0.0`.
 
-**Moot since `865dd0b` on `develop`**, which removed the whole TS parity verification harness — the
+**Moot since `865dd0b` on `develop`**, which removed the whole parity verification harness — the
 file this warning lived in no longer exists. Nothing was fixed here; the site went away.
 
 ## D. Kotlin Gradle Plugin misconfiguration
@@ -334,7 +334,8 @@ counts 5 and not 2.
 
 Applied on branch `fix/build-warnings`, verified by a second
 `clean build --warning-mode all --no-build-cache` on 2026-08-17, then re-verified after rebasing onto
-`develop` at `865dd0b` (*"remove TS parity verification harness"*), which landed in between.
+`develop` at `865dd0b` (the commit that removed the parity verification harness), which landed
+in between.
 
 | Measure | Baseline | After |
 |---|---|---|

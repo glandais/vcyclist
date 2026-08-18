@@ -24,20 +24,20 @@ external interface CoordinatesElevationDto {
     val elevation: Double
 }
 
-/** Mirrors TS `SmoothingOptions`. */
+/** JS shape of [SmoothingOptions]. */
 external interface SmoothingOptionsDto {
     val enabled: Boolean
     val windowSize: Double
 }
 
-/** Mirrors TS `FilterOptions`. */
+/** JS shape of [FilterOptions]. */
 external interface FilterOptionsDto {
     val enabled: Boolean
     val tolerance: Double
     val zExaggeration: Double
 }
 
-/** Mirrors TS `getElevationsAlong` options bag — every field is optional from JS. */
+/** Options bag for `getElevationsAlong` — every field is optional from JS. */
 external interface GetElevationsAlongOptionsDto {
     val step: Double?
     val minDistance: Double?

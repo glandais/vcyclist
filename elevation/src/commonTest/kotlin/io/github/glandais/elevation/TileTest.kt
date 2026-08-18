@@ -97,7 +97,7 @@ class TileTest {
     }
 
     @Test
-    fun `Tile getElevation rejects negative x with TS message`() {
+    fun `Tile getElevation rejects negative x with the documented message`() {
         val tile = Tile(makeRawTile(4, 4, emptyMap()))
         val ex =
             assertFailsWith<IllegalArgumentException> {
@@ -107,7 +107,7 @@ class TileTest {
     }
 
     @Test
-    fun `Tile getElevation rejects x at width with TS message`() {
+    fun `Tile getElevation rejects x at width with the documented message`() {
         val tile = Tile(makeRawTile(256, 256, emptyMap()))
         val ex =
             assertFailsWith<IllegalArgumentException> {
@@ -117,7 +117,7 @@ class TileTest {
     }
 
     @Test
-    fun `Tile getElevation rejects y at height with TS message`() {
+    fun `Tile getElevation rejects y at height with the documented message`() {
         val tile = Tile(makeRawTile(256, 256, emptyMap()))
         val ex =
             assertFailsWith<IllegalArgumentException> {

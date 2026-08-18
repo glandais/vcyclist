@@ -5,8 +5,8 @@ import io.github.glandais.engine.EngineConstants
 import picocli.CommandLine
 
 /**
- * Bike parameters. Option names match gpxtools-cli; defaults come from [EngineConstants] so the
- * CLI and the library can never disagree — see [CyclistMixin] for why that matters.
+ * Bike parameters. Defaults come from [EngineConstants] so the CLI and the library can never
+ * disagree — see [CyclistMixin] for why that matters.
  */
 class BikeMixin {
     @field:CommandLine.Option(

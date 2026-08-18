@@ -14,21 +14,18 @@ data class RepairResult(
  * devices or exporters. Every repair is independent and a no-op on an already-valid document:
  * `repair(validXml) == validXml` and `repair(repair(x)) == repair(x)` both hold.
  *
- * Loosely inspired by `io.github.glandais.gpx.io.read.GpxXmlRepair` (gpx2web, 131 lines), but
- * **not a literal port** : the Java version works on raw `byte[]` and repairs a wrong-charset
- * decoding (bytes that are valid ISO-8859-1 but were meant to be read as UTF-8) by re-decoding
- * the bytes. `vcyclist`'s [GpxParser.parse] entry point takes an already-decoded [String] — by
- * the time we see it, a wrong-charset decode has already lost information (invalid UTF-8 byte
- * sequences become `U+FFFD` in a strict decoder) and cannot be reconstructed from the String
- * alone. Attempting the same trick at the String level (checking whether every char fits in a
+ * One repair is deliberately **absent**: fixing a wrong-charset decoding (bytes that are valid
+ * ISO-8859-1 but were meant to be read as UTF-8) needs the raw `byte[]`, and [GpxParser.parse]
+ * takes an already-decoded [String] — by the time we see it, a wrong-charset decode has already
+ * lost information (invalid UTF-8 byte sequences become `U+FFFD` in a strict decoder) and cannot
+ * be reconstructed from the String alone. Attempting the same trick at the String level (checking whether every char fits in a
  * byte, then re-decoding as UTF-8) was considered and rejected : it risks silently corrupting a
  * *correctly* decoded file whose accented Latin-1 characters happen to align into a
  * syntactically valid UTF-8 sequence — a false positive with no error message, which is worse
  * than the status quo. See the g04 task's "Résultat" section for the full inventory this
  * decision is based on.
  *
- * What *does* transfer cleanly to a String-based API, and is kept from the Java source:
- * recombining a UTF-16 surrogate pair written as two adjacent numeric character references
+ * What *does* work on a String-based API: recombining a UTF-16 surrogate pair written as two adjacent numeric character references
  * (`&#55358;&#56600;`) into the single supplementary-plane reference XML 1.0 actually allows.
  * The other two repairs below are new, chosen from the task's own "attendus typiques" list —
  * they target exactly the malformed-device-export symptoms this task exists for, and are safe
@@ -136,7 +133,7 @@ object GpxXmlRepair {
     }
 
     /**
-     * Port of `GpxXmlRepair.recombineSurrogatePairs` (gpx2web) : scans references one by one
+     * Scans references one by one
      * rather than matching pairs directly, so that in `&#65;&#55358;&#56600;` the real pair
      * (positions 2-3) is not missed because a two-at-a-time pattern already consumed the first
      * reference as a (mismatched) partner.

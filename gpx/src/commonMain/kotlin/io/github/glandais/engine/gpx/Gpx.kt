@@ -49,7 +49,7 @@ data class GpxWaypoint(
  * GPX 1.1 has two ordered point containers: `<trk>` (a recorded track, split into `<trkseg>`)
  * and `<rte>` (a planned route, a flat list of `<rtept>`). vcyclist models both as [GpxTrack]
  * and keeps the distinction here, so a parse → write round-trip gives back the container the
- * file actually used. gpx2web made the same choice (`GPXPathType`).
+ * file actually used.
  *
  * Both are written **in document order**, interleaved if that is how they were read. The GPX 1.1
  * sequence nominally wants every `<rte>` before every `<trk>`, but round-tripping a file

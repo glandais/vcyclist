@@ -6,10 +6,10 @@ import java.io.File
 /**
  * Input files and output location, shared by every subcommand.
  *
- * [collectGpxFiles] walks directories recursively and keeps only `.gpx` files, matching
- * gpxtools-cli. Unlike the reference it **returns** the list and reports problems to the caller
- * rather than logging and calling `System.exit` from inside a mixin — a parameter holder that
- * can terminate the process is untestable and surprising.
+ * [collectGpxFiles] walks directories recursively and keeps only `.gpx` files. It **returns**
+ * the list and reports problems to the caller rather than logging and calling `System.exit` from
+ * inside a mixin — a parameter holder that can terminate the process is untestable and
+ * surprising.
  */
 class FilesMixin {
     @field:CommandLine.Option(

@@ -9,7 +9,7 @@ import kotlin.test.assertEquals
 import kotlin.test.assertTrue
 
 /**
- * Reference values computed with the TS-port formula
+ * Reference values computed with the formula
  * `ρ = P0 · (1 − L·h/T0)^(g/(R·L)) / (R · (Tc + 273.15))`
  * using `P0=101325`, `T0=288.15`, `g=9.80665`, `L=0.0065`, `R=287.05` :
  *
@@ -152,13 +152,13 @@ class RhoProviderTest {
         }
     }
 
-    // ---- 10. TS parity at the bit level on the sentinel point ---------------
+    // ---- 10. Bit-level parity on the sentinel point -------------------------
 
     @Test
     fun estimate_at_0m_15c_matches_ts_value_within_1e9() {
         val path = pathWith(elevation = 0.0, temperatureC = 15.0)
         val rho = RhoProviderEstimate.rho(course(path), path, 0)
-        // Pre-computed (Java double, same formula as TS) : 1.2250122660…
+        // Pre-computed (Java double, same formula) : 1.2250122660…
         assertEquals(1.2250122660, rho, 1e-9)
     }
 

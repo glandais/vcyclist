@@ -166,7 +166,7 @@ normative : si l'un d'eux redevient nécessaire, il faut une nouvelle tâche.
 reste sans équivalent. Son sort fera l'objet d'une décision séparée.
 
 La matrice classe par classe qui l'établit est
-[`docs/gpx2web-coverage.md`](../../ledgers/gpx2web-coverage.md) : 104 classes Java, une ligne chacune, plus
+[`docs/gpx2web-coverage.md`](../gpx2web-coverage.md) : 104 classes Java, une ligne chacune, plus
 les divergences de comportement assumées et les options pour le sort de la webapp.
 
 ## Risques identifiés

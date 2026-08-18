@@ -10,8 +10,8 @@ import kotlin.test.assertTrue
  * Task g24: `<rte>` / `<rtept>` are read and written.
  *
  * Before this, a GPX made only of routes parsed into an **empty document, without error** — the
- * worst kind of failure. Routes are the normal output of several route planners, and gpx2web
- * has always read them (`GPXFileReader.java:153`).
+ * worst kind of failure. Routes are the normal output of several route planners, so they have
+ * to be read.
  */
 class GpxRouteTest {
     private val twoRoutes =

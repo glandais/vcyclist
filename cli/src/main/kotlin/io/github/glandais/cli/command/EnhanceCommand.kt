@@ -39,12 +39,11 @@ import kotlin.time.Instant
 /**
  * Runs the enhancement pipeline over one or more GPX files.
  *
- * ## Why this is one command, not gpx2web's two
+ * ## Why this is one command
  *
- * gpxtools-cli splits the work between `process` and `virtualize`, whose options overlap almost
- * entirely. vcyclist has a single `Enhancer` pipeline, and reproducing the split would mean
- * inventing a distinction the code does not make. So there is one `enhance` command, with the
- * pipeline stages exposed as flags. `cli/README.md` maps the old commands onto it.
+ * vcyclist has a single `Enhancer` pipeline, so splitting the work across several subcommands
+ * would invent a distinction the code does not make. There is one `enhance` command, with the
+ * pipeline stages exposed as flags.
  *
  * Every pipeline flag corresponds to a field of [EnhanceOptions] — no option here exists that
  * the engine cannot express.
@@ -229,7 +228,6 @@ class EnhanceCommand : Callable<Int> {
         names = ["--gpx-power"],
         description = [
             "Replay the power recorded in the GPX instead of the constant --cyclist-power.",
-            "gpxtools-cli spells this the same way.",
         ],
     )
     var useGpxPower: Boolean = false
@@ -238,9 +236,9 @@ class EnhanceCommand : Callable<Int> {
     var quiet: Boolean = false
 
     /**
-     * `--xlsx` exists only to explain itself. XLSX is explicitly not ported (see
-     * `PLAN-GPX2WEB.md`), and telling a gpx2web user "unknown option" would leave them guessing
-     * whether they mistyped it.
+     * `--xlsx` exists only to explain itself. XLSX output is deliberately not supported, and
+     * answering "unknown option" would leave someone who expected it guessing whether they
+     * mistyped it.
      */
     @field:CommandLine.Option(names = ["--xlsx"], hidden = true, description = ["Not supported; use --csv."])
     var xlsx: File? = null
@@ -543,8 +541,8 @@ class EnhanceCommand : Callable<Int> {
  *
  * A single track keeps [target] exactly as the user spelled it — that is the dominant case and its
  * file name must not change. Several tracks produce `name-1.csv`, `name-2.csv`, …, which is the
- * shape gpx2web's `CSVFileWriter` produces (one file per `GPXPath`), and each file stays readable
- * on its own in a spreadsheet. Concatenating instead would have kept the defect, merely disguised.
+ * shape a spreadsheet can read one file at a time. Concatenating instead would have kept the
+ * defect, merely disguised.
  */
 internal fun trackOutputFiles(
     target: File,
@@ -566,8 +564,8 @@ internal fun trackOutputFiles(
  *
  * With one input the target is taken literally, so `--csv out.csv` writes `out.csv`. With
  * several, a single literal path would have each file overwrite the last, so the target is
- * treated as a **folder** and outputs are named after their input. gpx2web's `FilesMixin` always
- * works in folder mode; this keeps the single-file case ergonomic without losing batch support.
+ * treated as a **folder** and outputs are named after their input. Always working in folder mode
+ * would be simpler; this keeps the single-file case ergonomic without losing batch support.
  */
 internal class OutputNaming(
     private val input: File,

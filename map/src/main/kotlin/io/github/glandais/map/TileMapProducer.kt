@@ -18,8 +18,8 @@ import kotlin.math.floor
 /**
  * Renders one or more [Path]s over a downloaded tile background and writes a PNG.
  *
- * Port of gpx2web's `TileMapProducer`. Framing is delegated to [MapImage] (task g13); this class
- * adds tile fetching, the disk cache, and drawing.
+ * Framing is delegated to [MapImage] (task g13); this class adds tile fetching, the disk cache,
+ * and drawing.
  *
  * ## The URL pattern is mandatory
  *
@@ -29,7 +29,7 @@ import kotlin.math.floor
  * [HttpTileFetcher] and `map/README.md`.
  *
  * The pattern accepts `{z}`, `{x}`, `{y}` and, optionally, `{s}` for a subdomain, which is
- * replaced with one of `a`, `b`, `c` at random, as the reference does.
+ * replaced with one of `a`, `b`, `c` at random.
  *
  * ## Cache
  *
@@ -37,10 +37,10 @@ import kotlin.math.floor
  * in practice, and a render that silently changes because the background was updated between two
  * runs makes regression testing impossible. Clearing the folder is the way to refresh.
  *
- * Note one deliberate difference from the reference: a *failed* fetch is not cached. gpx2web
- * touches a zero-byte file, which makes the failure permanent — a single network blip would
- * blank that tile forever. Here a failure just means no tile this time, and the next render
- * retries. Successful tiles are still cached indefinitely, so reproducibility is unaffected.
+ * A *failed* fetch is deliberately **not** cached. Caching a zero-byte marker would make the
+ * failure permanent — a single network blip would blank that tile forever. Here a failure just
+ * means no tile this time, and the next render retries. Successful tiles are still cached
+ * indefinitely, so reproducibility is unaffected.
  *
  * @param cacheFolder root of the on-disk tile cache.
  * @param fetcher how tiles are retrieved. Injected so tests never touch the network.
@@ -52,7 +52,7 @@ class TileMapProducer(
     /**
      * Render [paths] over tiles from [urlPattern] and write a PNG to [file].
      *
-     * Exactly one framing mode must be chosen, mirroring the reference's three overloads:
+     * Exactly one framing mode must be chosen:
      *
      * - [maxSize] — deepest zoom at which neither dimension exceeds it;
      * - [width] and [height] — an image of exactly that size;
@@ -162,8 +162,8 @@ class TileMapProducer(
 
     /**
      * `{cacheFolder}/{host}/{z}/{x}/{y}.png`. Keying on the host keeps two tile sources apart
-     * while staying readable — gpx2web uses a hash of the URL pattern, which is opaque when you
-     * are trying to work out why a render looks wrong.
+     * while staying readable — hashing the URL pattern would be shorter but opaque when you are
+     * trying to work out why a render looks wrong.
      */
     private fun cacheFile(
         urlPattern: String,
@@ -189,7 +189,7 @@ class TileMapProducer(
             .replace("{z}", zoom.toString())
             .replace("{x}", x.toString())
             .replace("{y}", y.toString())
-            // Spread requests over the source's subdomains, as the reference does. The cache is
+            // Spread requests over the source's subdomains. The cache is
             // keyed on z/x/y, so which subdomain served a tile does not affect cache hits.
             .replace("{s}", SUBDOMAINS[ThreadLocalRandom.current().nextInt(SUBDOMAINS.length)].toString())
 
@@ -219,12 +219,12 @@ class TileMapProducer(
     }
 
     companion object {
-        /** Subdomains substituted for `{s}`, as in the reference. */
+        /** Subdomains substituted for `{s}`. */
         private const val SUBDOMAINS = "abc"
 
         private const val STROKE_WIDTH = 5.0f
 
-        /** Semi-transparent so the map underneath stays legible. From the reference. */
+        /** Semi-transparent so the map underneath stays legible. */
         private const val TRACK_ALPHA = 0.6f
 
         /** Default padding around the track, as a ratio of its extent. */

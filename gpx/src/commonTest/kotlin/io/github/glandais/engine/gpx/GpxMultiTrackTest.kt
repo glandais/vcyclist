@@ -5,7 +5,7 @@ import kotlin.test.assertEquals
 import kotlin.test.assertTrue
 
 /**
- * Multi-track / multi-segment semantics introduced by gpx2web task g02.
+ * Multi-track / multi-segment semantics introduced by task g02.
  *
  * The contract under test :
  * - `<trkseg>` boundaries survive parsing as [GpxSegment]s instead of being flattened,

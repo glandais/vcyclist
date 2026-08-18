@@ -22,9 +22,8 @@ which do not exist in the codebase at all.
 
 ## 7.2 Concrete findings to act on
 
-> **Status (2026-08-17)**: (a), (b), (c) are applied and (d) documented, in **all three
-> projects** — vcyclist (`EngineConstants`), virtual-cyclist (`src/constants/constants.ts`)
-> and gpx2web (`Constants.java`), plus their CLI mixins, demo presets and docs. The parity
+> **Status (2026-08-17)**: (a), (b), (c) are applied and (d) documented — in `EngineConstants`,
+> the CLI mixins, the demo presets and the docs. The parity
 > fixtures held inside the 0.5 % budget and were not regenerated. Still open from (b): brake
 > actuation lag; from (d): a wet/dry µ switch and the pedal-strike power cut-off; from (e):
 > yaw- and posture-dependent CdA.
@@ -48,9 +47,8 @@ will bite anyone who later uses `wheelCircumferenceM` for cadence or odometry, w
 **factor-of-2 error**.
 
 ⚠ Changing it will shift pipeline output on accelerations and may exceed the 0.5 % parity budget.
-Check `docs/parity.md` before touching it, and check whether the TS reference has the same bug (if
-so, fixing it is a deliberate divergence to document, like the two `VirtualizeService` fixes
-already documented in `CLAUDE.md`).
+Re-measure before touching it, and document the change like the two `VirtualizeService` fixes
+already documented in `CLAUDE.md`.
 
 ### (b) `DEFAULT_MAX_BRAKE_G = 0.6` is the theoretical limit, not realistic behaviour — ✅ **fixed**
 
@@ -68,8 +66,8 @@ Add brake actuation lag (~0.13 s) to the braking-point calculation if you want t
 
 ### (c) `G = 9.8` vs 9.80665 — ✅ **fixed**
 
-A 0.07 % systematic error on both the gravity and rolling terms. Almost certainly deliberate for TS
-parity — worth a one-line comment saying so, since it reads as a typo.
+A 0.07 % systematic error on both the gravity and rolling terms — worth a one-line comment saying
+where the rounded value came from, since it reads as a typo.
 
 ### (d) The 35° lean default is a good number — and now has a literature anchor — ✅ **documented**
 

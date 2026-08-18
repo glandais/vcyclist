@@ -33,8 +33,8 @@ class PowerProviderFromDataTest {
 
     @Test
     fun nan_input_is_passed_through() {
-        // `GpxToPath` writes NaN when the GPX carried no <power>. TS documents the same contract:
-        // "the power field must contain valid data (not NaN) for this provider to work correctly".
+        // `GpxToPath` writes NaN when the GPX carried no <power>. The contract is that the power
+        // field must contain valid data (not NaN) for this provider to work correctly.
         val (cp, path) = buildCp()
         path.setPInputPower(0, Double.NaN)
         assertTrue(PowerProviderFromData.powerAt(cp, path, 0).isNaN())

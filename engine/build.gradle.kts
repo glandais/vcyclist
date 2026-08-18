@@ -152,7 +152,7 @@ tasks.withType<org.jetbrains.kotlin.gradle.targets.js.testing.KotlinJsTest>().co
 }
 
 // The JVM `run` task that used to launch `EngineCli` is gone: task g18 removed that entry point
-// in favour of the `:cli` module, which covers it and all of gpxtools-cli. Use:
+// in favour of the `:cli` module, which covers it. Use:
 //
 //   ./gradlew :cli:run -Pargs="enhance input.gpx --gpx /tmp/out.gpx"
 //

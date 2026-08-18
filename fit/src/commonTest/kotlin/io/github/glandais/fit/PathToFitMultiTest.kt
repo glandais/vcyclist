@@ -11,7 +11,7 @@ import kotlin.time.Instant
 
 /**
  * Task g25b: several [Path]s in one FIT file — one lap and one `TIMER`/`START`…`STOP` event pair
- * per path, as gpx2web's `FitFileWriter.writeGPX` does for a multi-path `GPX`.
+ * per path, which is how FIT expresses several rides in one file.
  */
 class PathToFitMultiTest {
     private val start = Instant.parse("2026-07-28T08:00:00Z")

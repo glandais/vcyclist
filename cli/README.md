@@ -1,6 +1,6 @@
 # `vcyclist` command-line tool
 
-JVM-only. Replaces gpx2web's `gpxtools-cli`.
+JVM-only.
 
 ```bash
 ./gradlew :cli:executableJar
@@ -63,8 +63,7 @@ A CSV or a JSON file describes one track, where a GPX or a FIT holds several. Wi
 input — the usual case — `--csv out.csv` writes exactly `out.csv`. With several tracks it writes
 `out-1.csv`, `out-2.csv`, … and names each one on stdout. Same for `--json`.
 
-Before this, only the first track was exported, without a word. gpx2web's `CSVFileWriter` also
-produces one file per path.
+Before this, only the first track was exported, without a word.
 
 ### Which power ends up in the GPX (`--gpx-power-source`)
 
@@ -75,10 +74,8 @@ The default, `input`, writes what the file said — nothing invented, and a trac
 meter comes back out without one. `computed` writes the simulation's output, which is what the
 FIT export does. `computed-or-input` prefers the simulation and falls back point by point.
 
-Two things worth knowing before choosing `computed`: `<power>` carries no provenance, so
-re-reading the file turns the simulated value into a measured-looking one; and the two reference
-implementations disagree — the TypeScript one writes the input power, gpx2web ends up writing the
-simulated one.
+One thing worth knowing before choosing `computed`: `<power>` carries no provenance, so
+re-reading the file turns the simulated value into a measured-looking one.
 
 **Not to be confused with `--gpx-power`**, which is about the simulation's input: it replays the
 recorded power instead of applying the rider model.
@@ -91,49 +88,14 @@ unused `gpxtpx` namespace declaration. `<ele>`, `<time>` and `<name>` are standa
 elements, not extensions, and are always written.
 
 Use it for a strict import target, a readable diff between two traces, an old GPS unit, or
-simply a smaller file. gpx2web had the same switch on its writer.
+simply a smaller file.
 
-## Coming from gpxtools-cli
+## Other options
 
-Every command and option of `gpxtools-cli` has a line here. This table is what justified
-removing the old entry points, and it feeds the g20 correspondence matrix.
-
-### Commands
-
-| gpxtools-cli | vcyclist | Note |
-|---|---|---|
-| `process` | `enhance` | |
-| `virtualize` | `enhance` | The two overlapped almost entirely and vcyclist has one `Enhancer` pipeline, so reproducing the split would invent a distinction the code does not make. |
-| `export` | `export` | |
-
-### Options
-
-| gpxtools-cli | vcyclist | Note |
-|---|---|---|
-| `process --csv` | `enhance --csv` | |
-| `process --xlsx` | *(dropped)* | Not ported — see `PLAN-GPX2WEB.md`. Passing it prints a message pointing at `--csv`, not "unknown option". |
-| `process --gpx-elevation` | `enhance --no-fix-elevation` | Inverted sense. gpx2web's flag asserts the GPX elevation is already good; vcyclist expresses the same thing by *not* correcting, which is the default. |
-| `process --gpx-power` | `enhance --gpx-power` | Same name. Replays the recorded power instead of the constant `--cyclist-power`. |
-| `process --cyclist-power` | `--cyclist-power` | Same name; internally a power strategy rather than a field of the cyclist. |
-| `process/virtualize --wind-speed` | `--wind-speed` | Same name. gpx2web's help says "km/s", which is a typo for m/s. |
-| `process/virtualize --wind-direction` | `--wind-direction` | Same name and convention (degrees, clockwise, 0 = N). |
-| `virtualize --start` | `enhance --start-time` | Renamed for symmetry with `export --start-time`; same ISO-8601 meaning. |
-| `export --map` | `export --map` | Now **requires** `--tile-url`. |
-| `export --map-tile-url` | `export --tile-url` | Shortened; no default, deliberately. |
-| `export --map-srtm` | `export --elevation-map` | Renamed: it renders a hypsometric map, and "srtm" named a data source rather than an output. |
-| `export --map-width` / `--map-height` | `export --width` / `--height` | Shortened; unambiguous inside `export`. |
-| `export --gpx` | `export --gpx` | Same name. |
-| `export --fit` | `export --fit` | Now requires `--start-time` — FIT has no relative clock. |
-| `-o` / `--output` | `-o` / `--output` | Same. |
-| `--cyclist-weight`, `--cyclist-cd`, `--cyclist-a`, `--cyclist-max-brake` | same names | |
-| `--cyclist-max-angle` | same name, **different default** | 45° → 35°, see below. |
-| `--cyclist-max-speed` | same name, **different default** | 90 → 100 km/h, see below. |
-| `--bike-crr`, `--bike-inertia-front`, `--bike-inertia-rear`, `--bike-wheel-radius`, `--bike-efficiency` | same names | |
-
-Options with no gpx2web equivalent, added because vcyclist's pipeline exposes them:
-`--json`, `--road-condition`, `--cyclist-model`, `--cyclist-cp`, `--cyclist-wprime`,
-`--cyclist-slew`, `--cyclist-pacing`, `--bike-max-pedal-angle`, `--[no-]virtualize`, `--[no-]simplify`, `--simplify-tolerance`,
-`--[no-]one-point-per-second`, `--max-size`, `--zoom`, `--margin`, `--cache`, `--quiet`.
+Beyond the ones documented above: `--json`, `--road-condition`, `--cyclist-model`, `--cyclist-cp`,
+`--cyclist-wprime`, `--cyclist-slew`, `--cyclist-pacing`, `--bike-max-pedal-angle`,
+`--[no-]virtualize`, `--[no-]simplify`, `--simplify-tolerance`, `--[no-]one-point-per-second`,
+`--max-size`, `--zoom`, `--margin`, `--cache`, `--quiet`.
 
 ### `--road-condition`
 
@@ -159,26 +121,6 @@ Measured cost on the shipped fixtures (`--no-fix-elevation`, default rider):
 The literature reports 1.8–3.4 % over 40 km on courses where technical sections are ~25 % of the
 route, and 0–0.5 % without them. These sit at or above that band because the fixtures are more
 technical than those courses — `stelvio.gpx` is essentially all corners.
-
-### Coming from `EngineCli`
-
-`:engine` used to ship a minimal `EngineCli` (`enhance <in> [-o <out>] [--start-time …]`),
-removed in task g18. `vcyclist enhance <in> --gpx <out> --start-time …` is the direct
-replacement, with the same exit codes.
-
-### Defaults that deliberately differ
-
-Option names match, values follow vcyclist's library rather than gpxtools-cli, so the CLI and
-the API can never disagree:
-
-| Option | gpxtools-cli | vcyclist |
-|---|---|---|
-| `--cyclist-max-angle` | 45° | **35°** |
-| `--cyclist-max-speed` | 90 km/h | **100 km/h** |
-
-`--cyclist-power` also behaves differently under the hood: gpx2web stores power on its cyclist
-model, while vcyclist treats it as a power strategy. The option is the same; only the internals
-moved.
 
 ### `--cyclist-model`
 
@@ -272,6 +214,12 @@ instantly at the lean threshold and ramps back gradually, which is the "drop qui
 rise gradually" asymmetry the pacing literature describes, arrived at without modelling it.
 
 It becomes load-bearing when a provider reacts to terrain, which is what it is really for.
+
+## Coming from `EngineCli`
+
+`:engine` used to ship a minimal `EngineCli` (`enhance <in> [-o <out>] [--start-time …]`),
+removed in task g18. `vcyclist enhance <in> --gpx <out> --start-time …` is the direct
+replacement, with the same exit codes.
 
 ## Exit codes
 

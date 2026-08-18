@@ -20,22 +20,20 @@ import kotlin.math.roundToInt
  * frame: where the image starts in world pixel space ([startX], [startY]), how big it is, and
  * what latitude/longitude each pixel corresponds to.
  *
- * Port of gpx2web's `MapImage`, with one deliberate interface change: it takes a `List<Path>`
- * rather than gpx2web's `GPX` wrapper, which lines up with the multi-track model introduced in
- * task g02.
+ * It takes a `List<Path>` rather than a single-track wrapper, which lines up with the
+ * multi-track model introduced in task g02.
  *
  * ## Antimeridian
  *
- * **Not supported, same as the reference — and this is a freeze, not an oversight.** Bounds are
+ * **Not supported — and this is a freeze, not an oversight.** Bounds are
  * computed as a plain min/max over longitudes, so a track crossing ±180° (say from +179° to
  * −179°) produces bounds spanning almost the entire globe rather than the two-degree window it
  * should. The resulting image is valid but absurdly zoomed out.
  *
  * Handling it properly means detecting the wrap and rendering in a shifted longitude space,
- * which changes the meaning of every accessor here. gpx2web does not do it, no fixture in this
- * repo crosses the line, and doing it silently differently from the reference would be worse
- * than the documented gap. [MapImageTest] pins the current behaviour so a future fix is a
- * deliberate change rather than an accident.
+ * which changes the meaning of every accessor here. No fixture in this repo crosses the line,
+ * so the documented gap is preferable to a half-handled wrap. [MapImageTest] pins the current
+ * behaviour so a future fix is a deliberate change rather than an accident.
  */
 class MapImage private constructor(
     val mapSpace: MapSpace,
@@ -119,7 +117,7 @@ class MapImage private constructor(
     }
 
     companion object {
-        /** Zoom the reference uses as a working level while computing bounds and margins. */
+        /** Working zoom level used while computing bounds and margins. */
         private const val REFERENCE_ZOOM = 16
 
         /**
@@ -188,8 +186,8 @@ class MapImage private constructor(
             map.height = height
 
             val bounds = boundsOf(paths)
-            // Pad in pixel space at the reference zoom, exactly as gpx2web does, then convert
-            // back — so the margin is proportional to the track's extent, not to the image.
+            // Pad in pixel space at the reference zoom, then convert back — so the margin is
+            // proportional to the track's extent, not to the image.
             val z = REFERENCE_ZOOM
             var xMin = mapSpace.lonToX(bounds.minLon, z)
             var xMax = mapSpace.lonToX(bounds.maxLon, z)
@@ -281,7 +279,7 @@ class MapImage private constructor(
         minLat = bounds.minLat
         maxLat = bounds.maxLat
 
-        // Pad at a fixed working zoom then convert back to degrees, matching the reference.
+        // Pad at a fixed working zoom then convert back to degrees.
         applyZoom(REFERENCE_ZOOM)
         val xMin = mapSpace.lonToX(minLon, zoom)
         val xMax = mapSpace.lonToX(maxLon, zoom)
@@ -289,11 +287,10 @@ class MapImage private constructor(
         val yMax = mapSpace.latToY(minLat, zoom)
         val delta = max((xMax - xMin) * margin / 2.0, (yMax - yMin) * margin / 2.0)
 
-        // Round each corner OUTWARD. gpx2web truncates both corners toward zero, which shrinks
-        // the box by a sub-pixel amount and can leave the extreme point a fraction of a pixel
-        // outside the bounds — about 2 m at the working zoom, invisible on a map but enough to
-        // make "the bounds contain the track" false. Deliberate, documented deviation: enclosing
-        // the track is the whole job of this class.
+        // Round each corner OUTWARD. Truncating both corners toward zero shrinks the box by a
+        // sub-pixel amount and can leave the extreme point a fraction of a pixel outside the
+        // bounds — about 2 m at the working zoom, invisible on a map but enough to make "the
+        // bounds contain the track" false. Enclosing the track is the whole job of this class.
         minLon = mapSpace.xToLon(floor(xMin - delta), zoom)
         maxLon = mapSpace.xToLon(ceil(xMax + delta), zoom)
         maxLat = mapSpace.yToLat(floor(yMin - delta), zoom)

@@ -28,7 +28,7 @@ val GpxDocument.startTime: Instant?
 
 /**
  * Convert the **first** track of [this] document to a [Path], computing derived data.
- * Throws if the document has no track. Matches the TS `GPXParser.parse(...).tracks[0]` usage.
+ * Throws if the document has no track.
  *
  * Segments of that track are concatenated — see [GpxTrack.toPath] for what that implies on
  * distance. This is the pre-g02 behaviour, kept as the legitimate shortcut for the common
@@ -64,8 +64,7 @@ fun GpxDocument.tracksAsPaths(kinds: Set<GpxPathKind> = ALL_KINDS): List<Path> =
  *
  * Use this rather than [tracksAsPaths] when the inter-segment discontinuity matters : each
  * returned [Path] is continuous, so no phantom distance is introduced by the pause/teleport
- * between two segments. This is the shape gpx2web produces natively (one `GPXPath` per
- * `<trkseg>`).
+ * between two segments.
  */
 fun GpxDocument.segmentsAsPaths(kinds: Set<GpxPathKind> = ALL_KINDS): List<Path> =
     tracks
@@ -132,8 +131,7 @@ private fun pointsToPath(
         path.setTime(i, (p.timeEpochMs ?: 0L).toDouble())
         // An absent sensor is written as NaN, not left at the array's 0.0 : `0` is a legitimate
         // reading (0 °C, freewheeling at 0 rpm, 0 W) and must survive to the writers and to
-        // `RhoProviderEstimate`. Mirrors the TS parser, which spreads the all-NaN `EMPTY_POINT`
-        // into every point it creates.
+        // `RhoProviderEstimate`.
         path.setPInputPower(i, p.powerW ?: Double.NaN)
         path.setHeartRate(i, p.heartRate?.toDouble() ?: Double.NaN)
         path.setCadence(i, p.cadence?.toDouble() ?: Double.NaN)

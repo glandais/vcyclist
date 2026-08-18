@@ -44,8 +44,8 @@ data class WPrimeBalanceOptions(
 }
 
 /**
- * Options controlling the `Enhancer` pipeline (introduced in task 25). Defaults match the TS
- * library : every step is enabled and simplification is on with `tolerance=10`, `zExag=3`.
+ * Options controlling the `Enhancer` pipeline (introduced in task 25). By default every step is
+ * enabled and simplification is on with `tolerance=10`, `zExag=3`.
  *
  * @param fixElevation pull elevation from a tile provider (task 24)
  * @param computeMaxSpeeds compute cornering + braking max speeds (task 20)
@@ -73,7 +73,7 @@ data class EnhanceOptions(
     val racingLine: RacingLineOptions = RacingLineOptions(),
 ) {
     companion object {
-        /** All steps enabled with TS-compatible defaults. */
+        /** All steps enabled with the shipped defaults. */
         val DEFAULT = EnhanceOptions()
     }
 }

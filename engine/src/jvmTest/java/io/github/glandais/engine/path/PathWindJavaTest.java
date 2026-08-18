@@ -18,7 +18,7 @@ import org.junit.Test;
  *
  * <p>It also pins the frame, which the KDoc describes and no Kotlin test states in Java terms: the
  * returned vector is east-north, so a northbound course yields {@code y < 0} — the opposite sign
- * from the Web Mercator screen frame gpx2web consumers came from.
+ * from the Web Mercator screen frame map-oriented callers come from.
  */
 public class PathWindJavaTest {
 

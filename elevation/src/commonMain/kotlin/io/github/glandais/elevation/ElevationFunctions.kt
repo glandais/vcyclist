@@ -107,7 +107,8 @@ object ElevationFunctions {
         return PixelFloat(TileCoordinates(tile.x, tile.y, z), px, py)
     }
 
-    /** Formats integer-valued doubles like JS (`86` not `86.0`). Used for TS-compatible error messages. */
+    /** Formats integer-valued doubles like JS (`86` not `86.0`), so an error message reads the
+     * same on every target rather than gaining a `.0` on the JVM. */
     private fun formatNumber(d: Double): String {
         val asLong = d.toLong()
         return if (asLong.toDouble() == d) asLong.toString() else d.toString()

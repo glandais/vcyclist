@@ -8,11 +8,9 @@
 [![Maven Central fit](https://img.shields.io/maven-central/v/io.github.glandais/vcyclist-fit?label=io.github.glandais%3Avcyclist-fit)](https://central.sonatype.com/artifact/io.github.glandais/vcyclist-fit)
 [![Maven Central map](https://img.shields.io/maven-central/v/io.github.glandais/vcyclist-map?label=io.github.glandais%3Avcyclist-map)](https://central.sonatype.com/artifact/io.github.glandais/vcyclist-map)
 
-Kotlin Multiplatform port of [`@glandais/virtual-cyclist`](https://github.com/glandais/virtual-cyclist):
-physics-based cycling simulator that turns a static GPS trace into a virtualized ride with
-realistic speeds, times and power estimates. Inspired by [gpx2web](https://github.com/glandais/gpx2web)
-(Java) for the physics model and the [`@glandais/elevation`](https://github.com/glandais/elevation)
-TypeScript library for elevation data.
+Kotlin Multiplatform physics-based cycling simulator: it turns a static GPS trace into a
+virtualized ride with realistic speeds, times and power estimates. Elevation data comes from
+Terrarium-encoded DEM tiles, fetched and decoded by the `:elevation` module.
 
 ```
                         ┌──────────────┐
@@ -49,7 +47,7 @@ TypeScript library for elevation data.
 | **`:engine`** | Physics (4 resistive `PowerProvider`s + cyclist input + `MaxSpeedComputer` + `VirtualizeService`), `Enhancer` pipeline, JVM CLI, JS façades. Re-exports `:gpx` via `api`, so `io.github.glandais.engine.path.*` and `…engine.gpx.*` stay importable from `:engine`. Also the module that links the standalone `.wasm` — see [`docs/guides/wasm-wasi-abi.md`](docs/guides/wasm-wasi-abi.md). | JVM, JS Node, JS browser, WASI |
 | **`:fit`** | Garmin FIT encoding. `FitCourse` model, unit conversions and `FitEncoder` itself, all in commonMain over [`fit-kotlin-sdk`](https://github.com/glandais/fit-kotlin-sdk) — a multiplatform SDK generated from the FIT profile. One encoder, byte-identical output on every target, and no vendor SDK for consumers to install. | JVM, JS Node, JS browser, WASI |
 | **`:map`** | Static map rendering: Web Mercator projection, image framing, tile download + cache, PNG output (`java.awt` / `ImageIO`). **JVM-only.** No default tile source — see [`map/README.md`](map/README.md) for the usage-policy obligations. | JVM only |
-| **`:cli`** | Command-line tool (picocli). **JVM-only, not published as a library** — distributed as an executable jar. Replaces gpx2web's `gpxtools-cli`. | JVM only |
+| **`:cli`** | Command-line tool (picocli). **JVM-only, not published as a library** — distributed as an executable jar. | JVM only |
 | **`:codegen`** | Tiny build-time helper that regenerates `GeneratedPath.kt` + `PointFieldAccessors.kt` from `PointField` (run only when the field list changes). | JVM only |
 
 ### Running it without a JVM or a JavaScript host
@@ -70,14 +68,6 @@ The host provides `read_input`, `write_output` and `fetch_tile` (the last one ma
 "no tile"); everything else is numeric exports and integer handles.
 [`docs/guides/wasm-wasi-abi.md`](docs/guides/wasm-wasi-abi.md) is the full contract, and
 [`tools/wasi`](tools/wasi/README.md) is a working host that CI runs on every pull request.
-
-### Migrating from gpx2web
-
-vcyclist replaces the `gpx` and `gpxtools-cli` modules of
-[gpx2web](https://github.com/glandais/gpx2web).
-[`docs/ledgers/gpx2web-coverage.md`](docs/ledgers/gpx2web-coverage.md) has one row per Java class — ported,
-replaced, or not ported with the reason — plus the deliberate behavioural differences. For the
-command-line options specifically, see [`cli/README.md`](cli/README.md).
 
 ## Install
 
@@ -124,8 +114,7 @@ java -jar cli/build/libs/vcyclist-cli-*-all.jar enhance route.gpx --gpx out.gpx 
 
 `enhance` runs the physics pipeline; `export` produces maps, FIT, CSV and JSON from a file you
 already have. Elevation correction is off unless you pass `--fix-elevation`, so nothing touches
-the network by default. Full usage, exit codes and the migration table from gpx2web's
-`gpxtools-cli` are in [`cli/README.md`](cli/README.md).
+the network by default. Full usage and exit codes are in [`cli/README.md`](cli/README.md).
 
 ### Try the browser demo (elevation only)
 
@@ -134,8 +123,8 @@ the network by default. Full usage, exit codes and the migration table from gpx2
 ./gradlew :elevation:jsBrowserDevelopmentRun
 ```
 
-The demo shares the [original TS demo](https://github.com/glandais/elevation) UI (Leaflet +
-Chart.js + GPX upload). See [`elevation/README.md`](elevation/README.md) for details.
+The demo is a Leaflet + Chart.js page with GPX upload. See
+[`elevation/README.md`](elevation/README.md) for details.
 
 ### Use from Kotlin
 
@@ -384,7 +373,7 @@ Everything lives under [`docs/`](docs/README.md), which is the index. The short 
 - [`docs/guides/`](docs/README.md#guides) — how to use and extend the project: the racing line,
   the release flow, Kotlin/JS interop, the WASI ABI.
 - [`docs/ledgers/`](docs/README.md#ledgers) — living state: research improvements, build warnings,
-  façade coverage, gpx2web coverage.
+  façade coverage.
 - [`docs/research/`](docs/research/README.md) — the solo-rider simulation research report.
 - [`docs/archive/`](docs/archive/README.md) — the finished plans and the 100+ task specs that
   built the project. Historical: read for the *why*, never for the current state.
@@ -402,6 +391,6 @@ publish to Maven Central + npm, and commit the version bump back to `develop` wi
 
 ## License
 
-Apache License 2.0, aligned with the upstream `gpx2web` project. See the Maven Central POM
+Apache License 2.0. See the Maven Central POM
 metadata in `engine/build.gradle.kts` and `elevation/build.gradle.kts`. A top-level `LICENSE`
 file will be added before the first public release.

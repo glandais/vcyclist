@@ -13,10 +13,10 @@ import kotlin.math.ceil
  * The first point is always kept. [minDistanceM] may be negative (e.g. `-1`) to disable the
  * lower bound (densify-only mode).
  *
- * Port of `processing/PointPerDistance.ts`. Returns a fresh [Path] ; the source is unchanged.
+ * Returns a fresh [Path] ; the source is unchanged.
  */
 object PointPerDistance {
-    /** Same as [computeOnePointPerDistance] (TS-compatible alias). */
+    /** Same as [computeOnePointPerDistance]; the short name is the one callers use. */
     fun compute(
         source: Path,
         minDistanceM: Double,
@@ -137,7 +137,7 @@ object PointPerDistance {
         for (field in PointField.entries) {
             val v1 = src.get(i1, field)
             val v2 = src.get(i2, field)
-            // Strict NaN handling : either side NaN → result NaN (mirrors TS).
+            // Strict NaN handling : either side NaN → result NaN.
             val v = if (v1.isNaN() || v2.isNaN()) Double.NaN else v1 + (v2 - v1) * coef
             dst.set(dstIdx, field, v)
         }

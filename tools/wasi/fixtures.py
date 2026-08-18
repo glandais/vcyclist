@@ -7,8 +7,8 @@ harness whose references are stale is worse than none, because it keeps passing.
 So both are extracted from the sources at run time:
 
 - the GPX documents from `GpxFixtures.kt`, where they are raw Kotlin strings;
-- the expected metrics from `ParityFixtures.kt`, where each carries the TS reference value and
-  a quantified explanation of the gap (see docs/parity.md).
+- the expected metrics from `ParityFixtures.kt`, where each carries a quantified explanation of
+  the tolerance it is asserted within.
 
 If a fixture is renamed or moved, extraction fails loudly with the file it looked in, rather
 than falling back to a stale copy.
@@ -49,8 +49,7 @@ def parity_metrics(name: str) -> dict:
     """The five expected metrics of `ParityFixtures.<name>`.
 
     Reads the named `ParityMetrics(...)` block and pulls `field = <number>` out of it, ignoring
-    the comment lines that carry the TS reference values — those are documentation, not
-    assertions (docs/parity.md explains why the TS numbers are deliberately not asserted).
+    the comment lines — those are documentation, not assertions.
     """
     text = _read(PARITY_FIXTURES_KT)
     match = re.search(rf"val {name} =\s*ParityMetrics\((.*?)\n        \)", text, re.S)

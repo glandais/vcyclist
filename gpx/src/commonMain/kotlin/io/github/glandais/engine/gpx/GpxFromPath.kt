@@ -11,17 +11,11 @@ import kotlin.time.Instant
  *
  * A [Path] holds two: `pInputPower`, read from the source file's `<power>` extension, and
  * `pComputedPower`, the pedal power `PowerComputer` reconstructs from the simulation. Only one
- * can go into `<power>` on the way out, and the two reference implementations disagree on which:
+ * can go into `<power>` on the way out.
  *
- * - `virtual-cyclist` (TypeScript) writes `pInputPower` — `GPXWriter.ts` guards on
- *   `!isNaN(trackPoint.pInputPower)`;
- * - gpx2web writes the **simulated** power, though not by choice: it has a single `power` slot,
- *   and `VirtualizeService.java:99` overwrites the value read from the file with the cyclist's
- *   simulated power.
- *
- * vcyclist keeps the TS behaviour as its default, and makes gpx2web's reachable. Writing
- * simulated data into a format the whole ecosystem reads as a recording is a decision that
- * belongs to the caller, not to a default.
+ * The default is `pInputPower`: writing simulated data into a format the whole ecosystem reads as
+ * a recording is a decision that belongs to the caller, not to a default. Emitting the simulated
+ * power stays reachable for callers who want it.
  */
 enum class GpxPowerSource {
     /** `pInputPower` — what the source file said. Nothing invented. The default. */
@@ -45,7 +39,7 @@ enum class GpxPowerSource {
  * - elevation is copied through (preserving `0.0` as a valid value — only `NaN` is dropped),
  * - time:
  *   - a `NaN` `time(i)` (slot never written — `GeneratedPath` NaN-initialises every field) emits
- *     no `<time>` at all, whatever [startTime] is. Mirrors `GPXWriter.ts`, which guards on
+ *     no `<time>` at all, whatever [startTime] is. The guard is on
  *     `!isNaN(trackPoint.time)`;
  *   - when [startTime] is `null` (the default), exposed as `epoch ms` **except** when
  *     `time(i) == 0` (treated as "absent" since the parser uses `0` as a sentinel for missing
@@ -57,7 +51,7 @@ enum class GpxPowerSource {
  *     devices/platforms (Garmin Connect, Strava) that require absolute timestamps.
  * - heart rate, cadence, temperature and power are emitted whenever the slot is not `NaN`. A
  *   genuine `0` (freewheeling cadence, 0 W, 0 °C) is a real reading and is written out; only an
- *   untouched slot is dropped. Mirrors `GPXWriter.ts`, which guards on `isNaN` alone.
+ *   untouched slot is dropped: the guard is `isNaN` alone.
  *
  * @param name optional value for the `<trk><name>` element.
  * @param type optional value for the `<trk><type>` element. Defaults to `"cycling"`.
@@ -65,7 +59,7 @@ enum class GpxPowerSource {
  *   emits no `<time>` unless the raw `time(i)` field already looks like an epoch-ms value — see
  *   above.
  * @param powerSource which of the path's two power fields lands in `<power>`. See
- *   [GpxPowerSource]; the default writes the input power, as the TS reference does.
+ *   [GpxPowerSource]; the default writes the input power.
  */
 fun Path.toGpxTrack(
     name: String? = null,

@@ -945,17 +945,15 @@ predicting TTE (1–2), RPE linear in elapsed time (0–3).
 
 ## F. Cross-cutting notes
 
-- **A unit inconsistency, inherited from TS.** `PointField.ELAPSED` and `DT` declare **ms**, and
+- **A unit inconsistency.** `PointField.ELAPSED` and `DT` declare **ms**, and
   `VirtualizeService` writes ms — but `Path.computeDerivedData` rewrites both in **seconds**
   (`(time − timeStart) / 1000`, `(Δtime) / 2000`), and it runs last, so a finished path carries
-  seconds under a field labelled ms. CSV and JSON export inherit the wrong label. The TS reference
-  does exactly the same (`Path.ts:219`), so this is inherited, not introduced. Providers are
+  seconds under a field labelled ms. CSV and JSON export inherit the wrong label. Providers are
   unaffected — they run *during* the simulation, where the millisecond values are still in place —
   which is precisely why it had gone unnoticed — **except** `WPrimeBalanceComputer`, which runs
   after the pipeline, read `dt`, and was silently 1000× out until R16 compared it against a
   provider's own state. Anything reading an interval outside the simulation must use `time`, which
-  is milliseconds everywhere. Fixing the underlying convention is a deliberate divergence from TS
-  and remains open.
+  is milliseconds everywhere. Fixing the underlying convention remains open.
 - **Robustness found on the way.** R12's test fixtures walked into two hangs/blowups in code paths
   the pipeline protects but public API does not: `PowerComputer.getDt` never converges on a
   zero-length segment (`dx == 0` makes its search tolerance 0), and a `Path` whose `speedMax` is
@@ -967,10 +965,7 @@ predicting TTE (1–2), RPE linear in elapsed time (0–3).
   Clamped at zero, which is what the physics says: the rider has slowed to `MINIMAL_SPEED`.
 - **Output movement.** R9, R10, R11, R16, R17, R18 all move pipeline output; R12 and R15 do not
   (they add fields without changing the trajectory — R15 shipped with a test pinning exactly
-  that). Anything in the first group is a behavioural change to re-smoke through the CLI, and a
-  deliberate decision about whether the TS reference should follow.
-- **Three projects, not one.** R1–R4 were applied in vcyclist, virtual-cyclist *and* gpx2web. Any
-  constant-level change below (R9's µ re-expression in particular) inherits that obligation.
+  that). Anything in the first group is a behavioural change to re-smoke through the CLI.
 - **Validation ceiling.** [`06 §6.3`](../research/06-implementations-and-validation.md): Zwift's unexplained
   "performance-result gap" of **1–23 %** is a useful bound on how accurate *any* purely
   physics-driven solo simulation can be against real outcomes. Worth quoting in the README before

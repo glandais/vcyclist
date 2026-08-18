@@ -10,24 +10,24 @@ import kotlin.test.assertTrue
 /**
  * JVM-only end-to-end smoke that runs the **full** [Enhancer] pipeline (every step enabled
  * except `fixElevation` since no HTTP `ElevationProvider` is available in the test JVM) on
- * the canonical `virtual-cyclist/gpx/sample.gpx` fixture.
+ * the repo's own `sample.gpx` fixture.
  *
  * Goal : prove that the task 29 fix (VirtualizeService no longer leaks the source epoch into
  * `time(n-1)`) makes the downstream `PointPerSecond` + `PathSimplifier` steps survive on a
  * real GPX with absolute 2024 timestamps. Before the fix this would OOM ; after the fix it
  * completes in a few seconds and produces a non-empty `Path`.
  *
- * The fixture path lives outside the test resources (it is part of the sibling `virtual-cyclist`
- * project) — if it is missing locally the test is skipped (so this never breaks contributors
- * who clone only `vcyclist`).
+ * The fixture lives in `:gpx`'s test resources rather than being duplicated here; if it cannot
+ * be found the test is skipped rather than failed.
  */
 class FullPipelineSmokeTest {
-    private val sampleGpx = File("/home/glandais/code/perso/vcyclist-all/virtual-cyclist/gpx/sample.gpx")
+    // Relative to the `:engine` project directory, which is Gradle's working directory for tests.
+    private val sampleGpx = File("../gpx/src/commonTest/resources/sample.gpx")
 
     @Test
     fun full_pipeline_on_sample_gpx_does_not_oom() {
         if (!sampleGpx.exists()) {
-            // Sibling project not present locally ; skip silently.
+            // Fixture not reachable from the test working directory ; skip silently.
             println("[FullPipelineSmokeTest] Skipped : ${sampleGpx.absolutePath} not found")
             return
         }

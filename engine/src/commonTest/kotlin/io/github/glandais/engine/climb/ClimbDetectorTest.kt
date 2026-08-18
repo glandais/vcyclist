@@ -104,8 +104,8 @@ class ClimbDetectorTest {
         //     dip  90 m -> ratio > 1.3 -> 2 climbs
         //
         // So a small dip does NOT split a climb, which is the sensible reading: a brief descent
-        // inside a col is still one col. This matches the reference, whose comment on that
-        // parameter says exactly this ("7% in real climbing with a 5% average climb is not ok").
+        // inside a col is still one col, which is what `maxDiffRealGradeRatio` is tuned for:
+        // 7 % of real climbing inside a 5 % average is not one climb.
         fun withDip(dipSteps: Int): List<Climb> {
             val summit = 500.0 + 49 * 5.0
             val elevations =

@@ -12,8 +12,7 @@ import kotlin.time.Instant
  *
  * The strategy is **local-name based**: namespace prefixes/URIs are intentionally ignored
  * when matching extension elements, which makes the parser robust against the wild diversity
- * of GPX dialects found in the wild. This matches the behaviour of the reference TS parser
- * (`virtual-cyclist/src/gpx/ExtensionParser.ts`).
+ * of GPX dialects found in the wild.
  */
 object GpxParser {
     /**
@@ -480,7 +479,7 @@ object GpxParser {
 
     /**
      * Parse an ISO-8601 instant into epoch milliseconds. Returns null on parse failure
-     * to mirror the TS parser's "swallow and continue" semantics.
+     * — a malformed `<time>` is skipped rather than failing the whole parse.
      */
     private fun parseTimeIsoToMs(text: String): Long? =
         try {
@@ -489,7 +488,7 @@ object GpxParser {
             null
         } catch (e: Throwable) {
             // Any other Throwable raised by Instant.parse on malformed input → swallow,
-            // matching the TS semantics that simply skip invalid `<time>` tags.
+            // invalid `<time>` tags are simply skipped.
             null
         }
 

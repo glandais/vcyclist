@@ -9,7 +9,7 @@ import kotlin.math.floor
  * boundary. Source paths whose first/last points fall mid-second get a "copy" point at the
  * surrounding epoch boundary so the resampled path covers `[floor(start), ceil(end))` seconds.
  *
- * Port of `processing/PointPerSecond.ts`. Returns a fresh [Path] ; the source is unchanged.
+ * Returns a fresh [Path] ; the source is unchanged.
  */
 object PointPerSecond {
     /** Resample [source] to 1 Hz. Empty source → empty path. */
@@ -111,7 +111,7 @@ object PointPerSecond {
         for (field in PointField.entries) {
             val v1 = src.get(i1, field)
             val v2 = src.get(i2, field)
-            // Strict NaN handling : either side NaN → result NaN (mirrors TS).
+            // Strict NaN handling : either side NaN → result NaN.
             val v = if (v1.isNaN() || v2.isNaN()) Double.NaN else v1 + (v2 - v1) * coef
             dst.set(dstIdx, field, v)
         }

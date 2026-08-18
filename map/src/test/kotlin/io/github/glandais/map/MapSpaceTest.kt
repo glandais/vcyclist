@@ -74,7 +74,7 @@ class MapSpaceTest {
 
     @Test
     fun `case 07 — the eastern and southern edges are clamped inside the image`() {
-        // Inherited from the reference: the last pixel column is reserved, so +180 deg does not
+        // The last pixel column is reserved, so +180 deg does not
         // land one pixel past the right edge. The cost is that longitudes within one pixel of
         // +180 collapse onto it — see case 02.
         val zoom = 10

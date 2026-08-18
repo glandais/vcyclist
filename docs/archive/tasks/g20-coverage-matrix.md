@@ -117,7 +117,7 @@ Aucune commande — c'est un livrable documentaire. Critères de relecture :
 
 ## Résultat
 
-[`docs/gpx2web-coverage.md`](../../ledgers/gpx2web-coverage.md).
+[`docs/gpx2web-coverage.md`](../gpx2web-coverage.md).
 
 ### Compte
 

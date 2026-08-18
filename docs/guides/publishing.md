@@ -133,8 +133,7 @@ path resolves to that package name, so nothing breaks by its absence.
 
 ## The release flow
 
-Releases are fully automated via [semantic-release](https://semantic-release.gitbook.io/) and
-mirror the workflow of the sibling projects (`elevation`, `virtual-cyclist`, `gpx2web`).
+Releases are fully automated via [semantic-release](https://semantic-release.gitbook.io/).
 
 1. Developer commits to a feature branch using
    [Conventional Commits](https://www.conventionalcommits.org/) (`feat:`, `fix:`, …).
@@ -168,8 +167,6 @@ test a future version locally, override on the CLI: `./gradlew -Pversion=1.2.3 �
 
 No `NPM_TOKEN` is required — the workflow uses npm's OIDC provenance via
 `permissions: id-token: write` and `actions/setup-node` with `registry-url`.
-
-The same GPG key as `gpx2web` can be reused if it has not expired.
 
 ## Local dry-runs
 
@@ -245,13 +242,11 @@ named imports that never worked; the snippets there were corrected in g19.
 
 ## First-time setup checklist
 
-1. **Sonatype Central Portal** : the namespace `io.github.glandais` is already claimed (it
-   is used by `gpx2web` via `io.github.glandais.gpx2web`). Adding the `vcyclist-engine` and
-   `vcyclist-elevation` artefacts under the existing namespace requires no extra claim,
-   only a valid Central Portal token (`CENTRAL_USERNAME` / `CENTRAL_TOKEN`).
+1. **Sonatype Central Portal** : the namespace `io.github.glandais` is already claimed. Adding
+   the `vcyclist-engine` and `vcyclist-elevation` artefacts under the existing namespace requires
+   no extra claim, only a valid Central Portal token (`CENTRAL_USERNAME` / `CENTRAL_TOKEN`).
 2. **npm scope** : ensure `@glandais` org access and that the user has publish rights on
-   the two package names (the namespace is shared with `@glandais/elevation` and
-   `@glandais/virtual-cyclist`, so the org already exists).
+   the two package names.
 3. **GitHub Secrets** : configure the four secrets above on the repo settings page.
 4. **Branch protection** : `develop` is the **default and only protected branch**. Require
    passing CI (`./gradlew check` workflow) before merge, and require linear history so the
@@ -332,7 +327,3 @@ grep -E '(src=|href=)' demo/dist/index.html
 
 - [`README.md`](../../README.md) — install snippets for consumers.
 - [`CLAUDE.md`](../../CLAUDE.md) — release-related conventions for future Claude sessions.
-- Sibling projects for reference patterns :
-  - `../elevation/` — npm-only via semantic-release.
-  - `../virtual-cyclist/` — npm-only via semantic-release.
-  - `../gpx2web/` — Maven Central via the same Sonatype Central Portal plugin family.

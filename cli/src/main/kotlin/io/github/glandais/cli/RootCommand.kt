@@ -6,7 +6,7 @@ import picocli.CommandLine
 import java.util.Properties
 
 /**
- * Root of the vcyclist CLI. Replaces gpx2web's `gpxtools-cli` runner.
+ * Root of the vcyclist CLI.
  *
  * Subcommands are added in task g17; this is the frame — help, version, and the shared
  * parameter mixins.

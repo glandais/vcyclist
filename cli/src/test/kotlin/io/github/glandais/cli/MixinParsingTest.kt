@@ -316,12 +316,12 @@ class MixinParsingTest {
     }
 
     @Test
-    fun `case 12 — the two defaults that deliberately differ from gpxtools-cli are pinned`() {
-        // gpxtools-cli ships 45 degrees and 90 km/h; vcyclist's library values win, and the
-        // divergence is documented for the g20 matrix. Pinned so it stays a decision.
+    fun `case 12 — the two lean and speed defaults come from the library, not the CLI`() {
+        // These two are the ones most likely to be re-typed as a literal here. Pinned so they
+        // stay a decision rather than a copy that can drift.
         val cyclist = parse().cyclist
-        assertEquals(35.0, cyclist.toCyclist().maxLeanAngleDeg, "gpxtools-cli uses 45; the library value must win")
-        assertEquals(100.0, cyclist.maxSpeedKmH, "gpxtools-cli uses 90; the library value must win")
+        assertEquals(35.0, cyclist.toCyclist().maxLeanAngleDeg, "the library value must win")
+        assertEquals(100.0, cyclist.maxSpeedKmH, "the library value must win")
     }
 
     // ---- Files ---------------------------------------------------------------

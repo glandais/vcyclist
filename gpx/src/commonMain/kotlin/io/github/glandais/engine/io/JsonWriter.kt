@@ -25,10 +25,10 @@ data class JsonOptions(
  * JSON serialization of a [Path], **column-oriented** : one array per field rather than one
  * object per point.
  *
- * Inspired by `io.github.glandais.gpx.io.write.JsonFileWriter` (gpx2web) ; the document shape
- * differs on purpose — see the "Steps" section of task g07. gpx2web emits one object per point
- * (`points: [{distance: 0.0, elevation: 120.4, ...}, ...]`), repeating every field name once per
- * point. A chart library consumes series, not points : the column-oriented shape below avoids
+ * The column orientation is deliberate — see the "Steps" section of task g07. The obvious
+ * alternative, one object per point (`points: [{distance: 0.0, elevation: 120.4, ...}, ...]`),
+ * repeats every field name once per point. A chart library consumes series, not points : the
+ * column-oriented shape below avoids
  * repeating up to 38 field names per point (~3x smaller) and maps directly onto a Chart.js
  * dataset (`{label: "elevation", data: fields.elevation}`).
  *

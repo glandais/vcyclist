@@ -28,9 +28,9 @@ import kotlin.math.sqrt
  *
  * The cause is `Path.computeBearing`, which returns `atan2(-dy, dx)` over a north-positive `y`:
  * a northbound rider gets `-π/2` instead of `+π/2`, and that sign flips the meaning of `alpha`
- * here. It is a verbatim port of `Path.ts` (`// Negative dy for correct bearing`), so it is
- * load-bearing for TS parity and is **not** to be "fixed" without re-measuring the whole parity
- * suite. Task g31 established the effective convention by simulation — see
+ * here. That sign is load-bearing throughout the physics and is **not** to be "fixed" without
+ * re-measuring the whole parity suite. Task g31 established the effective convention by
+ * simulation — see
  * `PathWindAzimuthTest` — rather than by reading this comment, which was misleading.
  */
 object AeroPowerProvider : PowerProvider {
@@ -79,7 +79,7 @@ object AeroPowerProvider : PowerProvider {
 
         val v = wind.speedMS
 
-        // Isvan's power model for aerodynamic drag with wind — port verbatim of the TS source.
+        // Isvan's power model for aerodynamic drag with wind.
         // Component of combined velocity in direction of travel.
         val l1 = speed + v * cos(alpha)
         // Square of velocity component.

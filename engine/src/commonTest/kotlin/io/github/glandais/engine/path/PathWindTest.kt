@@ -114,7 +114,7 @@ class PathWindTest {
 
     @Test
     fun `case 05 — a path of 3 points is refused`() {
-        assertNull(line(n = 3).dominantHeadwindDirection(), "gpx2web's threshold is size > 3")
+        assertNull(line(n = 3).dominantHeadwindDirection(), "the threshold is size > 3")
     }
 
     @Test
@@ -156,9 +156,9 @@ class PathWindTest {
     }
 
     /**
-     * The projection cross-check the task sheet asks for: the port uses a local equirectangular
-     * frame, gpx2web uses Web Mercator at zoom 12. Both are compared on the same real-ish trace,
-     * with the reference formula reimplemented literally here.
+     * The projection cross-check the task sheet asks for: the implementation uses a local
+     * equirectangular frame, this test uses Web Mercator at zoom 12. Both are compared on the
+     * same real-ish trace, with the Mercator formula written out literally here.
      */
     @Test
     fun `case 12 — the azimuth matches a literal Mercator implementation`() {

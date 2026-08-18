@@ -8,7 +8,7 @@ import kotlin.math.round
  *
  * `Double.toString()` renders **differently** on JVM and Kotlin/JS : `1.0` prints
  * as `"1.0"` on the JVM but `"1"` on JS, and both switch to exponential notation at
- * different magnitude thresholds. A CSV (or JSON, see gpx2web task g07) read by a spreadsheet or
+ * different magnitude thresholds. A CSV (or JSON, see task g07) read by a spreadsheet or
  * a human must never contain `1.234E-5` and must render the exact same string on every target —
  * so this object rolls its own formatter instead of delegating to the platform.
  *

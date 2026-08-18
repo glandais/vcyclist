@@ -95,7 +95,7 @@ class PowerComputerTest {
         val dx = PowerComputer.getDx(pSum = -1e6, equivalentMass = 80.0, currentSpeed = 10.0, dt = 1.0)
         // Under the square root the value becomes negative → sqrt returns NaN → max(NaN, MIN) = NaN.
         // Actually max(NaN, x) returns NaN in Kotlin; we must handle by checking that the JS impl
-        // returns MINIMAL_SPEED. Read the TS: Math.max(NaN, MIN) returns NaN too.
+        // returns MINIMAL_SPEED — but `max(NaN, MIN)` is NaN on every target.
         // The spec property is "v_new clampé à MINIMAL_SPEED". Verify the expected behaviour:
         // since the underlying maths produces NaN under the sqrt, the result is NaN — but the
         // intent of the clamp is to avoid that. In practice the caller would never reach this

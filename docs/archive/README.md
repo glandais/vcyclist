@@ -28,6 +28,13 @@ There is no plan file for the `t` series: its status lives in the header of
 [`plans/racing-line-design.md`](plans/racing-line-design.md), and the user-facing result is
 [`../guides/racing-line.md`](../guides/racing-line.md).
 
+## Ledgers frozen here
+
+| Document | Scope |
+|---|---|
+| [`gpx2web-coverage.md`](gpx2web-coverage.md) | One row per Java class of the retired reference project: ported / replaced / not ported, with the reason. Frozen — it documents a migration that is finished. |
+| [`gpxtools-cli-migration.md`](gpxtools-cli-migration.md) | Option-by-option correspondence between the retired Java `gpxtools-cli` and `vcyclist`, from task g18. Frozen. |
+
 ## Tasks
 
 [`tasks/`](tasks/README.md) — one spec per task, `Goal / Depends on / Inputs / Steps / Outputs /

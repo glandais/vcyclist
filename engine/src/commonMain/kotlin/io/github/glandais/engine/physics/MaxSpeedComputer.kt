@@ -31,8 +31,6 @@ import kotlin.math.sqrt
  * - **Last point** is set to `2 m/s` (sentinel speed at end-of-track).
  *
  * Side-effects on the path : `speedMax`, `speedMaxIncline`, `radius`.
- *
- * Port of `MaxSpeedComputer.ts`.
  */
 object MaxSpeedComputer {
     private const val MAX_RADIUS_M = 200.0

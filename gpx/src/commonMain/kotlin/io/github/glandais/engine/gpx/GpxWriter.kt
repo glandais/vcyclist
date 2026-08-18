@@ -12,14 +12,13 @@ import kotlin.time.Instant
  * the default, plus Garmin TrackPointExtension v1 under the `gpxtpx` prefix and `xsi`
  * for the schema location.
  *
- * Extensions are written exactly as the upstream `sample.gpx` does:
+ * Extensions are written in the shape Garmin devices produce:
  *  - heart rate / cadence / ambient temperature → inside `<gpxtpx:TrackPointExtension>`
- *  - power → at the top of `<extensions>`, non-namespaced (matches the TS reference writer)
+ *  - power → at the top of `<extensions>`, non-namespaced
  *
  * Every entry point takes `writeExtensions` (default `true`, i.e. the pre-g23 behaviour to the
  * byte). Pass `false` for a bare GPX — a strict import target, a readable diff, an old GPS unit,
- * or simply a smaller file, since on a 1 Hz track the extensions are most of the bytes. gpx2web
- * has the same switch (`GPXFileWriter.writeGPX(gpx, writer, boolean extensions)`).
+ * or simply a smaller file, since on a 1 Hz track the extensions are most of the bytes.
  */
 object GpxWriter {
     // ---------- Namespace identity --------------------------------------------------
@@ -111,7 +110,7 @@ object GpxWriter {
         w.setPrefix("", NS_GPX)
         w.setPrefix(PREFIX_XSI, NS_XSI)
         // `gpxtpx` is only ever used inside <extensions>; declaring it in a file that has none
-        // would be valid but noise, and would break a byte comparison with gpx2web's output.
+        // would be valid but noise, and would break a byte comparison with a reference file.
         // `xsi` stays either way — it carries schemaLocation, which is about GPX itself.
         if (writeExtensions) w.setPrefix(PREFIX_GARMIN_TPX, NS_GARMIN_TPX)
         // `vc` is declared only when something actually uses it, so a file with no widths is

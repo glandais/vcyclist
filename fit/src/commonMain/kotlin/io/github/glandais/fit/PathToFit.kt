@@ -74,8 +74,7 @@ fun Path.toFitBytes(
 /**
  * Convert several [Path]s — typically the tracks of one multi-track GPX — into a **single**
  * [FitCourse] with one [FitSegment], and therefore one `LapMesg` and one `TIMER`/`START`…`STOP`
- * event pair, per path. This is what gpx2web's `FitFileWriter.writeGPX` produces from a `GPX`
- * holding several `GPXPath`.
+ * event pair, per path. That is how FIT expresses several rides inside one file.
  *
  * Each path is rebased on its **own** first point (see *Rebasing* above), then laid down after
  * the previous one, separated by [interPathGap]. The default of zero makes the paths run
@@ -151,8 +150,8 @@ private fun Path.toFitSegment(startTime: Instant): FitSegment {
                 // inside DEM noise either way.
                 //
                 // Note the sign flip: `Path.elevationLoss` accumulates the negative deltas and is
-                // therefore negative, while FIT's `total_descent` is an unsigned magnitude. gpx2web
-                // negates it too (`setTotalDescent((int) -path.getTotalElevationNegative())`).
+                // therefore negative, while FIT's `total_descent` is an unsigned magnitude, so it
+                // is negated here.
                 totalAscentM = elevationGain.roundToIntOrZero(),
                 totalDescentM = (-elevationLoss).roundToIntOrZero(),
                 maxSpeedMs = (0 until size).maxOfOrNull { speed(it) }?.takeUnless { it.isNaN() },

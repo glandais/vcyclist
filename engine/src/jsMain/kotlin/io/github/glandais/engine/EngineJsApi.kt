@@ -258,7 +258,7 @@ external interface PowerProviderDto {
 }
 
 /**
- * Catalog entry for a [PointField], mirroring the TS `FIELD_DEFINITIONS` shape. Exposed to JS
+ * Catalog entry for a [PointField]. Exposed to JS
  * via [fieldDefinitions] so consumers can render generic field-pickers without hard-coding
  * the 36-entry list.
  */
@@ -505,8 +505,8 @@ private fun defaultJsOptions(): EnhanceOptions =
 // ── Expanded JS API (task 34) ────────────────────────────────────────────────────────────────
 //
 // The `enhanceWithCourse` façade lets a JS caller build a full [CoursePhysics] (cyclist + bike
-// + wind + power provider) from JSON-like DTO inputs and run the enhancement pipeline. Mirrors
-// the TS `Enhancer.enhanceCourse` entry point. `getField` and `fieldDefinitions` expose
+// + wind + power provider) from JSON-like DTO inputs and run the enhancement pipeline.
+// `getField` and `fieldDefinitions` expose
 // generic per-field access for the demo's UI which needs to plot any of the 36 fields.
 
 /**
@@ -706,8 +706,7 @@ fun getField(
 
 /**
  * Enumerate the 36-entry [PointField] catalog as JS-friendly [FieldDefinitionDto] objects.
- * Mirrors the TS `FIELD_DEFINITIONS` array — UIs use this to render generic field-pickers
- * without hard-coding the list.
+ * UIs use this to render generic field-pickers without hard-coding the list.
  */
 @JsExport
 fun fieldDefinitions(): Array<FieldDefinitionDto> =
@@ -901,7 +900,7 @@ private fun Climb.toDto(): ClimbDto {
     return o.unsafeCast<ClimbDto>()
 }
 
-/** Detect climbs on [path] with the default options (those of gpx2web's `getClimbs`). */
+/** Detect climbs on [path] with the default options — see `ClimbOptions`. */
 @JsExport
 fun detectClimbs(path: Path): Array<ClimbDto> = ClimbDetector.detect(path).map { it.toDto() }.toTypedArray()
 

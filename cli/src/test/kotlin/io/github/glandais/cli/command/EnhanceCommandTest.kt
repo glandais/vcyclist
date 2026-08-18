@@ -296,8 +296,8 @@ class EnhanceCommandTest {
     // filesystem through the test-report and class-file names.
     @Test
     fun `case 14 — xlsx is refused with a pointer to csv, not an unknown-option parse error`() {
-        // A gpx2web user typing --xlsx should learn it was dropped and what to use instead,
-        // rather than be left wondering whether they mistyped.
+        // Someone typing --xlsx should learn it is unsupported and what to use instead, rather
+        // than be left wondering whether they mistyped.
         val result = run("enhance", gpxFixture().path, "--xlsx", File(work, "o.xlsx").path)
         assertEquals(ExitCodes.USAGE, result.code)
         assertContains(result.err, "--csv")

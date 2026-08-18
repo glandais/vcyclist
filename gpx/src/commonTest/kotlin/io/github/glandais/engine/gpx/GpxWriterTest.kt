@@ -315,7 +315,7 @@ class GpxWriterTest {
     @Test
     fun `case 14b — Path toGpxTrack preserves a genuine zero reading`() {
         // 0 rpm (freewheeling), 0 W and 0 °C are real measurements, not "missing" — the writer
-        // must emit them. Matches `GPXWriter.ts`, which guards on `isNaN` alone.
+        // must emit them: the guard is `isNaN` alone.
         val p = Path(1)
         p.setLatitude(0, 0.0)
         p.setLongitude(0, 0.0)

@@ -1,12 +1,12 @@
 package io.github.glandais.elevation
 
-/** Mirrors the TS SmoothingOptions interface. */
+/** Distance-based elevation smoothing, off by default. */
 data class SmoothingOptions(
     val windowSize: Double? = 50.0,
     val enabled: Boolean = false,
 )
 
-/** Mirrors the TS FilterOptions interface. */
+/** Douglas-Peucker 3D simplification settings. */
 data class FilterOptions(
     val tolerance: Double? = 10.0,
     val zExaggeration: Double? = 3.0,

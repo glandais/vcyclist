@@ -8,7 +8,7 @@ package io.github.glandais.engine.path
  * (GPX extensions) and the wire format (future JS DTOs).
  *
  * @property prop camelCase property name used in JSON serialization and code generation
- * @property unit physical unit (free-form string, matches TS `unit` field)
+ * @property unit physical unit (free-form string)
  * @property shortDescription one-line human-readable label
  * @property category logical group (for UI / docs)
  * @property notSelectable hidden from generic per-field selection UI (e.g. latitude/time)
@@ -211,7 +211,8 @@ enum class PointField(
      * Remaining anaerobic work capacity, in joules — the W′ balance of the Critical Power
      * model, written by `WPrimeBalanceComputer` (`:engine`).
      *
-     * **Not a TS field.** `virtual-cyclist` has 36 fields and no physiological layer at all.
+     * Part of vcyclist's physiological layer, which the rest of the pipeline does not depend on:
+     * this field is written by an annotation pass and read by nobody upstream.
      */
     W_PRIME_BALANCE("wPrimeBalance", "joules", "W′ balance (J)", PointFieldCategory.PHYSIOLOGICAL),
 
@@ -223,7 +224,7 @@ enum class PointField(
      * [PointFieldCategory.POWER_PHYSICS] : it is a resistive term like drag or gravity, and it
      * carries the same sign convention (negative removes energy).
      *
-     * **Not a TS field.** The TS reference discards this energy silently.
+     * Without this field the energy the speed clip removes would be discarded silently.
      */
     P_BRAKE("pBrake", "watts", "Braking power", PointFieldCategory.POWER_PHYSICS),
 
@@ -240,7 +241,7 @@ enum class PointField(
      * screen-style and clockwise-from-east. This field follows the standard math azimuth of the
      * local planar frame it is computed in.
      *
-     * **Not a TS field.** The TS reference has no curvature field.
+     * Written by the curvature pass, or by the racing line when it runs instead.
      */
     TRAJECTORY_CURVATURE(
         "trajectoryCurvature",
@@ -261,11 +262,8 @@ enum class PointField(
      * racing-line corridor half-width is linear in it, so a wrong width is a proportionally wrong
      * trajectory; see `docs/archive/plans/racing-line-design.md` §12 question 1.
      *
-     * Categorised as [PointFieldCategory.ROAD] rather than `COORDINATES`: the coordinate group is
-     * TS-parity and its membership *and order* are pinned by a test, so a field the TS reference
-     * does not have cannot join it.
-     *
-     * **Not a TS field.**
+     * Categorised as [PointFieldCategory.ROAD] rather than `COORDINATES`: the coordinate group's
+     * membership *and order* are pinned by a test, so nothing new can join it.
      */
     ROAD_WIDTH("roadWidth", "meters", "Road width (m)", PointFieldCategory.ROAD, nanDefault = true),
 
@@ -275,8 +273,6 @@ enum class PointField(
      *
      * `0.0` means "on the reference line", which is a perfectly ordinary answer, so [nanDefault]
      * distinguishes it from "the solver never ran".
-     *
-     * **Not a TS field.**
      */
     LATERAL_OFFSET("lateralOffset", "meters", "Lateral offset (m, + = left)", PointFieldCategory.ROAD, nanDefault = true),
 
@@ -289,8 +285,6 @@ enum class PointField(
      * edit reversible instead of merely documented.
      *
      * Written only when the stage runs, and only then; [nanDefault] means "not moved".
-     *
-     * **Not a TS field.**
      */
     SOURCE_LATITUDE(
         "sourceLatitude",

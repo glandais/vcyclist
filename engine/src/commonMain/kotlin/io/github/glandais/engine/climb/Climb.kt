@@ -5,14 +5,12 @@ package io.github.glandais.engine.climb
  *
  * ## Grade units
  *
- * gpx2web mixes the two conventions — its `minGrade` is a percentage while `getGrade()` returns
- * a ratio. Here the rule is in the name: anything called `…Percent` is a percentage, anything
- * called `…Grade` is a dimensionless ratio (`0.08` = 8 %). Conversion happens only at the
- * boundary with [ClimbOptions].
+ * Percentages and ratios are easy to mix up, so the rule is in the name: anything called
+ * `…Percent` is a percentage, anything called `…Grade` is a dimensionless ratio (`0.08` = 8 %).
+ * Conversion happens only at the boundary with [ClimbOptions].
  *
- * Distances are absolute along the path, so they line up with `Path.distance(i)`. Note that
- * gpx2web makes [ClimbPart] distances *relative to the climb start*; this port keeps them
- * absolute throughout so a part can be located on the path without knowing its climb.
+ * Distances are absolute along the path, so they line up with `Path.distance(i)` — [ClimbPart]
+ * distances included, so a part can be located on the path without knowing its climb.
  */
 data class Climb(
     /** Index of the first path point of the climb. */
@@ -69,8 +67,7 @@ data class ClimbPart(
 }
 
 /**
- * Detector parameters. The defaults are exactly those of gpx2web's `getClimbs(gpxPath)`
- * one-argument overload, so the two implementations can be compared on the same trace.
+ * Detector parameters, with the defaults [ClimbDetector] uses when none are given.
  */
 data class ClimbOptions(
     /** Floor for the dynamic elevation threshold, in meters. */
@@ -83,8 +80,8 @@ data class ClimbOptions(
     val minGradePercent: Double = 3.0,
     /**
      * Upper bound on `climbingGrade / averageGrade`. It rejects candidates that only reach their
-     * average grade by averaging steep ramps with descents — gpx2web's comment puts it as "7 % of
-     * real climbing inside a 5 % average is not a single climb, it should be split in two".
+     * average grade by averaging steep ramps with descents: 7 % of real climbing inside a 5 %
+     * average is not a single climb, it should be split in two.
      */
     val maxDiffRealGradeRatio: Double = 1.3,
     /**
@@ -97,16 +94,15 @@ data class ClimbOptions(
      * uniformly decimated for the *analysis* only; reported indices still refer to the original
      * path.
      *
-     * This bound is not in gpx2web, and it exists because of how the search scales. The cost is
-     * quadratic in the point count — measured in a browser: 259 points 104 ms, 621 points 345 ms.
-     * gpx2web feeds it simplified traces, but vcyclist's enhancement pipeline can hand over a
-     * path densified to 1–2 m spacing, which is ~25 000 points for a 140 km route: several
-     * minutes, enough to freeze a browser tab.
+     * The bound exists because of how the search scales. The cost is quadratic in the point
+     * count — measured in a browser: 259 points 104 ms, 621 points 345 ms. The enhancement
+     * pipeline can hand over a path densified to 1–2 m spacing, which is ~25 000 points for a
+     * 140 km route: several minutes, enough to freeze a browser tab.
      *
      * Decimating costs nothing in accuracy at this scale. The parts are already Douglas-Peucker
      * simplified with a 10–50 m tolerance, so resolving a climb's start to the nearest ~50 m
      * point is well inside the noise. Paths at or below the bound are analysed in full, so the
-     * behaviour validated against the Java reference is untouched.
+     * behaviour on ordinary traces is untouched.
      */
     val maxAnalysisPoints: Int = 3000,
 ) {

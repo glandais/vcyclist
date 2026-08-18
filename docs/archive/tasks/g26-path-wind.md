@@ -149,7 +149,7 @@ Modifiés :
 
 Seul `getWind` avait un consommateur identifié. `isCrossing` **reste non porté**, et la ligne
 correspondante passe de « non porté » à « partiellement porté » dans
-[`gpx2web-coverage.md`](../../ledgers/gpx2web-coverage.md), avec le motif : aucun appelant, et un coût en
+[`gpx2web-coverage.md`](../gpx2web-coverage.md), avec le motif : aucun appelant, et un coût en
 O(n²) sur la trace simplifiée à 50 m. L'entrée « Explicitement non porté » de
 `PLAN-GPX2WEB.md` est réécrite pour ne plus viser que `isCrossing`.
 

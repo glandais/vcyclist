@@ -35,17 +35,17 @@ object RhoProviderDefault : RhoProvider {
  * A genuine `0.0` reading is honoured (a 0 °C winter ride keeps its air density) :
  * `GeneratedPath` NaN-initialises every slot, so "absent" and "actually 0 °C" are distinct.
  *
- * Formula (port of `RhoProviderEstimate.ts`) :
+ * Formula :
  * ```
  * T        = temperatureC + 273.15
  * pressure = P0 · (1 − L·h / T0)^(g / (R·L))
  * ρ        = pressure / (R · T)
  * ```
  * with `P0 = 101325 Pa`, `T0 = 288.15 K`, `g = 9.80665 m/s²`, `L = 0.0065 K/m`,
- * `R = 287.05 J/(kg·K)`. Note : the TS uses the provided temperature both in the pressure
- * formula's exponent argument and in the final division — slightly non-standard versus strict
- * ISA (which would use `T0` for pressure and `T0 − L·h` for the density division). We port
- * the TS expression verbatim for numerical parity.
+ * `R = 287.05 J/(kg·K)`. Note : the provided temperature is used both in the pressure formula's
+ * exponent argument and in the final division — slightly non-standard versus strict ISA (which
+ * would use `T0` for pressure and `T0 − L·h` for the density division). The expression is kept as
+ * is: changing it moves every simulated ride.
  *
  * Reference values (computed with `g/(R·L) = 5.2559323624`) :
  * - rho(0 m, 15 °C) ≈ 1.22501  → matches the conventional sea-level density 1.225 within 1e-3.
@@ -53,7 +53,7 @@ object RhoProviderDefault : RhoProvider {
  * - rho(3000 m, 15 °C) ≈ 0.84760
  */
 object RhoProviderEstimate : RhoProvider {
-    // ISA constants (source : ICAO Standard Atmosphere ; values match the TS source).
+    // ISA constants (source : ICAO Standard Atmosphere).
     private const val P0 = 101325.0 // sea level pressure (Pa)
     private const val T0 = 288.15 // sea level temperature (K)
     private const val G_ISA = 9.80665 // gravity (m/s²)

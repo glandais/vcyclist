@@ -14,10 +14,10 @@ import io.github.glandais.elevation.MathConstants
  *   Synchronous.
  *
  * Both return a fresh [Path] preserving every other slot and call [Path.computeDerivedData] at
- * the end. Mirrors `elevation/Elevation.ts`.
+ * the end.
  */
 object ElevationStep {
-    /** Default smoothing window (meters). Matches `Elevation.ts` (`150`). */
+    /** Default smoothing window (meters). */
     const val DEFAULT_SMOOTH_WINDOW_M: Double = 150.0
 
     /** Fetch corrected elevations for every point of [source] and return a fresh path. */

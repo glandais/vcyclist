@@ -192,8 +192,8 @@ class SrtmMapProducerTest {
 
     @Test
     fun `case 09 — elevation lookups are batched and bounded, not one per pixel`() {
-        // The guard against a silent performance regression. The reference does one lookup per
-        // pixel; this must stay far below that, in a single batched round-trip.
+        // The guard against a silent performance regression: one lookup per pixel would be a
+        // million for a 1000x1000 image, so this must stay far below that, in one batched call.
         val sampler = tiltedPlane()
         val map = SrtmMapProducer(sampler).createSrtmMap(outputFile(), listOf(stelvio()), maxSize = 512)
 
@@ -233,8 +233,8 @@ class SrtmMapProducerTest {
     }
 
     @Test
-    fun `case 12 — the two colour ramps match the reference`() {
-        // Packed RGB without an alpha byte, as the reference produces and as `setRGB` on a
+    fun `case 12 — the two colour ramps are packed RGB`() {
+        // Packed RGB without an alpha byte, as `setRGB` on a
         // TYPE_INT_RGB image expects — hence the mask against java.awt.Color's ARGB.
         fun rgb(c: Color) = c.rgb and 0xFFFFFF
 

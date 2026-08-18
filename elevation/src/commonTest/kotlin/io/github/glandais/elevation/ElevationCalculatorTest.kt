@@ -183,7 +183,7 @@ class ElevationCalculatorTest {
         }
 
     @Test
-    fun `internal failure is wrapped in IllegalStateException with TS-style message`() =
+    fun `internal failure is wrapped in IllegalStateException with the documented message`() =
         runTest {
             val failingFetcher: suspend (String) -> RawTile = { _ -> error("network down") }
             val tm = TileManager("test://{z}/{x}/{y}", cacheSize = 4, fetcher = failingFetcher)

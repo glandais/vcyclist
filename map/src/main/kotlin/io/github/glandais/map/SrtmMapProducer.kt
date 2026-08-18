@@ -23,7 +23,7 @@ import kotlin.math.sqrt
  * ## What it actually draws
  *
  * The class name says "SRTM", which does not say what the image looks like, so this was
- * established by reading gpx2web's `SRTMMapProducer` rather than inferred. It is neither
+ * spelled out here rather than left to the name. It is neither
  * hillshading nor contour lines. Two independent colour ramps:
  *
  * **Background**, from each pixel's altitude normalised over the *image's* own min/max:
@@ -44,15 +44,15 @@ import kotlin.math.sqrt
  * | 1.0 | red `(255, 0, 0)` |
  *
  * Because both are normalised to the range actually present, the same terrain renders
- * differently depending on the framing. That is the reference's behaviour and it is what makes
- * the relief legible on a flat plain as well as in the Alps.
+ * differently depending on the framing. That is deliberate: it is what makes the relief legible
+ * on a flat plain as well as in the Alps.
  *
  * ## Sampling, and why it is not one lookup per pixel
  *
- * The reference calls the elevation provider once per pixel: a million lookups for a 1000×1000
- * image. That is wasteful for a reason beyond the call count — the DEM itself is only about
- * 30 m/pixel, so at a typical map zoom many neighbouring image pixels resolve to the same DEM
- * sample. Asking for each of them separately buys no detail.
+ * The obvious implementation calls the elevation provider once per pixel: a million lookups for
+ * a 1000×1000 image. That is wasteful for a reason beyond the call count — the DEM itself is only
+ * about 30 m/pixel, so at a typical map zoom many neighbouring image pixels resolve to the same
+ * DEM sample. Asking for each of them separately buys no detail.
  *
  * So elevations are sampled on a coarser grid, capped at [maxSamples] points, fetched in **one
  * batched call** (`ElevationProvider.setElevations` groups by tile so each tile is decoded once),
@@ -168,8 +168,8 @@ class SrtmMapProducer(
                 val rgb =
                     when {
                         e.isNaN() -> NO_DATA_COLOR.rgb
-                        // A uniform relief has no range to normalise over; the reference divides
-                        // by zero here and lands on yellow via NaN rounding. Same colour, chosen
+                        // A uniform relief has no range to normalise over. Dividing by zero here
+                        // would land on yellow via NaN rounding anyway; the same colour is chosen
                         // on purpose rather than by accident.
                         flat -> terrainColor(0.5)
                         else -> terrainColor((e - minEle) / (maxEle - minEle))
@@ -269,7 +269,7 @@ class SrtmMapProducer(
         /** Elevation spans below this are treated as flat, avoiding a divide-by-zero. */
         private const val FLAT_EPSILON = 1e-9
 
-        /** Terrain ramp: cyan → yellow → magenta. From the reference. */
+        /** Terrain ramp: cyan → yellow → magenta. */
         internal fun terrainColor(d: Double): Int {
             val t = d.coerceIn(0.0, 1.0)
             return if (t < 0.5) {
@@ -281,7 +281,7 @@ class SrtmMapProducer(
             }
         }
 
-        /** Track ramp: blue → green → red. From the reference. */
+        /** Track ramp: blue → green → red. */
         internal fun trackColor(d: Double): Int {
             val t = d.coerceIn(0.0, 1.0)
             return if (t < 0.5) {

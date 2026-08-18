@@ -15,8 +15,7 @@ abstract class GeneratedPath(
     }
 
     /**
-     * Zero-initialised, matching the TS `AbstractPath` backing store
-     * (`new Float64Array(...)`). "Absent" is signalled by writing `Double.NaN`
+     * Zero-initialised. "Absent" is signalled by writing `Double.NaN`
      * explicitly — see `GpxToPath`, which does so for absent sensor fields.
      *
      * Slots whose [PointField] declares `nanDefault = true` are the exception:

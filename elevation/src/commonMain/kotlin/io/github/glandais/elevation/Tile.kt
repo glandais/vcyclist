@@ -5,8 +5,8 @@ import kotlin.math.round
 /**
  * In-memory tile : RGBA pixel buffer with lazy per-pixel Terrarium decoding and a memoization cache.
  *
- * Unlike the TS abstract Tile, this class is concrete and platform-agnostic — it reads bytes
- * directly from [rgba] instead of delegating to a getRGBFromImageData hook.
+ * Concrete and platform-agnostic: it reads bytes directly from [rgba] rather than delegating
+ * pixel access to a per-platform hook, so the decoding logic exists once.
  */
 class Tile(
     val width: Int,

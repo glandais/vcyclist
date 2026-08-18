@@ -107,8 +107,7 @@ private fun buildGeneratedPath(): String =
         appendLine()
         val nanFields = FIELDS.withIndex().filter { it.value.nanDefault }
         appendLine("    /**")
-        appendLine("     * Zero-initialised, matching the TS `AbstractPath` backing store")
-        appendLine("     * (`new Float64Array(...)`). \"Absent\" is signalled by writing `Double.NaN`")
+        appendLine("     * Zero-initialised. \"Absent\" is signalled by writing `Double.NaN`")
         appendLine("     * explicitly — see `GpxToPath`, which does so for absent sensor fields.")
         if (nanFields.isNotEmpty()) {
             appendLine("     *")

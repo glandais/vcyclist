@@ -31,7 +31,7 @@ data class Cyclist(
      *
      * Exposed under this name because every source in the literature states the parameter as µ
      * (0.90 dry, 0.36 wet — see [RoadCondition]), while [maxLeanAngleDeg] is the form vcyclist
-     * inherited from gpx2web. At the 35° default, `µ = 0.70`.
+     * inherited from the original tuning. At the 35° default, `µ = 0.70`.
      */
     val mu: Double get() = tanMaxLeanAngle
 

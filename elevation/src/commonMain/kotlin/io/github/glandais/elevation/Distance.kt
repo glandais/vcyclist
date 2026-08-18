@@ -57,8 +57,9 @@ object Distance {
     }
 
     /**
-     * Cumulative haversine distances along the path. Returns `[0]` for an empty or single-point input
-     * (matches TS reference for empty input).
+     * Cumulative haversine distances along the path. Returns `[0.0]` for a single-point input, and
+     * — deliberately — for an empty one too, rather than the empty array its size would suggest:
+     * callers index `[0]` as the path origin, so a length-0 result would throw on a legal input.
      */
     fun cumulativeDistances(points: List<Coordinates>): DoubleArray {
         if (points.isEmpty()) return doubleArrayOf(0.0)

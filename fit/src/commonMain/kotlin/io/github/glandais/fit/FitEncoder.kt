@@ -36,8 +36,7 @@ import kotlin.time.Instant
  *
  * ## Message order
  *
- * Not free in a Course file, and unchanged since g08 (it follows
- * `gpx2web/.../io/write/FitFileWriter.java`): [FileIdMesg], then [CourseMesg], then one
+ * Not free in a Course file, and unchanged since g08: [FileIdMesg], then [CourseMesg], then one
  * [LapMesg] per segment, then per segment a `TIMER`/`START` event, its [RecordMesg] stream and
  * a `TIMER`/`STOP` — `STOP_ALL` on the last one, which is what tells a reader the file is over.
  *
@@ -54,8 +53,7 @@ import kotlin.time.Instant
  * themselves (`altitude` in m, `distance` in m, `speed` in m/s, `power` in W), and timestamps
  * are `kotlin.time.Instant`, converted to the FIT epoch internally. Position is the exception —
  * the profile documents `position_lat` / `position_long` as semicircles, with no scale — so
- * [FitUnits.degreesToSemicircles] does that conversion, exactly as gpx2web's
- * `SemiCirclesConverter` does.
+ * [FitUnits.degreesToSemicircles] does that conversion.
  */
 object FitEncoder {
     /** Encode [course] and return the complete FIT file, header and CRC included. */
@@ -63,7 +61,7 @@ object FitEncoder {
         encodeFit {
             write(fileIdMesg(course))
             write(courseMesg(course))
-            // All laps first, then the record runs — gpx2web's order (`FitFileWriter.writeGPX`).
+            // All laps first, then the record runs — the order a Course file expects.
             for (segment in course.segments) {
                 write(lapMesg(segment.lap))
             }
@@ -153,7 +151,7 @@ object FitEncoder {
 
     private fun Double.secondsAsDuration(): Duration = (this * 1000.0).toLong().milliseconds
 
-    /** Arbitrary but stable identifiers, mirroring gpx2web's own placeholder values. */
+    /** Arbitrary but stable placeholder identifiers. */
     private const val PRODUCT_ID: UShort = 12345u
 
     private const val SERIAL_NUMBER: UInt = 12345u

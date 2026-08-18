@@ -14,7 +14,7 @@ import io.github.glandais.engine.path.PointField
  * `dt`, `virtSpeedCurrent` populated, plus the inverse cyclist-power computation in
  * `pComputedPower`.
  *
- * Reference : virtual-cyclist TS `VirtualizeService.ts`. Iteration cap : 100 000.
+ * Iteration cap : 100 000.
  *
  * The `speedMax` clip below is the simulation's **braking model** : the excess kinetic energy is
  * simply dropped. It is not lost from the *output* though — `PowerComputer.computeCyclistPower`
@@ -31,11 +31,11 @@ import io.github.glandais.engine.path.PointField
  *   returns a strictly positive `dt`, so no guard is needed.
  * - `path.computeDerivedData()` is called at the end to recompute `bearing/grade/dx/dt/speed`
  *   from `lat/lon/elevation/time`. This **overwrites** the `speed/dx/dt` slots we just
- *   wrote — kept for parity with the TS implementation. The aggregate speed profile remains
- *   consistent in the average since `time(i)` is preserved.
+ *   wrote — deliberately, since `time(i)` is preserved and the aggregate speed profile stays
+ *   consistent in the average.
  */
 object VirtualizeService {
-    /** Iteration cap protecting against pathological inputs (cf. TS counterpart). */
+    /** Iteration cap protecting against pathological inputs. */
     private const val MAX_ITERATIONS = 100_000
 
     /** Build a virtualized [Path] from `course.path`. */

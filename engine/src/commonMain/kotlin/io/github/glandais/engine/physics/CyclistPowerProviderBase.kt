@@ -11,8 +11,8 @@ import kotlin.random.Random
  * a subclass-defined optimal power.
  *
  * Speed-based adjustment ([getRealOptimalPower]) is implemented but **not called** at this
- * stage — the TS reference comments it out and returns `optimalPower` directly. Will be
- * reactivated in task 19 once `PowerComputer` is available.
+ * stage — [powerAt] returns `optimalPower` directly. Will be reactivated in task 19 once
+ * `PowerComputer` is available.
  *
  * Harmonics : when [useHarmonics] is true, 20 random harmonics are generated at construction
  * with frequencies 1–10 rad/s, phases 0–π, amplitudes 0–0.01.
@@ -69,7 +69,7 @@ abstract class CyclistPowerProviderBase(
         }
         path.setPCyclistProvidedOptimalPowerWithHarmonics(pointIndex, power)
 
-        // Note: speed-based adjustment (getRealOptimalPower) intentionally skipped to mirror TS.
+        // Note: speed-based adjustment (getRealOptimalPower) is intentionally skipped here.
         // Will be re-enabled in task 19 with PowerComputer access for `powerNeeded`.
         val powerNeeded = -PowerComputer.getNewPower(course, path, pointIndex, withCyclist = false)
         path.setPCyclistPowerNeeded(pointIndex, powerNeeded)
@@ -77,7 +77,7 @@ abstract class CyclistPowerProviderBase(
     }
 
     /**
-     * Speed-based adjustment (not currently active). Reproduces the TS algorithm verbatim :
+     * Speed-based adjustment (not currently active) :
      * within ±5 % of optimal → use as-is ; too slow → up to 3× boost (linear) ; too fast →
      * decrease to 0 (linear).
      *

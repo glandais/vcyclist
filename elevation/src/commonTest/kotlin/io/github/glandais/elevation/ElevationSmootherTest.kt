@@ -27,7 +27,7 @@ class ElevationSmootherTest {
     }
 
     @Test
-    fun `throws on zero or negative window size with TS-compatible message`() {
+    fun `throws on zero or negative window size with the documented message`() {
         val pts =
             listOf(
                 LatLonElevation(45.0, 0.0, 100.0),

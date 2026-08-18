@@ -13,8 +13,8 @@
             <div class="header">
                 <h1>vcyclist :elevation — Kotlin/JS demo</h1>
                 <div class="info">
-                    Kotlin/JS port of @glandais/elevation, exercised through the same UI as the
-                    original TypeScript demo (same UI, same library API, for comparison).
+                    A runnable smoke test of the `js(IR)` target: the whole elevation API,
+                    driven from a plain browser page.
                     <a href="https://github.com/glandais/vcyclist" target="_blank" rel="noopener"
                         >🚀 View on GitHub</a
                     >
@@ -152,8 +152,7 @@
         <!--
             Kotlin/JS output: webpack UMD bundle that exposes `globalThis.elevation` synchronously
             (no module instantiation step). The shim below wraps the exported free functions in an
-            `ElevationProvider` class so demo.js sees the same `new ElevationProvider()` API as the
-            original TS demo.
+            `ElevationProvider` class so demo.js sees an ordinary `new ElevationProvider()` API.
         -->
         <script src="./elevation.js"></script>
         <script>

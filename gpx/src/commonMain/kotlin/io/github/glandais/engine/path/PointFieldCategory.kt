@@ -2,10 +2,10 @@ package io.github.glandais.engine.path
 
 /**
  * Logical grouping of [PointField]s. Order is canonical (used by the UI to render
- * groups in a stable order) and matches the source TS `fieldDefinitions.ts`.
+ * groups in a stable order).
  *
- * @property id stable identifier matching the TS `id` (e.g. `"power_physics"`)
- * @property displayName human-readable label, may contain emojis (matches TS)
+ * @property id stable identifier (e.g. `"power_physics"`)
+ * @property displayName human-readable label, may contain emojis
  */
 enum class PointFieldCategory(
     val id: String,
@@ -29,8 +29,7 @@ enum class PointFieldCategory(
     /**
      * Properties of the road itself rather than of the ride over it.
      *
-     * **Not a TS category** — appended last, after the thirteen the TS `fieldDefinitions.ts`
-     * defines, so no existing category's position moves.
+     * Appended last, after the thirteen older categories, so no existing position moves.
      */
     ROAD("road", "Road"),
 }

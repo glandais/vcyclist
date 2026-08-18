@@ -14,7 +14,7 @@ import kotlin.test.assertEquals
  * are defined. Without this test "same projection" would be a comment nobody could rely on, and
  * two Web Mercators in one repo is exactly the trap the g13 spec warns about.
  *
- * The algebra: gpx2web computes `0.5 − ln((1+sin φ)/(1−sin φ)) / 4π` and `:elevation` computes
+ * The algebra: `MapSpace` computes `0.5 − ln((1+sin φ)/(1−sin φ)) / 4π` and `:elevation` computes
  * `(1 − ln(tan φ + sec φ)/π) / 2`. Since `ln((1+sin φ)/(1−sin φ)) = 2·ln(tan φ + sec φ)` those
  * are the same expression.
  */

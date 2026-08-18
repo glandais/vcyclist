@@ -10,38 +10,36 @@ import kotlin.math.hypot
  * The wind direction that would be **most unfavourable on average** over a course: the opposite
  * of its dominant orientation.
  *
- * Ported from `GPXDataComputer.getWind` (gpx2web), whose name says what it returns rather than
- * what it computes — this is not a weather lookup. It answers a single question: *"which constant
- * wind makes this ride as hard as it can be?"*, and its natural use is to configure a
- * `WindProviderConstant` before a simulation.
+ * This is not a weather lookup. It answers a single question: *"which constant wind makes this
+ * ride as hard as it can be?"*, and its natural use is to configure a `WindProviderConstant`
+ * before a simulation.
  *
  * ## What it computes
  *
  * For every point after the first, the **unit** vector from the start to that point ; the mean of
  * those vectors ; then its opposite, normalised. Because each vector is normalised before being
  * averaged, distance does not weigh in — a point 40 km out counts exactly as much as one 400 m
- * out. That is gpx2web's definition and it is kept as is: it makes the result a mean *bearing*,
- * which is the quantity a rider intuits as "the direction of the day".
+ * out. That is deliberate: it makes the result a mean *bearing*, which is the quantity a rider
+ * intuits as "the direction of the day".
  *
  * ## Frame
  *
  * The returned vector is in a local **east-north** frame: `x` points east, `y` points north, `z`
- * is always `0`. gpx2web works in Web Mercator screen coordinates, where `y` points *south*, so
- * its raw component values are the negation of these on that axis. The direction described is the
- * same — see `PathWindTest`, which cross-checks the azimuth against a Mercator implementation of
- * the reference formula.
+ * is always `0`. Callers working in Web Mercator screen coordinates, where `y` points *south*,
+ * will see the negation of these values on that axis for the same direction — see `PathWindTest`,
+ * which cross-checks the azimuth against a Mercator implementation of the same formula.
  *
  * @return a unit vector, or `null` when the question has no answer: fewer than 4 points (the
- *   threshold gpx2web uses), or an out-and-back so symmetric that the mean cancels out. gpx2web
- *   returns `Vector(0, 0, 0)` in those cases, presented as if it were normalised — a zero vector
- *   claiming to be a direction is a trap for the caller, so this port refuses to answer instead.
+ *   threshold), or an out-and-back so symmetric that the mean cancels out. Returning
+ *   `Vector(0, 0, 0)` as if it were normalised would be a trap — a zero vector claiming to be a
+ *   direction — so the answer is `null` instead.
  */
 fun Path.dominantHeadwindDirection(): Vector3D? = listOf(this).dominantHeadwindDirection()
 
 /**
- * The same over several paths — the tracks of a multi-track GPX, say. Mirrors
- * `GPXDataComputer.getWind(GPX)`: each path contributes its own mean direction, and the means are
- * summed with **equal weight** whatever their point count, then negated and normalised.
+ * The same over several paths — the tracks of a multi-track GPX, say. Each path contributes its
+ * own mean direction, and the means are summed with **equal weight** whatever their point count,
+ * then negated and normalised.
  *
  * Paths of fewer than 4 points contribute nothing rather than making the whole call fail.
  */
@@ -69,13 +67,13 @@ fun List<Path>.dominantHeadwindDirection(): Vector3D? {
  * too short to say anything.
  *
  * The projection is a local equirectangular one — `x = Δlon · cos(lat₀)`, `y = Δlat` — rather than
- * the Web Mercator gpx2web projects through. The two agree on bearings here: Mercator is
+ * the Web Mercator a map renderer would use. The two agree on bearings here: Mercator is
  * conformal, so it preserves local angles, and the normalisation of each vector removes the scale
  * distortion that is Mercator's only other effect. `PathWindTest` verifies the agreement against a
  * literal Mercator implementation instead of taking the argument on trust.
  */
 private fun Path.meanDirectionFromStart(): Pair<Double, Double>? {
-    // gpx2web's threshold: `size > 3`. Below it a "dominant direction" is noise, not a summary.
+    // Threshold: `size > 3`. Below it a "dominant direction" is noise, not a summary.
     if (size <= 3) return null
 
     val lat0 = latitude(0)
@@ -84,10 +82,9 @@ private fun Path.meanDirectionFromStart(): Pair<Double, Double>? {
 
     var sumX = 0.0
     var sumY = 0.0
-    // Index 0 is skipped: its vector to itself is zero and carries no direction. gpx2web includes
-    // it and relies on its `normalize()` returning the zero vector, which comes to the same thing
-    // except that it also divides by `size` rather than `size - 1`. That difference is a uniform
-    // scale factor on the mean, and the result is normalised, so it cannot change the direction.
+    // Index 0 is skipped: its vector to itself is zero and carries no direction. Including it and
+    // dividing by `size` rather than `size - 1` would come to the same thing anyway — a uniform
+    // scale factor on a mean that is normalised afterwards cannot change the direction.
     for (i in 1 until size) {
         val dx = (longitude(i) - lon0) * cosLat0
         val dy = latitude(i) - lat0
@@ -117,9 +114,8 @@ private const val DEGENERATE_EPSILON = 1e-12
  * `AeroPowerProvider`'s KDoc calls `Wind.directionRad` meteorological — the direction the wind
  * blows *from*. It behaves as the opposite: the direction the wind blows **toward**, `0` = north.
  * The reason is `Path.computeBearing`, which returns `atan2(-dy, dx)` over a north-positive `y`,
- * so a northbound rider has a bearing of `-π/2` rather than `+π/2`. That sign is ported verbatim
- * from `Path.ts` and is therefore load-bearing for TS parity; it flips the meaning of the wind
- * angle downstream.
+ * so a northbound rider has a bearing of `-π/2` rather than `+π/2`. That sign is load-bearing
+ * throughout the physics; it flips the meaning of the wind angle downstream.
  *
  * So this function returns the azimuth of [dominantHeadwindDirection] as is, with no 180° flip.
  * That is not deduced from reading the code — the first version of this function *did* flip it,

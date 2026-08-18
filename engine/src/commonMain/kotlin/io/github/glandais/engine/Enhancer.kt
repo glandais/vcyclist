@@ -18,7 +18,7 @@ import io.github.glandais.engine.trajectory.RacingLine
 
 /**
  * Top-level enhancement pipeline : transforms a raw GPS [Path] into a physics-aware
- * virtualized ride. Ordering matches the TS `Enhancer.enhanceCourse`.
+ * virtualized ride.
  *
  * Steps (each optional via [EnhanceOptions], except `PointPerDistance` which is always run) :
  * 1. **Pre-fix densify** : `PointPerDistance.compute(path, -1.0, 30.0)` — densifies sparse
@@ -29,11 +29,10 @@ import io.github.glandais.engine.trajectory.RacingLine
  * 3. **Post-fix refine** : `PointPerDistance.compute(path, 1.0, 2.0)` — refines to 1-2 m
  *    spacing so downstream physics (`MaxSpeedComputer`, `VirtualizeService`) operates on a
  *    dense, regular trace.
- * 4. smooth elevations (always runs — TS parity).
+ * 4. smooth elevations (always runs).
  * 4b. **curvature**, *or* the **racing line** : both write `trajectoryCurvature`, which step 5
  *    prefers over its own windowed estimate. The curvature pass is an annotation and moves nothing;
  *    the racing line replaces every coordinate with an optimised trajectory and is off by default.
- *    Neither is in TS.
  * 5. compute max speeds (cornering + braking).
  * 6. virtualize track (time-stepping simulation).
  * 7. resample to 1 Hz.
@@ -121,7 +120,7 @@ object Enhancer {
         // Step 1c : refine to 1-2 m spacing before downstream physics.
         path = PointPerDistance.compute(path, minDistanceM = 1.0, maxDistanceM = 2.0)
 
-        // Step 1d : smooth elevations (always runs — TS parity).
+        // Step 1d : smooth elevations (always runs).
         path = ElevationStep.smoothElevation(path)
 
         // Step 1e : curvature, or the racing line.

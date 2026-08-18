@@ -6,7 +6,7 @@ import io.github.glandais.engine.path.Path
 import kotlin.math.pow
 
 /**
- * Detects climbs on a [Path]. Port of gpx2web's `climb/ClimbDetector.java`.
+ * Detects climbs on a [Path].
  *
  * ## Algorithm
  *
@@ -30,28 +30,24 @@ import kotlin.math.pow
  *
  * 4. **Order.** Results are returned in path order, not score order.
  *
- * The `>=` in the score comparison is deliberate and copied from the reference: on a tie the
- * *later* `j` wins, which extends a climb to its true summit rather than stopping at the first
- * point that reaches the same score.
+ * The `>=` in the score comparison is deliberate: on a tie the *later* `j` wins, which extends a
+ * climb to its true summit rather than stopping at the first point that reaches the same score.
  *
  * ## Part splitting
  *
  * Each climb is broken into homogeneous-grade [ClimbPart]s by running Douglas-Peucker over its
  * `(distance, elevation)` profile, with a tolerance of `clamp(elevationGain / 50, 10, 50)`
- * meters — the reference's formula.
+ * meters.
  *
- * gpx2web uses its own `Simplifier`/`Vector` pair for this. This port instead calls
- * [DouglasPeucker.simplifyIndices] from `:elevation`, which was generalised in task g11 for the
- * purpose. The two are equivalent: both measure the perpendicular distance to the segment and
- * both fall back to the endpoint distance when the projection falls outside it — gpx2web tests
- * the dot-product signs, `Vector3D` clamps the projection parameter, which is the same
- * predicate written differently. What is *not* equivalent is
+ * The simplification calls [DouglasPeucker.simplifyIndices] from `:elevation`, which was
+ * generalised in task g11 for the purpose rather than growing a second implementation here. What
+ * it cannot use is
  * [DouglasPeucker.simplify], the geographic entry point: it projects through ECEF and expects
  * latitude and longitude, so it cannot be fed a `(distance, elevation)` profile. Hence the
  * generalisation rather than a second implementation.
  */
 object ClimbDetector {
-    /** Below this span a candidate is not considered at all (meters). From the reference. */
+    /** Below this span a candidate is not considered at all (meters). */
     private const val MIN_CANDIDATE_LENGTH_M = 10.0
 
     /** Bounds for the Douglas-Peucker tolerance used to split a climb into parts (meters). */
@@ -133,8 +129,8 @@ object ClimbDetector {
     /**
      * Highest-scoring climb starting at [i], or `null` if no span from [i] qualifies.
      *
-     * Walks forward accumulating positive and negative elevation exactly as the reference does —
-     * the running totals are what make this O(n) per starting point rather than O(n²).
+     * Walks forward accumulating positive and negative elevation — the running totals are what
+     * make this O(n) per starting point rather than O(n²).
      */
     private fun bestCandidateFrom(
         profile: Profile,
@@ -168,8 +164,7 @@ object ClimbDetector {
             if (length <= MIN_CANDIDATE_LENGTH_M) continue
 
             val netElevation = endEle - startEle
-            // Percentages here, matching the reference, so `score` and the option thresholds are
-            // directly comparable with gpx2web's.
+            // Percentages here, so `score` and the option thresholds are directly comparable.
             val gradePercent = 100.0 * netElevation / length
             val climbingGradePercent = if (distClimbing > 0) 100.0 * positiveElevation / distClimbing else 0.0
             val score = length * gradePercent.pow(options.booster)
@@ -198,8 +193,8 @@ object ClimbDetector {
 
     /**
      * Greedily keep the best-scoring candidate and drop everything overlapping it, repeating
-     * until nothing is left. Mirrors the reference's `removeIf`, including the fact that the
-     * chosen candidate is itself removed by the overlap test.
+     * until nothing is left. Note that the chosen candidate is itself removed by the overlap
+     * test, which is why it is collected before the sweep.
      */
     private fun dedupeByScore(candidates: List<Candidate>): List<Candidate> {
         val remaining = candidates.sortedByDescending { it.score }.toMutableList()
@@ -257,7 +252,7 @@ object ClimbDetector {
         }
     }
 
-    /** Internal candidate; the reference's `DetectedClimb`, reduced to what is actually used. */
+    /** Internal candidate, reduced to what the scoring and de-overlap passes actually use. */
     private data class Candidate(
         val startIndex: Int,
         val endIndex: Int,

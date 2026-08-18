@@ -1,6 +1,6 @@
 package io.github.glandais.elevation
 
-/** Attribution information for elevation data; mirrors the TS `Attribution` interface. */
+/** Attribution information for elevation data, as the tile source requires it to be displayed. */
 data class Attribution(
     val text: String,
     val url: String? = null,

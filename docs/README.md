@@ -32,7 +32,6 @@ Module-level guides live next to their module: [`cli/README.md`](../cli/README.m
 |---|---|
 | [`ledgers/improvements-ledger.md`](ledgers/improvements-ledger.md) | One row per research-derived improvement (R1…), scored against the code: applied / recommended / deferred / rejected, with the measurement behind each verdict |
 | [`ledgers/surface-coverage.md`](ledgers/surface-coverage.md) | Which of the four surfaces — core, CLI, JS, WASI — exposes which option |
-| [`ledgers/gpx2web-coverage.md`](ledgers/gpx2web-coverage.md) | One row per gpx2web Java class: ported / replaced / not ported, with the reason |
 | [`ledgers/build-warnings-ledger.md`](ledgers/build-warnings-ledger.md) | Everything `./gradlew clean build` emits that is not a task line, and what was done about it |
 
 ## Research
@@ -44,5 +43,5 @@ surface is `ledgers/improvements-ledger.md`.
 ## Archive
 
 [`archive/README.md`](archive/README.md) — three completed plans, the racing-line design and its
-feasibility review, and 100+ task specs across four ID namespaces (`NN`, `gNN`, `wNN`, `tNN`).
-Indexed in [`archive/tasks/README.md`](archive/tasks/README.md).
+feasibility review, the frozen port-coverage ledger, and 100+ task specs across four ID namespaces
+(`NN`, `gNN`, `wNN`, `tNN`). Indexed in [`archive/tasks/README.md`](archive/tasks/README.md).

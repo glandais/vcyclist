@@ -17,18 +17,6 @@ import picocli.CommandLine
  * produce different numbers from the same input depending on whether it went through the CLI.
  * `CyclistMixinTest` asserts the correspondence field by field.
  *
- * ## Two option defaults differ from gpxtools-cli
- *
- * The option *names* match gpxtools-cli so a gpx2web user can switch without relearning, but two
- * of its defaults do not match vcyclist's library values, and the library wins:
- *
- * | option | gpxtools-cli | vcyclist |
- * |---|---|---|
- * | `--cyclist-max-angle` | 45° | 35° ([EngineConstants.DEFAULT_MAX_LEAN_ANGLE_DEG]) |
- * | `--cyclist-max-speed` | 90 km/h | 100 km/h ([EngineConstants.DEFAULT_MAX_SPEED_KMH]) |
- *
- * Recorded here for the g20 correspondence matrix.
- *
  * ## `--road-condition` is a preset, and explicit options win over it
  *
  * `--road-condition=wet` sets both grip-dependent limits at once ([RoadCondition]). Passing
@@ -39,8 +27,8 @@ import picocli.CommandLine
  *
  * ## Power is not part of [Cyclist]
  *
- * gpx2web bundles power into its `Cyclist`. In vcyclist power is a strategy
- * ([CyclistPowerProvider]), so `--cyclist-power` feeds [toPowerProvider] instead.
+ * Power is a strategy ([CyclistPowerProvider]) rather than a field of the rider, so
+ * `--cyclist-power` feeds [toPowerProvider] instead.
  */
 class CyclistMixin {
     @field:CommandLine.Option(

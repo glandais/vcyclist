@@ -56,9 +56,9 @@ class HttpTileFetcher(
                     .GET()
                     .build()
             val response = httpClient.send(request, HttpResponse.BodyHandlers.ofByteArray())
-            // Status is checked, unlike the reference, which streams the body straight to the
-            // cache file — so a 404 or a rate-limit page would be cached AS the tile and then
-            // rendered as garbage. An error response is simply no tile.
+            // The status is checked before the body is used: streaming it straight to the cache
+            // file would cache a 404 or a rate-limit page AS the tile, and render it as garbage.
+            // An error response is simply no tile.
             if (response.statusCode() in 200..299) response.body().takeIf { it.isNotEmpty() } else null
         } catch (e: java.io.IOException) {
             null
@@ -69,9 +69,8 @@ class HttpTileFetcher(
 
     companion object {
         /**
-         * Identifies vcyclist to tile servers. Adapted from gpx2web's, which named that project.
-         * Keep it specific: this string is what a server operator sees and what they block if the
-         * traffic misbehaves.
+         * Identifies vcyclist to tile servers. Keep it specific: this string is what a server
+         * operator sees and what they block if the traffic misbehaves.
          */
         const val DEFAULT_USER_AGENT: String = "vcyclist (https://github.com/glandais/vcyclist)"
     }

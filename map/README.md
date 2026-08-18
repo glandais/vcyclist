@@ -44,8 +44,8 @@ Tiles are cached at `{cacheFolder}/{host}/{z}/{x}/{y}.png` and **never expire**.
 effectively immutable, and a render that changes because the background was updated between two
 runs makes regression testing impossible. To refresh, delete the folder.
 
-Failed fetches are *not* cached — a transient error should not blank a tile permanently. (The
-gpx2web original writes a zero-byte marker, making the failure stick.)
+Failed fetches are *not* cached — a transient error should not blank a tile permanently. (Caching
+a zero-byte marker instead would make the failure stick.)
 
 ## Tests
 

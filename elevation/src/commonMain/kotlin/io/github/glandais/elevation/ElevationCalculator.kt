@@ -8,9 +8,9 @@ import kotlin.math.floor
  * Two modes:
  * - [interpolation] = false → nearest-pixel lookup (fastest).
  * - [interpolation] = true  → bilinear interpolation from the 4 neighbour pixels using the true
- *   sub-pixel position from [ElevationFunctions.toPixelFloat]. The original TS port computed
- *   `dx`/`dy` from already-floored Int pixel coordinates, making the interpolation degenerate
- *   into nearest-neighbour ; this Kotlin port keeps the fractional position.
+ *   sub-pixel position from [ElevationFunctions.toPixelFloat]. Note the *float* pixel position
+ *   is load-bearing: computing `dx`/`dy` from already-floored Int coordinates would make the
+ *   interpolation degenerate silently into nearest-neighbour.
  */
 class ElevationCalculator(
     private val tileManager: TileManager,

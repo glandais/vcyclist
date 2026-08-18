@@ -4,9 +4,8 @@ import kotlin.math.PI
 import kotlin.math.tan
 
 /**
- * Physics constants and default cyclist/bike parameters. Ported from the TS
- * `constants.ts`. Values are validated against academic cycling research — do not change
- * lightly without updating the parity tests (task 26).
+ * Physics constants and default cyclist/bike parameters. Values are validated against academic
+ * cycling research — do not change lightly without updating the parity tests (task 26).
  */
 object EngineConstants {
     // ---- Fundamental physics --------------------------------------------------
@@ -14,7 +13,7 @@ object EngineConstants {
     /**
      * Standard gravitational acceleration (m/s²) — SI standard gravity `g₀`.
      *
-     * Was `9.8` (inherited from gpx2web and the TS reference); the exact value removes a
+     * Was `9.8` in earlier versions; the exact value removes a
      * 0.07 % systematic bias on both the gravity and the rolling-resistance terms.
      */
     const val G: Double = 9.80665

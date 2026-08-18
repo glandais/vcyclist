@@ -11,7 +11,7 @@ import kotlin.test.assertTrue
 private const val EPS = 1e-12
 
 class ElevationFunctionsTest {
-    // -------- normalizePixel (port direct du TS) --------
+    // -------- normalizePixel --------
 
     @Test
     fun `normalizePixel - normal pixel coordinates`() {
@@ -136,7 +136,7 @@ class ElevationFunctionsTest {
     // -------- toTileCoordinates / Float / toPixel --------
 
     @Test
-    fun `toTileCoordinatesFloat - lat out of bounds throws with TS message`() {
+    fun `toTileCoordinatesFloat - lat out of bounds throws with the documented message`() {
         val ex =
             assertFailsWith<IllegalArgumentException> {
                 ElevationFunctions.toTileCoordinatesFloat(LatLon(86.0, 0.0), 12)
@@ -154,7 +154,7 @@ class ElevationFunctionsTest {
     }
 
     @Test
-    fun `toTileCoordinatesFloat - lon out of bounds throws with TS message`() {
+    fun `toTileCoordinatesFloat - lon out of bounds throws with the documented message`() {
         val ex =
             assertFailsWith<IllegalArgumentException> {
                 ElevationFunctions.toTileCoordinatesFloat(LatLon(0.0, 181.0), 12)
@@ -163,7 +163,7 @@ class ElevationFunctionsTest {
     }
 
     @Test
-    fun `toTileCoordinatesFloat - zoom out of bounds throws with TS message`() {
+    fun `toTileCoordinatesFloat - zoom out of bounds throws with the documented message`() {
         val ex =
             assertFailsWith<IllegalArgumentException> {
                 ElevationFunctions.toTileCoordinatesFloat(LatLon(0.0, 0.0), -1)

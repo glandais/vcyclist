@@ -47,8 +47,7 @@ object FitUnits {
      * Convert a latitude or longitude in degrees to FIT semicircles.
      *
      * This one is **not** applied by the Java SDK — `RecordMesg.setPositionLat` documents its
-     * parameter as already being in semicircles — which is why gpx2web has its own
-     * `SemiCirclesConverter`.
+     * parameter as already being in semicircles — so the conversion has to happen here.
      */
     fun degreesToSemicircles(degrees: Double): Int = (degrees * SEMICIRCLES_PER_DEGREE).roundToInt()
 

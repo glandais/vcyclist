@@ -27,9 +27,8 @@ data class CsvOptions(
 /**
  * CSV serialization of a [Path] : one header row, then one row per point.
  *
- * Port of `io.github.glandais.gpx.io.write.tabular.CSVFileWriter` (gpx2web), without its
- * `PropertyKey`/`Unit`/`Converter` framework : headers and values come straight from
- * [PointField] (name, unit, category are already the single source of truth in vcyclist).
+ * Headers and values come straight from [PointField], which is already the single source of
+ * truth for a field's name, unit and category — no separate key/unit/converter framework.
  *
  * `commonMain`, no file I/O : this renders a `String`. Writing it to disk (JVM `:cli`, task g17)
  * or offering it as a browser download (`Blob` + `URL.createObjectURL`) is the caller's job.

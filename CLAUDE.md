@@ -1,7 +1,7 @@
 # CLAUDE.md
 
 Instructions for future Claude Code sessions working on **vcyclist** — a Kotlin Multiplatform
-port of `@glandais/virtual-cyclist` (physics-based cycling simulator).
+physics-based cycling simulator.
 
 ## Project overview
 
@@ -11,13 +11,13 @@ runtime/CLI usage. See [`docs/README.md`](docs/README.md) for the documentation 
 [`docs/archive/plans/PLAN.md`](docs/archive/plans/PLAN.md) for the historical task-by-task progress
 with commit hashes.
 
-The port is structured as:
+The project is structured as:
 
 - `:elevation` — DEM tile fetching + 3D geometry utilities (Phase 1, tasks 00-09 ; Phase 3
   task 32 added Node.js / Bun support via runtime-detection in `TileFetcher.js.kt` + the
   `@jsquash/webp` WASM decoder, a third-party WebP codec unrelated to the Kotlin/Wasm target).
 - `:gpx` — Path model (`Path`, `PointField`, resamplers, `PathSimplifier`, `ElevationStep`) +
-  GPX I/O, extracted from `:engine` by gpx2web task g01. **Package names are unchanged**
+  GPX I/O, extracted from `:engine` by task g01. **Package names are unchanged**
   (`io.github.glandais.engine.path.*`, `io.github.glandais.engine.gpx.*`) — only the Gradle
   module that hosts them moved. Published to Maven Central as `vcyclist-gpx`, **not** to npm.
 - `:engine` — physics + `Enhancer` pipeline + CLI + JS façades (Phase 2, tasks 10-28 +
@@ -28,23 +28,12 @@ The port is structured as:
   framing (`MapImage`), on `java.awt` / `ImageIO`. Uses the `kotlin-jvm` plugin, not KMP, so it
   has no `commonMain` and the three-target invariant is untouched — but **nothing may depend on
   it**: the arrow only points from `:map` into `:gpx` / `:elevation`.
-- `:cli` — **JVM-only** command-line tool on picocli, replacing gpx2web's `gpxtools-cli`.
+- `:cli` — **JVM-only** command-line tool on picocli.
   Deliberately **not** published to Maven Central: it is an application, distributed as an
   executable jar (`./gradlew :cli:executableJar`). Parameter defaults come from
   `EngineConstants`, never copied — a cross-assertion test enforces that.
 - `:codegen` — tiny JVM helper that regenerates `GeneratedPath.kt` and `PointFieldAccessors.kt`
   from `PointField` when the field list changes (writes into `:gpx` since g01).
-
-## Reference projects (read-only siblings)
-
-These three sibling projects under `../` are the reference / inspiration. **Read them, never
-modify them.**
-
-- `../virtual-cyclist/` — TypeScript reference. Canonical for the physics, the Enhancer
-  pipeline ordering, and the field model (`src/types/path/fieldDefinitions.ts`).
-- `../elevation/` — TypeScript reference for the DEM library that `:elevation` ports.
-- `../gpx2web/` — Java reference (gpx2web). Inspirational for the `PowerProvider` strategy
-  pattern, `MaxSpeedComputer`, `VirtualizeService`.
 
 ## Build commands
 
@@ -94,27 +83,26 @@ Browser demos (in `:elevation`) :
 - Latitude / longitude are **stored in radians** (matches `PointField.LATITUDE.unit ==
   "radians"`). Use `path.latitudeDeg(i)` / `path.coordinatesAt(i)` for degree-based access.
 
-### Enhancer pipeline order (must match TS)
+### Enhancer pipeline order
 
 1. `PointPerDistance(-1, 30)` — densify before DEM lookup.
 2. `fixElevation` (optional, needs `ElevationProvider`).
 3. `PointPerDistance(1, 2)` — refine for downstream physics.
 4. `smoothElevation` (150 m kernel, always).
-4b. `PathCurvature` — writes `trajectoryCurvature`, moves nothing. **Not in TS.**
+4b. `PathCurvature` — writes `trajectoryCurvature`, moves nothing.
     *Or* `RacingLine.compute` when `racingLine.enabled` (off by default), which replaces every
     coordinate with an optimised trajectory and writes the same field for the line it built. The
     two are alternatives, never a sequence.
 5. `MaxSpeedComputer` (always if `virtualizeTrack=true`) — prefers that field over its own estimate.
 6. `VirtualizeService` (time-stepping simulation).
 7. `PointPerSecond` (1 Hz uniform sampling).
-8. `WPrimeBalanceComputer` (W′ balance annotation) — **not in TS**, see below.
+8. `WPrimeBalanceComputer` (W′ balance annotation) — see below.
 9. `PathSimplifier` (Douglas-Peucker 3D).
 
-Step 8 is a **deliberate divergence** from the TS reference, which has no physiological layer.
-It is an annotation pass : it reads `pComputedPower`, writes the `wPrimeBalance` field and
-touches nothing else, so the other 36 fields — the ones the TS reference also has — are
-bit-identical whether it runs or not (`WPrimeBalanceComputerTest` pins exactly that). Making the
-simulated rider *react* to a low W′ is a separate change — see
+Step 8 is the project's only physiological layer, and it is a pure annotation pass : it reads
+`pComputedPower`, writes the `wPrimeBalance` field and touches nothing else, so every other field
+is bit-identical whether it runs or not (`WPrimeBalanceComputerTest` pins exactly that). Making
+the simulated rider *react* to a low W′ is a separate change — see
 [`docs/ledgers/improvements-ledger.md`](docs/ledgers/improvements-ledger.md) R16.
 
 ### Physics
@@ -138,20 +126,20 @@ simulated rider *react* to a low W′ is a separate change — see
 - `Cyclist.maxLeanAngleDeg` **is** a tyre friction coefficient : `v_max = √(g·R·tan θ)` is
   `√(µ·g·R)`, so `Cyclist.mu == tanMaxLeanAngle`. [`RoadCondition`] is the preset that sets µ and
   braking together (`DRY` reproduces the shipped defaults bit-for-bit ; `WET` is 40 % of the grip).
-- Two **decorators** (**not in TS**), composed outermost-last :
+- Two **decorators**, composed outermost-last :
   `PowerProviderTerrainPacing` (harder uphill / into headwind, rise dispersed over ~300 m, fall
   immediate, with a causal energy account so it redistributes rather than adds) and
   `PowerProviderSlewLimited` (caps |ΔP| per second, 50 W/s). The CLI wires them
   `base → pacing → slew`.
-- **Friction ellipse** (**not in TS**) : `MaxSpeedComputer` spends one grip budget on cornering and
+- **Friction ellipse** : `MaxSpeedComputer` spends one grip budget on cornering and
   braking together — `a_x = a_xmax·√(1 − (a_y/a_ymax)²)` — so a rider at full lean cannot brake.
   Solved by **bisection**, not fixed-point iteration : the map is decreasing and iterates oscillate
   outside the ellipse.
-- **Pedal-strike clearance** (**not in TS**) : `MuscularPowerProvider` delivers no power past
+- **Pedal-strike clearance** : `MuscularPowerProvider` delivers no power past
   `Bike.maxPedalingLeanAngleDeg` (20°), lean being `atan(v²/(g·R))` from the path's own `speed` and
   `radius`. Set 90 to disable. It fails *open* when `radius` is absent — `MaxSpeedComputer` may not
   have run — because failing closed would zero a whole ride.
-- **Curvature estimation** (**not in TS**, ledger R23) : `:engine`'s `trajectory` package regresses
+- **Curvature estimation** (ledger R23) : `:engine`'s `trajectory` package regresses
   unwrapped heading on arclength in a *single anchored* planar frame and writes
   `trajectoryCurvature`; `MaxSpeedComputer` reads it in preference to its ±10-point bearing
   difference. Retires three real defects — the `normalizeAngleDiff` ±π wrap (a bend under ~9.5 m
@@ -161,7 +149,7 @@ simulated rider *react* to a low W′ is a separate change — see
   reproduces the table. Two non-obvious constraints, both found by measurement and both commented
   at their call sites : heading must be regressed against the **smoothed** curve's own arclength,
   and the scale-selection allowance must be measured from the trace at the **widest** window.
-- **Racing line** (**not in TS**, ledger R24) : `RacingLine.compute` solves for a lateral offset
+- **Racing line** (ledger R24) : `RacingLine.compute` solves for a lateral offset
   `n(s)` minimising a convex quadratic energy over a corridor box — projected Newton on a
   pentadiagonal `LDLᵀ`. Off by default because it **rewrites every coordinate**; the originals are
   kept in `sourceLatitude`/`sourceLongitude`. `CorridorMode.LANE` (default) keeps `n = 0` feasible,
@@ -171,7 +159,7 @@ simulated rider *react* to a low W′ is a separate change — see
   on the materialised path rather than taken from the analytic offset formula — the latter reads
   `n''` off a finite difference and spikes at every corridor-bound kink, which made rides 16–27 %
   slower until it was fixed.
-- `pBrake` (**not in TS**) records the energy `VirtualizeService`'s `speedMax` clip removes, as
+- `pBrake` records the energy `VirtualizeService`'s `speedMax` clip removes, as
   `min(0, pComputedWheelPower)` — negative, at the wheel, so **not** divided by drivetrain
   efficiency. A speed cap the rider merely sits at is not braking : resistance alone explains it.
 
@@ -292,8 +280,7 @@ Until task 45 they were declared `"ms"` and carried whichever the last writer ch
 finished path — and its CSV / JSON / `fieldDefinitions` export, unit string included — published
 seconds labelled ms. Every reader compensated with its own `/ 1000.0`, and nothing failed when one
 forgot: `WPrimeBalanceComputer` did, and silently under-integrated the whole W′ balance by 1000×
-until R16 caught it by measurement. The TS reference still carries the same mislabel
-(`fieldDefinitions.ts` vs `Path.ts:219`) — this is a deliberate divergence.
+until R16 caught it by measurement.
 
 `DT`'s **window** still changes with the moment, which the unit alone does not say: backward
 interval `t(i) − t(i−1)` during the simulation, centred half-interval `(t(i+1) − t(i−1)) / 2` after
@@ -408,15 +395,13 @@ is an addition, never a replacement.
 
 ### Touching `Enhancer`
 
-The pipeline ordering matches the TS reference (see *Architecture invariants* above). If you
+The pipeline ordering is load-bearing (see *Architecture invariants* above). If you
 reorder steps, update the docstring of `Enhancer.kt`, the [`README.md`](README.md) ASCII
 diagram, and run a smoke through the CLI (`./gradlew :cli:run -Pargs="enhance …"`) to verify
 the GPX output makes sense.
 
 ## What not to do
 
-- Don't modify the sibling reference projects (`../virtual-cyclist`, `../elevation`,
-  `../gpx2web`). They are read-only inspiration.
 - Don't add JVM-only dependencies to `commonMain` source sets. Anything in `commonMain` must
   compile on JVM + JS Node + JS browser.
 - Don't bypass `Path`'s generated accessors by writing into `data` directly. The accessors
@@ -458,9 +443,7 @@ catalogue before trusting a number here.
 | How does a WASI host call the engine ? | [`docs/guides/wasm-wasi-abi.md`](docs/guides/wasm-wasi-abi.md) — imports, exports, error codes. A working host: [`tools/wasi`](tools/wasi/README.md) |
 | Why this design decision ? | The relevant task markdown's "Notes" section, or its plan in `docs/archive/plans/` if architectural |
 | How does Kotlin/JS export this type ? | `docs/guides/kotlin-js-jvm-webp.md` |
-| What's the TS equivalent of `<class>` ? | Same name in `../virtual-cyclist/src/` — Kotlin file's KDoc names the TS source |
 | Why is `time(0) = 0` ? | `VirtualizeService.kt` KDoc (relative-time simulation) |
 | How does the racing line work / what is it worth ? | [`docs/guides/racing-line.md`](docs/guides/racing-line.md) — user-facing; ledger R23-R26 for the measurements |
-| How to run the CLI ? | [`cli/README.md`](cli/README.md) — usage, exit codes, and the gpxtools-cli migration table |
-| Where did gpx2web's `<class>` go ? | [`docs/ledgers/gpx2web-coverage.md`](docs/ledgers/gpx2web-coverage.md) — one row per Java class, ported / replaced / not ported with the reason |
+| How to run the CLI ? | [`cli/README.md`](cli/README.md) — usage and exit codes |
 | How to cut a release / publish to npm or Maven Central ? | [`docs/guides/publishing.md`](docs/guides/publishing.md) |

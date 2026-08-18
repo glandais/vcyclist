@@ -66,8 +66,7 @@ data class FitCourse(
  * One source `Path` inside a course: its records, and the [FitLap] summarising them.
  *
  * FIT expresses "several rides in one file" as several laps plus a `TIMER`/`START`…`STOP` event
- * pair around each record run — which is what gpx2web's `FitFileWriter` writes when a `GPX`
- * holds several `GPXPath`. This type is the neutral model of one such run.
+ * pair around each record run. This type is the neutral model of one such run.
  */
 data class FitSegment(
     val records: List<FitRecord>,

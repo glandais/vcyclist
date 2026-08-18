@@ -16,9 +16,8 @@ import io.github.glandais.elevation.MathConstants
  *    set into the output path.
  * 4. Run [Path.computeDerivedData] on the output.
  *
- * Mirrors `processing/DouglasPeucker.ts` semantics while reusing the elevation module's
- * implementation. Unlike the TS reference, every [PointField] slot of retained points is
- * preserved (e.g. `pInputPower`, `heartRate`) — not just lat/lon/elevation.
+ * Reuses the elevation module's Douglas-Peucker implementation. Every [PointField] slot of a
+ * retained point is preserved (e.g. `pInputPower`, `heartRate`) — not just lat/lon/elevation.
  *
  * Stateless ; safe for concurrent calls.
  */

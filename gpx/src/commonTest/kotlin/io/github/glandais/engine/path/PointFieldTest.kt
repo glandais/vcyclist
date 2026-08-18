@@ -62,7 +62,7 @@ class PointFieldTest {
     }
 
     @Test
-    fun `category groupings match TS structure`() {
+    fun `category groupings have the expected sizes`() {
         assertEquals(4, PointField.byCategory(PointFieldCategory.COORDINATES).size)
         assertEquals(3, PointField.byCategory(PointFieldCategory.TEMPORAL).size)
         assertEquals(1, PointField.byCategory(PointFieldCategory.ANGLES).size)
@@ -87,7 +87,7 @@ class PointFieldTest {
     }
 
     @Test
-    fun `category coordinates order matches TS`() {
+    fun `category coordinates order is pinned`() {
         assertEquals(
             listOf("latitude", "longitude", "distance", "dx"),
             PointField.byCategory(PointFieldCategory.COORDINATES).map { it.prop },

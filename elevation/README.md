@@ -1,7 +1,6 @@
 # `:elevation`
 
-Kotlin Multiplatform port of [`@glandais/elevation`](https://github.com/glandais/elevation):
-fetches elevation data from Terrarium-encoded WebP tiles, with elevation profiling along a
+Fetches elevation data from Terrarium-encoded WebP tiles, with elevation profiling along a
 path, distance-based smoothing, and Douglas-Peucker 3D simplification.
 
 ## Targets
@@ -94,9 +93,8 @@ From the `vcyclist/` root:
 
 ## Browser demo
 
-A browser demo is shipped, porting the original TypeScript demo at the root of the
-[elevation](https://github.com/glandais/elevation) repo: Leaflet map, Chart.js elevation
-profile, GPX upload, hillshade overlay.
+A browser demo is shipped: Leaflet map, Chart.js elevation profile, GPX upload, hillshade
+overlay.
 
 | Demo | Sources | Run | Distribution |
 |---|---|---|---|
@@ -134,8 +132,8 @@ an `ElevationProvider` passed opaquely, arrays are native JS `Array<T>`, numbers
 `Double`, and `@JsExport` covers both top-level functions and classes.
 
 The demo's `index.html` loads the webpack UMD bundle as a regular `<script>` and wraps the free
-functions in an `ElevationProvider` class shim. `demo.js` consumes
-`window.Elevation.ElevationProvider` exactly like the original TS lib.
+functions in an `ElevationProvider` class shim, so `demo.js` consumes
+`window.Elevation.ElevationProvider` as an ordinary class.
 
 TypeScript definitions are emitted alongside the bundle (`generateTypeScriptDefinitions()` is
 enabled on the `js(IR)` target).
@@ -166,7 +164,7 @@ check — before a module release, or after reworking the pipeline.
 
 ## Status
 
-Phase 1 (port of TS algorithms) is complete — see `../docs/archive/plans/PLAN.md` for the full task list and
+Phase 1 is complete — see `../docs/archive/plans/PLAN.md` for the full task list and
 parity numbers. The browser demo is **not** part of the formal task plan; it lives here as a
 runnable smoke test of the `js(IR)` target and as the visual reference for the upcoming Compose
 Multiplatform demo (Phase 9). End-to-end check against `tiles.mapterhorn.com`: Mont Blanc
