@@ -9,13 +9,17 @@ Four kinds of document live here, and the distinction is the point:
 | [`research/`](#research) | The solo-rider simulation research report | Yes, per its own evidence grades |
 | [`archive/`](#archive) | Finished plans and the task specs that built the project | **No** — frozen at their date, read for the *why* |
 
-Anything under `guides/` and `ledgers/` is written in English and describes the present.
-`archive/` is frozen as written, French included, and is never updated to match the code.
+Anything under `guides/` and `ledgers/` describes the present, whatever language it is in —
+most are English, a few (`kotlin-js-jvm-webp.md`, `kotlin-wasm-wasi.md`,
+`ledgers/surface-coverage.md`) are French. `archive/` is frozen as written, French included,
+and is never updated to match the code.
 
 ## Guides
 
 | Document | Answers |
 |---|---|
+| [`guides/using-from-java.md`](guides/using-from-java.md) | How Java calls a Kotlin-first, `suspend`-heavy API: the `…Jvm` facades, `…Blocking` / `…Async` |
+| [`guides/using-from-javascript.md`](guides/using-from-javascript.md) | The whole JS / TypeScript façade — parsing, `enhance` vs `enhanceWithCourse`, exports, climbs, DEM |
 | [`guides/racing-line.md`](guides/racing-line.md) | What the optimal-line stage does, what it costs, why it is off by default |
 | [`guides/publishing.md`](guides/publishing.md) | Release flow — semantic-release, Maven Central, npm |
 | [`guides/kotlin-js-jvm-webp.md`](guides/kotlin-js-jvm-webp.md) | Kotlin/JS ↔ JS interop patterns behind the `@JsExport` façades, and WebP decoding per target |

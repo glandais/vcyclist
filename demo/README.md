@@ -3,6 +3,9 @@
 Interactive Vue 3 + Vite frontend that consumes the Kotlin/JS build of
 `:engine` to demonstrate the physics-aware GPX virtualization pipeline.
 
+Deployed at **<https://glandais.github.io/vcyclist>** by
+[`.github/workflows/gh-pages.yml`](../.github/workflows/gh-pages.yml).
+
 ## Two views
 
 Hash-routed (GitHub Pages serves a static `index.html`, so a path-based deep link would 404):

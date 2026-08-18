@@ -10,7 +10,8 @@
 
 Kotlin Multiplatform physics-based cycling simulator: it turns a static GPS trace into a
 virtualized ride with realistic speeds, times and power estimates. Elevation data comes from
-Terrarium-encoded DEM tiles, fetched and decoded by the `:elevation` module.
+Terrarium-encoded DEM tiles — mapterhorn by default — fetched and decoded by the `:elevation`
+module.
 
 ```
                         ┌──────────────┐
@@ -38,364 +39,219 @@ Terrarium-encoded DEM tiles, fetched and decoded by the `:elevation` module.
             (*) optional — needs an ElevationProvider
 ```
 
-## Modules
+## What it can do
 
-| Module | Purpose | Targets |
-|---|---|---|
-| **`:elevation`** | Terrarium tile fetch + DEM lookup + Haversine + Douglas-Peucker 3D + triangular smoother. See [`elevation/README.md`](elevation/README.md). | JVM, JS Node, JS browser, WASI |
-| **`:gpx`** | Path model (43 fields × `DoubleArray`), resamplers, Douglas-Peucker simplifier, elevation steps, GPX I/O. Published to Maven Central; **not** published to npm — its JS output ships inside `@glandais/vcyclist-engine`. | JVM, JS Node, JS browser, WASI |
-| **`:engine`** | Physics (4 resistive `PowerProvider`s + cyclist input + `MaxSpeedComputer` + `VirtualizeService`), `Enhancer` pipeline, JVM CLI, JS façades. Re-exports `:gpx` via `api`, so `io.github.glandais.engine.path.*` and `…engine.gpx.*` stay importable from `:engine`. Also the module that links the standalone `.wasm` — see [`docs/guides/wasm-wasi-abi.md`](docs/guides/wasm-wasi-abi.md). | JVM, JS Node, JS browser, WASI |
-| **`:fit`** | Garmin FIT encoding. `FitCourse` model, unit conversions and `FitEncoder` itself, all in commonMain over [`fit-kotlin-sdk`](https://github.com/glandais/fit-kotlin-sdk) — a multiplatform SDK generated from the FIT profile. One encoder, byte-identical output on every target, and no vendor SDK for consumers to install. | JVM, JS Node, JS browser, WASI |
-| **`:map`** | Static map rendering: Web Mercator projection, image framing, tile download + cache, PNG output (`java.awt` / `ImageIO`). **JVM-only.** No default tile source — see [`map/README.md`](map/README.md) for the usage-policy obligations. | JVM only |
-| **`:cli`** | Command-line tool (picocli). **JVM-only, not published as a library** — distributed as an executable jar. | JVM only |
-| **`:codegen`** | Tiny build-time helper that regenerates `GeneratedPath.kt` + `PointFieldAccessors.kt` from `PointField` (run only when the field list changes). | JVM only |
+**In**: GPX tracks, routes (`<rte>`), segments and waypoints.
 
-### Running it without a JVM or a JavaScript host
+**Physics**: elevation correction from DEM tiles, curvature estimation or an optimal racing line,
+cornering and braking sharing one friction-ellipse budget, a configurable rider and bike, and a
+1 Hz time-stepping simulation that produces speed, time and power at every point.
 
-`:engine` also links a standalone **WASI module**, so the whole pipeline runs inside wasmtime,
-WasmEdge, wazero, or an embedding in Go, Rust, Python or the JVM — no JavaScript involved.
+**Out**: GPX, Garmin FIT courses, CSV, column-oriented JSON, static PNG maps — plus climb
+detection, a racing-line report and worst-case wind analysis.
+
+Four doors reach the same engine, and a capability is available from all of them unless noted:
+
+| Capability | CLI | Kotlin / Java | JavaScript / TS | WASI |
+|---|---|---|---|---|
+| Run the pipeline | `enhance` | `Enhancer.enhanceCourseDefault` | `enhance` | `vcEnhance` |
+| Configure rider, bike, wind, power | `--cyclist-*`, `--bike-*`, `--wind-*` | `CoursePhysics(Course(…))` | `enhanceWithCourse` | `vcEnhanceWithCourse` |
+| Power models `constant` · `durability` · `critical-power` · `from_data` | `--cyclist-model` | `CyclistPowerSpec` | `power.type` | `power.type` |
+| Terrain pacing, power slew limit | `--cyclist-pacing`, `--cyclist-slew` | provider decorators | `power.pacing`, `power.maxSlewWPerS` | idem |
+| Road condition, dry or wet | `--road-condition` | `Cyclist.withRoadCondition` | `cyclist.roadCondition` | idem |
+| Pedal-strike clearance | `--bike-max-pedal-angle` | `Bike.maxPedalingLeanAngleDeg` | `bike.maxPedalingLeanAngleDeg` | idem |
+| Racing line + corridor mode | `--racing-line`, `--corridor` | `RacingLineOptions` | `racingLineEnabled` | idem |
+| DEM elevation correction | `--fix-elevation` | `ElevationProvider` | `fixElevation: true` | host serves tiles |
+| Climb detection | — | `ClimbDetector.detect` | `detectClimbs` | `vcDetectClimbsJson` |
+| Racing-line report | `--racing-line-report` | `RacingLine.analyze` | `analyzeRacingLine` | `vcAnalyzeRacingLineJson` |
+| Write GPX / CSV / JSON | `--gpx --csv --json` | `GpxWriter`, `CsvWriter`, `JsonWriter` | `writeGpx`, `pathToCsv`, `pathToJson` | `vcWriteGpx`, `vcPathToCsv/Json` |
+| Write FIT course | `--fit` | `Path.toFitBytes` | `pathToFit`, `pathsToFit` | `vcPathToFit`, `vcPathsToFit` |
+| Static map PNG | `export --map` | `MapFactoriesJvm` | — | — |
+
+Static maps are JVM-only by construction — `:map` draws on `java.awt`.
+[`docs/ledgers/surface-coverage.md`](docs/ledgers/surface-coverage.md) tracks this matrix as
+capabilities land, so that a feature cannot reach one door and quietly miss the others.
+
+## Install
+
+### npm — browser, Node.js and Bun
+
+```bash
+npm install @glandais/vcyclist-engine          # physics, GPX, FIT, CSV/JSON, climbs, racing line
+npm install @glandais/vcyclist-elevation       # DEM lookups on their own
+```
+
+The engine bundle already carries the elevation façade; install the second package only if you
+want DEM lookups without the physics.
+
+### Gradle — JVM or Kotlin Multiplatform
+
+```kotlin
+dependencies {
+    implementation("io.github.glandais:vcyclist-engine:4.2.1")     // pulls -jvm / -js per target
+    implementation("io.github.glandais:vcyclist-elevation:4.2.1")
+}
+```
+
+### Maven
+
+```xml
+<dependency>
+  <groupId>io.github.glandais</groupId>
+  <artifactId>vcyclist-engine-jvm</artifactId>
+  <version>4.2.1</version>
+</dependency>
+```
+
+The badges above are the source of truth for the current version. KMP consumers get the
+platform-specific variant automatically; from plain Maven, name the `-jvm` artifact yourself.
+
+`vcyclist-gpx` (the `Path` model + GPX I/O) comes in transitively via `vcyclist-engine`, and can be
+depended on alone if you only need parsing and resampling. `vcyclist-fit` and `vcyclist-map` are
+published separately.
+
+### CLI and `.wasm`
+
+The CLI is an application, not a library, so it is **not** on Maven Central: download
+`vcyclist-cli-<version>-all.jar` from a [GitHub release](https://github.com/glandais/vcyclist/releases).
+The WASI module is built from source (below) rather than published to a registry.
+
+**Requirements**: Java 21+ for the JVM and CLI; Node ≥ 18 (22+ recommended) or Bun for JavaScript;
+a WASI runtime with the `function-references`, `gc` and `exceptions` proposals — wasmtime 46+ is
+known good.
+
+## Quick start
+
+### Command line
+
+```bash
+java -jar vcyclist-cli-*-all.jar enhance route.gpx --gpx out.gpx --csv out.csv
+```
+
+`enhance` runs the physics pipeline; `export` produces maps, FIT, CSV and JSON from a file you
+already have. Elevation correction is off unless you pass `--fix-elevation`, so nothing touches the
+network by default.
+
+Full option reference, the rider models and what each is measured to be worth, and exit codes:
+[`cli/README.md`](cli/README.md).
+
+### Kotlin
+
+```kotlin
+import io.github.glandais.engine.Enhancer
+import io.github.glandais.engine.gpx.GpxParser
+import io.github.glandais.engine.gpx.GpxWriter
+import io.github.glandais.engine.gpx.firstTrackAsPath
+import io.github.glandais.engine.gpx.toGpxDocument
+
+suspend fun virtualize(xml: String): String {
+    val path = GpxParser.parse(xml).firstTrackAsPath()
+    val out = Enhancer.enhanceCourseDefault(path)   // pure physics, no HTTP
+    return GpxWriter.write(out.toGpxDocument(trackName = "virtualized"))
+}
+```
+
+Pass an `ElevationProvider` as the second argument to correct elevations from DEM tiles, and an
+`EnhanceOptions` as the third to configure the pipeline. For a configured rider, build a
+`CoursePhysics(Course(path, cyclist, bike), …)` and call `Enhancer.enhanceCourse`.
+
+### Java
+
+```java
+Path input = GpxToPathJvm.firstTrackAsPath(GpxParserJvm.parse(xml));
+Path enhanced = EnhancerJvm.enhanceCourseDefaultBlocking(input);
+String out = GpxWriterJvm.write(enhanced);
+```
+
+Every entry point has a `…Jvm` twin that restores Kotlin's default arguments, and every `suspend`
+function has both a `…Blocking` and a `…Async` (`CompletableFuture`) bridge.
+**[`docs/guides/using-from-java.md`](docs/guides/using-from-java.md)** has the calling rules — some
+of them matter, `…Blocking` on a UI thread being the obvious one.
+
+### JavaScript / TypeScript
+
+Kotlin/JS emits a UMD bundle that preserves the package namespace, so there is exactly one
+top-level export. Named imports do not work — unwrap it once:
+
+```js
+import * as engineRaw from '@glandais/vcyclist-engine';
+const engine = engineRaw.io.github.glandais.engine;
+
+const { parseGpx, enhance, writeGpx, pathSize, pathTotalDistance } = engine;
+
+const path = parseGpx(gpxXml);
+const out  = await enhance(path, null);          // physics only; { fixElevation: true } for DEM
+console.log(pathSize(out), pathTotalDistance(out), 'm');
+const xml  = writeGpx(out);
+```
+
+**[`docs/guides/using-from-javascript.md`](docs/guides/using-from-javascript.md)** covers the whole
+façade — `enhanceWithCourse` and its five DTOs, FIT and CSV/JSON export, climbs, the racing-line
+report, the standalone elevation API, and the Node/Bun specifics.
+
+### WASI — no JVM, no JavaScript
+
+`:engine` links a standalone WASI module, so the whole pipeline runs inside wasmtime, WasmEdge,
+wazero, or an embedding in Go, Rust, Python or the JVM.
 
 ```bash
 ./gradlew :engine:wasmModule       # -> engine/build/wasm/vcyclist-engine.wasm + .sha256
 ```
 
+The host implements three imports — `read_input`, `write_output` and `fetch_tile` (which may simply
+answer "no tile") — and everything else is numeric exports over integer handles:
+
 ```python
-handle = exports["vcParseGpx"](store, len(gpx_bytes))       # after wiring three imports
-print(exports["vcPathTotalDistance"](store, handle), "m")
+staged["bytes"] = open("ride.gpx", "rb").read()
+handle = exports["vcParseGpx"](store, len(staged["bytes"]))
+
+staged["bytes"] = b'{"computeOnePointPerSecond": true}'
+out = exports["vcEnhance"](store, handle, len(staged["bytes"]))
+print(exports["vcPathDurationMs"](store, out) / 1000, "s")
 ```
 
-The host provides `read_input`, `write_output` and `fetch_tile` (the last one may simply answer
-"no tile"); everything else is numeric exports and integer handles.
-[`docs/guides/wasm-wasi-abi.md`](docs/guides/wasm-wasi-abi.md) is the full contract, and
+This is not a reduced surface: `vcEnhanceWithCourse`, `vcPathToFit`, `vcPathToCsv`,
+`vcDetectClimbsJson` and `vcAnalyzeRacingLineJson` are all there, and §10 of the guide is a
+function-by-function parity table against the JavaScript façade.
+**[`docs/guides/wasm-wasi-abi.md`](docs/guides/wasm-wasi-abi.md)** is the full contract;
 [`tools/wasi`](tools/wasi/README.md) is a working host that CI runs on every pull request.
 
-## Install
+## Try the demo
 
-### npm (Kotlin/JS consumers)
+**<https://glandais.github.io/vcyclist>** — no install, runs the real engine in your browser.
 
-```bash
-npm install @glandais/vcyclist-engine          # Kotlin/JS bundle
-npm install @glandais/vcyclist-elevation       # Kotlin/JS bundle
-```
-
-### Gradle / Maven (JVM or KMP consumers)
-
-```kotlin
-// Gradle Kotlin DSL
-dependencies {
-    implementation("io.github.glandais:vcyclist-engine:1.0.0")    // pulls -jvm / -js per target
-    implementation("io.github.glandais:vcyclist-elevation:1.0.0")
-}
-```
-
-Replace `1.0.0` by the latest version shown in the badges above. KMP consumers automatically
-get the platform-specific variant (`-jvm`, `-js`) for their target.
-`vcyclist-gpx` (the `Path` model + GPX I/O) comes in transitively via `vcyclist-engine`, and
-can also be depended on alone if you only need parsing and resampling.
-
-See [`docs/guides/publishing.md`](docs/guides/publishing.md) for the release process.
-
-## Quick start
-
-### Run the CLI
-
-The CLI is **not** on Maven Central — it is an application, distributed as a self-contained jar
-attached to each [GitHub release](https://github.com/glandais/vcyclist/releases). Download
-`vcyclist-cli-<version>-all.jar` and run it with Java 21+, or build it yourself:
-
-```bash
-# Build a self-contained jar, then run it from anywhere:
-./gradlew :cli:executableJar
-java -jar cli/build/libs/vcyclist-cli-*-all.jar enhance route.gpx --gpx out.gpx --csv out.csv
-
-# Or, during development:
-./gradlew :cli:run -Pargs="enhance route.gpx --gpx /tmp/out.gpx"
-```
-
-`enhance` runs the physics pipeline; `export` produces maps, FIT, CSV and JSON from a file you
-already have. Elevation correction is off unless you pass `--fix-elevation`, so nothing touches
-the network by default. Full usage and exit codes are in [`cli/README.md`](cli/README.md).
-
-### Try the browser demo
-
-```bash
-cd demo && npm run dev        # http://localhost:3000
-```
-
-A Vue 3 + Leaflet + Chart.js app with two routes:
+A Vue 3 + Leaflet + Chart.js app with two routes, both on the same Kotlin/JS bundle:
 
 - `#/` — **GPX analysis**: upload a route, run the physics pipeline, inspect every field on a
   synchronized chart and map, with climb detection and the racing line.
 - `#/elevation` — **elevation explorer**: query DEM tiles at a point or along a path, with
   smoothing, Douglas-Peucker simplification and hillshade/slope relief.
 
-Both consume the same Kotlin/JS bundle. See [`demo/README.md`](demo/README.md) for details.
-
-### Use from Kotlin
-
-```kotlin
-import io.github.glandais.engine.Enhancer
-import io.github.glandais.engine.gpx.GpxParser
-import io.github.glandais.engine.gpx.firstTrackAsPath
-
-suspend fun virtualize(xml: String): String {
-    val path = GpxParser.parse(xml).firstTrackAsPath()
-    val out = Enhancer.enhanceCourseDefault(path)  // pure physics, no HTTP
-    return io.github.glandais.engine.gpx.GpxWriter.write(
-        out.toGpxDocument(trackName = "virtualized")
-    )
-}
-```
-
-### Use from Java
-
-The library is Kotlin-first, so its asynchronous entry points — elevation lookups and the
-`Enhancer` pipeline that may call them — are `suspend` functions. From Java that would mean
-hand-writing a `Continuation`, so each of them has a JVM bridge in two shapes:
-
-| Shape | Suffix | Returns | For |
-|---|---|---|---|
-| Blocking | `…Blocking` | the value | batch jobs, CLIs, tests |
-| Asynchronous | `…Async` | `CompletableFuture<T>` | servers, UIs |
-
-```java
-import io.github.glandais.elevation.ElevationProvider;
-import io.github.glandais.elevation.ElevationProviderJvm;
-import io.github.glandais.engine.EnhancerJvm;
-import io.github.glandais.engine.gpx.GpxParserJvm;
-import io.github.glandais.engine.gpx.GpxToPathKt;
-import io.github.glandais.engine.gpx.GpxWriterJvm;
-import io.github.glandais.engine.path.Path;
-
-String xml = Files.readString(java.nio.file.Path.of("route.gpx"));
-Path input = GpxToPathKt.firstTrackAsPath(GpxParserJvm.parse(xml));
-
-// Physics only, nothing touches the network:
-Path enhanced = EnhancerJvm.enhanceCourseDefaultBlocking(input);
-
-// Or with elevation correction, off the calling thread:
-ElevationProvider provider = ElevationProviderJvm.newElevationProvider();
-CompletableFuture<Path> future = EnhancerJvm.enhanceCourseDefaultAsync(input, provider);
-
-String out = GpxWriterJvm.write(enhanced);
-```
-
-**Every entry point has a `…Jvm` twin**, in the same package as the Kotlin original:
-`GpxParserJvm`, `GpxWriterJvm`, `GpxFromPathJvm`, `GpxModelJvm`, `PathSimplifierJvm`,
-`ElevationStepJvm`, `TabularWritersJvm` (`:gpx`), `ElevationProviderJvm`, `TileFetcherJvm`
-(`:elevation`), `EnhancerJvm`, `EngineModelJvm`, `ClimbDetectorJvm` (`:engine`), `PathToFitJvm`
-(`:fit`), `MapFactoriesJvm` (`:map`). They exist for two reasons: Kotlin default arguments are
-invisible to Java, and `@JvmOverloads` cannot be used on the common source sets where the API
-lives. Call them and every optional parameter becomes optional again.
-
-- `…Blocking` parks the calling thread. **Never call it from a UI thread, from inside a
-  coroutine, or from a thread of the executor you passed** — the first two freeze the caller,
-  the third can deadlock the pool. Exceptions propagate unchanged.
-- `…Async` takes an optional `java.util.concurrent.Executor` (default: the coroutines IO
-  dispatcher, the right pool for network-bound work). Cancelling the returned future cancels the
-  work underneath; failures arrive as a `CompletionException`, so unwrap with `getCause()`.
-- Everything else in the library is already synchronous and needs no bridge: `GpxParser`,
-  `GpxWriter`, `ElevationStep.smoothElevation`, `PathSimplifier`, the resamplers, FIT and the
-  CSV / JSON writers.
-- `ElevationProviderJvm.newElevationProvider(config, fetcher)` takes a
-  `Function<String, RawTile>`, so a disk cache — or any other tile transport — plugs in from Java.
-  The fetcher may block (it runs on the IO dispatcher) but must be thread-safe: up to ten tiles
-  are fetched at once. See [`elevation/README.md`](elevation/README.md) for a complete example.
-
-### Use from JavaScript / TypeScript
-
-`generateTypeScriptDefinitions()` is enabled on `js(IR)`, so you get a `.d.ts` next to the
-bundle in `build/dist/js/productionExecutable/vcyclist-engine.d.{ts,mts}`.
-
-The Kotlin/JS variant (`@glandais/vcyclist-engine`, `@glandais/vcyclist-elevation`) runs
-**in both browser and Node.js / Bun**.
-
-#### Getting at the exports
-
-Kotlin/JS emits a **UMD bundle that preserves the package namespace**, so the module has
-exactly one top-level export, `io`. Named imports do not work — `import { parseGpx } from
-'@glandais/vcyclist-engine'` fails under Node ESM with *"Named export 'parseGpx' not found"*.
-Unwrap the namespace once and destructure from it :
-
-```js
-import * as engineRaw from '@glandais/vcyclist-engine';   // or: require('@glandais/vcyclist-engine')
-
-const engine = engineRaw.io.github.glandais.engine;
-```
-
-Every snippet below assumes that `engine`. `demo/src/engine-shim.ts` does the same unwrap and
-adds TypeScript types for the DTOs, which Kotlin/JS emits as referenced names only.
-
-#### Browser
-
-```js
-const { parseGpx, enhance, writeGpx, pathSize, pathTotalDistance } = engine;
-
-const handle = parseGpx(gpxXml);
-console.log('input points:', pathSize(handle));
-const out = await enhance(handle, null);                    // physics only, no HTTP
-console.log('output:', pathSize(out), pathTotalDistance(out), 'm');
-const xml = writeGpx(out);
-```
-
-#### Node.js / Bun (with elevation correction)
-
-```js
-const { parseGpx, enhance, writeGpx } = engine;
-
-const handle = parseGpx(gpxXml);
-const out = await enhance(handle, { fixElevation: true });  // fetches DEM tiles, decodes WebP
-const xml = writeGpx(out);
-```
-
-`enhance(..., { fixElevation: true })` auto-instantiates a default `ElevationProvider`
-(mapterhorn Terrarium tiles) and runs the full pipeline (densify → fix elevation → smooth →
-max speeds → virtualize → resample → simplify).
-
-#### FIT export
-
-```js
-const { parseGpx, enhance, pathToFit } = engine;
-
-const out = await enhance(parseGpx(gpxXml), null);
-const fit = pathToFit(out, 'My route', Date.parse('2026-08-01T08:00:00Z'));
-// Kotlin/JS returns an Int8Array containing the FIT file.
-```
-
-FIT has no relative clock, so the start instant is mandatory. The output is a **Course** file
-(a route to follow), which is what a virtualized trace should be — not an Activity.
-
-#### Multi-track GPX
-
-`parseGpx` returns the **first** track, which is what most files contain. For documents with
-several `<trk>` or several `<trkseg>` :
-
-```js
-const { parseGpxTracks, parseGpxSegments, writeGpxTracks } = engine;
-
-const tracks = parseGpxTracks(gpxXml);       // one path per <trk> *and* per <rte>
-const segments = parseGpxSegments(gpxXml);   // one path per <trkseg>, always continuous
-const xml = writeGpxTracks(tracks);          // one <trk> per path
-```
-
-Concatenating segments folds the pause between them into `totalDistance` — a `<trkseg>`
-boundary is a physical discontinuity. Use `parseGpxSegments` when that artefact matters.
-
-`parseGpxTracks` also returns `<rte>` routes, which many planners emit and which used to be
-dropped silently. `parseGpxTracksOnly` and `parseGpxRoutesOnly` select one container or the other.
-
-#### Options on the writers
-
-```js
-const bare = engine.writeGpx(path, false);   // no <extensions>: no power, heart rate, cadence
-const fit = engine.pathsToFit([a, b], 'Two days', Date.parse('2026-08-01T08:00:00Z'));
-```
-
-`writeGpx`, `writeGpxAt` and `writeGpxTracks` take a trailing `writeExtensions` flag (default
-`true`). `pathsToFit` encodes several paths into one FIT course — a lap and a timer event pair
-each — where `pathToFit` takes a single one.
-
-On Node.js / Bun, tile decoding uses [`@jsquash/webp`](https://www.npmjs.com/package/@jsquash/webp)
-(a pure-WASM WebP decoder, ~50 KB, listed as a runtime `dependency` of
-`@glandais/vcyclist-engine` and `@glandais/vcyclist-elevation`). It is loaded lazily via
-`eval('require')`, so browser bundlers do not pull it into the browser build. Requires
-Node ≥ 18 (`globalThis.fetch` is built-in since Node 18 / Bun) ; Node 22+ recommended for
-ESM `require()` support.
-
-## Try the interactive demo
-
-The [`demo/`](demo/) module is a Vue 3 + Vite frontend that exercises the
-Kotlin/JS engine end-to-end in a browser (GPX upload, configurable cyclist /
-bike / wind / power, chart + map, hover sync).
-
 ```bash
-./gradlew :demo:assemble
-python -m http.server -d demo/dist 8000  # or any static file server
+cd demo && npm run dev        # http://localhost:3000, against a locally built engine
 ```
 
-See [`demo/README.md`](demo/README.md) for the dev workflow and architecture.
-
-## Build & test
-
-```bash
-./gradlew check                         # full build + all tests on all targets
-./gradlew :engine:allTests              # engine tests across JVM / JS Node / JS browser
-./gradlew :elevation:allTests           # elevation tests
-./gradlew :elevation:jvmTest --tests '*Integration*' \
-          -PINTEGRATION=1               # live HTTP tests against tiles.mapterhorn.com
-./gradlew ktlintCheck                   # lint
-```
-
-## Layout
-
-```
-vcyclist/
-├── settings.gradle.kts       # multi-module Gradle KMP project
-├── gradle/libs.versions.toml # version catalog — the source of truth for every version
-├── docs/
-│   ├── README.md             # documentation index — start here
-│   ├── guides/               # how to use and extend the project
-│   ├── ledgers/              # living inventories (improvements, warnings, coverage)
-│   ├── research/             # solo-rider simulation research report
-│   └── archive/              # finished plans + the task specs that built the project
-├── elevation/                # :elevation  DEM tiles + 3D geometry
-├── gpx/                      # :gpx        Path model + GPX I/O
-├── engine/                   # :engine     physics + Enhancer + JS/WASI façades
-├── fit/                      # :fit        Garmin FIT encoding
-├── map/                      # :map        static map rendering (JVM only)
-├── cli/                      # :cli        command-line tool (JVM only)
-├── codegen/                  # :codegen    Path accessor generation (JVM only)
-├── demo/                     # Vue/Vite browser demo
-└── tools/                    # reference WASI hosts
-```
-
-## Status
-
-- ✅ **Phase 1** — `:elevation` module port (tasks 00-09) : Terrarium tiles, Haversine, ECEF,
-  Douglas-Peucker 3D, smoother, LRU cache + TileManager, `ElevationProvider`, live HTTP integration.
-- ✅ **Phase 2** — `:engine` module port (tasks 10-28) : Path model, Cyclist/Bike/Course,
-  GPX I/O, full physics, simulation, post-processing, `Enhancer`, CLI, `@JsExport` façades.
-- ✅ **Phase 2bis** — pipeline fidelity fixes (tasks 29-31) : `VirtualizeService` last-point
-  timestamp, `PointPerDistance` port, integration into `Enhancer`.
-- ✅ **Phase 3** — Node.js / Bun support (tasks 32-33) : runtime-detection in
-  `TileFetcher.js.kt` (browser path unchanged, Node path uses `globalThis.fetch` +
-  `@jsquash/webp` WASM decoder loaded via lazy `eval('require')`), webpack externals to keep
-  the browser bundle free of `@jsquash/webp`, `ElevationProvider` auto-instantiation in
-  `EngineJsApi.enhance` when `opts.fixElevation` is true (JS façade), 6 jsTest classes
-  gated by `INTEGRATION=1`.
-
-Total `:engine` test coverage : 32 test classes / ~326 commonTest cases / 3 targets =
-~1000 green executions, plus JVM-only smoke tests for the CLI and the full pipeline.
-
-End-to-end smoke (after Phase 2bis) : sample.gpx (3569 source points, 130 km, ~4550 m gain)
-runs through the complete `Enhancer` pipeline in ~1.7 s on JVM, producing ~1000 simplified
-output points covering ~128.6 km / ~5.3 h of simulated ride.
+See [`demo/README.md`](demo/README.md) for the architecture and the static-site build.
 
 ## Documentation
 
-Everything lives under [`docs/`](docs/README.md), which is the index. The short version:
+[`docs/README.md`](docs/README.md) is the index and says which documents are current and which are
+frozen history. The short version:
 
-- [`docs/guides/`](docs/README.md#guides) — how to use and extend the project: the racing line,
-  the release flow, Kotlin/JS interop, the WASI ABI.
+- [`docs/guides/`](docs/README.md#guides) — how to use and extend the project: Java, JavaScript, the
+  WASI ABI, the racing line, the release flow
 - [`docs/ledgers/`](docs/README.md#ledgers) — living state: research improvements, build warnings,
-  façade coverage.
-- [`docs/research/`](docs/research/README.md) — the solo-rider simulation research report.
-- [`docs/archive/`](docs/archive/README.md) — the finished plans and the 100+ task specs that
-  built the project. Historical: read for the *why*, never for the current state.
-- [`elevation/README.md`](elevation/README.md) — `:elevation` module details + browser demos.
+  surface coverage
+- [`docs/research/`](docs/research/README.md) — the solo-rider simulation research report
+- Module documentation lives next to its module: [`cli/`](cli/README.md),
+  [`elevation/`](elevation/README.md), [`map/`](map/README.md), [`demo/`](demo/README.md)
 
 ## Contributing
 
-`develop` is the **default and only long-lived branch** — there is no `main`. Open PRs
-against `develop` using [Conventional Commits](https://www.conventionalcommits.org/) :
-`feat:` triggers a minor release, `fix:` a patch, anything else is a no-op release-wise.
-Every push to `develop` runs the full multi-target test suite via
-`.github/workflows/release.yml` and, if green, lets semantic-release tag a new version,
-publish to Maven Central + npm, and commit the version bump back to `develop` with
-`[skip ci]`. See [`docs/guides/publishing.md`](docs/guides/publishing.md) for the full flow.
+Open PRs against `develop` — the default and only long-lived branch — using
+[Conventional Commits](https://www.conventionalcommits.org/). Build commands, module layout,
+testing conventions and the release flow are in [`CONTRIBUTING.md`](CONTRIBUTING.md).
 
 ## License
 
-Apache License 2.0. See the Maven Central POM
-metadata in `engine/build.gradle.kts` and `elevation/build.gradle.kts`. A top-level `LICENSE`
-file will be added before the first public release.
+[Apache License 2.0](LICENSE).
