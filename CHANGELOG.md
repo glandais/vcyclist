@@ -1,3 +1,17 @@
+# [4.3.0](https://github.com/glandais/vcyclist/compare/v4.2.1...v4.3.0) (2026-08-18)
+
+
+### Bug Fixes
+
+* **engine:** make every pipeline option reachable from Java ([5d7b833](https://github.com/glandais/vcyclist/commit/5d7b83353b3b09457ad688fbe9e073146a1ab447))
+
+
+### Features
+
+* **demo:** download the virtualized path as GPX or FIT ([a4013eb](https://github.com/glandais/vcyclist/commit/a4013eb7a94545f09184bc074204770cbec1ca11))
+* **demo:** fold the elevation explorer into the Vue app ([dc24ef6](https://github.com/glandais/vcyclist/commit/dc24ef6174f9212ae34694affba989a5616c8b32))
+* **engine:** relay --gpx-power-source and trackName to the JS and WASI doors ([0182362](https://github.com/glandais/vcyclist/commit/0182362af4ef489ae7961614df39169bcb96faa5))
+
 ## [4.2.1](https://github.com/glandais/vcyclist/compare/v4.2.0...v4.2.1) (2026-08-18)
 
 
