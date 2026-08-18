@@ -214,7 +214,10 @@ webpack performance recommendations: … lazy load some parts of your applicatio
 |---|---|---|
 | `engine.js` | **996 KiB** | over limit (`[big]`) |
 | `fit.js` | **668 KiB** | over limit (`[big]`) |
-| `elevation.js` | 201 KiB | under limit, no warning |
+
+`:elevation` used to appear here with a 201 KiB `elevation.js` (under the limit, no warning). It
+no longer produces an executable bundle at all: `binaries.executable()` existed only for the
+standalone browser demo, which now lives in `demo/` at route `#/elevation`.
 
 Three warnings per over-limit bundle (asset limit, entrypoint limit, recommendation block).
 

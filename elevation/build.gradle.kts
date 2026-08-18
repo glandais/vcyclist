@@ -19,17 +19,15 @@ kotlin {
                 }
             }
         }
+        // Kept for `jsBrowserTest` only: the module no longer produces an executable bundle,
+        // its browser demo now lives in the Vue app under `demo/` (route `#/elevation`).
         browser {
-            commonWebpackConfig {
-                outputFileName = "elevation.js"
-            }
             testTask {
                 useKarma {
                     useChromeHeadless()
                 }
             }
         }
-        binaries.executable()
         binaries.library()
         generateTypeScriptDefinitions()
         compilations.named("main") {
@@ -99,15 +97,6 @@ tasks.register<Exec>("npmPublishJs") {
             .get()
             .asFile
     commandLine("npm", "publish", "--access", "public")
-}
-
-// See engine/build.gradle.kts for the rationale.
-tasks.matching { it.name == "jsBrowserProductionWebpack" }.configureEach {
-    mustRunAfter("jsProductionLibraryCompileSync")
-}
-
-tasks.matching { it.name.endsWith("ProductionLibraryDistribution") }.configureEach {
-    mustRunAfter("jsProductionExecutableCompileSync")
 }
 
 // Propagate the `INTEGRATION` environment variable from the shell to KotlinJsTest tasks

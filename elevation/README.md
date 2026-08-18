@@ -93,31 +93,22 @@ From the `vcyclist/` root:
 
 ## Browser demo
 
-A browser demo is shipped: Leaflet map, Chart.js elevation profile, GPX upload, hillshade
-overlay.
-
-| Demo | Sources | Run | Distribution |
-|---|---|---|---|
-| **Kotlin/JS** | `src/jsMain/resources/` | `:elevation:jsBrowserDevelopmentRun` | `:elevation:jsBrowserDistribution` → `build/dist/js/productionExecutable/` |
-
-The `Distribution` task produces a self-contained folder with `elevation.js` plus the demo
-HTML/CSS/JS and `sample.gpx`. Serve with any static HTTP server:
+The browser demo lives in the repo's Vue app, at route `#/elevation`:
 
 ```bash
-cd build/dist/js/productionExecutable && python3 -m http.server 8080
+cd demo && npm run dev        # http://localhost:3000/#/elevation
 ```
 
-Dev server (Webpack hot-reload):
-
-```bash
-./gradlew :elevation:jsBrowserDevelopmentRun      # Kotlin/JS demo
-```
+It used to be a standalone page under `src/jsMain/resources/`, served by
+`:elevation:jsBrowserDevelopmentRun`. That page duplicated a Leaflet map, a Chart.js profile, a
+GPX parser and a build that `demo/` already had, and was deployed nowhere; the module no longer
+produces an executable bundle, only the npm library.
 
 ### What it shows
 
 - **Point mode** — click anywhere on the map to get the elevation at that location.
 - **Path mode** — click multiple points to build a path; the chart shows the elevation profile.
-- **GPX upload** — load any GPX file, or the bundled `sample.gpx`.
+- **GPX** — load any of the bundled sample tracks, or upload your own.
 - **Smoothing** — toggle distance-based triangular-kernel smoothing with adjustable window size.
 - **Filtering** — toggle Douglas-Peucker 3D simplification with tolerance and Z-exaggeration sliders.
 - **Relief overlay** — hillshade or slope visualization on the map (via `leaflet-relief`).
@@ -131,11 +122,13 @@ All async work returns `Promise` (per the `kotlin-js-jvm-webp.md` §3 convention
 an `ElevationProvider` passed opaquely, arrays are native JS `Array<T>`, numbers are plain
 `Double`, and `@JsExport` covers both top-level functions and classes.
 
-The demo's `index.html` loads the webpack UMD bundle as a regular `<script>` and wraps the free
-functions in an `ElevationProvider` class shim, so `demo.js` consumes
-`window.Elevation.ElevationProvider` as an ordinary class.
+The demo consumes it through [`demo/src/elevation-shim.ts`](../demo/src/elevation-shim.ts), which
+re-exports those three functions under flat names and hand-writes the DTO types — Kotlin/JS emits
+no body for an `external interface`, so there is nothing to import. `:engine` declares
+`api(project(":elevation"))`, so the single `@glandais/vcyclist-engine` bundle the demo already
+aliases carries this façade too, under `io.github.glandais.elevation`.
 
-TypeScript definitions are emitted alongside the bundle (`generateTypeScriptDefinitions()` is
+TypeScript definitions are emitted alongside the library (`generateTypeScriptDefinitions()` is
 enabled on the `js(IR)` target).
 
 ## Live HTTP integration tests
