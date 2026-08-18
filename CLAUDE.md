@@ -13,7 +13,7 @@ documentation index; read it before going looking for anything.
 | `:gpx` | JVM, JS, wasmWasi | `Path` model (`PointField`, resamplers, `PathSimplifier`) + GPX I/O. Packages stayed `io.github.glandais.engine.{path,gpx}` after the extraction from `:engine`. |
 | `:elevation` | JVM, JS, wasmWasi | DEM tile fetching + 3D geometry |
 | `:engine` | JVM, JS, wasmWasi | Physics, `Enhancer` pipeline, JS/WASI façades. `api(project(":gpx"))`, so consumers see the whole Path + GPX surface. |
-| `:fit` | JVM, JS | FIT course encoding (`PathToFit`) |
+| `:fit` | JVM, JS, wasmWasi | FIT course encoding (`PathToFit`) |
 | `:map` | JVM only | Static map rendering on `java.awt`. Depends on `:gpx`/`:elevation`; **nothing may depend on it**. |
 | `:cli` | JVM only | picocli command-line tool, shipped as an executable jar, not to Maven Central |
 | `:codegen` | JVM only | Regenerates `GeneratedPath.kt` + `PointFieldAccessors.kt` into `:gpx` |

@@ -32,10 +32,13 @@ internal object WasiAbi {
     const val ERR_INVALID_ARGUMENT: Int = -3
 
     /**
-     * The capability exists in the API but not on this target. Today: FIT encoding, whose two
-     * `actual`s both wrap a Garmin SDK that cannot run under WASI (task w01, lifted by w12).
-     * Distinct from [ERR_GENERIC] on purpose — a host can tell "never going to work here" from
-     * "this input failed" and stop retrying.
+     * The capability exists in the API but not on this target. **Reserved since w12: nothing
+     * returns it.** Its one user was FIT encoding, whose `actual`s each wrapped a Garmin SDK that
+     * could not run under WASI (task w01) — w12 replaced them with a pure-Kotlin encoder, so
+     * `vcPathToFit` now writes a real file.
+     *
+     * Kept in the ABI rather than removed: it is distinct from [ERR_GENERIC] on purpose, so a
+     * host can tell "never going to work here" from "this input failed" and stop retrying.
      */
     const val ERR_UNSUPPORTED: Int = -4
 

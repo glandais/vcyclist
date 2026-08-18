@@ -9,21 +9,20 @@ import kotlin.time.Instant
 
 /**
  * The three cases of `PathToFitTest` / `PathToFitMultiTest` / `PathToFitTimestampTest` that
- * actually call [FitEncoder] — everything else in those files stops at [FitCourse] and stays in
- * `commonTest`.
+ * actually call [FitEncoder] — everything else in those files stops at [FitCourse].
  *
- * ## Why they are not in `commonTest`
+ * ## Why they are grouped here
  *
- * Task w01 added the `wasmWasi` target, where [FitEncoder] is a stub that throws: both real
- * `actual`s wrap an official Garmin SDK and neither runs under WASI (see
- * `FitEncoder.wasmWasi.kt`, and task w12 for the pure-Kotlin encoder that would lift the
- * restriction). So these three cases can only fail there, while the conversion logic they sit
- * next to is perfectly portable.
+ * They were split out by task w01, which added the `wasmWasi` target: back then [FitEncoder] was
+ * `expect`/`actual` over an official Garmin SDK, and the wasmWasi `actual` was a stub that threw,
+ * so the encoder-backed cases lived in a `src/encodingTest/kotlin` directory wired into the
+ * `jvmTest` and `jsTest` compilations only.
  *
- * `src/encodingTest/kotlin` is added as an extra source directory to the `jvmTest` and `jsTest`
- * compilations by `fit/build.gradle.kts` — the same single-file-two-compilations trick as
- * `commonTestFixtures` in `gpx/build.gradle.kts`, and as `:elevation`'s `decodingTest`. The JVM
- * and JS coverage is unchanged ; only wasmWasi stops running what it cannot run.
+ * **Task w12 removed that restriction.** [FitEncoder] is now plain `commonMain` code over the
+ * multiplatform `io.github.glandais:fit-kotlin-sdk`, with no `expect`/`actual` and no stub, so
+ * this file sits in `commonTest` and every case runs on JVM, JS *and* wasmWasi. The grouping is
+ * kept because it still names a real distinction — these are the cases that exercise the byte
+ * encoder rather than the [FitCourse] conversion.
  *
  * The names keep their original `case NN` numbering so a failure still points back to the file
  * the case came from.

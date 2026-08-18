@@ -43,6 +43,7 @@ Le ✅ du ledger voulait dire « livré dans le cœur et le CLI » et se lisait 
 | R12 `pBrake` (champ de sortie) | ✅ | ✅ | ✅ | ✅ | ✅ |
 | R24 ligne de course (`racingLine*`, opt-in) | ✅ | ✅ | ✅ | ✅ | ✅ |
 | R26 largeur de route (`racingLineRoadWidthM`, OSM `highway`) | ✅ | ✅ | ✅ | ✅ | ✅ |
+| Export FIT (`pathToFit`, `pathsToFit`) | ✅ | ✅ | ✅ | ✅ | ❌ |
 
 R23 (courbure par régression de cap) n'a pas de ligne : c'est un changement d'estimateur, sans
 option d'entrée, donc rien à relayer.
@@ -50,6 +51,13 @@ option d'entrée, donc rien à relayer.
 Les deux champs de sortie (R12, R15) traversent sans travail de façade : `fieldDefinitions()` les
 publie et la démo reconstruit sa liste à l'exécution. **Les champs de sortie ne dérivent pas ; les
 options d'entrée, si.**
+
+L'**export FIT** est la seule ligne incomplète, et le seul cas d'une *fonction de sortie* plutôt
+que d'une option d'entrée : `pathToFit` / `pathsToFit` existent dans le cœur (`:fit`), dans le CLI
+(`--fit`, qui exige `--start-time`), sur JS (`EngineJsApi`) et sur WASI (`vcPathToFit`,
+`vcPathsToFit`), mais `demo/src/engine-shim.ts` ne les réexporte pas et la démo n'offre aucun
+téléchargement `.fit`. Livré en g10, jamais relayé jusqu'à la cinquième surface — exactement la
+dérive que ce tableau existe pour attraper, et restée invisible parce que FIT n'y figurait pas.
 
 ## Ce qui empêche la prochaine dérive
 

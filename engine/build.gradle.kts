@@ -74,8 +74,9 @@ kotlin {
             // The facade has to live here rather than in `:fit`'s own bundle: `:gpx` is not a
             // separate npm package (task g01 inlines it into `@glandais/vcyclist-engine`), so a
             // `Path` handed to a separately-bundled `@glandais/vcyclist-fit` would not be the
-            // same JS class. One bundle keeps the types identical. The cost is that
-            // `@garmin/fitsdk` becomes a dependency of the engine package.
+            // same JS class. One bundle keeps the types identical, and since w12 it costs the
+            // consumer nothing: `@garmin/fitsdk` is a test-only dependency of `:fit`'s JS target,
+            // so no vendor SDK ships with the engine package.
             api(project(":fit"))
         }
         commonTest {
