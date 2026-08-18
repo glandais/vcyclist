@@ -116,15 +116,20 @@ java -jar cli/build/libs/vcyclist-cli-*-all.jar enhance route.gpx --gpx out.gpx 
 already have. Elevation correction is off unless you pass `--fix-elevation`, so nothing touches
 the network by default. Full usage and exit codes are in [`cli/README.md`](cli/README.md).
 
-### Try the browser demo (elevation only)
+### Try the browser demo
 
 ```bash
-# Kotlin/JS demo
-./gradlew :elevation:jsBrowserDevelopmentRun
+cd demo && npm run dev        # http://localhost:3000
 ```
 
-The demo is a Leaflet + Chart.js page with GPX upload. See
-[`elevation/README.md`](elevation/README.md) for details.
+A Vue 3 + Leaflet + Chart.js app with two routes:
+
+- `#/` — **GPX analysis**: upload a route, run the physics pipeline, inspect every field on a
+  synchronized chart and map, with climb detection and the racing line.
+- `#/elevation` — **elevation explorer**: query DEM tiles at a point or along a path, with
+  smoothing, Douglas-Peucker simplification and hillshade/slope relief.
+
+Both consume the same Kotlin/JS bundle. See [`demo/README.md`](demo/README.md) for details.
 
 ### Use from Kotlin
 

@@ -502,6 +502,11 @@ export function useMap(
         });
     };
 
+    /** A Leaflet map laid out while hidden renders grey tiles until it is told to re-measure. */
+    const invalidateSize = () => {
+        mapInstance.value?.invalidateSize();
+    };
+
     const destroyMap = () => {
         if (mapInstance.value) {
             mapInstance.value.remove();
@@ -527,6 +532,7 @@ export function useMap(
         updateRoute,
         fitBounds,
         focusOnClimb,
+        invalidateSize,
         destroyMap,
         racingLineDrift,
     };

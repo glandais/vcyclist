@@ -18,7 +18,7 @@ const emit = defineEmits<{
 
 const mapContainerRef = ref<HTMLElement | null>(null);
 
-const { createMap, fitBounds, focusOnClimb, racingLineDrift } = useMap(
+const { createMap, fitBounds, focusOnClimb, invalidateSize, racingLineDrift } = useMap(
     mapContainerRef,
     toRef(props, 'currentPath'),
     toRef(props, 'hoveredInfo'),
@@ -31,6 +31,7 @@ const { createMap, fitBounds, focusOnClimb, racingLineDrift } = useMap(
 defineExpose({
     fitBounds,
     focusOnClimb,
+    invalidateSize,
     racingLineDrift,
 });
 

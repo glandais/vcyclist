@@ -6,10 +6,23 @@ import '~/assets/main.css';
 
 const app = createApp(App);
 
-// Nuxt UI requires a router instance even though the demo is a single page.
+// Hash history, not web history: GitHub Pages serves a static index.html with no rewrite rules,
+// so a path-based deep link would 404.
 const router = createRouter({
     history: createWebHashHistory(),
-    routes: [{ path: '/', component: { render: () => null } }],
+    routes: [
+        {
+            path: '/',
+            name: 'gpx',
+            component: () => import('~/views/GpxAnalysisView.vue'),
+        },
+        {
+            path: '/elevation',
+            name: 'elevation',
+            component: () => import('~/views/ElevationExplorerView.vue'),
+        },
+        { path: '/:pathMatch(.*)*', redirect: '/' },
+    ],
 });
 
 app.use(router);

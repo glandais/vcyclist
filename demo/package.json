@@ -19,6 +19,7 @@
         "chart.js": "^4.5.1",
         "chartjs-plugin-zoom": "^2.2.0",
         "leaflet": "^1.9.4",
+        "leaflet-relief": "1.5.2",
         "vue": "^3.5.33",
         "vue-router": "^5.2.0"
     },

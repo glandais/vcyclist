@@ -3,6 +3,21 @@
 Interactive Vue 3 + Vite frontend that consumes the Kotlin/JS build of
 `:engine` to demonstrate the physics-aware GPX virtualization pipeline.
 
+## Two views
+
+Hash-routed (GitHub Pages serves a static `index.html`, so a path-based deep link would 404):
+
+| Route | View | What it does |
+|---|---|---|
+| `#/` | `src/views/GpxAnalysisView.vue` | Upload a GPX, run the physics pipeline, inspect all 43 fields on a synchronized chart + map, with climb detection and the racing line. |
+| `#/elevation` | `src/views/ElevationExplorerView.vue` | Query DEM tiles at a point or along a path, with smoothing, Douglas-Peucker simplification and hillshade/slope relief. Folded in from the standalone `:elevation` demo. |
+
+Both are lazy-imported and wrapped in `<KeepAlive>`: the GPX view parses and enhances
+`stelvio.gpx` on mount and the elevation view holds a clicked path, so a plain `RouterView` would
+throw both away on every tab switch. The price is that each view must re-measure its Leaflet map
+(`invalidateSize`) and Chart.js canvas in `onActivated` — a map laid out while hidden renders grey
+tiles otherwise.
+
 ## Quick start
 
 ```bash
@@ -39,10 +54,19 @@ parser, same DEM-fix pipeline as the JVM CLI (see [`../README.md`](../README.md)
   TypeScript declarations for the DTOs. They have to be hand-written: Kotlin/JS emits no body in
   the generated `.d.ts` for an `external interface`, so there is nothing to import or check
   against. Keep this file in step with `EngineJsApi.kt` — a rename here is silent until runtime.
+- `src/elevation-shim.ts` — same thing for the `:elevation` façade (`ElevationJsApi.kt`), with the
+  same hand-written-types caveat. `:engine` declares `api(project(":elevation"))`, so the one
+  aliased bundle carries both façades and no extra build wiring is needed.
 - `src/composables/useGPXDemo.ts` — `parse → enhance → render` orchestration.
 - `src/composables/useChart.ts` — Chart.js wrapper (zoom, crosshair, all 43 fields).
 - `src/composables/useMap.ts` — Leaflet wrapper + hover sync.
+- `src/composables/useElevation*.ts` — the elevation view's provider (a module-level singleton, so
+  its DEM tile cache survives remounts), map, chart and state machine.
 - `src/components/*.vue` — Nuxt UI v4 (tabs, sidebar, modals).
+
+`leaflet-relief` is the only third-party Leaflet plugin, used for the hillshade/slope overlay. It
+ships its own type definitions, so no module declaration is needed. GPX parsing goes through the
+engine's own `parseGpx`, never a separate JS GPX library.
 
 ## Rider models
 

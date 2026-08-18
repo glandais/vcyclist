@@ -17,7 +17,7 @@ documentation index; read it before going looking for anything.
 | `:map` | JVM only | Static map rendering on `java.awt`. Depends on `:gpx`/`:elevation`; **nothing may depend on it**. |
 | `:cli` | JVM only | picocli command-line tool, shipped as an executable jar, not to Maven Central |
 | `:codegen` | JVM only | Regenerates `GeneratedPath.kt` + `PointFieldAccessors.kt` into `:gpx` |
-| `:demo` | — | Browser demo, consumes the JS façade via `demo/src/engine-shim.ts` |
+| `:demo` | — | Browser demo (two routes: GPX analysis, elevation explorer), consumes the JS façades via `demo/src/engine-shim.ts` and `demo/src/elevation-shim.ts` |
 
 ## Build commands
 
@@ -32,7 +32,7 @@ documentation index; read it before going looking for anything.
 ./gradlew :cli:run -Pargs="enhance in.gpx --gpx out.gpx"    # CLI smoke
 ./gradlew :cli:executableJar             # distributable CLI jar
 INTEGRATION=1 ./gradlew :elevation:jvmTest --tests '*Integration*'   # live HTTP
-./gradlew :elevation:jsBrowserDevelopmentRun                        # demo with hot reload
+cd demo && npm run dev                   # browser demo, hot reload (rebuilds the JS engine)
 ```
 
 ## Architecture invariants

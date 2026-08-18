@@ -38,6 +38,8 @@ module.exports = [
                 HTMLInputElement: 'readonly',
                 HTMLSelectElement: 'readonly',
                 structuredClone: 'readonly',
+                setTimeout: 'readonly',
+                clearTimeout: 'readonly',
             },
         },
         plugins: {

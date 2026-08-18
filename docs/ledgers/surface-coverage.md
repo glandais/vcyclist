@@ -14,6 +14,13 @@ La **démo** est une cinquième surface, consommatrice de JS via `demo/src/engin
 types TypeScript sont écrits à la main (Kotlin/JS n'émet aucun corps pour un `external interface`,
 donc il n'y a rien à importer ni à comparer).
 
+Depuis que la démo autonome de `:elevation` a été repliée dans `demo/` (route `#/elevation`), la
+démo consomme **deux** façades : `engine-shim.ts` et `demo/src/elevation-shim.ts`
+(`ElevationJsApi.kt`). Même contrainte, même piège : un renommage côté Kotlin reste silencieux
+jusqu'à l'exécution. `:elevation` n'a ni porte CLI ni porte WASI pour ces trois fonctions
+(`newElevationProvider`, `getElevation`, `getElevationsAlong`) — le tableau ci-dessous ne concerne
+que les capacités du cœur `:engine`.
+
 ## Pourquoi ce tableau existe
 
 Trois fois de suite, une capacité a atterri dans le cœur et le CLI sans atteindre les autres :

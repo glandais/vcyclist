@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue';
+import { gpxSamples } from '~/config/gpxSamples';
 import {
     getField,
     pathElevationGain,
@@ -19,16 +20,6 @@ const emit = defineEmits<{
     gpxSelect: [url: string];
     fileUpload: [file: File];
 }>();
-
-const gpxOptions = [
-    { label: 'Sample Route', value: './gpx/sample.gpx' },
-    { label: 'Stelvio descent', value: './gpx/stelvio.gpx' },
-    { label: 'Amazfit Track', value: './gpx/amazfit.gpx' },
-    { label: 'Garmin Track', value: './gpx/garmin.gpx' },
-    { label: 'Movescount Track', value: './gpx/movescount.gpx' },
-    { label: 'Sports Tracker', value: './gpx/sports-tracker.gpx' },
-    { label: 'Strava Track', value: './gpx/strava.gpx' },
-];
 
 const selectedGPX = ref<string | null>(null);
 const fileInput = ref<HTMLInputElement | null>(null);
@@ -103,7 +94,7 @@ watch(
                 <USelect
                     id="gpx-select"
                     v-model="selectedGPX"
-                    :items="gpxOptions"
+                    :items="gpxSamples"
                     label-key="label"
                     value-key="value"
                     placeholder="Select a sample file..."
