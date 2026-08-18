@@ -12,8 +12,10 @@ import io.github.glandais.engine.climb.ClimbOptions
 import io.github.glandais.engine.climb.ClimbPart
 import io.github.glandais.engine.gpx.GpxParser
 import io.github.glandais.engine.gpx.GpxPathKind
+import io.github.glandais.engine.gpx.GpxPowerSource
 import io.github.glandais.engine.gpx.GpxWriter
 import io.github.glandais.engine.gpx.firstTrackAsPath
+import io.github.glandais.engine.gpx.pathsToGpxDocument
 import io.github.glandais.engine.gpx.segmentsAsPaths
 import io.github.glandais.engine.gpx.toGpxDocument
 import io.github.glandais.engine.gpx.tracksAsPaths
@@ -351,12 +353,32 @@ fun writeGpxTracks(
     paths: Array<Path>,
     waypoints: Array<WaypointDto> = emptyArray(),
     writeExtensions: Boolean = true,
+    powerSource: String? = null,
 ): String =
     GpxWriter.write(
-        paths.toList(),
-        waypoints = waypoints.map { it.toGpxWaypoint() },
+        pathsToGpxDocument(
+            paths.toList(),
+            waypoints = waypoints.map { it.toGpxWaypoint() },
+            powerSource = powerSource.toGpxPowerSource(),
+        ),
         writeExtensions = writeExtensions,
     )
+
+/** The `<trk><name>` the GPX writers use when the caller names none. */
+private const val DEFAULT_TRACK_NAME = "virtualized"
+
+/**
+ * Parse the wire spelling of [GpxPowerSource], rejecting an unknown one rather than silently
+ * falling back — the same contract `requireOnlyKeys` gives the option DTOs, and the reason a
+ * typo here is a thrown error instead of a GPX quietly missing its power.
+ */
+private fun String?.toGpxPowerSource(): GpxPowerSource {
+    if (this == null) return GpxPowerSource.DEFAULT
+    return GpxPowerSource.fromWire(this)
+        ?: throw IllegalArgumentException(
+            "powerSource must be one of ${GpxPowerSource.wireNames.joinToString(", ")}, got: $this",
+        )
+}
 
 private fun WaypointDto.toGpxWaypoint(): io.github.glandais.engine.gpx.GpxWaypoint =
     io.github.glandais.engine.gpx.GpxWaypoint(
@@ -407,12 +429,29 @@ fun pointAt(
  * [writeExtensions] `false` drops `<extensions>` — no power, heart rate, cadence or temperature,
  * and no `gpxtpx` namespace (task g23). `<ele>` and `<time>` are standard GPX and stay. Useful in
  * a browser for a download meant for a platform with a strict schema.
+ *
+ * [powerSource] selects which of the path's two power fields lands in `<power>`: `"input"`,
+ * `"computed"` or `"computed-or-input"` — the CLI's `--gpx-power-source` values, parsed through
+ * the one catalogue in [GpxPowerSource]. `null` keeps the default, which writes the *input*
+ * power: emitting simulated data into a format the ecosystem reads as a recording is the caller's
+ * decision, not a default's.
+ *
+ * [trackName] names the `<trk><name>`; `null` keeps `"virtualized"`.
  */
 @JsExport
 fun writeGpx(
     path: Path,
     writeExtensions: Boolean = true,
-): String = GpxWriter.write(path.toGpxDocument(trackName = "virtualized"), writeExtensions = writeExtensions)
+    powerSource: String? = null,
+    trackName: String? = null,
+): String =
+    GpxWriter.write(
+        path.toGpxDocument(
+            trackName = trackName ?: DEFAULT_TRACK_NAME,
+            powerSource = powerSource.toGpxPowerSource(),
+        ),
+        writeExtensions = writeExtensions,
+    )
 
 /**
  * Serialise [path] with an absolute `<time>` on every point : `<time> = startTimeEpochMs +
@@ -428,11 +467,14 @@ fun writeGpxAt(
     path: Path,
     startTimeEpochMs: Double,
     writeExtensions: Boolean = true,
+    powerSource: String? = null,
+    trackName: String? = null,
 ): String =
     GpxWriter.write(
         path.toGpxDocument(
-            trackName = "virtualized",
+            trackName = trackName ?: DEFAULT_TRACK_NAME,
             startTime = Instant.fromEpochMilliseconds(startTimeEpochMs.toLong()),
+            powerSource = powerSource.toGpxPowerSource(),
         ),
         writeExtensions = writeExtensions,
     )

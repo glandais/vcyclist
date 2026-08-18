@@ -80,6 +80,11 @@ re-reading the file turns the simulated value into a measured-looking one.
 **Not to be confused with `--gpx-power`**, which is about the simulation's input: it replays the
 recorded power instead of applying the rider model.
 
+Only `enhance` has the option. `export` never simulates, so its `computed` would always be empty.
+The same three spellings reach the JS façade (`writeGpx(path, writeExtensions, powerSource)`) and
+the WASI door (`"powerSource"` in the `vcWriteGpx` options); all three parse through the one
+`GpxPowerSource.fromWire` catalogue.
+
 ### Bare GPX (`--no-extensions`)
 
 Both subcommands write `<extensions>` by default — power, heart rate, cadence and temperature,

@@ -7,6 +7,7 @@ import io.github.glandais.engine.RoadCondition
 import io.github.glandais.engine.SimplifyPathOptions
 import io.github.glandais.engine.WPrimeBalanceOptions
 import io.github.glandais.engine.climb.ClimbOptions
+import io.github.glandais.engine.gpx.GpxPowerSource
 import io.github.glandais.engine.io.CsvOptions
 import io.github.glandais.engine.io.JsonOptions
 import io.github.glandais.engine.physics.CyclistPowerProvider
@@ -281,7 +282,7 @@ internal fun JsonObj?.toJsonOptions(): JsonOptions {
     )
 }
 
-private val WRITE_GPX_KEYS = setOf("writeExtensions", "startTimeEpochMs", "trackName")
+private val WRITE_GPX_KEYS = setOf("writeExtensions", "startTimeEpochMs", "trackName", "powerSource")
 
 /**
  * Options of the GPX writers, covering `writeGpx`, `writeGpxAt` and `writeGpxTracks` in one
@@ -292,18 +293,37 @@ internal class WriteGpxOptions(
     val writeExtensions: Boolean,
     val startTimeEpochMs: Double?,
     val trackName: String,
+    val powerSource: GpxPowerSource,
 )
 
 internal fun JsonObj?.toWriteGpxOptions(): WriteGpxOptions {
-    if (this == null) return WriteGpxOptions(writeExtensions = true, startTimeEpochMs = null, trackName = "virtualized")
+    if (this == null) {
+        return WriteGpxOptions(
+            writeExtensions = true,
+            startTimeEpochMs = null,
+            trackName = DEFAULT_TRACK_NAME,
+            powerSource = GpxPowerSource.DEFAULT,
+        )
+    }
     requireOnly(WRITE_GPX_KEYS)
     val start = double("startTimeEpochMs", Double.NaN)
+    val powerSourceName = string("powerSource", GpxPowerSource.DEFAULT.wireName)
     return WriteGpxOptions(
         writeExtensions = bool("writeExtensions", true),
         startTimeEpochMs = if (start.isNaN()) null else start,
-        trackName = string("trackName", "virtualized"),
+        trackName = string("trackName", DEFAULT_TRACK_NAME),
+        // Rejected rather than defaulted, like every unknown key here: a typo that silently wrote
+        // the wrong power would be indistinguishable from the engine getting it wrong.
+        powerSource =
+            GpxPowerSource.fromWire(powerSourceName)
+                ?: throw IllegalArgumentException(
+                    "powerSource must be one of ${GpxPowerSource.wireNames.joinToString(", ")}, got: $powerSourceName",
+                ),
     )
 }
+
+/** The `<trk><name>` used when the host names none. */
+internal const val DEFAULT_TRACK_NAME = "virtualized"
 
 private val FIT_KEYS = setOf("name", "startTimeEpochMs", "interPathGapMs")
 

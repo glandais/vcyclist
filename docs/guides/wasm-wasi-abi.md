@@ -395,11 +395,18 @@ entirely (length `0`) for `detectClimbs`' defaults.
 ### `vcWriteGpx` / `vcWriteGpxTracks` — options
 
 ```json
-{"writeExtensions": true, "trackName": "virtualized", "startTimeEpochMs": 1714550400000}
+{"writeExtensions": true, "trackName": "virtualized", "startTimeEpochMs": 1714550400000,
+ "powerSource": "input"}
 ```
 
 `writeExtensions: false` drops power, heart rate, cadence, temperature and the `gpxtpx`
 namespace; `<ele>` and `<time>` are standard GPX and stay.
+
+`powerSource` picks which of the path's two power fields lands in `<power>` — the CLI's
+`--gpx-power-source`, same three spellings: `"input"` (the default: what the source file said),
+`"computed"` (what the simulation produced) or `"computed-or-input"`. Parsed through
+`GpxPowerSource.fromWire`, the one catalogue in `commonMain` the JS façade and the CLI also use.
+An unknown spelling is an error, like an unknown key — it does not fall back to the default.
 
 `startTimeEpochMs` is what `writeGpxAt` does on the JS side: **`<time>` = `startTimeEpochMs` +
 `time(i)`**. On a simulated path, where `time(0) == 0`, that dates the ride as you would expect.
@@ -463,7 +470,7 @@ and a JVM test fails the build if a JS export ever appears without a decision he
 | `parseGpxTracksOnly` | `vcParseGpxMulti(mode=2)` | idem |
 | `parseGpxRoutesOnly` | `vcParseGpxMulti(mode=3)` | idem |
 | `parseGpxWaypoints` | `vcParseGpxWaypointsJson` | JSON instead of objects |
-| `writeGpx` | `vcWriteGpx` | `writeExtensions` moved into the options |
+| `writeGpx` | `vcWriteGpx` | `writeExtensions`, `powerSource` and `trackName` moved into the options |
 | `writeGpxAt` | `vcWriteGpx` | same export; `startTimeEpochMs` in the options |
 | `writeGpxTracks` | `vcWriteGpxTracks` | **waypoints are not written** — the ABI has no waypoint handle |
 | `pathSize`, `pathTotalDistance`, `pathDurationMs`, `pathElevationGain`, `pathElevationLoss` | `vcPathSize`, `vcPathTotalDistance`, `vcPathDurationMs`, `vcPathElevationGain`, `vcPathElevationLoss` | ported |

@@ -174,7 +174,20 @@ export interface ClimbDto {
 export type Path = object;
 
 export const parseGpx: (xml: string) => Path = ns.parseGpx;
-export const writeGpx: (path: Path, writeExtensions?: boolean) => string = ns.writeGpx;
+/**
+ * Which of the path's two power fields lands in `<power>` — the CLI's `--gpx-power-source`.
+ * `input` is what the source file said, `computed` what the simulation produced, and
+ * `computed-or-input` prefers the simulation and falls back. Omit to keep the engine default
+ * (`input`); an unknown value throws rather than silently writing the wrong one.
+ */
+export type GpxPowerSource = 'input' | 'computed' | 'computed-or-input';
+
+export const writeGpx: (
+    path: Path,
+    writeExtensions?: boolean,
+    powerSource?: GpxPowerSource,
+    trackName?: string
+) => string = ns.writeGpx;
 /**
  * Like `writeGpx`, but stamps every point with an ABSOLUTE `<time>` = `startTimeEpochMs + time(i)`.
  * `writeGpx` emits the path's own relative clock, which after `enhance` starts at 0 — i.e. 1970.
@@ -183,7 +196,9 @@ export const writeGpx: (path: Path, writeExtensions?: boolean) => string = ns.wr
 export const writeGpxAt: (
     path: Path,
     startTimeEpochMs: number,
-    writeExtensions?: boolean
+    writeExtensions?: boolean,
+    powerSource?: GpxPowerSource,
+    trackName?: string
 ) => string = ns.writeGpxAt;
 /**
  * Encode the path as a Garmin FIT **Course**. `startTimeEpochMs` is mandatory — FIT has no

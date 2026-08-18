@@ -182,7 +182,10 @@ const { parseGpx, enhance, writeGpx, pathSize, pathTotalDistance } = engine;
 const path = parseGpx(gpxXml);
 const out  = await enhance(path, null);          // physics only; { fixElevation: true } for DEM
 console.log(pathSize(out), pathTotalDistance(out), 'm');
-const xml  = writeGpx(out);
+
+// `<power>` carries the SOURCE file's power by default — writing simulated data into a format the
+// ecosystem reads as a recording is the caller's call. Ask for the simulation explicitly:
+const xml  = writeGpx(out, true, 'computed-or-input', 'my route');
 ```
 
 **[`docs/guides/using-from-javascript.md`](docs/guides/using-from-javascript.md)** covers the whole

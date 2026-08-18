@@ -82,15 +82,12 @@ first timestamp, and falls back to "now" when the GPX carried no `<time>` — th
 `GpxDocument.startTime` records on the Kotlin side (task `g05`). Several bundled samples,
 `stelvio.gpx` included, have no timestamps, so their exports are stamped with today's date.
 
-Two known limitations, both inherited from the JS façade rather than the demo:
-
-- The GPX `<trk><name>` is always `virtualized` — `writeGpx`/`writeGpxAt` hardcode it and expose no
-  name parameter. Only FIT takes the file's name.
-- The exported **GPX carries no simulated power**. The writers default to `GpxPowerSource.INPUT`
-  (what the source file said), and the CLI's `--gpx-power-source computed` has no JS equivalent —
-  see the `--gpx-power-source` row in
-  [`../docs/ledgers/surface-coverage.md`](../docs/ledgers/surface-coverage.md). The **FIT** export
-  reads `pComputedPower` and does carry it.
+**Power.** The GPX is written with `powerSource: 'computed-or-input'` — the simulated power,
+falling back to the file's recorded one wherever the simulation produced none. The engine default
+is `'input'` (write back only what the source said, never invent), which is right for a library
+and wrong for this app: it would hand back a physics simulation with the physics removed. The FIT
+export reads `pComputedPower` and needs no such flag. The track is named after the source file
+rather than the writers' default `virtualized`.
 
 Exporting before pressing `🚀 Enhance` is allowed, and warns: a merely-parsed path has no computed
 power, and a timestamp-less one yields a zero-duration course.

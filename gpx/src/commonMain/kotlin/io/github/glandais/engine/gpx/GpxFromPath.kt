@@ -30,6 +30,34 @@ enum class GpxPowerSource {
      * some paths and not others.
      */
     COMPUTED_OR_INPUT,
+    ;
+
+    /** The spelling every door accepts, and the one the CLI documents. */
+    val wireName: String
+        get() =
+            when (this) {
+                INPUT -> "input"
+                COMPUTED -> "computed"
+                COMPUTED_OR_INPUT -> "computed-or-input"
+            }
+
+    companion object {
+        /** The value every door falls back to. Never restate it as a literal. */
+        val DEFAULT = INPUT
+
+        /**
+         * Parse the wire spelling, or `null` when it is not one of the three.
+         *
+         * The single catalogue the CLI, the JS façade and the WASI door all parse through, so a
+         * constant added to this enum breaks `wireName` in `commonMain` — on every target at
+         * once — instead of leaving one door silently unable to name it. Same reasoning as
+         * `CyclistPowerSpec` for the power models.
+         */
+        fun fromWire(value: String): GpxPowerSource? = entries.firstOrNull { it.wireName == value }
+
+        /** The three accepted spellings, for error messages and option validation. */
+        val wireNames: List<String> get() = entries.map { it.wireName }
+    }
 }
 
 /**

@@ -86,7 +86,17 @@ const onDownloadGpx = () => {
         return;
     }
     try {
-        const xml = writeGpxAt(currentPath.value, resolveStartTimeMs(), true);
+        // 'computed-or-input': the point of this app is the simulated power, so exporting the
+        // engine default ('input' — only what the file already said) would hand back a GPX with
+        // the physics stripped out. Falls back to the recorded power wherever the simulation
+        // produced none.
+        const xml = writeGpxAt(
+            currentPath.value,
+            resolveStartTimeMs(),
+            true,
+            'computed-or-input',
+            exportBaseName.value
+        );
         downloadText(xml, `${exportBaseName.value}-virtualized.gpx`, GPX_MIME);
         toast.add({
             color: 'success',

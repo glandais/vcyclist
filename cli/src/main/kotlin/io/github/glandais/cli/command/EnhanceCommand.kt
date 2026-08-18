@@ -487,6 +487,8 @@ class EnhanceCommand : Callable<Int> {
 
     /**
      * `--gpx-power-source` → [GpxPowerSource], `null` when the value is not one of the three.
+     * Parsed through [GpxPowerSource.fromWire], the one catalogue the JS and WASI doors also use,
+     * so the three spellings cannot drift apart per surface.
      *
      * Validated in [call] alongside `--start-time`, before any file is read: a bad value is a
      * usage error (exit 64), not a runtime one, and it must not be discovered after half the
@@ -496,13 +498,7 @@ class EnhanceCommand : Callable<Int> {
      * the simulation's *input* (replay the recorded power instead of the rider model). picocli
      * refuses the collision outright, which is how the clash was found.
      */
-    private fun parsePowerSource(value: String): GpxPowerSource? =
-        when (value.lowercase()) {
-            "input" -> GpxPowerSource.INPUT
-            "computed" -> GpxPowerSource.COMPUTED
-            "computed-or-input" -> GpxPowerSource.COMPUTED_OR_INPUT
-            else -> null
-        }
+    private fun parsePowerSource(value: String): GpxPowerSource? = GpxPowerSource.fromWire(value.lowercase())
 
     private fun writeText(
         file: File,

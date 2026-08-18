@@ -57,7 +57,8 @@ Le ✅ du ledger voulait dire « livré dans le cœur et le CLI » et se lisait 
 | R26 largeur de route (`racingLineRoadWidthM`, OSM `highway`) | ✅ | ✅ | ✅ | ✅ | ✅ |
 | Export GPX (`writeGpx`, `writeGpxAt`) | ✅ | ✅ | ✅ | ✅ | ✅ |
 | Export FIT (`pathToFit`, `pathsToFit`) | ✅ | ✅ | ✅ | ✅ | ✅ |
-| `--gpx-power-source` (input / computed / computed-or-input) | ✅ | ✅ | ❌ | ❌ | ❌ |
+| `--gpx-power-source` (input / computed / computed-or-input) | ✅ | ✅ | ✅ | ✅ | ✅ |
+| `trackName` du GPX écrit | ✅ | ✅ | ✅ | ✅ | ✅ |
 
 R23 (courbure par régression de cap) n'a pas de ligne : c'est un changement d'estimateur, sans
 option d'entrée, donc rien à relayer.
@@ -79,11 +80,23 @@ choses sont apparues, et elles valent plus que la ligne elle-même :
 1. **Un réexport de shim n'est pas une traversée de surface.** `writeGpx` attendait dans
    `engine-shim.ts` depuis `g29`, appelé par personne — d'où la définition explicite de la colonne
    Démo plus haut, et la ligne « Export GPX » qui manquait au tableau.
-2. **`--gpx-power-source` n'a jamais franchi la porte JS.** Le CLI choisit quelle puissance part
-   dans le `<power>` du GPX écrit ; `writeGpx` / `writeGpxAt` sont figés sur le défaut `INPUT`.
-   Conséquence concrète : le GPX exporté par la démo ne contient **pas** la puissance simulée —
-   un fichier issu d'un simulateur de physique sans sa puissance. Le FIT, lui, lit
-   `pComputedPower` et la porte. C'est la ligne ❌ ci-dessus, trouvée en câblant la précédente.
+2. **`--gpx-power-source` n'avait jamais franchi la porte JS.** Le CLI choisit quelle puissance
+   part dans le `<power>` du GPX écrit ; `writeGpx` / `writeGpxAt` étaient figés sur le défaut
+   `INPUT`. Conséquence concrète : le GPX exporté par la démo ne contenait **pas** la puissance
+   simulée — un fichier issu d'un simulateur de physique sans sa physique. Le FIT, lui, lit
+   `pComputedPower` et la portait déjà. Trouvé en câblant la ligne précédente, **refermé dans la
+   foulée** : `powerSource` (et `trackName`, que WASI acceptait déjà et pas JS) sont désormais des
+   paramètres de `writeGpx` / `writeGpxAt` / `writeGpxTracks` et des clés de `WriteGpxOptions`, la
+   démo exporte en `computed-or-input`, et les trois orthographes vivent une seule fois dans
+   `GpxPowerSource.fromWire` — le CLI y passe aussi, à la place de son `when` privé.
+
+   Le défaut, lui, **ne bouge pas** : `INPUT` sur toutes les portes. Écrire du simulé dans un
+   format que l'écosystème lit comme un enregistrement reste une décision d'appelant. Une
+   orthographe inconnue lève, elle ne retombe pas sur le défaut : la même règle que
+   `requireOnlyKeys`, pour la même raison.
+
+   Une seule exception assumée : `export --gpx` n'a pas l'option, ses chemins ne sont jamais
+   simulés, donc `computed` y serait toujours vide.
 
 ## Ce qui empêche la prochaine dérive
 
@@ -98,7 +111,12 @@ Aucun des deux ne couvre une capacité qui **n'est pas** un modèle de puissance
 `Cyclist`, R15 sur `EnhanceOptions`. Et surtout, aucun des deux ne couvre une **fonction de
 sortie** : `pathToFit` et `writeGpxAt` ne prennent pas d'objet d'options, donc `requireOnlyKeys`
 ne se déclenche jamais dessus. Les deux dérives ci-dessus (FIT jamais câblé, `--gpx-power-source`
-jamais exporté) sont passées exactement par ce trou. Pour celles-là, ce tableau est la garantie, et elle vaut ce
+jamais exporté) sont passées exactement par ce trou.
+
+- **Le catalogue `GpxPowerSource`** — depuis, les trois orthographes et le défaut vivent dans
+  `commonMain` (`wireName`, `fromWire`, `DEFAULT`), et les trois portes parsent à travers. Ajouter
+  une constante casse le `when` de `wireName` dans `commonMain`, donc sur les trois cibles d'un
+  coup. C'est la garde « catalogue partagé » appliquée à une fonction de sortie. Pour celles-là, ce tableau est la garantie, et elle vaut ce
 que vaut une relecture.
 
 ## À faire en ajoutant une capacité

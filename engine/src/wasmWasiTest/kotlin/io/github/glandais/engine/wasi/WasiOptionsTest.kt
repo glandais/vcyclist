@@ -6,6 +6,7 @@ import io.github.glandais.engine.Cyclist
 import io.github.glandais.engine.EngineConstants
 import io.github.glandais.engine.RoadCondition
 import io.github.glandais.engine.climb.ClimbOptions
+import io.github.glandais.engine.gpx.GpxPowerSource
 import io.github.glandais.engine.path.Path
 import io.github.glandais.engine.physics.PowerModel
 import io.github.glandais.engine.physics.PowerProviderConstant
@@ -194,6 +195,28 @@ class WasiOptionsTest {
         assertEquals(null, relative.startTimeEpochMs, "absent means relative times, as written")
         assertEquals(1714550400000.0, absolute.startTimeEpochMs)
         assertEquals(true, absolute.writeExtensions, "default stays true")
+    }
+
+    @Test
+    fun `write-gpx options carry the power source, defaulting the way the engine does`() {
+        val default = json("""{}""").toWriteGpxOptions()
+        val computed = json("""{"powerSource":"computed"}""").toWriteGpxOptions()
+        val either = json("""{"powerSource":"computed-or-input"}""").toWriteGpxOptions()
+
+        // Read from the catalogue, not restated: a moved default must fail here, not freeze.
+        assertEquals(GpxPowerSource.DEFAULT, default.powerSource)
+        assertEquals(GpxPowerSource.COMPUTED, computed.powerSource)
+        assertEquals(GpxPowerSource.COMPUTED_OR_INPUT, either.powerSource)
+    }
+
+    @Test
+    fun `an unknown power source is rejected, not defaulted`() {
+        val error =
+            assertFailsWith<IllegalArgumentException> {
+                json("""{"powerSource":"COMPUTED"}""").toWriteGpxOptions()
+            }
+
+        assertTrue(error.message!!.contains("computed-or-input"), "the message lists the accepted values")
     }
 
     @Test

@@ -15,6 +15,7 @@ import io.github.glandais.engine.gpx.GpxParser
 import io.github.glandais.engine.gpx.GpxPathKind
 import io.github.glandais.engine.gpx.GpxWriter
 import io.github.glandais.engine.gpx.firstTrackAsPath
+import io.github.glandais.engine.gpx.pathsToGpxDocument
 import io.github.glandais.engine.gpx.segmentsAsPaths
 import io.github.glandais.engine.gpx.toGpxDocument
 import io.github.glandais.engine.gpx.tracksAsPaths
@@ -700,9 +701,10 @@ fun vcDominantHeadwindAzimuthOfTracks(handle: Int): Double =
  * `write_output`. Returns the UTF-8 byte length, or a negative error code.
  *
  * Options (`0` for defaults): `writeExtensions` (default `true`; `false` drops power, heart
- * rate, cadence, temperature and the `gpxtpx` namespace — task g23), `trackName`, and
+ * rate, cadence, temperature and the `gpxtpx` namespace — task g23), `trackName`,
  * `startTimeEpochMs`, whose presence turns relative times into absolute ones, which is what
- * `writeGpxAt` does on the JS side.
+ * `writeGpxAt` does on the JS side, and `powerSource` (`"input"` — the default — `"computed"` or
+ * `"computed-or-input"`), which picks which of the path's two power fields lands in `<power>`.
  */
 @WasmExport
 fun vcWriteGpx(
@@ -714,11 +716,12 @@ fun vcWriteGpx(
         val options = readOptions(optionsJsonLen).toWriteGpxOptions()
         val document =
             if (options.startTimeEpochMs == null) {
-                path.toGpxDocument(trackName = options.trackName)
+                path.toGpxDocument(trackName = options.trackName, powerSource = options.powerSource)
             } else {
                 path.toGpxDocument(
                     trackName = options.trackName,
                     startTime = Instant.fromEpochMilliseconds(options.startTimeEpochMs.toLong()),
+                    powerSource = options.powerSource,
                 )
             }
         writeTextToHost(GpxWriter.write(document, writeExtensions = options.writeExtensions))
@@ -739,7 +742,12 @@ fun vcWriteGpxTracks(
     guarded {
         val paths = requireList(handle)
         val options = readOptions(optionsJsonLen).toWriteGpxOptions()
-        writeTextToHost(GpxWriter.write(paths, writeExtensions = options.writeExtensions))
+        writeTextToHost(
+            GpxWriter.write(
+                pathsToGpxDocument(paths, powerSource = options.powerSource),
+                writeExtensions = options.writeExtensions,
+            ),
+        )
     }
 
 /** The path as CSV — `pathToCsv`. Options: `separator`, `unitsInHeader`, `decimals`. */

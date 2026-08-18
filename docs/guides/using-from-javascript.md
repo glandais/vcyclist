@@ -166,13 +166,32 @@ const { writeGpx, writeGpxAt, writeGpxTracks, pathToCsv, pathToJson, pathToFit, 
 
 const xml   = writeGpx(out);                    // GPX 1.1, one <trk>
 const bare  = writeGpx(out, false);             // no <extensions>: no power, HR, cadence
+const power = writeGpx(out, true, 'computed');  // the SIMULATED power in <power>
+const named = writeGpx(out, true, null, 'stelvio');   // <trk><name>, default "virtualized"
 const multi = writeGpxTracks([a, b]);           // one <trk> per path
 const csv   = pathToCsv(out, ',', true);        // separator, units in the header
 const json  = pathToJson(out, false);           // column-oriented: one array per field
 ```
 
-`writeGpx`, `writeGpxAt` and `writeGpxTracks` all take a trailing `writeExtensions` flag
-(default `true`). `writeGpxAt` additionally stamps an absolute start time.
+`writeGpx`, `writeGpxAt` and `writeGpxTracks` all take a `writeExtensions` flag (default `true`)
+and a `powerSource`. `writeGpx` and `writeGpxAt` also take a `trackName`; `writeGpxAt`
+additionally stamps an absolute start time.
+
+### Which power lands in `<power>`
+
+A `Path` carries two: `pInputPower`, read from the source file, and `pComputedPower`, what the
+simulation produced. `powerSource` picks — the CLI's `--gpx-power-source`, same three spellings:
+
+| Value | Writes |
+|---|---|
+| `'input'` | **the default** — what the source file said. Nothing invented. |
+| `'computed'` | what the simulation produced. Empty on a path that was never virtualized. |
+| `'computed-or-input'` | the simulation where it produced one, the file's value otherwise. |
+
+The default is `'input'` on every door because `<power>` has no provenance field: a round-trip
+launders a simulated value into a measured-looking one, and that is the caller's decision to make.
+Pass `'computed'` or `'computed-or-input'` explicitly when you want the simulation — the browser
+demo's GPX download does. An unrecognised spelling **throws**; it does not fall back.
 
 FIT:
 

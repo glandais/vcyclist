@@ -4,6 +4,7 @@ import io.github.glandais.elevation.MathConstants
 import io.github.glandais.engine.path.Path
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertNull
 import kotlin.test.assertTrue
 
 /**
@@ -147,5 +148,31 @@ class GpxPowerSourceTest {
                 .points[0]
                 .powerW,
         )
+    }
+
+    @Test
+    fun `case 11 — every constant has a wire name, and it round-trips`() {
+        // The catalogue the CLI, the JS facade and the WASI door all parse through. A constant
+        // added without a spelling breaks `wireName`'s `when` in commonMain, i.e. on every target
+        // at once — which is the whole point of putting it here rather than in each door.
+        GpxPowerSource.entries.forEach { source ->
+            assertEquals(source, GpxPowerSource.fromWire(source.wireName), "round-trip ${'$'}source")
+        }
+        assertEquals(GpxPowerSource.entries.size, GpxPowerSource.wireNames.toSet().size, "no duplicate spelling")
+    }
+
+    @Test
+    fun `case 12 — the wire names are exactly the three the CLI documents`() {
+        assertEquals(listOf("input", "computed", "computed-or-input"), GpxPowerSource.wireNames)
+        assertEquals(GpxPowerSource.INPUT, GpxPowerSource.DEFAULT)
+    }
+
+    @Test
+    fun `case 13 — an unknown spelling is rejected, not defaulted`() {
+        // Doors turn this null into a thrown error. Falling back to the default here would make a
+        // typo indistinguishable from the engine writing the wrong power.
+        assertNull(GpxPowerSource.fromWire("COMPUTED"), "matching is exact, not case-insensitive")
+        assertNull(GpxPowerSource.fromWire("computed_or_input"))
+        assertNull(GpxPowerSource.fromWire(""))
     }
 }
