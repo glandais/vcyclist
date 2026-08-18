@@ -1,3 +1,10 @@
+## [4.2.1](https://github.com/glandais/vcyclist/compare/v4.2.0...v4.2.1) (2026-08-18)
+
+
+### Bug Fixes
+
+* **engine:** give `elapsed` and `dt` one unit, the second (task 45) ([7770a2d](https://github.com/glandais/vcyclist/commit/7770a2d24d31b4ef375f5c4e08e1bc109e09a661))
+
 # [4.2.0](https://github.com/glandais/vcyclist/compare/v4.1.0...v4.2.0) (2026-08-18)
 
 
