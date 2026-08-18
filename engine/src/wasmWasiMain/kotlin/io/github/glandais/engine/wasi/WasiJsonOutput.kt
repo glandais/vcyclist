@@ -5,6 +5,8 @@ import io.github.glandais.engine.climb.ClimbPart
 import io.github.glandais.engine.gpx.GpxWaypoint
 import io.github.glandais.engine.path.Path
 import io.github.glandais.engine.path.PointField
+import io.github.glandais.engine.trajectory.CornerSpan
+import io.github.glandais.engine.trajectory.RacingLineReport
 
 // The JSON shapes this ABI emits, one function per `EngineJsApi` DTO.
 //
@@ -102,3 +104,46 @@ internal fun climbsJson(climbs: List<Climb>): String =
             )
         },
     )
+
+/** Mirror of `CornerDto`. `kind` is the [CornerKind] name, as on the JS side. */
+private fun cornerJson(c: CornerSpan): String =
+    jsonObject(
+        "fromIndex" to c.fromIndex.toString(),
+        "untilIndex" to c.untilIndex.toString(),
+        "apexIndex" to c.apexIndex.toString(),
+        "kind" to jsonString(c.kind.name),
+        "turnRad" to jsonNumber(c.turnRad),
+        "direction" to c.direction.toString(),
+        "radiusQ20M" to jsonNumber(c.radiusQ20M),
+        "radiusMinM" to jsonNumber(c.radiusMinM),
+        "lengthM" to jsonNumber(c.lengthM),
+    )
+
+/**
+ * Mirror of `RacingLineReportDto`, corners nested.
+ *
+ * One asymmetry with the JS façade, and it is inherent rather than an oversight: the per-point
+ * arrays carry `NaN` where a value was not computed, and JSON has no `NaN` literal, so
+ * [jsonNumber] emits `null` for those slots — the convention this ABI already uses everywhere.
+ * A host reading `centerlineCurvature` therefore sees `null`, not `NaN`, and must treat the two
+ * as the same "not computed". The JS `DoubleArray` keeps the real `NaN`.
+ */
+internal fun racingLineReportJson(r: RacingLineReport): String =
+    jsonObject(
+        "size" to r.size.toString(),
+        "corners" to jsonArray(r.corners.map(::cornerJson)),
+        "centerlineCurvature" to jsonNumberArray(r.centerlineCurvature),
+        "trajectoryCurvature" to jsonNumberArray(r.trajectoryCurvature),
+        "corridorLo" to jsonNumberArray(r.corridorLo),
+        "corridorHi" to jsonNumberArray(r.corridorHi),
+        "roadHalfWidthM" to jsonNumberArray(r.roadHalfWidthM),
+        "lateralOffsetM" to jsonNumberArray(r.lateralOffsetM),
+        "maxCorridorWidthM" to jsonNumber(r.maxCorridorWidthM),
+        "newtonIterations" to r.newtonIterations.toString(),
+        "relativeGradient" to jsonNumber(r.relativeGradient),
+        "converged" to r.converged.toString(),
+        "activeConstraints" to r.activeConstraints.toString(),
+    )
+
+/** `[…]` of numbers, non-finite slots becoming `null` — see [racingLineReportJson]. */
+private fun jsonNumberArray(values: DoubleArray): String = values.joinToString(",", "[", "]", transform = ::jsonNumber)

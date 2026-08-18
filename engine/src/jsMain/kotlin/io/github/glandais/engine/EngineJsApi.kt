@@ -621,6 +621,14 @@ private val ENHANCE_OPTIONS_KEYS =
         "wPrimeBalanceEnabled",
         "wPrimeBalanceCriticalPower",
         "wPrimeBalanceWPrime",
+        // Added by the merge, not by the branch that introduced the fields: this list arrived with
+        // task 43, after feat/racing-line forked, so its four keys had nothing to update and the
+        // two sides merged cleanly into a facade that rejected its own options. See task 44 — the
+        // WASI equivalent conflicted loudly instead, only because it sits next to what it guards.
+        "curvatureEnabled",
+        "racingLineEnabled",
+        "racingLineCorridor",
+        "racingLineRoadWidthM",
     )
 
 /**

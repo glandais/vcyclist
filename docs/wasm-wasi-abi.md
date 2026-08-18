@@ -229,6 +229,7 @@ survives.
 | `vcEnhance` | `(handle, optionsJsonLen) -> i32` | a **new** path handle; the input is untouched |
 | `vcEnhanceWithCourse` | `(handle, payloadJsonLen) -> i32` | same, with a full physics course |
 | `vcDetectClimbsJson` | `(handle, optionsJsonLen) -> i32` | → JSON array of climbs |
+| `vcAnalyzeRacingLineJson` | `(handle, optionsJsonLen) -> i32` | → JSON report, or `null`. Moves nothing |
 
 ### Serialisation
 
@@ -367,6 +368,20 @@ because they read the same constant.
 Unknown keys remain an error (`-3`), and the allowlist is derived from the catalog, so it cannot
 drift from what the engine accepts.
 
+### `vcAnalyzeRacingLineJson` — options and answer
+
+Takes the `EnhanceOptionsDto` shape; only the `racingLine*` and `curvature*` keys are read, and
+`0` means the defaults. Read-only — it reports what the stage *would* do and never moves a
+coordinate, which is what makes an opt-in stage that rewrites every position inspectable.
+
+```json
+{"racingLineCorridor": "full-road", "racingLineRoadWidthM": 6.0}
+```
+
+The answer is a `RacingLineReportDto`-shaped object, or the literal `null` when the path cannot
+be projected — too short, non-finite coordinates, or too near a pole. That `null` is a successful
+call answering "no", so the return value is its byte length, not an error code.
+
 ### `vcDetectClimbsJson` — options
 
 ```json
@@ -421,10 +436,15 @@ by a `TIMER`/`START`…`STOP` pair, the last one carrying `STOP_ALL`.
 
 ### Output shapes
 
-`vcPointJson`, `vcParseGpxWaypointsJson`, `vcFieldDefinitionsJson` and `vcDetectClimbsJson` emit
-the JS DTOs of `EngineJsApi` — `PointDto`, `WaypointDto`, `FieldDefinitionDto` (plus `index`),
-`ClimbDto` with nested `ClimbPartDto`. A consumer of `@glandais/vcyclist-engine` can reuse its
-types unchanged.
+`vcPointJson`, `vcParseGpxWaypointsJson`, `vcFieldDefinitionsJson`, `vcDetectClimbsJson` and
+`vcAnalyzeRacingLineJson` emit the JS DTOs of `EngineJsApi` — `PointDto`, `WaypointDto`,
+`FieldDefinitionDto` (plus `index`), `ClimbDto` with nested `ClimbPartDto`,
+`RacingLineReportDto` with nested `CornerDto`. A consumer of `@glandais/vcyclist-engine` can
+reuse its types unchanged.
+
+**One shape cannot be mirrored exactly.** `RacingLineReportDto`'s per-point arrays carry `NaN`
+where a value was not computed, and JSON has no `NaN` literal, so those slots arrive as `null`.
+Read `null` and `NaN` as the same "not computed"; the JS `DoubleArray` keeps the real `NaN`.
 
 Non-finite doubles are written as `null`: JSON has neither `NaN` nor `Infinity`, and
 `dominantHeadwindAzimuthDeg` legitimately returns `NaN` for a symmetric loop.
@@ -455,6 +475,7 @@ and a JVM test fails the build if a JS export ever appears without a decision he
 | `enhanceWithCourse` | `vcEnhanceWithCourse` | the five DTOs become sub-objects of one payload |
 | `detectClimbs` | `vcDetectClimbsJson` | no options object means the defaults |
 | `detectClimbsWithOptions` | `vcDetectClimbsJson` | same export; the six scalars become fields |
+| `analyzeRacingLine` | `vcAnalyzeRacingLineJson` | JSON report; `NaN` slots arrive as `null` |
 | `pathToCsv`, `pathToJson` | `vcPathToCsv`, `vcPathToJson` | arguments moved into the options |
 | `dominantHeadwindAzimuth` | `vcDominantHeadwindAzimuth` | ported |
 | `dominantHeadwindAzimuthOfTracks` | `vcDominantHeadwindAzimuthOfTracks` | takes a list handle |

@@ -25,6 +25,7 @@ import io.github.glandais.engine.path.PointField
 import io.github.glandais.engine.path.dominantHeadwindAzimuthDeg
 import io.github.glandais.engine.physics.AeroProviderConstant
 import io.github.glandais.engine.physics.RhoProviderEstimate
+import io.github.glandais.engine.trajectory.RacingLine
 import io.github.glandais.fit.toFitBytes
 import kotlin.time.Duration.Companion.milliseconds
 import kotlin.time.Instant
@@ -637,6 +638,32 @@ fun vcDetectClimbsJson(
         val path = requirePath(handle)
         val options = readOptions(optionsJsonLen).toClimbOptions()
         writeTextToHost(climbsJson(ClimbDetector.detect(path, options)))
+    }
+
+/**
+ * The racing line the stage *would* build, as a `RacingLineReportDto`-shaped JSON object — the
+ * WASI counterpart of `analyzeRacingLine`.
+ *
+ * Read-only: it never moves a coordinate, which is the whole point. The stage rewrites every
+ * position in a rider's file, so being able to ask what it would do without applying it is what
+ * makes an opt-in feature inspectable rather than merely optional.
+ *
+ * Options are the `EnhanceOptionsDto` shape, of which only the `racingLine*` and `curvature*`
+ * keys matter here; `0` for the defaults. Emits the JSON literal `null` when the path cannot be
+ * projected — too short, non-finite coordinates, or too near a pole — mirroring the `null` the JS
+ * façade returns. That is a successful call answering "no", not an error, so it returns the
+ * length of `null` rather than a negative code.
+ */
+@WasmExport
+fun vcAnalyzeRacingLineJson(
+    handle: Int,
+    optionsJsonLen: Int,
+): Int =
+    guarded {
+        val path = requirePath(handle)
+        val options = readOptions(optionsJsonLen).toEnhanceOptions().racingLine
+        val report = RacingLine.analyze(path, options)
+        writeTextToHost(if (report == null) "null" else racingLineReportJson(report))
     }
 
 /**

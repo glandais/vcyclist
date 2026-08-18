@@ -4,6 +4,7 @@ import io.github.glandais.elevation.MathConstants
 import io.github.glandais.engine.climb.ClimbDetector
 import io.github.glandais.engine.path.Path
 import io.github.glandais.engine.path.PointField
+import io.github.glandais.engine.trajectory.RacingLine
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertTrue
@@ -82,5 +83,66 @@ class WasiJsonOutputTest {
     @Test
     fun `an empty climb list is an empty array, not null`() {
         assertEquals("[]", climbsJson(emptyList()))
+    }
+
+    // ── Racing line (task 44) ────────────────────────────────────────────────────────────────
+
+    /** A circular arc: curvature is the binding feature, so corners actually get detected. */
+    private fun bend(points: Int = 200): Path {
+        val p = Path(points)
+        val radiusM = 25.0
+        val metersPerDeg = 111_320.0
+        for (i in 0 until points) {
+            val theta = 2.0 * kotlin.math.PI * i / (points - 1)
+            p.setLatitude(i, (radiusM * kotlin.math.sin(theta) / metersPerDeg) * MathConstants.DEG_TO_RAD)
+            p.setLongitude(i, (radiusM * kotlin.math.cos(theta) / metersPerDeg) * MathConstants.DEG_TO_RAD)
+            p.setElevation(i, 100.0)
+            p.setTime(i, i * 1000.0)
+        }
+        p.computeDerivedData()
+        return p
+    }
+
+    @Test
+    fun `the racing-line report carries every RacingLineReportDto field`() {
+        val report = RacingLine.analyze(bend())
+        assertTrue(report != null, "a 200-point arc should be analysable")
+
+        val o = parseJsonObject(racingLineReportJson(report))
+
+        // Field for field with the JS DTO — that symmetry is the reason this ABI speaks JSON.
+        val expected =
+            listOf(
+                "size",
+                "corners",
+                "centerlineCurvature",
+                "trajectoryCurvature",
+                "corridorLo",
+                "corridorHi",
+                "roadHalfWidthM",
+                "lateralOffsetM",
+                "maxCorridorWidthM",
+                "newtonIterations",
+                "relativeGradient",
+                "converged",
+                "activeConstraints",
+            )
+        for (key in expected) {
+            assertTrue(o.fields.containsKey(key), "missing '$key'")
+        }
+        assertEquals(report.size.toDouble(), o.double("size", -1.0))
+    }
+
+    @Test
+    fun `non-finite curvature slots cross as null, not as NaN`() {
+        // JSON has no NaN literal. jsonNumber emits null, and a host must read that as
+        // "not computed" — the one place the WASI shape cannot mirror the JS DoubleArray.
+        val text = racingLineReportJson(RacingLine.analyze(bend())!!)
+        assertTrue(!text.contains("NaN"), "NaN must never reach the wire: ${text.take(200)}")
+    }
+
+    @Test
+    fun `a path too short to project declines rather than guessing`() {
+        assertEquals(null, RacingLine.analyze(path(3)))
     }
 }

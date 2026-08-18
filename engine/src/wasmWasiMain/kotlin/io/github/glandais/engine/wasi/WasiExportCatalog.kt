@@ -114,4 +114,10 @@ internal val PARITY_TABLE: List<ParityEntry> =
             ParityDecision.RESHAPED,
             "same export: the six scalars become the fields of the options object",
         ),
+        ParityEntry(
+            "analyzeRacingLine",
+            "vcAnalyzeRacingLineJson",
+            ParityDecision.RESHAPED,
+            "the report crosses as JSON, so its NaN slots arrive as null; JS keeps the DoubleArray",
+        ),
     )
