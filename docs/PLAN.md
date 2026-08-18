@@ -95,6 +95,8 @@ Le projet TypeScript `virtual-cyclist` (simulateur de cyclisme basé physique av
 | 42 | Demo — UI des modèles du ledger (R9, R10, R15, R16, R18, R19) | ✅ | — | — (typecheck/lint/build verts ; Chrome sur stelvio : sec 633 s → mouillé 674 s, W′bal 20 kJ → 0 → 11 kJ) |
 | 43 | Garde-fou de parité + catalogue partagé + rattrapage WASI | ✅ | — | 8 (commonTest `CyclistPowerSpecTest`) + 3 (jsTest) + 6 (wasmWasiTest) |
 | 44 | Réconcilier `feat/demo-update` et `feat/racing-line` | **partielle** | `b8c6986` | — (fusion + `vcAnalyzeRacingLineJson` + carte/contrôles démo faits ; reste les `*_KEYS`, un test par clé, la matrice) |
+| **— Phase 11 : dette —** | | | | |
+| 45 | [`elapsed` / `dt` : une seule unité, la seconde](tasks/45-elapsed-dt-units.md) | ✅ | — | 2 (commonTest `TemporalFieldUnitsTest`) |
 
 **Cumul `:elevation` après Phase 1 + extras** : 20 classes de tests, **193 tests** (commonTest 182 + jvmTest 11 dont 6 opt-in) × 3 targets en mode standard = **557 exécutions** vertes (offline).
 
@@ -606,6 +608,17 @@ modèles de puissance de l'onglet Power fait lever `EngineJsApi`.
 | [`42`](tasks/42-demo-ledger-ui.md) | Les mettre dans l'UI de la démo, plus R10 (déjà exposé, jamais câblé). |
 | [`43`](tasks/43-facade-parity-guard.md) | Garde-fou : la même dérive s'est produite trois fois (voir `g29`, `g31`, `g33`). |
 | [`44`](tasks/44-racing-line-merge.md) | Réconcilier avec `feat/racing-line`, et refermer le trou que la fusion ouvre. |
+
+---
+
+## Phase 11 — dette
+
+| Fiche | Portée |
+|---|---|
+| [`45`](tasks/45-elapsed-dt-units.md) | `elapsed` / `dt` : une seule unité, la seconde. Étiquette fausse jusque sur la sortie CSV / JSON, et cause de R16. |
+
+**Atteint.** `TIME` est le seul champ en millisecondes ; `ELAPSED` et `DT` déclarent et portent
+des secondes à tout moment du pipeline, et `TemporalFieldUnitsTest` les épingle contre `time`.
 
 **Ordre** : `40` d'abord (la démo est cassée), puis `41` → `42`, et `43` en dernier — un garde-fou
 posé avant `41` s'installerait rouge.
