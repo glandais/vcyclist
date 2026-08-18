@@ -260,7 +260,7 @@ external interface PowerProviderDto {
 /**
  * Catalog entry for a [PointField]. Exposed to JS
  * via [fieldDefinitions] so consumers can render generic field-pickers without hard-coding
- * the 36-entry list.
+ * the 43-entry list.
  */
 external interface FieldDefinitionDto {
     val prop: String
@@ -507,7 +507,7 @@ private fun defaultJsOptions(): EnhanceOptions =
 // The `enhanceWithCourse` façade lets a JS caller build a full [CoursePhysics] (cyclist + bike
 // + wind + power provider) from JSON-like DTO inputs and run the enhancement pipeline.
 // `getField` and `fieldDefinitions` expose
-// generic per-field access for the demo's UI which needs to plot any of the 36 fields.
+// generic per-field access for the demo's UI which needs to plot any of the 43 fields.
 
 /**
  * Convert a JS [CyclistDto] (or `null` → defaults) into a [Cyclist]. Note : the [Cyclist]
@@ -705,7 +705,7 @@ fun getField(
 }
 
 /**
- * Enumerate the 36-entry [PointField] catalog as JS-friendly [FieldDefinitionDto] objects.
+ * Enumerate the 43-entry [PointField] catalog as JS-friendly [FieldDefinitionDto] objects.
  * UIs use this to render generic field-pickers without hard-coding the list.
  */
 @JsExport

@@ -377,7 +377,7 @@ private fun requireIndex(
 // ── Fields ───────────────────────────────────────────────────────────────────────────────────
 
 /**
- * The 36-entry `PointField` catalog as JSON — `fieldDefinitions`, plus the `index` that
+ * The 43-entry `PointField` catalog as JSON — `fieldDefinitions`, plus the `index` that
  * [vcGetField] and [vcPathFieldBytes] take. A host reads this once and never hard-codes the list.
  */
 @WasmExport

@@ -35,7 +35,7 @@ import kotlin.time.Instant
  * produced a file dated some 57 years in the future. Rebasing makes [startTime] mean what its
  * name says on both kinds of path, and makes the conversion idempotent.
  *
- * `POWER` is the right source among the 36 fields: it is what `VirtualizeService` computes for
+ * `POWER` is the right source among the 43 fields: it is what `VirtualizeService` computes for
  * the simulated ride. `P_INPUT_POWER` is the power read from the *input* GPX, which for a
  * virtualized course is either absent or describes a different ride entirely.
  *
