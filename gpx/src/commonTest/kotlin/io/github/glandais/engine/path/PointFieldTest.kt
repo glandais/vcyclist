@@ -7,21 +7,21 @@ import kotlin.test.assertTrue
 
 class PointFieldTest {
     @Test
-    fun `43 fields exactly`() {
-        assertEquals(43, PointField.entries.size)
-        assertEquals(43, PointField.COUNT)
+    fun `44 fields exactly`() {
+        assertEquals(44, PointField.entries.size)
+        assertEquals(44, PointField.COUNT)
     }
 
     @Test
     fun `ordinals are unique`() {
         val ordinals = PointField.entries.map { it.ordinal }
-        assertEquals(43, ordinals.toSet().size)
+        assertEquals(44, ordinals.toSet().size)
     }
 
     @Test
     fun `props are unique and non-blank`() {
         val props = PointField.entries.map { it.prop }
-        assertEquals(43, props.toSet().size)
+        assertEquals(44, props.toSet().size)
         assertTrue(props.all { it.isNotBlank() })
     }
 
@@ -48,7 +48,14 @@ class PointFieldTest {
     @Test
     fun `nanDefault is declared on exactly the intended fields`() {
         assertEquals(
-            listOf("trajectoryCurvature", "roadWidth", "lateralOffset", "sourceLatitude", "sourceLongitude"),
+            listOf(
+                "trajectoryCurvature",
+                "roadWidth",
+                "lateralOffset",
+                "sourceLatitude",
+                "sourceLongitude",
+                "sourceElevation",
+            ),
             PointField.entries.filter { it.nanDefault }.map { it.prop },
         )
     }
@@ -66,7 +73,7 @@ class PointFieldTest {
         assertEquals(4, PointField.byCategory(PointFieldCategory.COORDINATES).size)
         assertEquals(3, PointField.byCategory(PointFieldCategory.TEMPORAL).size)
         assertEquals(1, PointField.byCategory(PointFieldCategory.ANGLES).size)
-        assertEquals(1, PointField.byCategory(PointFieldCategory.ELEVATION).size)
+        assertEquals(2, PointField.byCategory(PointFieldCategory.ELEVATION).size)
         assertEquals(1, PointField.byCategory(PointFieldCategory.GRADE).size)
         assertEquals(2, PointField.byCategory(PointFieldCategory.RADIUS).size)
         assertEquals(1, PointField.byCategory(PointFieldCategory.AERO_COEF).size)
@@ -83,7 +90,7 @@ class PointFieldTest {
     @Test
     fun `all fields are partitioned across categories`() {
         val sum = PointFieldCategory.entries.sumOf { PointField.byCategory(it).size }
-        assertEquals(43, sum)
+        assertEquals(44, sum)
     }
 
     @Test
@@ -113,7 +120,9 @@ class PointFieldTest {
     @Test
     fun `notSelectable fields are latitude, longitude, time`() {
         // The source coordinates join the list: they are storage for reversing the racing-line
-        // edit, not a quantity anyone plots.
+        // edit, not a quantity anyone plots. `sourceElevation` is the same kind of thing — the
+        // pre-smoothing profile the gain accumulator reads, not a curve to draw next to
+        // `elevation`.
         val expected =
             setOf(
                 PointField.LATITUDE,
@@ -121,6 +130,7 @@ class PointFieldTest {
                 PointField.TIME,
                 PointField.SOURCE_LATITUDE,
                 PointField.SOURCE_LONGITUDE,
+                PointField.SOURCE_ELEVATION,
             )
         assertEquals(expected, PointField.entries.filter { it.notSelectable }.toSet())
     }

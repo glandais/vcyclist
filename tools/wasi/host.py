@@ -229,6 +229,25 @@ class VcyclistHost:
         """Negative by convention, so it is read raw rather than through the sentinel check."""
         return float(self._call("vcPathElevationLoss", handle))
 
+    def elevation_gain_filtered(self, handle: int) -> float:
+        """Ascent with the hysteresis dead band applied, or NaN when the stage did not run.
+
+        NaN and not a negative sentinel: "not measured" is a legal state rather than a failure.
+        """
+        return float(self._call("vcPathElevationGainFiltered", handle))
+
+    def elevation_loss_filtered(self, handle: int) -> float:
+        """Negative by convention, or NaN. Read raw for both reasons."""
+        return float(self._call("vcPathElevationLossFiltered", handle))
+
+    def reported_elevation_gain(self, handle: int) -> float:
+        """What to show a human: dead-banded when measured, the raw sum otherwise."""
+        return self._double("vcPathReportedElevationGain", handle)
+
+    def reported_elevation_loss(self, handle: int) -> float:
+        """Negative by convention."""
+        return float(self._call("vcPathReportedElevationLoss", handle))
+
     def latitude_deg(self, handle: int, i: int) -> float:
         return float(self._call("vcPathLatitudeDeg", handle, i))
 

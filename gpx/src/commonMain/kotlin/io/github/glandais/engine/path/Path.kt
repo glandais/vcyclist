@@ -34,12 +34,43 @@ class Path(
     var maxElevation: Double = 0.0
         private set
 
+    /**
+     * Sum of every positive elevation delta, over whatever profile this path currently holds.
+     *
+     * Deliberately unfiltered, and therefore scale-dependent: it grows without bound as the
+     * sampling gets finer (1066 m on `strava.gpx` unsmoothed against 632 m smoothed). It is kept
+     * as-is because it is the *control* the filtered figure is measured against, and because
+     * `ClimbDetector` sizes its adaptive threshold from it. For a number to show a human, use
+     * [reportedElevationGain]. See `docs/guides/elevation.md`.
+     */
     var elevationGain: Double = 0.0
         private set
 
-    /** Always <= 0 (sum of negative deltas). */
+    /** Always <= 0 (sum of negative deltas). Unfiltered, like [elevationGain]. */
     var elevationLoss: Double = 0.0
         private set
+
+    /**
+     * Cumulative ascent with a hysteresis dead band, or `NaN` if [ElevationGain] has not run.
+     *
+     * Cached rather than computed here: [computeDerivedData] runs after every pipeline stage, and
+     * the accumulator smooths a copy of the profile first, which is O(n·k). It is written by the
+     * `elevationGain` stage of the enhancer and invalidated by [resetStats].
+     */
+    var elevationGainFiltered: Double = Double.NaN
+        internal set
+
+    /** Counterpart of [elevationGainFiltered]. Always `<= 0`, or `NaN`. */
+    var elevationLossFiltered: Double = Double.NaN
+        internal set
+
+    /** [elevationGainFiltered] when it has been computed, the raw sum otherwise. */
+    val reportedElevationGain: Double
+        get() = if (elevationGainFiltered.isNaN()) elevationGain else elevationGainFiltered
+
+    /** [elevationLossFiltered] when it has been computed, the raw sum otherwise. Always `<= 0`. */
+    val reportedElevationLoss: Double
+        get() = if (elevationLossFiltered.isNaN()) elevationLoss else elevationLossFiltered
 
     /** Duration of the track in milliseconds (`time(size-1) - time(0)`), or 0 if size < 2. */
     var durationMs: Double = 0.0
@@ -152,6 +183,8 @@ class Path(
         maxElevation = other.maxElevation
         elevationGain = other.elevationGain
         elevationLoss = other.elevationLoss
+        elevationGainFiltered = other.elevationGainFiltered
+        elevationLossFiltered = other.elevationLossFiltered
         durationMs = other.durationMs
         boundsRad = other.boundsRad
     }
@@ -241,6 +274,10 @@ class Path(
         maxElevation = 0.0
         elevationGain = 0.0
         elevationLoss = 0.0
+        // NaN, not 0: any stage that rewrites elevations invalidates the filtered figure, and
+        // "not computed" must not be readable as "flat".
+        elevationGainFiltered = Double.NaN
+        elevationLossFiltered = Double.NaN
         durationMs = 0.0
         boundsRad = BoundsRad.EMPTY
     }

@@ -40,7 +40,7 @@ cd demo && npm run dev                   # browser demo, hot reload (rebuilds th
 
 ### `Path` model (`:gpx`)
 
-- `Path` extends the generated `GeneratedPath(size)` and stores 43 fields as flat `DoubleArray`s.
+- `Path` extends the generated `GeneratedPath(size)` and stores 44 fields as flat `DoubleArray`s.
   `PointField.kt` is the single source of truth; `GeneratedPath.kt` and `PointFieldAccessors.kt`
   are **generated** — never hand-edit them, run `:codegen:run`.
 - `nanDefault = true` on a field NaN-fills it at construction. Use it whenever *absence* is
@@ -56,7 +56,8 @@ cd demo && npm run dev                   # browser demo, hot reload (rebuilds th
 1. `PointPerDistance(-1, 30)` — densify before DEM lookup
 2. `fixElevation` (optional, needs an `ElevationProvider`)
 3. `PointPerDistance(1, 2)`
-4. `smoothElevation` (150 m kernel, always)
+4. `smoothElevation` (150 m kernel, always) — keeps the pre-smoothing profile in
+   `sourceElevation`
 5. `PathCurvature` (writes `trajectoryCurvature`) **or** `RacingLine.compute` when
    `racingLine.enabled` — alternatives, never a sequence
 6. `MaxSpeedComputer` (when `virtualizeTrack`) — prefers `trajectoryCurvature` over its own estimate
@@ -65,6 +66,10 @@ cd demo && npm run dev                   # browser demo, hot reload (rebuilds th
 9. `WPrimeBalanceComputer` — pure annotation pass: reads `pComputedPower`, writes `wPrimeBalance`,
    every other field is bit-identical whether it runs or not (`WPrimeBalanceComputerTest` pins this)
 10. `PathSimplifier` (Douglas-Peucker 3D)
+11. `ElevationGain` — annotation pass: reads `sourceElevation` (the profile *before* step 4, so the
+    figure is not the physics kernel's), writes `elevationGainFiltered` / `elevationLossFiltered`
+    and no point. Last on purpose: simplification moves the raw sum, and a summary that disagrees
+    with its own trace is worse than none. See [`docs/guides/elevation.md`](docs/guides/elevation.md)
 
 The order is load-bearing. If you change it, update `Enhancer.kt`'s docstring, the `README.md`
 diagram, and run a CLI smoke.

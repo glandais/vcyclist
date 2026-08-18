@@ -1,5 +1,6 @@
 package io.github.glandais.engine
 
+import io.github.glandais.engine.path.ElevationGainPreset
 import kotlin.math.PI
 import kotlin.math.tan
 
@@ -138,4 +139,17 @@ object EngineConstants {
     const val DEFAULT_DRAG_COEFFICIENT: Double = 0.7
     const val DEFAULT_FRONTAL_AREA_M2: Double = 0.5
     const val DEFAULT_AIR_DENSITY: Double = 1.225
+
+    // ---- Elevation ------------------------------------------------------------
+
+    /**
+     * The measurement scale cumulative ascent is reported at.
+     *
+     * `DEM` because vcyclist's altitudes are always DEM-derived — never barometric, never a GPS
+     * altimeter. Every door must read its default from here rather than spell `"dem"` itself: the
+     * façades once hardcoded 250 W against the CLI's 280 W.
+     *
+     * See `docs/guides/elevation.md` and ledger row R27.
+     */
+    val DEFAULT_ELEVATION_GAIN_PRESET: ElevationGainPreset = ElevationGainPreset.DEM
 }

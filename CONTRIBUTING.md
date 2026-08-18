@@ -6,7 +6,7 @@ For *using* the library, start at [`README.md`](README.md). This file is about w
 
 | Module | Purpose | Targets |
 |---|---|---|
-| **`:gpx`** | `Path` model (43 fields × `DoubleArray`), resamplers, Douglas-Peucker simplifier, elevation steps, GPX I/O. Published to Maven Central; **not** to npm — its JS output ships inside `@glandais/vcyclist-engine`. | JVM, JS Node, JS browser, WASI |
+| **`:gpx`** | `Path` model (44 fields × `DoubleArray`), resamplers, Douglas-Peucker simplifier, elevation steps, GPX I/O. Published to Maven Central; **not** to npm — its JS output ships inside `@glandais/vcyclist-engine`. | JVM, JS Node, JS browser, WASI |
 | **`:elevation`** | Terrarium tile fetch + DEM lookup + Haversine + Douglas-Peucker 3D + triangular smoother. See [`elevation/README.md`](elevation/README.md). | JVM, JS Node, JS browser, WASI |
 | **`:engine`** | Physics (resistive `PowerProvider`s + cyclist input + `MaxSpeedComputer` + `VirtualizeService`), the `Enhancer` pipeline, the JS and WASI façades. Re-exports `:gpx` via `api`, so `io.github.glandais.engine.{path,gpx}.*` stay importable from `:engine`. Also the module that links the standalone `.wasm`. | JVM, JS Node, JS browser, WASI |
 | **`:fit`** | Garmin FIT encoding. `FitCourse` model, unit conversions and `FitEncoder` itself, all in `commonMain` over [`fit-kotlin-sdk`](https://github.com/glandais/fit-kotlin-sdk). One encoder, byte-identical output on every target, no vendor SDK for consumers to install. | JVM, JS Node, JS browser, WASI |

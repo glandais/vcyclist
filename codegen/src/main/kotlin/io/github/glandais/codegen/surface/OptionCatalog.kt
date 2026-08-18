@@ -328,6 +328,32 @@ object OptionCatalog {
                         Opt("racingLineEnabled", path = "racingLine.enabled", doors = ALL_WIRE, cliFlag = "--racing-line"),
                         Opt("racingLineCorridor", path = "racingLine.corridor", doors = ALL_WIRE, cliFlag = "--corridor"),
                         Opt("racingLineRoadWidthM", path = "racingLine.defaultRoadWidthM", doors = ALL_WIRE, cliFlag = "--road-width"),
+                        Opt(
+                            "elevationSmoothWindowM",
+                            doors = ALL_WIRE,
+                            cliFlag = "--elevation-smooth-window",
+                        ),
+                        Opt(
+                            "elevationGainPreset",
+                            path = "elevationGain.preset",
+                            doors = ALL_WIRE,
+                            cliFlag = "--elevation-gain-preset",
+                        ),
+                        Opt(
+                            "elevationGainThresholdM",
+                            path = "elevationGain.thresholdM",
+                            doors = ALL_WIRE,
+                            cliFlag = "--elevation-gain-threshold",
+                        ),
+                        Opt(
+                            "elevationGainEnabled",
+                            path = "elevationGain.enabled",
+                            doors = WIRE_NO_CLI,
+                            cliExempt =
+                                "The CLI turns the stage off by asking for the `raw` preset, which reports the same unfiltered sum " +
+                                    "the stage would otherwise be skipped for. A second spelling of one outcome is worth less than " +
+                                    "the flag it costs.",
+                        ),
                     ),
                 coreOnly =
                     listOf(
@@ -339,7 +365,27 @@ object OptionCatalog {
                         CoreOnly("curvature.curvatureWindowsM", "As curvature.geometrySmoothWindowM."),
                         CoreOnly("curvature.headingNoiseRad", "As curvature.geometrySmoothWindowM."),
                         CoreOnly("curvature.curvatureSmoothWindowM", "As curvature.geometrySmoothWindowM."),
+                        CoreOnly(
+                            "elevationGain.smoothWindowM",
+                            "The scale the REPORTED climbing is measured at, which the preset already fixes " +
+                                "(raw 0 m, barometric 15 m, dem 30 m, gps 50 m) — a threshold without a scale is not an answer, " +
+                                "so the pair travels as one. Not to be confused with EnhanceOptions.elevationSmoothWindowM, " +
+                                "which is the PIPELINE's kernel and does cross every door: that one decides the gradients the " +
+                                "simulation rides, this one only how the summary reads. See docs/guides/elevation.md.",
+                        ),
                     ) + racingLineCoreOnly(),
+                wireOnly =
+                    listOf(
+                        WireOnly(
+                            "demZoom",
+                            ALL_WIRE,
+                            "Not a field of EnhanceOptions: it configures the ElevationProvider, not the pipeline, so each " +
+                                "door reads it where it builds that provider. CLI flag --dem-zoom; on WASI it overrides " +
+                                "vcSetElevationConfig's sticky zoom for one call. Measured as worth nothing above 12 " +
+                                "(ledger R30) and exposed anyway, because the sweep that showed it could not be run from " +
+                                "any door without it.",
+                        ),
+                    ),
             ),
             OptionGroup(
                 optionsClass = Cyclist::class,

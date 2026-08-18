@@ -68,9 +68,10 @@ private val FIELDS =
         FieldSpec("LATERAL_OFFSET", "lateralOffset", nanDefault = true),
         FieldSpec("SOURCE_LATITUDE", "sourceLatitude", nanDefault = true),
         FieldSpec("SOURCE_LONGITUDE", "sourceLongitude", nanDefault = true),
+        FieldSpec("SOURCE_ELEVATION", "sourceElevation", nanDefault = true),
     )
 
-private const val EXPECTED_COUNT = 43
+private const val EXPECTED_COUNT = 44
 
 fun main() {
     require(FIELDS.size == EXPECTED_COUNT) {

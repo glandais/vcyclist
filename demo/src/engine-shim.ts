@@ -102,6 +102,25 @@ export interface EnhanceOptionsDto {
     readonly racingLineCorridor?: 'lane' | 'lane-left' | 'full-road';
     /** Road width assumed where the GPX supplies none, in metres. */
     readonly racingLineRoadWidthM?: number;
+    /**
+     * Scale the reported climbing is measured at. 'raw' is the unfiltered sum, which over-reports;
+     * 'barometric' and 'gps' are Strava's documented 2 m and 10 m thresholds; 'dem' (the default)
+     * is sized for DEM rather than device noise.
+     */
+    readonly elevationGainPreset?: 'raw' | 'barometric' | 'dem' | 'gps';
+    /** Override the preset's hysteresis dead band, in metres. 0 disables it. */
+    readonly elevationGainThresholdM?: number;
+    /** Whether to measure the dead-banded climbing at all. Defaults to true. */
+    readonly elevationGainEnabled?: boolean;
+    /**
+     * Triangular-kernel half-width for the elevation smoother, in metres (default 150).
+     *
+     * The number that decides both the reported climbing and the gradients the simulation rides:
+     * it costs a clean route ~1.5 % and a noisy GPS trace ~48 %.
+     */
+    readonly elevationSmoothWindowM?: number;
+    /** Web-Mercator zoom for the DEM lookup, 0..15 (default 12). Only used with fixElevation. */
+    readonly demZoom?: number;
 }
 
 /** One detected bend, as the racing-line report describes it. */
@@ -241,6 +260,14 @@ export const pathTotalDistance: (path: Path) => number = ns.pathTotalDistance;
 export const pathDurationMs: (path: Path) => number = ns.pathDurationMs;
 export const pathElevationGain: (path: Path) => number = ns.pathElevationGain;
 export const pathElevationLoss: (path: Path) => number = ns.pathElevationLoss;
+/** Dead-banded ascent, or NaN when the elevationGain stage did not run. */
+export const pathElevationGainFiltered: (path: Path) => number = ns.pathElevationGainFiltered;
+/** Dead-banded descent. NEGATIVE by convention, or NaN. */
+export const pathElevationLossFiltered: (path: Path) => number = ns.pathElevationLossFiltered;
+/** What to show a human: dead-banded when measured, the raw sum otherwise. */
+export const pathReportedElevationGain: (path: Path) => number = ns.pathReportedElevationGain;
+/** Counterpart of pathReportedElevationGain. NEGATIVE by convention. */
+export const pathReportedElevationLoss: (path: Path) => number = ns.pathReportedElevationLoss;
 export const pointAt: (path: Path, i: number) => PointDto = ns.pointAt;
 export const getField: (path: Path, i: number, fieldProp: string) => number = ns.getField;
 export const fieldDefinitions: () => FieldDefinitionDto[] = ns.fieldDefinitions;
@@ -357,3 +384,11 @@ export const dominantHeadwindAzimuthOfTracks: (paths: Path[]) => number =
 //   detectClimbs                  — superseded by `detectClimbsWithOptions`, which the climbs
 //                                   panel now drives; kept bound for a caller wanting the
 //                                   defaults without naming six numbers
+//   pathElevationGainFiltered,
+//   pathElevationLossFiltered     — the raw primitives, which return NaN when the elevationGain
+//                                   stage did not run. The UI shows
+//                                   `pathReportedElevationGain`, which is the same figure with
+//                                   the raw sum as a fallback, so a panel would have to render
+//                                   "—" for a state the fallback already resolves. A library
+//                                   caller that needs to tell "not measured" from "measured"
+//                                   apart does want them, which is why they stay exported

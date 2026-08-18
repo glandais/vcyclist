@@ -7,8 +7,10 @@ import io.github.glandais.cli.mixin.CyclistMixin
 import io.github.glandais.cli.mixin.FilesMixin
 import io.github.glandais.cli.mixin.WindMixin
 import io.github.glandais.elevation.ElevationProvider
+import io.github.glandais.elevation.ElevationProviderConfig
 import io.github.glandais.engine.Course
 import io.github.glandais.engine.CoursePhysics
+import io.github.glandais.engine.EngineConstants
 import io.github.glandais.engine.EnhanceOptions
 import io.github.glandais.engine.Enhancer
 import io.github.glandais.engine.SimplifyPathOptions
@@ -19,6 +21,9 @@ import io.github.glandais.engine.gpx.pathsToGpxDocument
 import io.github.glandais.engine.gpx.tracksAsPaths
 import io.github.glandais.engine.io.CsvWriter
 import io.github.glandais.engine.io.JsonWriter
+import io.github.glandais.engine.path.ElevationGainOptions
+import io.github.glandais.engine.path.ElevationGainPreset
+import io.github.glandais.engine.path.ElevationStep
 import io.github.glandais.engine.path.Path
 import io.github.glandais.engine.physics.AeroProviderConstant
 import io.github.glandais.engine.physics.PowerProviderFromData
@@ -143,7 +148,51 @@ class EnhanceCommand : Callable<Int> {
      * missing (the option parsed, then `null` reached the Enhancer and the step was skipped), so
      * it must stay testable without the network.
      */
-    internal var elevationProviderFactory: () -> ElevationProvider = { diskCachedElevationProvider(files.cache) }
+    internal var elevationProviderFactory: () -> ElevationProvider = {
+        diskCachedElevationProvider(files.cache, ElevationProviderConfig(zoomLevel = demZoom))
+    }
+
+    @field:CommandLine.Option(
+        names = ["--dem-zoom"],
+        description = [
+            "Web-Mercator zoom for the DEM lookup, 0-15 (default: \${DEFAULT-VALUE}).",
+            "At the default the tiles are ~19 m per pixel at the equator and ~13.5 m at 45N.",
+            "Deeper zooms only carry real detail where the source has a high-resolution model;",
+            "elsewhere they resample, which adds ripple a gain accumulator reads as ascent.",
+        ],
+    )
+    var demZoom: Int = ElevationProviderConfig().zoomLevel
+
+    @field:CommandLine.Option(
+        names = ["--elevation-smooth-window"],
+        description = [
+            "Triangular-kernel half-width in metres for the elevation smoother",
+            "(default: \${DEFAULT-VALUE}). This is the number that decides both the reported",
+            "climbing and the gradients the simulation rides: it costs a clean route ~1.5%",
+            "and a noisy GPS trace ~48%. See docs/guides/elevation.md.",
+        ],
+    )
+    var elevationSmoothWindowM: Double = ElevationStep.DEFAULT_SMOOTH_WINDOW_M
+
+    @field:CommandLine.Option(
+        names = ["--elevation-gain-preset"],
+        description = [
+            "Scale the reported climbing is measured at: raw, barometric, dem, gps",
+            "(default: \${DEFAULT-VALUE}). 'raw' is the unfiltered sum, which over-reports;",
+            "'barometric' and 'gps' are Strava's documented 2 m and 10 m thresholds;",
+            "'dem' is ours, sized for DEM rather than device noise.",
+        ],
+    )
+    var elevationGainPreset: String = EngineConstants.DEFAULT_ELEVATION_GAIN_PRESET.id
+
+    @field:CommandLine.Option(
+        names = ["--elevation-gain-threshold"],
+        description = [
+            "Override the preset's hysteresis dead band, in metres. Climbing has to persist",
+            "for this much before it counts. 0 disables the dead band.",
+        ],
+    )
+    var elevationGainThresholdM: Double? = null
 
     @field:CommandLine.Option(
         names = ["--virtualize"],
@@ -325,7 +374,18 @@ class EnhanceCommand : Callable<Int> {
                     corridor = CorridorMode.byId(corridor),
                     defaultRoadWidthM = roadWidthM,
                 ),
+            elevationGain = elevationGainOptions(),
+            elevationSmoothWindowM = elevationSmoothWindowM,
         )
+
+    /** The preset, with `--elevation-gain-threshold` overriding its dead band when given. */
+    private fun elevationGainOptions(): ElevationGainOptions {
+        val preset = ElevationGainPreset.byId(elevationGainPreset)
+        return ElevationGainOptions(
+            preset = preset,
+            thresholdM = elevationGainThresholdM ?: preset.thresholdM,
+        )
+    }
 
     /**
      * Stamp `--road-width` onto every point when the user actually typed it.
@@ -445,9 +505,12 @@ class EnhanceCommand : Callable<Int> {
 
         if (!quiet) {
             out.println(
-                "  -> ${enhanced.sumOf { it.size }} points, %.1f m, duration %.1f s".format(
+                "  -> ${enhanced.sumOf { it.size }} points, %.1f m, duration %.1f s, gain %.0f m / %.0f m (%s)".format(
                     enhanced.sumOf { it.totalDistance },
                     enhanced.sumOf { it.durationMs } / 1000.0,
+                    enhanced.sumOf { it.reportedElevationGain },
+                    -enhanced.sumOf { it.reportedElevationLoss },
+                    options.elevationGain.preset.id,
                 ),
             )
         }

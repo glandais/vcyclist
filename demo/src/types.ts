@@ -86,7 +86,22 @@ export interface DemoEnhanceOptions {
         corridor: CorridorMode;
         roadWidthM: number;
     };
+    // R27 — how the reported climbing is measured. The preset decides how the summary reads and
+    // nothing else; it carries its own smoothing scale, because a threshold without a scale is
+    // not an answer. See docs/guides/elevation.md.
+    elevationGain: {
+        enabled: boolean;
+        preset: ElevationGainPreset;
+    };
+    // R28 — the PIPELINE's elevation kernel, deliberately not inside `elevationGain`: it decides
+    // the gradients the simulation rides, and the reported climbing is measured before it runs.
+    // The catalog lists `elevationGain.smoothWindowM` as core-only for exactly this reason, and
+    // nesting this one under the same name would read as that field.
+    elevationSmoothWindowM: number;
 }
+
+/** Scale the reported climbing is measured at. Mirrors the engine's `ElevationGainPreset` ids. */
+export type ElevationGainPreset = 'raw' | 'barometric' | 'dem' | 'gps';
 
 /** Where the line is allowed to go. Mirrors the engine's `CorridorMode` wire names. */
 export type CorridorMode = 'lane' | 'lane-left' | 'full-road';
@@ -203,6 +218,10 @@ export const DEFAULT_CONFIG: Config = {
         curvature: { enabled: true },
         // 6 m is RacingLineOptions.defaultRoadWidthM — two 3 m lanes. Not a demo-local guess.
         racingLine: { enabled: false, corridor: 'lane', roadWidthM: 6 },
+        // 'dem' is EngineConstants.DEFAULT_ELEVATION_GAIN_PRESET and 150 is
+        // ElevationStep.DEFAULT_SMOOTH_WINDOW_M. Neither is a demo-local guess.
+        elevationGain: { enabled: true, preset: 'dem' },
+        elevationSmoothWindowM: 150,
     },
     power: {
         type: PowerSourceType.constant,

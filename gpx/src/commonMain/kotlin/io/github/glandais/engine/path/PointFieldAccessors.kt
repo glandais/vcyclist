@@ -226,4 +226,9 @@ internal val POINT_FIELD_ACCESSORS: List<PointFieldAccessor> =
             GeneratedPath::sourceLongitude,
             GeneratedPath::setSourceLongitude,
         ),
+        PointFieldAccessor(
+            PointField.SOURCE_ELEVATION,
+            GeneratedPath::sourceElevation,
+            GeneratedPath::setSourceElevation,
+        ),
     )

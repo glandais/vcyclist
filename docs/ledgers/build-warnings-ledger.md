@@ -129,12 +129,22 @@ w: … Exported declaration uses non-exportable parameter type 'Path'.
 
 | File | Sites | Types involved |
 |---|---|---|
-| `engine/src/jsMain/kotlin/io/github/glandais/engine/EngineJsApi.kt` | 29 | `Path` (20), `Array<Path>` (7), `Promise<Path>` (2) |
+| `engine/src/jsMain/kotlin/io/github/glandais/engine/EngineJsApi.kt` | 34 | `Path` (25), `Array<Path>` (7), `Promise<Path>` (2) |
 | `elevation/src/jsMain/kotlin/io/github/glandais/elevation/ElevationJsApi.kt` | 3 | `ElevationProvider` (3) |
 
-`EngineJsApi.kt` lines: 212, 223, 230, 239, 247, 262, 285, 288, 291, 294, 297, 301, 324, 339, 351,
-353, 478, 480, 507, 540, 547, 562, 578, 594, 612, 641, 645, 716, 724.
+`EngineJsApi.kt` lines: 335, 346, 353, 362, 370, 385, 428, 431, 434, 437, 440, 449, 453, 457, 461,
+465, 496, 520, 535, 537, 790, 792, 819, 851, 858, 873, 889, 905, 923, 952, 956, 1027, 1035, 1142.
 `ElevationJsApi.kt` lines: 73, 89, 100.
+
+**Changed by R27** (2026-08-18): now 34 sites. **Four** are new —
+`pathElevationGainFiltered`, `pathElevationLossFiltered`, `pathReportedElevationGain`,
+`pathReportedElevationLoss` — each taking `Path` exactly as the `pathElevationGain` /
+`pathElevationLoss` pair beside them already did.
+
+The recorded 29 was itself **one site stale**: `develop` had 30 before this branch, so 30 + 4 = 34.
+Worth stating, because this entry exists to make a regression visible and it had already drifted
+without anyone noticing. Every line number also moved, which is the part that rots fastest — the
+count is the claim, the numbers are only an aid.
 
 These are the expected consequence of the opaque-handle façade pattern documented in
 `docs/guides/kotlin-js-jvm-webp.md` — `Path` / `ElevationProvider` cross the JS boundary as opaque

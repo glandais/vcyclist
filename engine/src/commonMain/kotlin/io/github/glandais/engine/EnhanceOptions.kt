@@ -1,5 +1,7 @@
 package io.github.glandais.engine
 
+import io.github.glandais.engine.path.ElevationGainOptions
+import io.github.glandais.engine.path.ElevationStep
 import io.github.glandais.engine.trajectory.CurvatureOptions
 import io.github.glandais.engine.trajectory.RacingLineOptions
 
@@ -59,6 +61,12 @@ data class WPrimeBalanceOptions(
  * @param racingLine optimal-trajectory options. Off by default: enabling it **moves every
  *   coordinate**. When on it supersedes [curvature], since it writes the curvature of the line
  *   actually ridden rather than of the centreline.
+ * @param elevationGain how cumulative ascent is measured — runs last, writes two cached scalars
+ *   and no point. See `docs/guides/elevation.md`.
+ * @param elevationSmoothWindowM triangular-kernel half-width for the elevation smoother, in
+ *   metres. The single largest determinant of both the reported D+ and the gradients the
+ *   simulation rides — it costs `sample.gpx` 1.5 % and `sports-tracker.gpx` 48 % — and it had
+ *   never been measured because no caller could reach it. Ledger row R28.
  */
 data class EnhanceOptions(
     val fixElevation: Boolean = true,
@@ -71,7 +79,15 @@ data class EnhanceOptions(
     val wPrimeBalance: WPrimeBalanceOptions = WPrimeBalanceOptions(),
     val curvature: CurvatureOptions = CurvatureOptions(),
     val racingLine: RacingLineOptions = RacingLineOptions(),
+    val elevationGain: ElevationGainOptions = ElevationGainOptions(preset = EngineConstants.DEFAULT_ELEVATION_GAIN_PRESET),
+    val elevationSmoothWindowM: Double = ElevationStep.DEFAULT_SMOOTH_WINDOW_M,
 ) {
+    init {
+        require(elevationSmoothWindowM > 0.0 && elevationSmoothWindowM.isFinite()) {
+            "elevationSmoothWindowM must be finite and > 0, got $elevationSmoothWindowM"
+        }
+    }
+
     companion object {
         /** All steps enabled with the shipped defaults. */
         val DEFAULT = EnhanceOptions()

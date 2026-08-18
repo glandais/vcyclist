@@ -353,6 +353,27 @@ fun vcPathElevationGain(handle: Int): Double = guardedDouble { requirePath(handl
 @WasmExport
 fun vcPathElevationLoss(handle: Int): Double = guardedDouble { requirePath(handle).elevationLoss }
 
+/**
+ * Ascent with the hysteresis dead band applied, or `NaN` when the stage did not run.
+ *
+ * `NaN` and not an error code: "not measured" is a legal state, not a failure, and the error
+ * codes are negative — which a descent-shaped figure could be mistaken for.
+ */
+@WasmExport
+fun vcPathElevationGainFiltered(handle: Int): Double = guardedDouble { requirePath(handle).elevationGainFiltered }
+
+/** Counterpart of [vcPathElevationGainFiltered]. NEGATIVE by convention, or `NaN`. */
+@WasmExport
+fun vcPathElevationLossFiltered(handle: Int): Double = guardedDouble { requirePath(handle).elevationLossFiltered }
+
+/** The figure to show a human: dead-banded when measured, the raw sum otherwise. */
+@WasmExport
+fun vcPathReportedElevationGain(handle: Int): Double = guardedDouble { requirePath(handle).reportedElevationGain }
+
+/** Counterpart of [vcPathReportedElevationGain]. NEGATIVE by convention. */
+@WasmExport
+fun vcPathReportedElevationLoss(handle: Int): Double = guardedDouble { requirePath(handle).reportedElevationLoss }
+
 /** Latitude of point [i] in **degrees** (the path stores radians). */
 @WasmExport
 fun vcPathLatitudeDeg(
@@ -466,12 +487,13 @@ fun vcEnhance(
 ): Int =
     guarded {
         val path = requirePath(handle)
-        val options = readOptions(optionsJsonLen).toEnhanceOptions()
+        val json = readOptions(optionsJsonLen)
+        val options = json.toEnhanceOptions()
         WasiAbi.register(
             runSynchronously {
                 Enhancer.enhanceCourseDefault(
                     path,
-                    elevationProvider = elevationProviderFor(options),
+                    elevationProvider = elevationProviderFor(options, json.demZoomOrNull()),
                     options = options,
                 )
             },
@@ -499,7 +521,8 @@ fun vcEnhanceWithCourse(
         val path = requirePath(handle)
         val payload = readOptions(payloadJsonLen)
         payload?.requireOnly(setOf("cyclist", "bike", "wind", "power", "options"))
-        val options = payload?.obj("options").toEnhanceOptions()
+        val optionsJson = payload?.obj("options")
+        val options = optionsJson.toEnhanceOptions()
         val course =
             CoursePhysics(
                 course =
@@ -514,7 +537,9 @@ fun vcEnhanceWithCourse(
                 cyclistPowerProvider = payload?.obj("power").toCyclistPowerProvider(),
             )
         WasiAbi.register(
-            runSynchronously { Enhancer.enhanceCourse(course, options, elevationProviderFor(options)) },
+            runSynchronously {
+                Enhancer.enhanceCourse(course, options, elevationProviderFor(options, optionsJson.demZoomOrNull()))
+            },
         )
     }
 
@@ -529,8 +554,21 @@ fun vcEnhanceWithCourse(
  * Allocating a provider only when asked matches the JS façade, and keeps the tile cache out of
  * the way of hosts that never fix elevations.
  */
-private fun elevationProviderFor(options: EnhanceOptions): ElevationProvider? =
-    if (options.fixElevation) ElevationProvider(elevationConfig, fetcher = hostTileFetcher()) else null
+private fun elevationProviderFor(
+    options: EnhanceOptions,
+    demZoom: Int? = null,
+): ElevationProvider? = if (options.fixElevation) ElevationProvider(elevationConfigFor(demZoom), fetcher = hostTileFetcher()) else null
+
+/**
+ * [elevationConfig], with `demZoom` overriding its zoom for one call.
+ *
+ * Extracted so it can be pinned: an accepted key is not a used key, and `requireOnly` only proves
+ * the reader tolerates `demZoom` — `vcWriteGpxTracks` accepted `trackName` and dropped it for four
+ * tasks under exactly that kind of green test. The override is per-call on purpose: it must not
+ * mutate the sticky config a host set with [vcSetElevationConfig].
+ */
+internal fun elevationConfigFor(demZoom: Int?): ElevationProviderConfig =
+    if (demZoom == null) elevationConfig else elevationConfig.copy(zoomLevel = demZoom)
 
 // ── Elevation, served by the host ────────────────────────────────────────────────────────────
 

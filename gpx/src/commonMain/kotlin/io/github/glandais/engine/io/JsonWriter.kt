@@ -87,6 +87,12 @@ object JsonWriter {
         sb.append(',').append(nl)
         appendKeyValueRaw(sb, inner, "elevationLoss", numberOrNull(path.elevationLoss, decimals), colon)
         sb.append(',').append(nl)
+        // The dead-banded figures. `null` when the stage did not run — numberOrNull maps the NaN
+        // sentinel, so a consumer can tell "not measured" from "flat".
+        appendKeyValueRaw(sb, inner, "elevationGainFiltered", numberOrNull(path.elevationGainFiltered, decimals), colon)
+        sb.append(',').append(nl)
+        appendKeyValueRaw(sb, inner, "elevationLossFiltered", numberOrNull(path.elevationLossFiltered, decimals), colon)
+        sb.append(',').append(nl)
         appendKeyRaw(sb, inner, "units", colon)
         sb.append('{').append(nl)
         val innerUnits = inner + indent

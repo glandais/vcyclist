@@ -2,6 +2,9 @@
 
 package io.github.glandais.engine
 
+import io.github.glandais.engine.path.ElevationGainOptions
+import io.github.glandais.engine.path.ElevationGainPreset
+import io.github.glandais.engine.path.ElevationStep
 import io.github.glandais.engine.path.Path
 import io.github.glandais.engine.physics.AeroProvider
 import io.github.glandais.engine.physics.CyclistPowerProvider
@@ -65,6 +68,9 @@ fun enhanceOptions(
     wPrimeBalance: WPrimeBalanceOptions = WPrimeBalanceOptions(),
     curvature: CurvatureOptions = CurvatureOptions(),
     racingLine: RacingLineOptions = RacingLineOptions(),
+    elevationGain: ElevationGainOptions =
+        ElevationGainOptions(preset = EngineConstants.DEFAULT_ELEVATION_GAIN_PRESET),
+    elevationSmoothWindowM: Double = ElevationStep.DEFAULT_SMOOTH_WINDOW_M,
 ): EnhanceOptions =
     EnhanceOptions(
         fixElevation,
@@ -75,7 +81,22 @@ fun enhanceOptions(
         wPrimeBalance,
         curvature,
         racingLine,
+        elevationGain,
+        elevationSmoothWindowM,
     )
+
+/**
+ * Factory for [ElevationGainOptions]. `preset` is spelled as its [ElevationGainPreset], not as a
+ * string: a Java caller gets the same compile-time catalogue the `when` in `commonMain` gives
+ * Kotlin.
+ */
+@JvmOverloads
+fun elevationGainOptions(
+    enabled: Boolean = true,
+    preset: ElevationGainPreset = EngineConstants.DEFAULT_ELEVATION_GAIN_PRESET,
+    thresholdM: Double = preset.thresholdM,
+    smoothWindowM: Double = preset.smoothWindowM,
+): ElevationGainOptions = ElevationGainOptions(enabled, preset, thresholdM, smoothWindowM)
 
 @JvmOverloads
 fun simplifyPathOptions(

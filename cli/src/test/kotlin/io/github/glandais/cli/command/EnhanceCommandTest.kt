@@ -6,8 +6,11 @@ import io.github.glandais.cli.RootCommand
 import io.github.glandais.elevation.ElevationProvider
 import io.github.glandais.elevation.ElevationProviderConfig
 import io.github.glandais.elevation.RawTile
+import io.github.glandais.engine.EngineConstants
 import io.github.glandais.engine.gpx.GpxParser
 import io.github.glandais.engine.gpx.tracksAsPaths
+import io.github.glandais.engine.path.ElevationGainPreset
+import io.github.glandais.engine.path.ElevationStep
 import io.github.glandais.engine.trajectory.CorridorMode
 import io.github.glandais.engine.trajectory.CurvatureOptions
 import io.github.glandais.engine.trajectory.RacingLineOptions
@@ -19,6 +22,7 @@ import kotlin.test.AfterTest
 import kotlin.test.Test
 import kotlin.test.assertContains
 import kotlin.test.assertEquals
+import kotlin.test.assertFailsWith
 import kotlin.test.assertNotEquals
 import kotlin.test.assertTrue
 
@@ -218,6 +222,69 @@ class EnhanceCommandTest {
         // Elevation correction is off unless asked: a CLI should not reach the network silently.
         assertEquals(false, parsed().pipelineOptions().fixElevation)
         assertEquals(true, parsed("--fix-elevation").pipelineOptions().fixElevation)
+    }
+
+    @Test
+    fun `case 06d — the elevation flags resolve to the engine's own defaults`() {
+        fun parsed(vararg args: String): EnhanceCommand = EnhanceCommand().also { CommandLine(it).parseArgs("in.gpx", *args) }
+
+        // Defaults come from the engine, never spelled again here.
+        assertEquals(
+            EngineConstants.DEFAULT_ELEVATION_GAIN_PRESET,
+            parsed().pipelineOptions().elevationGain.preset,
+        )
+        assertEquals(
+            ElevationStep.DEFAULT_SMOOTH_WINDOW_M,
+            parsed().pipelineOptions().elevationSmoothWindowM,
+        )
+        assertEquals(ElevationProviderConfig().zoomLevel, parsed().demZoom)
+
+        assertEquals(
+            ElevationGainPreset.GPS,
+            parsed("--elevation-gain-preset", "gps").pipelineOptions().elevationGain.preset,
+        )
+        // Choosing a preset takes ITS dead band, not the default preset's.
+        assertEquals(10.0, parsed("--elevation-gain-preset", "gps").pipelineOptions().elevationGain.thresholdM)
+        // An explicit threshold beats the preset's, and 0 is a legal "no dead band".
+        assertEquals(
+            0.0,
+            parsed("--elevation-gain-preset", "gps", "--elevation-gain-threshold", "0")
+                .pipelineOptions()
+                .elevationGain
+                .thresholdM,
+        )
+        assertEquals(50.0, parsed("--elevation-smooth-window", "50").pipelineOptions().elevationSmoothWindowM)
+
+        assertFailsWith<IllegalArgumentException> { parsed("--elevation-gain-preset", "strava").pipelineOptions() }
+    }
+
+    @Test
+    fun `case 06e — the reported climbing is below the raw sum and the preset decides by how much`() {
+        val input = gpxFixture()
+
+        fun gainOf(vararg extra: String): Double {
+            val json = File(work, "g${extra.joinToString("").hashCode()}.json")
+            assertEquals(0, run("enhance", input.path, "--json", json.path, *extra).code)
+            val text = json.readText()
+            val key = "\"elevationGainFiltered\":"
+            val from = text.indexOf(key) + key.length
+            val to = text.indexOfFirst(from) { it == ',' || it == '}' || it == '\n' }
+            return text.substring(from, to).trim().toDouble()
+        }
+
+        val raw = gainOf("--elevation-gain-preset", "raw")
+        val dem = gainOf("--elevation-gain-preset", "dem")
+        val gps = gainOf("--elevation-gain-preset", "gps")
+        assertTrue(dem <= raw + 1e-9, "dem ($dem) should not exceed raw ($raw)")
+        assertTrue(gps <= dem + 1e-9, "gps ($gps) should not exceed dem ($dem)")
+    }
+
+    private inline fun String.indexOfFirst(
+        from: Int,
+        predicate: (Char) -> Boolean,
+    ): Int {
+        for (i in from until length) if (predicate(this[i])) return i
+        return length
     }
 
     @Test

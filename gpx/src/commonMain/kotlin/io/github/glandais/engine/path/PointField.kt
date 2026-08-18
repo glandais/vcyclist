@@ -306,6 +306,31 @@ enum class PointField(
         anglesInRadians = true,
         nanDefault = true,
     ),
+
+    /**
+     * The elevation this point had before `ElevationStep.smoothElevation`, in metres.
+     *
+     * Same motive as [SOURCE_LATITUDE]: the pipeline's 150 m kernel exists to give the physics
+     * stable gradients, and that is not the profile a *summary* should be read from. It has ~61 m
+     * of effective averaging, inside the band where real terrain lives, so cumulative ascent
+     * measured on it runs systematically low — 632 m against 661 m on `strava.gpx`, 132 m against
+     * 213 m on `stelvio.gpx`. [ElevationGain] reads this field when it is finite so the reported
+     * D+ describes the terrain rather than the filter.
+     *
+     * Written only by the smoothing stage; [nanDefault] means "never smoothed", and readers fall
+     * back to [ELEVATION]. Carried through the resamplers and the simplifier like every other
+     * field, so it survives to the delivered path.
+     *
+     * See `docs/guides/elevation.md` and ledger rows R27–R28.
+     */
+    SOURCE_ELEVATION(
+        "sourceElevation",
+        "meters",
+        "Original elevation before smoothing (m)",
+        PointFieldCategory.ELEVATION,
+        notSelectable = true,
+        nanDefault = true,
+    ),
     ;
 
     /** Field index in the per-point `DoubleArray` slot (== [ordinal]). */
@@ -313,7 +338,7 @@ enum class PointField(
 
     companion object {
         /** Number of fields per point. Single source of truth for codegen (task 11). */
-        const val COUNT: Int = 43
+        const val COUNT: Int = 44
 
         private val byPropMap: Map<String, PointField> = entries.associateBy { it.prop }
 

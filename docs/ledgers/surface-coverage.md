@@ -104,6 +104,9 @@ Légende : ✅ atteignable · ⚠️ partiel (la note dit en quoi) · ❌ absent
 | Configuration DEM (`ElevationProviderConfig`) | ✅ | ❌ | ✅ | ⚠️ sans `tileUrlTemplate` | ✅ | ❌ |
 | `getElevationsAlong` (échantillonnage DEM le long d'un tracé) | ✅ | ❌ | ✅ | ❌ | ✅ [^bridge] | ✅ |
 | `nanDefault` dans le catalogue de champs publié | ✅ | — | ❌ | ❌ | ✅ | ❌ |
+| R27 D+/D− à seuil (`elevationGainPreset`, `elevationGainThresholdM`, `elevationGainEnabled`) | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
+| R28 fenêtre de lissage d'altitude (`elevationSmoothWindowM`) | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
+| R30 zoom du MNT pour le pipeline (`--dem-zoom`, `demZoom`, `vcSetElevationConfig`) | ✅ | ✅ | ✅ | ✅ | ⚠️ [^demzoom] | ❌ [^demzoom] |
 
 [^prec]: **Refermé en S8, avec un changement de comportement du CLI.** Les trois portes résolvaient
     le préréglage elles-mêmes et ne s'accordaient pas : l'explicite gagnait au CLI, le préréglage
@@ -165,6 +168,15 @@ Légende : ✅ atteignable · ⚠️ partiel (la note dit en quoi) · ❌ absent
     aux défauts du moteur, repliés par défaut. Le septième champ, `maxAnalysisPoints`, reste au
     défaut à dessein : un contrôle d'UI pour un garde-fou de performance inviterait l'utilisateur à
     faire geler son onglet.
+[^demzoom]: Le zoom du MNT que le *pipeline* utilise. `EnhanceOptions` ne le porte pas — il
+    configure le fournisseur, pas le pipeline — donc chaque porte le lit là où elle construit son
+    `ElevationProvider` : `--dem-zoom`, la clé `demZoom` du DTO JS, `vcSetElevationConfig` côté WASI.
+    Java a déjà `ElevationProviderJvm.elevationProviderConfig(zoomLevel)` mais rien ne relaie ce
+    fournisseur jusqu'à `enhanceCourse` : ⚠️, pas ✅. La démo n'a pas de contrôle, et **une
+    ré-exportation de shim n'est pas une traversée** : `elevation-shim.ts` expose `zoomLevel` depuis
+    toujours pour l'explorateur d'altitude, mais rien dans l'UI d'analyse GPX ne le règle. R30 est
+    mesuré et rejeté (zoom 12 = résolution native), donc la case reste ❌ sans être une dette.
+
 [^bridge]: **Refermé en S5.** `ElevationProvider` a trois membres `suspend` et seuls deux avaient
     des ponts `Blocking`/`Async` ; celui qui manquait était justement le seul à cinq paramètres par
     défaut, donc littéralement inappelable depuis Java sans écrire une `Continuation` à la main, et
@@ -174,6 +186,8 @@ Légende : ✅ atteignable · ⚠️ partiel (la note dit en quoi) · ❌ absent
 
 R23 (courbure par régression de cap) n'a pas de ligne : c'est un changement d'estimateur, sans
 option d'entrée, donc rien à relayer.
+
+R29 (recalage latéral du MNT) n'a pas de ligne : mesuré, rejeté, rien livré. Voir le ledger.
 
 Les deux champs de sortie (R12, R15) traversent sans travail de façade : `fieldDefinitions()` les
 publie et la démo reconstruit sa liste à l'exécution. **Les champs de sortie ne dérivent pas ; les
@@ -265,6 +279,10 @@ Sans porte CLI, avec la raison :
 | `computeMaxSpeeds` | `computeMaxSpeeds` | ❌ | ✅ | ✅ |
 | `computeOnePointPerSecond` | `computeOnePointPerSecond` | ✅ `--one-point-per-second` | ✅ | ✅ |
 | `curvatureEnabled` | `curvature.enabled` | ✅ `--curvature` | ✅ | ✅ |
+| `elevationGainEnabled` | `elevationGain.enabled` | ❌ | ✅ | ✅ |
+| `elevationGainPreset` | `elevationGain.preset` | ✅ `--elevation-gain-preset` | ✅ | ✅ |
+| `elevationGainThresholdM` | `elevationGain.thresholdM` | ✅ `--elevation-gain-threshold` | ✅ | ✅ |
+| `elevationSmoothWindowM` | `elevationSmoothWindowM` | ✅ `--elevation-smooth-window` | ✅ | ✅ |
 | `fixElevation` | `fixElevation` | ✅ `--fix-elevation` | ✅ | ✅ |
 | `racingLineCorridor` | `racingLine.corridor` | ✅ `--corridor` | ✅ | ✅ |
 | `racingLineEnabled` | `racingLine.enabled` | ✅ `--racing-line` | ✅ | ✅ |
@@ -276,16 +294,18 @@ Sans porte CLI, avec la raison :
 | `wPrimeBalanceCriticalPower` | `wPrimeBalance.criticalPowerW` | ❌ | ✅ | ✅ |
 | `wPrimeBalanceEnabled` | `wPrimeBalance.enabled` | ❌ | ✅ | ✅ |
 | `wPrimeBalanceWPrime` | `wPrimeBalance.wPrimeJ` | ❌ | ✅ | ✅ |
+| `demZoom` | *(préréglage, aucun champ)* | ✅ | ✅ | ✅ |
 
 Sans porte CLI, avec la raison :
 
 - `computeMaxSpeeds` — EnhanceCommand.pipelineOptions() hardcodes it to true; turning the speed ceiling off from a CLI has no use case anybody has asked for.
+- `elevationGainEnabled` — The CLI turns the stage off by asking for the `raw` preset, which reports the same unfiltered sum the stage would otherwise be skipped for. A second spelling of one outcome is worth less than the flag it costs.
 - `simplifyZExaggeration` — The CLI exposes --simplify-tolerance and not the z exaggeration. A gap, not a decision — recorded so it is visible.
 - `wPrimeBalanceCriticalPower` — As wPrimeBalanceEnabled. Note --cyclist-cp configures the POWER MODEL, not this output field.
 - `wPrimeBalanceEnabled` — The CLI has no W-prime-balance flags at all; the field is written with the engine defaults. A gap, recorded.
 - `wPrimeBalanceWPrime` — As wPrimeBalanceEnabled. Note --cyclist-wprime configures the power model, not this output field.
 
-**Cœur seulement** (24 champs) : `curvature.curvatureSmoothWindowM`, `curvature.curvatureWindowsM`, `curvature.geometrySmoothWindowM`, `curvature.headingNoiseRad`, `racingLine.boundEpsilonM`, `racingLine.centeringLengthM`, `racingLine.cornerEnterRadiusM`, `racingLine.cornerExitRadiusM`, `racingLine.curvature`, `racingLine.edgeMarginM`, `racingLine.gentleRadiusM`, `racingLine.gradientTolerance`, `racingLine.hairpinTurnDeg`, `racingLine.maxNewtonIterations`, `racingLine.minCornerLengthM`, `racingLine.minCornerTurnDeg`, `racingLine.objectiveRadiusM`, `racingLine.regularityFactor`, `racingLine.selfProximityGapM`, `racingLine.simplifyToleranceCapM`, `racingLine.steeringLengthM`, `racingLine.straightRadiusM`, `racingLine.straightRunM`, `racingLine.widthSmoothWindowM`. The curvature estimator's tuning. Only `enabled` crosses; the four windows were measured (ledger R23) and no door names them.
+**Cœur seulement** (25 champs) : `curvature.curvatureSmoothWindowM`, `curvature.curvatureWindowsM`, `curvature.geometrySmoothWindowM`, `curvature.headingNoiseRad`, `elevationGain.smoothWindowM`, `racingLine.boundEpsilonM`, `racingLine.centeringLengthM`, `racingLine.cornerEnterRadiusM`, `racingLine.cornerExitRadiusM`, `racingLine.curvature`, `racingLine.edgeMarginM`, `racingLine.gentleRadiusM`, `racingLine.gradientTolerance`, `racingLine.hairpinTurnDeg`, `racingLine.maxNewtonIterations`, `racingLine.minCornerLengthM`, `racingLine.minCornerTurnDeg`, `racingLine.objectiveRadiusM`, `racingLine.regularityFactor`, `racingLine.selfProximityGapM`, `racingLine.simplifyToleranceCapM`, `racingLine.steeringLengthM`, `racingLine.straightRadiusM`, `racingLine.straightRunM`, `racingLine.widthSmoothWindowM`. The curvature estimator's tuning. Only `enabled` crosses; the four windows were measured (ledger R23) and no door names them.
 
 ### `Cyclist`
 

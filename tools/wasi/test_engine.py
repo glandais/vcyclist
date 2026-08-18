@@ -299,6 +299,42 @@ class PipelineParityTest(HostTestCase):
         self.assertRelative(expected["totalElevationGain"], self.host.elevation_gain(enhanced), "elevationGain")
         self.assertRelative(expected["totalElevationLoss"], self.host.elevation_loss(enhanced), "elevationLoss")
 
+    def test_the_dead_banded_gain_crosses_the_abi(self):
+        """R27's four exports. The dead band can only lower the figure, and never below zero."""
+        handle = self.host.parse_gpx(fixtures.gpx_fixture("SAMPLE_GPX"))
+        enhanced = self.host.enhance(handle, fixtures.PARITY_OPTIONS)
+
+        raw = self.host.elevation_gain(enhanced)
+        filtered = self.host.elevation_gain_filtered(enhanced)
+        reported = self.host.reported_elevation_gain(enhanced)
+
+        self.assertFalse(math.isnan(filtered), "the elevationGain stage did not run")
+        self.assertLessEqual(filtered, raw + 1e-6, "the dead band cannot add climbing")
+        self.assertGreaterEqual(filtered, 0.0)
+        self.assertAlmostEqual(reported, filtered, places=6, msg="reported should be the filtered figure")
+        self.assertLessEqual(self.host.reported_elevation_loss(enhanced), 0.0, "loss is negative by convention")
+
+    def test_disabling_the_gain_stage_leaves_nan_and_the_raw_fallback(self):
+        """`NaN` is the wire form of "not measured" — it must not read as "flat"."""
+        handle = self.host.parse_gpx(fixtures.gpx_fixture("SAMPLE_GPX"))
+        options = dict(fixtures.PARITY_OPTIONS)
+        options["elevationGainEnabled"] = False
+        enhanced = self.host.enhance(handle, options)
+
+        self.assertTrue(math.isnan(self.host.elevation_gain_filtered(enhanced)))
+        self.assertAlmostEqual(
+            self.host.reported_elevation_gain(enhanced),
+            self.host.elevation_gain(enhanced),
+            places=6,
+        )
+
+    def test_an_unknown_gain_preset_is_refused(self):
+        handle = self.host.parse_gpx(fixtures.gpx_fixture("SAMPLE_GPX"))
+        options = dict(fixtures.PARITY_OPTIONS)
+        options["elevationGainPreset"] = "strava"
+        with self.assertRaises(Exception):
+            self.host.enhance(handle, options)
+
     def test_sample_fixture_matches_the_jvm_references(self):
         self._check("SAMPLE_GPX", "SAMPLE")
 

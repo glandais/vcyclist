@@ -31,6 +31,7 @@ abstract class GeneratedPath(
             data[i * PointField.COUNT + 40] = Double.NaN // lateralOffset
             data[i * PointField.COUNT + 41] = Double.NaN // sourceLatitude
             data[i * PointField.COUNT + 42] = Double.NaN // sourceLongitude
+            data[i * PointField.COUNT + 43] = Double.NaN // sourceElevation
         }
     }
 
@@ -434,5 +435,14 @@ abstract class GeneratedPath(
         v: Double,
     ) {
         data[i * PointField.COUNT + 42] = v
+    }
+
+    fun sourceElevation(i: Int): Double = data[i * PointField.COUNT + 43]
+
+    fun setSourceElevation(
+        i: Int,
+        v: Double,
+    ) {
+        data[i * PointField.COUNT + 43] = v
     }
 }

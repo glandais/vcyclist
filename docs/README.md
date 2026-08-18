@@ -22,6 +22,7 @@ and is never updated to match the code.
 | [`guides/using-from-java.md`](guides/using-from-java.md) | How Java calls a Kotlin-first, `suspend`-heavy API: the `…Jvm` facades, `…Blocking` / `…Async` |
 | [`guides/using-from-javascript.md`](guides/using-from-javascript.md) | The whole JS / TypeScript façade — parsing, `enhance` vs `enhanceWithCourse`, exports, climbs, DEM |
 | [`guides/racing-line.md`](guides/racing-line.md) | What the optimal-line stage does, what it costs, why it is off by default |
+| [`guides/elevation.md`](guides/elevation.md) | Where altitudes come from, what the 150 m kernel costs, how Strava computes D+ and why ours cannot match |
 | [`guides/publishing.md`](guides/publishing.md) | Release flow — semantic-release, Maven Central, npm |
 | [`guides/kotlin-js-jvm-webp.md`](guides/kotlin-js-jvm-webp.md) | Kotlin/JS ↔ JS interop patterns behind the `@JsExport` façades, and WebP decoding per target |
 | [`guides/kotlin-wasm-wasi.md`](guides/kotlin-wasm-wasi.md) | How the `wasmWasi` target is built and what it can reach |

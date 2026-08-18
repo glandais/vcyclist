@@ -1,6 +1,7 @@
 package io.github.glandais.engine
 
 import io.github.glandais.elevation.ElevationProvider
+import io.github.glandais.engine.path.ElevationGain
 import io.github.glandais.engine.path.ElevationStep
 import io.github.glandais.engine.path.Path
 import io.github.glandais.engine.path.PathSimplifier
@@ -121,7 +122,7 @@ object Enhancer {
         path = PointPerDistance.compute(path, minDistanceM = 1.0, maxDistanceM = 2.0)
 
         // Step 1d : smooth elevations (always runs).
-        path = ElevationStep.smoothElevation(path)
+        path = ElevationStep.smoothElevation(path, options.elevationSmoothWindowM)
 
         // Step 1e : curvature, or the racing line.
         //
@@ -182,6 +183,17 @@ object Enhancer {
                     tolerance,
                     options.simplifyPath.zExaggeration,
                 )
+        }
+
+        // Step 6 : cumulative ascent with a dead band. Annotation only — writes two cached scalars
+        // on the path and touches no point.
+        //
+        // Last, after simplification, so the figure describes the file the caller receives:
+        // Douglas-Peucker drops points, which moves the raw sum, and a summary that disagrees with
+        // its own trace is worse than no summary. It reads `sourceElevation`, so simplifying does
+        // not cost it the pre-smoothing profile either.
+        if (options.elevationGain.enabled) {
+            ElevationGain.annotate(path, options.elevationGain)
         }
 
         return path

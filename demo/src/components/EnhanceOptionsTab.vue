@@ -40,6 +40,40 @@ const updateRacingLineField = <K extends keyof DemoEnhanceOptions['racingLine']>
     });
 };
 
+const updateElevationGainField = <K extends keyof DemoEnhanceOptions['elevationGain']>(
+    field: K,
+    value: DemoEnhanceOptions['elevationGain'][K]
+) => {
+    emit('update:modelValue', {
+        ...props.modelValue,
+        elevationGain: { ...props.modelValue.elevationGain, [field]: value },
+    });
+};
+
+const elevationGainItems = [
+    {
+        value: 'dem',
+        label: 'DEM (3 m)',
+        description: "Ours. Sized for a digital elevation model's error, not a device's.",
+    },
+    {
+        value: 'barometric',
+        label: 'Barometric (2 m)',
+        description: "Strava's threshold for a device with a barometric altimeter.",
+    },
+    {
+        value: 'gps',
+        label: 'GPS (10 m)',
+        description: "Strava's threshold for a GPS-only trace. Reports 0 on gentle terrain.",
+    },
+    {
+        value: 'raw',
+        label: 'Raw sum',
+        description:
+            'No dead band. Over-reports: every wiggle counts, so finer sampling climbs more.',
+    },
+];
+
 const corridorItems = [
     {
         value: 'lane',
@@ -243,6 +277,44 @@ const updateWPrimeField = <K extends keyof DemoEnhanceOptions['wPrimeBalance']>(
                     road, the corridor and the chosen line together so the difference is visible.
                 </p>
             </div>
+        </div>
+
+        <div class="mb-8 pt-6 border-t-2 border-gray-200">
+            <h4 class="text-lg font-semibold text-gray-700 mb-4">Elevation</h4>
+
+            <SliderInput
+                :model-value="modelValue.elevationSmoothWindowM"
+                @update:model-value="updateField('elevationSmoothWindowM', $event)"
+                label="Elevation Smoothing"
+                unit="m"
+                :min="10"
+                :max="300"
+                :step="10"
+                tooltip="Triangular-kernel half-width. This decides both the reported climbing and the gradients the simulation rides: it costs a clean route ~1.5% and a noisy GPS trace ~48%."
+            />
+
+            <label class="block font-medium text-gray-800 text-base mb-3 mt-6">
+                Reported climbing:
+            </label>
+            <URadioGroup
+                name="elevationGainPreset"
+                variant="card"
+                :items="elevationGainItems"
+                :modelValue="modelValue.elevationGain.preset"
+                @update:modelValue="
+                    updateElevationGainField(
+                        'preset',
+                        $event as DemoEnhanceOptions['elevationGain']['preset']
+                    )
+                "
+            />
+
+            <p class="text-gray-700 text-sm mt-4 mb-0">
+                Total climbing is not a property of a route — it is a property of a route
+                <em>and</em> a measurement scale, the way coastline length is. The dead band above
+                sets how far the ground has to rise before it counts; the smoothing slider sets the
+                scale, and it is by far the larger of the two effects.
+            </p>
         </div>
 
         <div class="mb-8 pt-6 border-t-2 border-gray-200">

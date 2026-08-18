@@ -60,7 +60,7 @@ class DoorKeyParityTest {
 
     private val dtos =
         listOf(
-            Dto("EnhanceOptionsDto", "ENHANCE_OPTIONS_KEYS", "ENHANCE_KEYS", 14),
+            Dto("EnhanceOptionsDto", "ENHANCE_OPTIONS_KEYS", "ENHANCE_KEYS", 19),
             Dto("CyclistDto", "CYCLIST_KEYS", "CYCLIST_KEYS", 7),
             Dto("BikeDto", "BIKE_KEYS", "BIKE_KEYS", 6),
             Dto("WindDto", "WIND_KEYS", "WIND_KEYS", 2),

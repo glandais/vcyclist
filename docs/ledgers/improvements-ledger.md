@@ -9,6 +9,9 @@ the narrative synthesis, and where the two disagree the disagreement is stated e
 entry (R7, R12, R19, R21).
 
 - Date of assessment: 2026-08-17
+- Addendum 2026-08-18: **R27–R30** (elevation and cumulative ascent, section F) — sourced from
+  Strava's elevation documentation and Kollár (arXiv 1011.4778), not from `docs/research/`.
+  **R27 and R28 shipped**; R29 and R30 measured and rejected, R30's door shipped anyway.
 - Assessed against: `develop` @ `0f979af`
 - Shipped since: **R15** (W′bal output field), **R12** (`pBrake`), **R9** (`RoadCondition`),
   **R17** (`PowerProviderDurability`), **R10** (pedal-strike cut-off),
@@ -73,10 +76,20 @@ deliberately skipped. The matrix lives in
 | R24 | Racing line (optimal trajectory through corners) | Low (measured) | High | ✅ (opt-in) |
 | R25 | Time-weighted racing-line objective (IRLS toward `∫√κ ds`) | Negative (measured) | Medium | ❌ |
 | R26 | Road width from the OSM `highway` class | Negligible (measured) | Low | ✅ (shipped, ~0 effect) |
+| R27 | **Hysteresis dead band on cumulative ascent** | Med (measured) | Low | ✅ |
+| R28 | **Elevation smoothing scale as an option** | **High (measured, 17 % on a switchback climb)** | Low | ✅ (default unchanged) |
+| R29 | DEM road-snapping corridor (Strava's basemap idea) | **None (measured)** | High | ❌ |
+| R30 | DEM zoom above 12 | Negligible (measured) | Very low | ❌ (door shipped) |
 
 Recommended order if acted on: ~~R15 → R12 → R9 → R17 → R10 → R18 → R16 → R11 → R19 → R23 → R24~~ —
 **all shipped**. Left: **R14** (posture CdA) and **R20** (RPE / Hazard Score), both deferred on
 evidence rather than effort.
+
+**R27–R30 have a different provenance** and are marked as such: they come from Strava's published
+elevation documentation and from Kollár's scale-dependence paper, not from `docs/research/`. They
+are tracked here because this file is the project's improvement surface, and because R28 is the
+control variable for the other three. The measurements behind them are in
+[`../guides/elevation.md`](../guides/elevation.md).
 
 ## A. Mechanical layer — closed
 
@@ -957,7 +970,189 @@ after.
 Do not implement the three refuted constructs: summated HS ↔ session RPE (0–3), RPE rate-of-rise
 predicting TTE (1–2), RPE linear in elapsed time (0–3).
 
-## F. Cross-cutting notes
+## F. Elevation and cumulative ascent
+
+Provenance: Strava's [Elevation](https://support.strava.com/en-us/articles/15401909-elevation),
+[Elevation FAQs](https://support.strava.com/en-us/articles/15402093-elevation-on-strava-faqs) and
+[Elevation Basemap](https://support.strava.com/hc/en-us/articles/115000024864-Strava-s-Elevation-Basemap)
+articles; GoldenCheetah's shipped hysteresis default; Kollár, *[Evaluating cumulative ascent:
+mountain biking meets Mandelbrot](https://arxiv.org/abs/1011.4778)*. Measurements and the full
+argument live in [`../guides/elevation.md`](../guides/elevation.md); reproduce with
+`python3 tools/elevation/dplus_scale.py demo/public/gpx/*.gpx`.
+
+**The finding that orders this whole section**: the dead band and the smoothing kernel attack the
+same noise, and the kernel wins. On `strava.gpx` the band alone takes D+ from 1066 m to 661 m, the
+150 m kernel alone takes it to 632 m, and applying both changes nothing further — after smoothing,
+*every* band from 0 to 10 m returns the same number. Strava's headline 2 m / 10 m thresholds are a
+guard rail; the smoothing scale is the mechanism. So **R28 is the load-bearing row**, and R27 is
+what makes the *unsmoothed* figure defensible.
+
+### R27 — Hysteresis dead band on cumulative ascent ✅
+
+`Path.computeDerivedData` sums every positive delta with no dead band, and it re-runs after every
+pipeline stage, so `elevationGain` on a raw input and on a delivered path are different quantities
+under one name. On `strava.gpx` the input figure is **1066 m** for a ride whose own barometric
+stream measures 634 m at a stated scale. That inflated number is what `EnhanceCommand` printed and
+what `PathToFit` wrote as FIT `totalAscent`.
+
+- **Algorithm**: a turning-point accumulator, not a per-delta filter. A leg is banked once, in full,
+  when the profile reverses by the threshold. Per-delta filtering is the tempting one-liner and it
+  is wrong — on a smooth 500 m climb sampled at 2 m it reports zero.
+- **Placement**: beside `elevationGain`, never replacing it. `ClimbDetector` sizes its adaptive
+  threshold from the raw sum (`ClimbDetector.kt:67`, and `clamp(gain/50, 10, 50)` at ~line 240);
+  redefining the field would have silently retuned climb detection on every route. `Path` gained
+  `elevationGainFiltered` / `elevationLossFiltered` (NaN when unmeasured) and
+  `reportedElevationGain` / `reportedElevationLoss`, which fall back to the raw sum.
+- **Threshold**: 3.0 m. DEM error is spatially correlated rather than white — consecutive points
+  inside one ~13.5 m cell interpolate the same four posts — so Strava's 10 m, sized for
+  GPS-altimeter white noise, is an unjustified haircut: `garmin.gpx`, 6 m of genuine undulation
+  over 3.9 km, reports **0 m** at that preset. But DEM error is not zero either. 3.0 m is
+  GoldenCheetah's default and the only independent prior-art value derived from corrected rather
+  than device elevation. **A defensible starting point, not a measured optimum.**
+- **Cost**: O(n), branch-only, no allocation, run once at the end of the pipeline.
+
+**Measured** — `MEASURE=1 ./gradlew :engine:jvmTest --tests '*ElevationGainMeasurementTest*'`.
+D+ in metres by profile and preset (`source` = densified, before the 150 m kernel):
+
+| Fixture | profile | raw | barometric | dem | gps |
+|---|---|---|---|---|---|
+| `strava` (21 km, 1 Hz baro) | source | **1007** | 643 | **637** | 633 |
+| | smoothed | 632 | 632 | 632 | 631 |
+| `sports-tracker` (12 km, GPS altitude) | source | **1278** | 1234 | **1088** | 907 |
+| | smoothed | 655 | 649 | 641 | 628 |
+| `stelvio` (3.6 km, DEM switchbacks) | source | 222 | 197 | **173** | 139 |
+| `sample` (130 km, clean DEM route) | source | 4551 | 4511 | **4501** | 4459 |
+| `garmin` (3.9 km, flat) | source | 6 | 6 | **6** | **0** |
+
+Two things this settles. The dead band earns its place on the *source* profile — 1007 → 637 on
+`strava.gpx`, a 37 % correction — and it is nearly a no-op once the 150 m kernel has run, which is
+why R28's window and not this threshold is the load-bearing choice. And Strava's 10 m preset is
+measurably destructive on gentle terrain, which is the argument for `dem` over a literal copy of
+their number.
+
+### R28 — Elevation smoothing scale as an option ✅ (default unchanged)
+
+`ElevationStep.DEFAULT_SMOOTH_WINDOW_M = 150.0` was hard-coded, unconditional, and reachable from
+no door — while being the largest single determinant of the gradients the simulation rides. It has
+now been exposed as `EnhanceOptions.elevationSmoothWindowM` on all four surfaces, and **measured**.
+
+What 150 m removes from the *profile*, against no smoothing at all:
+
+| Fixture | unsmoothed | @150 m | change |
+|---|---|---|---|
+| `sample.gpx` (130 km, clean DEM route) | 4551 | 4484 | −1.5 % |
+| `strava.gpx` (21 km, 1 Hz barometric) | 1066 | 632 | −41 % |
+| `stelvio.gpx` (3.6 km, DEM switchbacks) | 222 | 132 | −41 % |
+| `sports-tracker.gpx` (12 km, GPS altitude) | 1278 | 668 | −48 % |
+
+What it is worth **on the clock**, which is the number that matters now that D+ is measured on
+`sourceElevation` and is therefore independent of this window (CLI, `--no-simplify`, defaults):
+
+| Window | `stelvio` | `strava` | `sample` |
+|---|---|---|---|
+| 10 m | 693 s | 2918 s | 19 575 s |
+| 50 m | 637 s | 2907 s | 19 562 s |
+| **150 m** (shipped) | **594 s** | **2899 s** | **19 508 s** |
+| 300 m | 571 s | 2888 s | 19 411 s |
+
+**17.6 % on `stelvio.gpx` between 10 m and 300 m**, against 1.0 % on `strava` and 0.8 % on
+`sample`. The whole effect lives on switchback terrain, where a DEM cell averages the road with the
+hillside it is cut into and the sampled profile oscillates as the road traverses. Some of what the
+kernel removes there is artefact and some is real climbing, and **nothing distinguishes them without
+ground truth** — which is precisely why the default does not move on the strength of this table.
+What changed is that it is now a claim someone can falsify rather than a constant nobody could see.
+
+A 150 m triangular half-width has an effective averaging length of `150/√6 ≈ 61 m`, inside the
+30–300 m band where Kollár measures real terrain — so D+ read off the physics profile runs
+systematically low, which is why R27 smooths its own copy at its own ~30 m scale.
+
+### R29 — DEM road-snapping corridor ❌ (measured)
+
+Strava's basemap "looks up the elevation for the road or trail you were actually on". It works
+because it is built from real barometric traces recorded on the road; vcyclist would be snapping
+within a single DEM. R30 gave this row its target: with `--fix-elevation`, `strava.gpx` reports
+**854 m** where its own barometric stream measures 634 m, and z12/z15 agreeing to 0.8 % rules out
+resolution — leaving *where along the road the DEM is sampled* as the remaining hypothesis.
+
+**Measured before writing a solver.** `RoadSnapProbeTest` samples the real DEM at seven lateral
+offsets across a ±15 m corridor (the GPS-error scale, not the lane scale), at the ~30 m station
+spacing `fixElevation` sees, and reports D+ and mean `|second difference|` — the roughness a
+snapper would minimise:
+
+| offset | `stelvio` D+ | `stelvio` roughness | `strava` D+ | `strava` roughness |
+|---|---|---|---|---|
+| −15 m | 189 | 1.494 | 926 | 1.686 |
+| −5 m | 132 | 0.980 | 872 | 0.664 |
+| **0 m** | **131** | **0.873** | **861** | **0.233** |
+| +5 m | 132 | 0.897 | 861 | 0.662 |
+| +15 m | 177 | 1.266 | 899 | 1.671 |
+
+**The recorded line is already the roughness minimum of its own corridor**, on both fixtures, and
+roughness rises near-symmetrically with `|offset|` — a factor of 2.8 at ±15 m on `strava`. A
+roughness-minimising snapper would therefore choose the centre everywhere: it has nowhere better to
+go. D+ rises monotonically with `|offset|` too, so every lateral move makes both numbers worse.
+
+Two corollaries worth keeping:
+
+- **The 35 % over-report is not a registration error.** No point in the ±15 m corridor is closer to
+  the barometric 634 m than the centre's 861 m; they are all further away. It is the model, or the
+  scale at which a 30 m DEM can represent a graded road at all — neither of which a lookup
+  strategy fixes.
+- **The naive per-station rule is not merely useless, it is destructive.** Choosing the locally
+  smoothest offset independently per station gives roughness 9.325 against the centre's 0.233 on
+  `strava` (D+ 957) — the offset track goes jagged and the profile inherits it. That is the shape
+  every "pick the best offset here" rule has before a smoothness penalty is added, and it is why
+  the design called for a DP rather than a per-station `min` or `median`.
+
+**Prediction and outcome.** The a-priori argument in this row was that a ±3 m *lane* corridor is
+sub-pixel at ~13.5 m posts and therefore meaningless. That part holds — ±5 m moves `stelvio` by
+1 m. But the reasoning did **not** extend to the ±15 m GPS-error corridor, where a lateral move
+changes individual elevations by up to 14 m: the corridor is far from sub-pixel, and the idea
+failed for a different and better reason than the one predicted. Recorded here because the wrong
+argument for a right answer is the kind of thing that gets re-derived.
+
+The design, if the tile source ever changes enough to reopen this: reuse `LocalFrame.project` for
+the frame and `Corridor`'s self-proximity clamp (out-and-backs and switchbacks must not snap two
+physically adjacent stations to the same offset), sample K ≈ 7 offsets per station (K×
+interpolations but ~1× network — the offsets share tiles and `BatchCalculator` groups by tile key),
+and choose by dynamic programming on a second-difference roughness term plus a `(k_i − k_{i−1})²`
+smoothness term and a `k_i²` prior toward the recorded trace. It must live in `:engine`: `Corridor`
+and `LocalFrame` are `internal` to the `trajectory` package. Not built — R25 is the precedent for
+writing the measurement down instead.
+
+### R30 — DEM zoom above 12 ❌ (the door shipped anyway)
+
+`ElevationProvider` validates `zoomLevel in 0..15`; that is a validation bound, and
+`map/.../MapSpace.kt:30`'s comment that the DEM source "has no deeper tiles" is unsourced. Both are
+wrong about mapterhorn: `tiles.mapterhorn.com` serves 200s at z13, z14 **and** z15, and its
+`tiles.json` declares neither `minzoom` nor `maxzoom`. Availability is not resolution, though —
+mapterhorn is a fused global product (Copernicus 30 m worldwide, national high-resolution models
+only where they exist), so above the source's native posting a deeper zoom is resampling.
+
+**Measured** (CLI, `--fix-elevation --dem-zoom Z --no-simplify`):
+
+| Fixture | z12 | z13 | z14 | z15 |
+|---|---|---|---|---|
+| `stelvio` (Alps) D+ | 131 m | 130 m | 130 m | 130 m |
+| `stelvio` duration | 568 s | 568 s | 568 s | 568 s |
+| `strava` (Pyrenees) D+ | 854 m | — | 851 m | — |
+
+**0.8 % of spread on D+ and none at all on the clock.** Zoom 12 is at the source's native
+resolution in both regions; going deeper costs four times the tiles for interpolation ripple. The
+default stays at 12 and the row closes.
+
+The door shipped regardless (`--dem-zoom`, `demZoom`, `vcSetElevationConfig`), because without it
+this table could not have been produced from any surface — the CLI's `--zoom` is `ExportCommand`'s
+*map* zoom and `Enhancer` built its provider with defaults.
+
+**A finding worth more than the row.** With `--fix-elevation` on, `strava.gpx` reports **854 m**
+where its own barometric stream measures 634 m — the DEM inflates mountain climbing by **35 %**.
+That is the failure mode Strava's own documentation admits ("in some regions the underlying
+elevation basemap data is poor, resulting in inflated elevation totals"), and it is a far larger
+error than anything R27 or R30 addresses. R29 attacked it and failed: the recorded line is already
+the smoothest place in its own corridor, so the gap is the model rather than where it is sampled.
+
+## G. Cross-cutting notes
 
 - **A unit inconsistency.** `PointField.ELAPSED` and `DT` declare **ms**, and
   `VirtualizeService` writes ms — but `Path.computeDerivedData` rewrites both in **seconds**

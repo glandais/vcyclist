@@ -386,6 +386,74 @@ class EngineJsApiLedgerTest {
             }
         }
 
+    // ── R27/R28 — the elevation door ─────────────────────────────────────────────────────────
+
+    @Test
+    fun `the elevation gain preset reaches the JS door and orders the answers`() =
+        runTest {
+            suspend fun gainWith(options: EnhanceOptionsDto?): Double {
+                val path = enhanceWithCourse(parseGpx(straightHill()), null, null, null, null, options).await()
+                return pathReportedElevationGain(path)
+            }
+
+            val raw = gainWith(js("({ elevationGainPreset: 'raw' })").unsafeCast<EnhanceOptionsDto>())
+            val dem = gainWith(js("({ elevationGainPreset: 'dem' })").unsafeCast<EnhanceOptionsDto>())
+            val gps = gainWith(js("({ elevationGainPreset: 'gps' })").unsafeCast<EnhanceOptionsDto>())
+
+            assertTrue(dem <= raw + 1e-9, "dem ($dem) must not exceed raw ($raw)")
+            assertTrue(gps <= dem + 1e-9, "gps ($gps) must not exceed dem ($dem)")
+
+            // Turning the stage off leaves the reported figure as the path's own raw sum, and the
+            // filtered one absent rather than zero.
+            val off =
+                enhanceWithCourse(
+                    parseGpx(straightHill()),
+                    null,
+                    null,
+                    null,
+                    null,
+                    js("({ elevationGainEnabled: false })").unsafeCast<EnhanceOptionsDto>(),
+                ).await()
+            assertTrue(pathElevationGainFiltered(off).isNaN(), "the stage should not have run")
+            assertEquals(pathElevationGain(off), pathReportedElevationGain(off))
+        }
+
+    @Test
+    fun `an unknown elevation gain preset is rejected by name`() =
+        runTest {
+            val thrown =
+                assertFailsWith<IllegalArgumentException> {
+                    enhanceWithCourse(
+                        parseGpx(straightHill()),
+                        null,
+                        null,
+                        null,
+                        null,
+                        js("({ elevationGainPreset: 'strava' })").unsafeCast<EnhanceOptionsDto>(),
+                    ).await()
+                }
+            assertTrue(
+                thrown.message!!.contains("strava"),
+                "the error must name the offending value, got: ${thrown.message}",
+            )
+        }
+
+    @Test
+    fun `the smoothing window reaches the JS door and a wider one reports less`() =
+        runTest {
+            suspend fun gainWith(window: Double): Double {
+                val options =
+                    js("({ elevationGainPreset: 'raw' })").unsafeCast<EnhanceOptionsDto>().also {
+                        it.asDynamic().elevationSmoothWindowM = window
+                    }
+                val path = enhanceWithCourse(parseGpx(spiral()), null, null, null, null, options).await()
+                return pathReportedElevationGain(path)
+            }
+            val narrow = gainWith(10.0)
+            val wide = gainWith(300.0)
+            assertTrue(wide <= narrow + 1e-9, "a 300 m window ($wide) must not report more than a 10 m one ($narrow)")
+        }
+
     @Test
     fun `the JS default power is the library default`() =
         runTest {

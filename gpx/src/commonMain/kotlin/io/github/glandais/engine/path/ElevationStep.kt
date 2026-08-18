@@ -42,7 +42,15 @@ object ElevationStep {
         return out
     }
 
-    /** Apply the triangular-kernel smoother (window [windowM]) and return a fresh path. */
+    /**
+     * Apply the triangular-kernel smoother (window [windowM]) and return a fresh path.
+     *
+     * The pre-smoothing altitude of every point is preserved in [PointField.SOURCE_ELEVATION], the
+     * way the racing line preserves `sourceLatitude`/`sourceLongitude`. This profile is the one the
+     * physics integrates; it is not the one a *summary* should be read from, and `ElevationGain`
+     * needs both. Only the first smoothing pass writes it — running the smoother twice must not
+     * overwrite the original with a once-smoothed value.
+     */
     fun smoothElevation(
         source: Path,
         windowM: Double = DEFAULT_SMOOTH_WINDOW_M,
@@ -52,6 +60,9 @@ object ElevationStep {
         val smoothed = ElevationSmoother.smooth(coords, windowM)
         val out = copyAllSlots(source)
         for (i in 0 until out.size) {
+            if (out.sourceElevation(i).isNaN()) {
+                out.setSourceElevation(i, source.elevation(i))
+            }
             out.setElevation(i, smoothed[i].elevation)
         }
         out.computeDerivedData()

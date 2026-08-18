@@ -14,6 +14,10 @@ path, distance-based smoothing, and Douglas-Peucker 3D simplification.
 See `../docs/archive/plans/PLAN.md` and `../docs/guides/kotlin-js-jvm-webp.md` for the design rationale and
 multi-target interop conventions.
 
+[`../docs/guides/elevation.md`](../docs/guides/elevation.md) covers the other half: what the engine
+does with these altitudes, why cumulative ascent depends on the measurement scale, and how Strava's
+numbers are produced.
+
 ## Bringing your own tile transport
 
 `TileManager` and `ElevationProvider` take a `fetcher: suspend (String) -> RawTile`, defaulting

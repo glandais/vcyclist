@@ -157,6 +157,9 @@ export function useGPXDemo(config: Ref<Config>): UseGPXDemoReturn {
             racingLineEnabled: e.racingLine.enabled,
             racingLineCorridor: e.racingLine.corridor,
             racingLineRoadWidthM: e.racingLine.roadWidthM,
+            elevationGainEnabled: e.elevationGain.enabled,
+            elevationGainPreset: e.elevationGain.preset,
+            elevationSmoothWindowM: e.elevationSmoothWindowM,
         };
     };
 

@@ -199,6 +199,10 @@ length.
 | `vcPathDurationMs` | `(handle) -> f64` | milliseconds |
 | `vcPathElevationGain` | `(handle) -> f64` | meters |
 | `vcPathElevationLoss` | `(handle) -> f64` | meters, **negative** by convention |
+| `vcPathElevationGainFiltered` | `(handle) -> f64` | meters with the hysteresis dead band applied, or **NaN** when the `elevationGain` stage did not run |
+| `vcPathElevationLossFiltered` | `(handle) -> f64` | meters, **negative**, or **NaN** |
+| `vcPathReportedElevationGain` | `(handle) -> f64` | the filtered figure, falling back to the raw sum |
+| `vcPathReportedElevationLoss` | `(handle) -> f64` | meters, **negative** |
 | `vcPathLatitudeDeg` | `(handle, i) -> f64` | degrees |
 | `vcPathLongitudeDeg` | `(handle, i) -> f64` | degrees |
 | `vcDominantHeadwindAzimuth` | `(handle) -> f64` | degrees, or NaN. See §6 |
@@ -357,6 +361,17 @@ Up to five optional sub-objects; each is the matching JS DTO, field for field.
   together. Omit it to keep the raw values.
 - `options.wPrimeBalance*` calibrate the `wPrimeBalance` output field. The pass is **on by
   default** and always has been; these only set the CP and W′ it scores against.
+- `options.elevationGainPreset` picks the scale the reported climbing is measured at —
+  `"raw"`, `"barometric"`, `"dem"` (default), `"gps"` — and `elevationGainThresholdM` overrides
+  that preset's dead band. Omitting the threshold takes the *resolved* preset's, so
+  `{"elevationGainPreset": "gps"}` alone gives 10 m and not `dem`'s 3 m.
+- `options.elevationSmoothWindowM` (default 150) is the elevation smoother's triangular-kernel
+  half-width, and the number that decides both the reported climbing and the gradients the
+  simulation rides. See [`elevation.md`](elevation.md).
+- `options.demZoom` overrides the DEM zoom **for that call only**, leaving whatever
+  `vcSetElevationConfig` last set in place. It exists here because the two wire doors accept the
+  same keys or neither does; a host wanting one call at a different zoom should not have to mutate
+  the sticky config and put it back. Measured as worth nothing above 12 (ledger R30).
 
 **Changed in task 43.** `critical-power`, `wPrime`, `pacing`, `maxSlewWPerS`, `roadCondition` and
 the three `wPrimeBalance*` keys are new — every one of them additive, so an existing payload keeps
@@ -489,6 +504,7 @@ and a JVM test fails the build if a JS export ever appears without a decision he
 | `writeGpxAt` | `vcWriteGpx` | same export; `startTimeEpochMs` in the options |
 | `writeGpxTracks` | `vcWriteGpxTracks` | **waypoints are not written** — the ABI has no waypoint handle. JS takes a `trackNames` array, this ABI one `trackName` for every track |
 | `pathSize`, `pathTotalDistance`, `pathDurationMs`, `pathElevationGain`, `pathElevationLoss` | `vcPathSize`, `vcPathTotalDistance`, `vcPathDurationMs`, `vcPathElevationGain`, `vcPathElevationLoss` | ported |
+| `pathElevationGainFiltered`, `pathElevationLossFiltered`, `pathReportedElevationGain`, `pathReportedElevationLoss` | `vcPathElevationGainFiltered`, `vcPathElevationLossFiltered`, `vcPathReportedElevationGain`, `vcPathReportedElevationLoss` | ported |
 | `pathLatitudeDeg`, `pathLongitudeDeg` | `vcPathLatitudeDeg`, `vcPathLongitudeDeg` | ported |
 | `pointAt` | `vcPointJson` | `PointDto` as JSON |
 | `getField` | `vcGetField` | by field **index**, not by name |

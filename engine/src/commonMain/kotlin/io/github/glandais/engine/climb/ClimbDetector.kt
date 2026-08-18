@@ -61,6 +61,11 @@ object ClimbDetector {
     ): List<Climb> {
         if (path.size < 2) return emptyList()
 
+        // `elevationGain`, not `reportedElevationGain`, and deliberately so: this is a *sizing*
+        // input, not a figure anyone reads. It only has to scale with how much climbing a route
+        // holds, and it must do so identically whether or not the `elevationGain` stage ran —
+        // otherwise the same route would detect different climbs depending on an unrelated option.
+        // The raw sum is stable in exactly that way; the filtered figure is not. See R27.
         val minClimbElevation =
             maxOf(
                 options.minMinClimbElevationM,

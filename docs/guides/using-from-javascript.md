@@ -59,17 +59,28 @@ dropped silently. `parseGpxTracksOnly` and `parseGpxRoutesOnly` select one conta
 
 ```js
 const { pathSize, pathTotalDistance, pathDurationMs, pathElevationGain, pathElevationLoss,
+        pathElevationGainFiltered, pathElevationLossFiltered,
+        pathReportedElevationGain, pathReportedElevationLoss,
         pathLatitudeDeg, pathLongitudeDeg, pointAt, getField, fieldDefinitions } = engine;
 
 pathSize(path);                     // number of points
 pathTotalDistance(path);            // metres
 pathDurationMs(path);               // milliseconds — `time` is the only ms field in the engine
 pathElevationGain(path);            // metres; pathElevationLoss is NEGATIVE by convention
+                                    // -- the UNFILTERED sum, which over-reports on a noisy trace
+pathReportedElevationGain(path);    // what to show a human: dead-banded when measured, raw otherwise
+pathElevationGainFiltered(path);    // the dead-banded figure alone, or NaN if the stage did not run
 
 pointAt(path, 0);                   // one point as an object
 getField(path, 0, 'speed');         // one field by camelCase name; throws if unknown
-fieldDefinitions();                 // the 43-field catalog: prop, unit, description, category
+fieldDefinitions();                 // the 44-field catalog: prop, unit, description, category
 ```
+
+The four elevation accessors are three different questions, not redundancy: `pathElevationGain` is
+the plain sum of positive deltas over the current profile and grows without bound as sampling gets
+finer; `pathElevationGainFiltered` is the same terrain measured at a stated scale with a dead band,
+or `NaN` when the pipeline's `elevationGain` stage did not run; `pathReportedElevationGain` is the
+second falling back to the first. See [`elevation.md`](elevation.md).
 
 `fieldDefinitions()` is what lets a UI build a generic field picker instead of hard-coding the
 list — it is how the demo's chart offers every field without knowing them.
@@ -93,7 +104,7 @@ const out = await enhance(path, { fixElevation: true });  // fetches DEM tiles, 
 
 `{ fixElevation: true }` auto-instantiates a default `ElevationProvider` (mapterhorn Terrarium
 tiles) and runs the full pipeline: densify → fix elevation → smooth → max speeds → virtualize →
-resample → simplify.
+resample → simplify → elevation gain.
 
 The options object (`EnhanceOptionsDto`) is entirely optional, field by field:
 
@@ -107,6 +118,9 @@ The options object (`EnhanceOptionsDto`) is entirely optional, field by field:
 | `wPrimeBalanceEnabled` / `wPrimeBalanceCriticalPower` / `wPrimeBalanceWPrime` | `true` / 250 W / 20 kJ | the `wPrimeBalance` **output** field |
 | `curvatureEnabled` | `true` | heading-regression curvature; off restores the older windowed estimate |
 | `racingLineEnabled` / `racingLineCorridor` / `racingLineRoadWidthM` | `false` / `"lane"` / 6 m | optimal line through corners |
+| `elevationGainEnabled` / `elevationGainPreset` / `elevationGainThresholdM` | `true` / `"dem"` / preset's | how the reported climbing is measured — `"raw"`, `"barometric"`, `"dem"`, `"gps"` |
+| `elevationSmoothWindowM` | 150 m | elevation-smoother half-width; decides both the reported climbing and the gradients ridden |
+| `demZoom` | 12 | Web-Mercator zoom for the DEM lookup, only used with `fixElevation` |
 
 Three of those defaults — no DEM fetch, no 1 Hz resample, no simplify — are the **JavaScript
 façade's**, not the engine's. Ask for them explicitly if you want the full pipeline.

@@ -5,6 +5,8 @@ import {
     getField,
     pathElevationGain,
     pathElevationLoss,
+    pathReportedElevationGain,
+    pathReportedElevationLoss,
     pathSize,
     pathTotalDistance,
     type Path,
@@ -69,8 +71,13 @@ const fileInfo = computed(() => {
     return {
         pointCount: n,
         distance: pathTotalDistance(path) / 1000,
-        elevationGain: pathElevationGain(path),
-        elevationLoss: pathElevationLoss(path),
+        // The dead-banded figures once the pipeline has run, the raw sums before it. The raw
+        // pair stays visible as a tooltip: on a noisy trace they differ by 40 % and hiding that
+        // makes the headline look arbitrary.
+        elevationGain: pathReportedElevationGain(path),
+        elevationLoss: pathReportedElevationLoss(path),
+        rawElevationGain: pathElevationGain(path),
+        rawElevationLoss: pathElevationLoss(path),
         minElevation,
         maxElevation,
     };
@@ -143,9 +150,12 @@ watch(
                     </div>
                     <div class="bg-white p-2 rounded text-center">
                         <div class="text-sm text-gray-600">Elevation</div>
-                        <div class="text-base font-semibold text-blue-900">
+                        <div
+                            class="text-base font-semibold text-blue-900"
+                            :title="`unfiltered sum: +${fileInfo.rawElevationGain.toFixed(0)}m / -${(-fileInfo.rawElevationLoss).toFixed(0)}m`"
+                        >
                             +{{ fileInfo.elevationGain.toFixed(0) }}m / -{{
-                                fileInfo.elevationLoss.toFixed(0)
+                                (-fileInfo.elevationLoss).toFixed(0)
                             }}m [{{ fileInfo.minElevation.toFixed(0) }},
                             {{ fileInfo.maxElevation.toFixed(0) }}]m
                         </div>

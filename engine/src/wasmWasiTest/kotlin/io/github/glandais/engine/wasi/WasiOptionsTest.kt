@@ -8,6 +8,8 @@ import io.github.glandais.engine.RoadCondition
 import io.github.glandais.engine.climb.ClimbOptions
 import io.github.glandais.engine.gpx.GpxPowerSource
 import io.github.glandais.engine.io.CsvOptions
+import io.github.glandais.engine.path.ElevationGainPreset
+import io.github.glandais.engine.path.ElevationStep
 import io.github.glandais.engine.path.Path
 import io.github.glandais.engine.physics.PowerModel
 import io.github.glandais.engine.physics.PowerProviderConstant
@@ -242,6 +244,54 @@ class WasiOptionsTest {
             }
 
         assertTrue(error.message!!.contains("computed-or-input"), "the message lists the accepted values")
+    }
+
+    @Test
+    fun `the elevation options are readable and take the resolved preset's dead band`() {
+        val defaults = null.toEnhanceOptions()
+        assertEquals(EngineConstants.DEFAULT_ELEVATION_GAIN_PRESET, defaults.elevationGain.preset)
+        assertEquals(ElevationStep.DEFAULT_SMOOTH_WINDOW_M, defaults.elevationSmoothWindowM)
+
+        val gps = json("""{"elevationGainPreset":"gps"}""").toEnhanceOptions()
+        assertEquals(ElevationGainPreset.GPS, gps.elevationGain.preset)
+        // Naming a preset must take ITS threshold, not silently keep `dem`'s 3 m.
+        assertEquals(10.0, gps.elevationGain.thresholdM)
+
+        val overridden =
+            json("""{"elevationGainPreset":"gps","elevationGainThresholdM":0}""").toEnhanceOptions()
+        assertEquals(0.0, overridden.elevationGain.thresholdM)
+
+        assertEquals(false, json("""{"elevationGainEnabled":false}""").toEnhanceOptions().elevationGain.enabled)
+        assertEquals(50.0, json("""{"elevationSmoothWindowM":50}""").toEnhanceOptions().elevationSmoothWindowM)
+    }
+
+    @Test
+    fun `demZoom is read off the options object and left absent when unset`() {
+        assertEquals(null, json("""{}""").demZoomOrNull())
+        assertEquals(null, null.demZoomOrNull())
+        assertEquals(14, json("""{"demZoom":14}""").demZoomOrNull())
+    }
+
+    @Test
+    fun `demZoom overrides the sticky config for one call and does not mutate it`() {
+        // The rule this exists for: an accepted key is not a used key. `requireOnly` tolerating
+        // "demZoom" proves nothing about the provider the export actually builds.
+        val sticky = elevationConfigFor(null)
+        val overridden = elevationConfigFor(14)
+
+        assertEquals(14, overridden.zoomLevel)
+        assertEquals(sticky.tileUrlTemplate, overridden.tileUrlTemplate, "only the zoom may move")
+        assertEquals(sticky.tileSize, overridden.tileSize)
+        assertEquals(sticky.zoomLevel, elevationConfigFor(null).zoomLevel, "the sticky config was mutated")
+    }
+
+    @Test
+    fun `an unknown elevation gain preset names the ones that exist`() {
+        val thrown =
+            assertFailsWith<IllegalArgumentException> {
+                json("""{"elevationGainPreset":"strava"}""").toEnhanceOptions()
+            }
+        assertTrue(thrown.message!!.contains("barometric"), thrown.message!!)
     }
 
     @Test

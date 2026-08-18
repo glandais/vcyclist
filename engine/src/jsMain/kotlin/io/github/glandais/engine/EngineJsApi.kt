@@ -6,6 +6,7 @@
 package io.github.glandais.engine
 
 import io.github.glandais.elevation.ElevationProvider
+import io.github.glandais.elevation.ElevationProviderConfig
 import io.github.glandais.engine.climb.Climb
 import io.github.glandais.engine.climb.ClimbDetector
 import io.github.glandais.engine.climb.ClimbOptions
@@ -23,6 +24,8 @@ import io.github.glandais.engine.io.CsvOptions
 import io.github.glandais.engine.io.CsvWriter
 import io.github.glandais.engine.io.JsonOptions
 import io.github.glandais.engine.io.JsonWriter
+import io.github.glandais.engine.path.ElevationGainOptions
+import io.github.glandais.engine.path.ElevationGainPreset
 import io.github.glandais.engine.path.Path
 import io.github.glandais.engine.path.PointField
 import io.github.glandais.engine.path.dominantHeadwindAzimuthDeg
@@ -156,6 +159,34 @@ external interface EnhanceOptionsDto {
 
     /** Road width assumed where the GPX supplies none, in metres. */
     val racingLineRoadWidthM: Double?
+
+    /**
+     * Scale the reported climbing is measured at: `"raw"`, `"barometric"`, `"dem"`, `"gps"`.
+     * See `docs/guides/elevation.md`.
+     */
+    val elevationGainPreset: String?
+
+    /** Override the preset's hysteresis dead band, in metres. `0` disables it. */
+    val elevationGainThresholdM: Double?
+
+    /** Whether to measure the dead-banded climbing at all. Defaults to `true`. */
+    val elevationGainEnabled: Boolean?
+
+    /**
+     * Triangular-kernel half-width for the elevation smoother, in metres.
+     *
+     * The single largest determinant of both the reported climbing and the gradients the
+     * simulation rides — it costs a clean route ~1.5 % and a noisy GPS trace ~48 %.
+     */
+    val elevationSmoothWindowM: Double?
+
+    /**
+     * Web-Mercator zoom for the DEM lookup, `0..15`, used only when [fixElevation] is on.
+     *
+     * Not part of [EnhanceOptions] — it configures the provider, not the pipeline — so it is read
+     * where the provider is built rather than in `toEnhanceOptions`.
+     */
+    val demZoom: Int?
 }
 
 /**
@@ -432,6 +463,27 @@ fun pathElevationGain(path: Path): Double = path.elevationGain
 @JsExport
 fun pathElevationLoss(path: Path): Double = path.elevationLoss
 
+/**
+ * Cumulative ascent with the dead band applied, or `NaN` if the stage did not run.
+ *
+ * `NaN` rather than `null` so the export stays a plain `Double` on the JS side; use
+ * [pathReportedElevationGain] to get the raw sum as a fallback instead.
+ */
+@JsExport
+fun pathElevationGainFiltered(path: Path): Double = path.elevationGainFiltered
+
+/** Counterpart of [pathElevationGainFiltered]. NEGATIVE by convention, or `NaN`. */
+@JsExport
+fun pathElevationLossFiltered(path: Path): Double = path.elevationLossFiltered
+
+/** The figure to show a human: dead-banded when measured, the raw sum otherwise. */
+@JsExport
+fun pathReportedElevationGain(path: Path): Double = path.reportedElevationGain
+
+/** Counterpart of [pathReportedElevationGain]. NEGATIVE by convention. */
+@JsExport
+fun pathReportedElevationLoss(path: Path): Double = path.reportedElevationLoss
+
 @JsExport
 fun pointAt(
     path: Path,
@@ -515,7 +567,7 @@ fun enhance(
         // This makes `enhance(path, { fixElevation: true })` work end-to-end on Node (and browser
         // when network policy allows) without requiring callers to thread a provider through the
         // free-function façade. Skips allocation when fixElevation is off.
-        val provider = if (opts.fixElevation) ElevationProvider() else null
+        val provider = if (opts.fixElevation) elevationProviderFor(options) else null
         Enhancer.enhanceCourseDefault(path, elevationProvider = provider, options = opts)
     }
 
@@ -559,7 +611,26 @@ internal fun EnhanceOptionsDto?.toEnhanceOptions(): EnhanceOptions {
                 corridor = parseCorridor(racingLineCorridor),
                 defaultRoadWidthM = racingLineRoadWidthM ?: d.racingLine.defaultRoadWidthM,
             ),
+        elevationGain =
+            run {
+                // Naming a preset takes ITS dead band, so `{ elevationGainPreset: 'gps' }` alone
+                // gives 10 m and not `dem`'s 3 m. Naming none keeps the default object's band,
+                // which is not the same as its preset's.
+                val named = elevationGainPreset?.let { ElevationGainPreset.byId(it) }
+                ElevationGainOptions(
+                    enabled = elevationGainEnabled ?: d.elevationGain.enabled,
+                    preset = named ?: d.elevationGain.preset,
+                    thresholdM = elevationGainThresholdM ?: named?.thresholdM ?: d.elevationGain.thresholdM,
+                )
+            },
+        elevationSmoothWindowM = elevationSmoothWindowM ?: d.elevationSmoothWindowM,
     )
+}
+
+/** The DEM provider the façade auto-instantiates, honouring `demZoom` when the caller set one. */
+private fun elevationProviderFor(options: EnhanceOptionsDto?): ElevationProvider {
+    val zoom = options?.demZoom ?: return ElevationProvider()
+    return ElevationProvider(ElevationProviderConfig(zoomLevel = zoom))
 }
 
 /** Corridor mode by name, defaulting to the engine's own default rather than restating it. */
@@ -713,6 +784,11 @@ private val ENHANCE_OPTIONS_KEYS =
         "racingLineEnabled",
         "racingLineCorridor",
         "racingLineRoadWidthM",
+        "elevationGainPreset",
+        "elevationGainThresholdM",
+        "elevationGainEnabled",
+        "elevationSmoothWindowM",
+        "demZoom",
     )
 
 /**
@@ -760,7 +836,7 @@ fun enhanceWithCourse(
 ): Promise<Path> =
     GlobalScope.promise {
         val opts = options.toEnhanceOptions()
-        val provider = if (opts.fixElevation) ElevationProvider() else null
+        val provider = if (opts.fixElevation) elevationProviderFor(options) else null
         val course =
             CoursePhysics(
                 course = Course(path = path, cyclist = cyclist.toCyclist(), bike = bike.toBike()),

@@ -1,5 +1,7 @@
 package io.github.glandais.engine.io
 
+import io.github.glandais.engine.path.ElevationGain
+import io.github.glandais.engine.path.ElevationGainOptions
 import io.github.glandais.engine.path.Path
 import io.github.glandais.engine.path.PointField
 import kotlin.test.Test
@@ -127,6 +129,36 @@ class JsonWriterTest {
         assertTrue(p.totalDistance > 0.0)
         assertTrue(p.durationMs > 0.0)
         assertTrue(p.elevationGain > 0.0)
+
+        // The dead-banded pair is absent until the stage runs, and absent must serialise as
+        // `null` rather than `0` — a consumer has to be able to tell "not measured" from "flat".
+        assertTrue(json.contains("\"elevationGainFiltered\":null"), json)
+        assertTrue(json.contains("\"elevationLossFiltered\":null"), json)
+    }
+
+    @Test
+    fun meta_carries_the_filtered_elevation_once_it_has_been_measured() {
+        val p = Path(3)
+        p.setLatitude(0, 0.7973324)
+        p.setLatitude(1, 0.7973424)
+        p.setLatitude(2, 0.7973524)
+        p.setElevation(0, 100.0)
+        p.setElevation(1, 112.0)
+        p.setElevation(2, 105.0)
+        p.computeDerivedData()
+        ElevationGain.annotate(p, ElevationGainOptions(thresholdM = 3.0, smoothWindowM = 0.0))
+
+        val json = JsonWriter.write(p, JsonOptions(fields = listOf(PointField.ELEVATION)))
+        assertTrue(
+            json.contains("\"elevationGainFiltered\":${CsvNumberFormat.format(p.elevationGainFiltered)}"),
+            json,
+        )
+        assertTrue(
+            json.contains("\"elevationLossFiltered\":${CsvNumberFormat.format(p.elevationLossFiltered)}"),
+            json,
+        )
+        // Both pairs are emitted: the raw sum stays visible as the control.
+        assertTrue(json.contains("\"elevationGain\":${CsvNumberFormat.format(p.elevationGain)}"), json)
     }
 
     // ---- extra : units block reflects PointField.unit --------------------------

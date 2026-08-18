@@ -60,6 +60,13 @@ const migrateConfig = (data: SerializableConfig): SerializableConfig => {
                 ...DEFAULT_CONFIG.enhance.racingLine,
                 ...(data.enhance.racingLine ?? {}),
             },
+            elevationGain: {
+                ...DEFAULT_CONFIG.enhance.elevationGain,
+                ...(data.enhance.elevationGain ?? {}),
+            },
+            elevationSmoothWindowM:
+                data.enhance.elevationSmoothWindowM ??
+                DEFAULT_CONFIG.enhance.elevationSmoothWindowM,
         };
     }
 

@@ -152,8 +152,12 @@ private fun Path.toFitSegment(startTime: Instant): FitSegment {
                 // Note the sign flip: `Path.elevationLoss` accumulates the negative deltas and is
                 // therefore negative, while FIT's `total_descent` is an unsigned magnitude, so it
                 // is negated here.
-                totalAscentM = elevationGain.roundToIntOrZero(),
-                totalDescentM = (-elevationLoss).roundToIntOrZero(),
+                //
+                // `reported*` rather than the raw sums: a head unit shows this number to a human
+                // beside the one their own device computed, and every device applies a dead band.
+                // It falls back to the raw sum on a path the gain stage never ran on.
+                totalAscentM = reportedElevationGain.roundToIntOrZero(),
+                totalDescentM = (-reportedElevationLoss).roundToIntOrZero(),
                 maxSpeedMs = (0 until size).maxOfOrNull { speed(it) }?.takeUnless { it.isNaN() },
                 minAltitudeM = (0 until size).minOfOrNull { elevation(it) }?.takeUnless { it.isNaN() },
                 maxAltitudeM = (0 until size).maxOfOrNull { elevation(it) }?.takeUnless { it.isNaN() },

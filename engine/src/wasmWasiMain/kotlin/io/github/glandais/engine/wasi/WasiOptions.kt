@@ -11,6 +11,8 @@ import io.github.glandais.engine.climb.ClimbOptions
 import io.github.glandais.engine.gpx.GpxPowerSource
 import io.github.glandais.engine.io.CsvOptions
 import io.github.glandais.engine.io.JsonOptions
+import io.github.glandais.engine.path.ElevationGainOptions
+import io.github.glandais.engine.path.ElevationGainPreset
 import io.github.glandais.engine.physics.CyclistPowerProvider
 import io.github.glandais.engine.physics.CyclistPowerSpec
 import io.github.glandais.engine.physics.PowerModel
@@ -55,6 +57,11 @@ private val ENHANCE_KEYS =
         "racingLineEnabled",
         "racingLineCorridor",
         "racingLineRoadWidthM",
+        "elevationGainEnabled",
+        "elevationGainPreset",
+        "elevationGainThresholdM",
+        "elevationSmoothWindowM",
+        "demZoom",
     )
 
 /**
@@ -94,7 +101,37 @@ internal fun JsonObj?.toEnhanceOptions(): EnhanceOptions {
                 defaultRoadWidthM =
                     double("racingLineRoadWidthM", defaults.racingLine.defaultRoadWidthM),
             ),
+        elevationGain =
+            run {
+                // Naming a preset takes ITS dead band, so `{"elevationGainPreset":"gps"}` alone
+                // gives 10 m and not `dem`'s 3 m. Naming none keeps the defaults object's band,
+                // which is NOT the same as its preset's — a caller can be handed defaults whose
+                // threshold was overridden, and re-deriving it from the preset would discard that.
+                val named =
+                    string("elevationGainPreset", "").takeIf { it.isNotEmpty() }?.let { ElevationGainPreset.byId(it) }
+                ElevationGainOptions(
+                    enabled = bool("elevationGainEnabled", defaults.elevationGain.enabled),
+                    preset = named ?: defaults.elevationGain.preset,
+                    thresholdM =
+                        double("elevationGainThresholdM", named?.thresholdM ?: defaults.elevationGain.thresholdM),
+                )
+            },
+        elevationSmoothWindowM = double("elevationSmoothWindowM", defaults.elevationSmoothWindowM),
     )
+}
+
+/**
+ * The DEM zoom for this call, or `null` to keep whatever `vcSetElevationConfig` last set.
+ *
+ * Not part of [EnhanceOptions] — it configures the provider, not the pipeline — so it is read
+ * here and applied where the provider is built, the same shape the JS door uses. It exists on
+ * this door because the two wire doors accept the same keys or neither does; a host that wants
+ * one call at a different zoom should not have to mutate the sticky config and put it back.
+ */
+internal fun JsonObj?.demZoomOrNull(): Int? {
+    if (this == null) return null
+    val raw = double("demZoom", Double.NaN)
+    return if (raw.isNaN()) null else raw.toInt()
 }
 
 /** Corridor mode by name. Unknown values are an error here, like every other unknown WASI input. */
