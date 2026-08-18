@@ -493,9 +493,12 @@ Attributing the engine chunk by `sourcesContent` in its sourcemap (2 543 KiB of 
 | `vcyclist-fit.js` | 1.4 % |
 | `kotlinx-atomicfu.js` | 0.4 % |
 
-**47 % of the chunk is FIT encoding, and the demo never uses it.** `demo/src` contains no FIT, CSV or
-JSON export — `grep` for `pathToFit`, `toFit`, `download`, `createObjectURL` finds only
-`writeGpx` in `engine-shim.ts`. `xmlutil` by contrast is genuinely needed: it parses the GPX.
+**47 % of the chunk is FIT encoding.** It used to be dead weight — the sentence here read "and the
+demo never uses it", and `grep` for `pathToFit` / `download` / `createObjectURL` across `demo/src`
+found only an uncalled `writeGpx` in `engine-shim.ts`. **No longer true since the demo gained GPX
+and FIT downloads**: `pathToFit` is now on the `⬇️ Download` menu of the `#/` view. The payload did
+not grow — it was always shipped — but it is now paid for. `xmlutil` was always genuinely needed:
+it parses the GPX.
 
 ### Why it cannot simply be tree-shaken
 
@@ -517,9 +520,11 @@ also flip the published package format, which is a breaking change for CommonJS 
 
 1. **Reclassify the warning.** It fires on a non-shipped bundle; the honest fix is to say so rather than
    optimise for it. Cheap, but mutes a signal if `engine.js` ever becomes a deliverable.
-2. **Cut FIT out of the demo's chunk.** Worth ~120 KiB gzipped for every visitor. Needs an engine-side
-   split, which the `Path`-handle constraint blocks — so it means a deliberate API change (e.g. a
-   handle-free FIT entry point), not a build tweak.
+2. ~~**Cut FIT out of the demo's chunk.**~~ **Dead since the demo shipped a FIT download** — the
+   ~120 KiB gzipped now buys a feature instead of nothing, so cutting it would remove
+   functionality rather than dead weight. (It would still need the engine-side split the
+   `Path`-handle constraint blocks.) This removes the cheapest lever on the demo's biggest chunk,
+   which *strengthens* the decision below rather than weakening it: option 3 is now the only path.
 3. **Re-test per-file granularity** on Kotlin 2.4.20 final (task w08), where the property may work
    again; combine with named imports in `engine-shim.ts`.
 
@@ -528,4 +533,5 @@ granularity setting, and re-testing it costs nothing once w08 happens, whereas a
 would be spending a `Path`-handle redesign to work around a compiler bug that may not survive the
 release. Carried as step 6 and a validation box of
 [`docs/archive/tasks/w08-kotlin-2420-final.md`](../archive/tasks/w08-kotlin-2420-final.md), with the numbers to beat, so
-it cannot quietly evaporate. The demo keeps shipping ~120 KiB gzipped of unused FIT until then.
+it cannot quietly evaporate. The demo keeps shipping ~120 KiB gzipped of FIT until then — which,
+since the FIT download landed, is a cost it actually incurs on purpose.

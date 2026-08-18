@@ -35,6 +35,7 @@ declare module 'vue' {
     UCheckbox: typeof import('./node_modules/@nuxt/ui/dist/runtime/components/Checkbox.vue')['default']
     UCollapsible: typeof import('./node_modules/@nuxt/ui/dist/runtime/components/Collapsible.vue')['default']
     UDrawer: typeof import('./node_modules/@nuxt/ui/dist/runtime/components/Drawer.vue')['default']
+    UDropdownMenu: typeof import('./node_modules/@nuxt/ui/dist/runtime/components/DropdownMenu.vue')['default']
     UInputNumber: typeof import('./node_modules/@nuxt/ui/dist/runtime/components/InputNumber.vue')['default']
     ULink: typeof import('./node_modules/@nuxt/ui/dist/runtime/vue/overrides/vue-router/Link.vue')['default']
     URadioGroup: typeof import('./node_modules/@nuxt/ui/dist/runtime/components/RadioGroup.vue')['default']

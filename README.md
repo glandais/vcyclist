@@ -223,7 +223,8 @@ function-by-function parity table against the JavaScript façade.
 A Vue 3 + Leaflet + Chart.js app with two routes, both on the same Kotlin/JS bundle:
 
 - `#/` — **GPX analysis**: upload a route, run the physics pipeline, inspect every field on a
-  synchronized chart and map, with climb detection and the racing line.
+  synchronized chart and map, with climb detection and the racing line, then download the result
+  as GPX or as a Garmin FIT course.
 - `#/elevation` — **elevation explorer**: query DEM tiles at a point or along a path, with
   smoothing, Douglas-Peucker simplification and hillshade/slope relief.
 

@@ -14,6 +14,11 @@ La **démo** est une cinquième surface, consommatrice de JS via `demo/src/engin
 types TypeScript sont écrits à la main (Kotlin/JS n'émet aucun corps pour un `external interface`,
 donc il n'y a rien à importer ni à comparer).
 
+**La colonne Démo veut dire « atteignable par un humain dans l'UI », pas « réexporté par
+`engine-shim.ts` ».** La distinction n'était pas théorique : `writeGpx` était réexporté par le shim
+depuis `g29` et **aucun composant ne l'appelait**. Sous l'autre lecture, la ligne aurait affiché ✅
+pendant tout ce temps.
+
 Depuis que la démo autonome de `:elevation` a été repliée dans `demo/` (route `#/elevation`), la
 démo consomme **deux** façades : `engine-shim.ts` et `demo/src/elevation-shim.ts`
 (`ElevationJsApi.kt`). Même contrainte, même piège : un renommage côté Kotlin reste silencieux
@@ -50,7 +55,9 @@ Le ✅ du ledger voulait dire « livré dans le cœur et le CLI » et se lisait 
 | R12 `pBrake` (champ de sortie) | ✅ | ✅ | ✅ | ✅ | ✅ |
 | R24 ligne de course (`racingLine*`, opt-in) | ✅ | ✅ | ✅ | ✅ | ✅ |
 | R26 largeur de route (`racingLineRoadWidthM`, OSM `highway`) | ✅ | ✅ | ✅ | ✅ | ✅ |
-| Export FIT (`pathToFit`, `pathsToFit`) | ✅ | ✅ | ✅ | ✅ | ❌ |
+| Export GPX (`writeGpx`, `writeGpxAt`) | ✅ | ✅ | ✅ | ✅ | ✅ |
+| Export FIT (`pathToFit`, `pathsToFit`) | ✅ | ✅ | ✅ | ✅ | ✅ |
+| `--gpx-power-source` (input / computed / computed-or-input) | ✅ | ✅ | ❌ | ❌ | ❌ |
 
 R23 (courbure par régression de cap) n'a pas de ligne : c'est un changement d'estimateur, sans
 option d'entrée, donc rien à relayer.
@@ -59,12 +66,24 @@ Les deux champs de sortie (R12, R15) traversent sans travail de façade : `field
 publie et la démo reconstruit sa liste à l'exécution. **Les champs de sortie ne dérivent pas ; les
 options d'entrée, si.**
 
-L'**export FIT** est la seule ligne incomplète, et le seul cas d'une *fonction de sortie* plutôt
-que d'une option d'entrée : `pathToFit` / `pathsToFit` existent dans le cœur (`:fit`), dans le CLI
-(`--fit`, qui exige `--start-time`), sur JS (`EngineJsApi`) et sur WASI (`vcPathToFit`,
-`vcPathsToFit`), mais `demo/src/engine-shim.ts` ne les réexporte pas et la démo n'offre aucun
-téléchargement `.fit`. Livré en g10, jamais relayé jusqu'à la cinquième surface — exactement la
-dérive que ce tableau existe pour attraper, et restée invisible parce que FIT n'y figurait pas.
+L'**export FIT** a longtemps été la seule ligne incomplète, et le premier cas d'une *fonction de
+sortie* plutôt que d'une option d'entrée : `pathToFit` / `pathsToFit` existaient dans le cœur
+(`:fit`), dans le CLI (`--fit`, qui exige `--start-time`), sur JS (`EngineJsApi`) et sur WASI
+(`vcPathToFit`, `vcPathsToFit`), mais la démo n'offrait aucun téléchargement. Livré en `g10`,
+jamais relayé jusqu'à la cinquième surface — exactement la dérive que ce tableau existe pour
+attraper, et restée invisible parce que FIT n'y figurait pas.
+
+**Refermé** : la démo télécharge désormais GPX et FIT depuis la vue `#/`. En le câblant, deux
+choses sont apparues, et elles valent plus que la ligne elle-même :
+
+1. **Un réexport de shim n'est pas une traversée de surface.** `writeGpx` attendait dans
+   `engine-shim.ts` depuis `g29`, appelé par personne — d'où la définition explicite de la colonne
+   Démo plus haut, et la ligne « Export GPX » qui manquait au tableau.
+2. **`--gpx-power-source` n'a jamais franchi la porte JS.** Le CLI choisit quelle puissance part
+   dans le `<power>` du GPX écrit ; `writeGpx` / `writeGpxAt` sont figés sur le défaut `INPUT`.
+   Conséquence concrète : le GPX exporté par la démo ne contient **pas** la puissance simulée —
+   un fichier issu d'un simulateur de physique sans sa puissance. Le FIT, lui, lit
+   `pComputedPower` et la porte. C'est la ligne ❌ ci-dessus, trouvée en câblant la précédente.
 
 ## Ce qui empêche la prochaine dérive
 
@@ -76,7 +95,10 @@ dérive que ce tableau existe pour attraper, et restée invisible parce que FIT 
   transforme un `tiringDuration` oublié en erreur plutôt qu'en réglage silencieusement ignoré.
 
 Aucun des deux ne couvre une capacité qui **n'est pas** un modèle de puissance : R9 vit sur
-`Cyclist`, R15 sur `EnhanceOptions`. Pour celles-là, ce tableau est la garantie, et elle vaut ce
+`Cyclist`, R15 sur `EnhanceOptions`. Et surtout, aucun des deux ne couvre une **fonction de
+sortie** : `pathToFit` et `writeGpxAt` ne prennent pas d'objet d'options, donc `requireOnlyKeys`
+ne se déclenche jamais dessus. Les deux dérives ci-dessus (FIT jamais câblé, `--gpx-power-source`
+jamais exporté) sont passées exactement par ce trou. Pour celles-là, ce tableau est la garantie, et elle vaut ce
 que vaut une relecture.
 
 ## À faire en ajoutant une capacité

@@ -40,6 +40,8 @@ module.exports = [
                 structuredClone: 'readonly',
                 setTimeout: 'readonly',
                 clearTimeout: 'readonly',
+                Blob: 'readonly',
+                URL: 'readonly',
             },
         },
         plugins: {

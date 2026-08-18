@@ -12,6 +12,8 @@ import { loadConfig, useConfigPersistence } from '~/composables/useConfigPersist
 import { useClimbs } from '~/composables/useClimbs';
 import { useGPXDemo } from '~/composables/useGPXDemo';
 import { useHoverSync } from '~/composables/useHoverSync';
+import { getField, pathToFit, writeGpxAt } from '~/engine-shim';
+import { downloadBytes, downloadText, FIT_MIME, GPX_MIME } from '~/utils/download';
 
 const toast = useToast();
 
@@ -32,6 +34,105 @@ const {
     handleFileUpload,
     enhancePath,
 } = useGPXDemo(config);
+
+// --- Export -----------------------------------------------------------------------------------
+
+/**
+ * The absolute instant of the first point.
+ *
+ * It cannot come from `currentPath`: `VirtualizeService` pins `time(0) = 0`, so the enhanced
+ * path's clock is relative. `originalPath` still holds what the file said — `GpxToPath` maps a
+ * missing `<time>` to `0.0` (not NaN), so a zero means the source carried no timestamps at all.
+ * Reusing the file's own start rather than asking the user to retype it is the same decision
+ * `GpxDocument.startTime` records on the Kotlin side (task g05).
+ */
+const resolveStartTimeMs = (): number => {
+    const source = originalPath.value;
+    if (source !== null) {
+        const t0 = getField(source, 0, 'time');
+        if (Number.isFinite(t0) && t0 > 0) {
+            return t0;
+        }
+    }
+    return Date.now();
+};
+
+// `fileName` always carries its .gpx extension; a course called "stelvio.gpx" on a head unit, or
+// a file named "stelvio.gpx.fit", both read as a bug. It starts as '', hence the fallback.
+const exportBaseName = computed(() => fileName.value.replace(/\.gpx$/i, '') || 'route');
+
+/**
+ * Exporting a path that was never enhanced is allowed — exporting what you loaded is legitimate —
+ * but it degrades in two ways that are invisible in the file: `pathToFit` treats an exact 0.0
+ * power as absent, so there is no power channel, and a timestamp-less source leaves every point
+ * on the same instant, which is monotonic enough to encode without error and yields a
+ * zero-duration course. Warn rather than fail, and rather than disable the button.
+ */
+const warnIfNotEnhanced = () => {
+    if (currentPath.value !== null && currentPath.value === originalPath.value) {
+        toast.add({
+            color: 'warning',
+            title: 'Exported without enhancing',
+            description:
+                'No power data, and no clock if the source GPX had no timestamps. Run 🚀 Enhance first.',
+            duration: 6000,
+        });
+    }
+};
+
+// Both encoders are synchronous, unlike every other handler in this file.
+const onDownloadGpx = () => {
+    if (currentPath.value === null) {
+        return;
+    }
+    try {
+        const xml = writeGpxAt(currentPath.value, resolveStartTimeMs(), true);
+        downloadText(xml, `${exportBaseName.value}-virtualized.gpx`, GPX_MIME);
+        toast.add({
+            color: 'success',
+            title: 'GPX Exported',
+            description: `${exportBaseName.value}-virtualized.gpx`,
+            duration: 3000,
+        });
+        warnIfNotEnhanced();
+    } catch (error) {
+        toast.add({
+            color: 'error',
+            title: 'GPX Export Failed',
+            description: 'Failed to write GPX: ' + (error as Error).message,
+            duration: 5000,
+        });
+    }
+};
+
+const onDownloadFit = () => {
+    if (currentPath.value === null) {
+        return;
+    }
+    try {
+        const bytes = pathToFit(currentPath.value, exportBaseName.value, resolveStartTimeMs());
+        downloadBytes(bytes, `${exportBaseName.value}.fit`, FIT_MIME);
+        toast.add({
+            color: 'success',
+            title: 'FIT Course Exported',
+            description: `${exportBaseName.value}.fit`,
+            duration: 3000,
+        });
+        warnIfNotEnhanced();
+    } catch (error) {
+        // The encoder's `require` failures carry engine-internal wording; say something the user
+        // can act on instead.
+        const message = (error as Error).message;
+        let description = 'Failed to write FIT: ' + message;
+        if (message.includes('monotonic')) {
+            description =
+                "The path's timestamps go backwards. Run 🚀 Enhance first — the virtualized path is always monotonic.";
+        } else if (message.includes('empty')) {
+            description = 'There is nothing to export.';
+        }
+        toast.add({ color: 'error', title: 'FIT Export Failed', description, duration: 5000 });
+    }
+};
 
 // Climb detection : recomputed once per enhanced path, never per render.
 const { climbs } = useClimbs(currentPath);
@@ -213,6 +314,8 @@ defineExpose({ resizeAll });
             @toggle-fields-sidebar="fieldsSidebarVisible = !fieldsSidebarVisible"
             @enhance-path="onEnhancePath"
             @reset-zoom="handleResetZoom"
+            @download-gpx="onDownloadGpx"
+            @download-fit="onDownloadFit"
         />
         <FieldsSidebar v-model="config.selectedFields" v-model:visible="fieldsSidebarVisible" />
 

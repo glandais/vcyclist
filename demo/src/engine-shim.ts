@@ -176,6 +176,25 @@ export type Path = object;
 export const parseGpx: (xml: string) => Path = ns.parseGpx;
 export const writeGpx: (path: Path, writeExtensions?: boolean) => string = ns.writeGpx;
 /**
+ * Like `writeGpx`, but stamps every point with an ABSOLUTE `<time>` = `startTimeEpochMs + time(i)`.
+ * `writeGpx` emits the path's own relative clock, which after `enhance` starts at 0 — i.e. 1970.
+ * Both writers hardcode `trackName = "virtualized"`; the JS facade exposes no name parameter.
+ */
+export const writeGpxAt: (
+    path: Path,
+    startTimeEpochMs: number,
+    writeExtensions?: boolean
+) => string = ns.writeGpxAt;
+/**
+ * Encode the path as a Garmin FIT **Course**. `startTimeEpochMs` is mandatory — FIT has no
+ * relative clock, so somebody has to decide the absolute instant.
+ *
+ * Returns the Kotlin `ByteArray`, which IS a JS `Int8Array` at Kotlin/JS runtime (zero-copy).
+ * Throws when the path is empty or its `time` is not monotonic.
+ */
+export const pathToFit: (path: Path, name: string, startTimeEpochMs: number) => Int8Array =
+    ns.pathToFit;
+/**
  * Azimuth in degrees of the constant wind that makes this course hardest, ready for the wind
  * direction field. `NaN` when the course is too short or too symmetric to have one.
  */
