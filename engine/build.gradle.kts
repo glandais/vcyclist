@@ -130,10 +130,17 @@ val copyReadmeToJsPackage =
     }
 
 /**
- * The generated TypeScript surface, into the directory `npm publish` runs in.
+ * The generated TypeScript surface, into the distribution directory.
  *
  * Regenerate it with `./gradlew :codegen:generateTsFacade` ; `TsFacadeTest` fails the build when
  * what is committed differs from what the façade renders.
+ *
+ * It **finalizes the distribution** rather than being wired into each consumer. `packageJson`
+ * points `main` / `module` / `types` at `index.*`, so the moment that directory exists without
+ * them it is a broken package — and the demo resolves its vite alias straight at it. Wired into
+ * `npmPublishJs` alone, `:demo:npmBuild` loaded an `index.mjs` that was not there ; it passed
+ * locally only because a previous publish dry-run had left the file behind, and failed in CI where
+ * nothing had. A finalizer cannot be forgotten by the next consumer.
  */
 val copyTsFacadeToJsPackage =
     tasks.register<Copy>("copyTsFacadeToJsPackage") {
@@ -144,6 +151,10 @@ val copyTsFacadeToJsPackage =
         from(layout.projectDirectory.dir("src/jsMain/typescript"))
         into(layout.buildDirectory.dir("dist/js/productionLibrary"))
     }
+
+tasks.named("jsBrowserProductionLibraryDistribution") {
+    finalizedBy(copyTsFacadeToJsPackage)
+}
 
 tasks.register<Exec>("npmPublishJs") {
     group = "publishing"
