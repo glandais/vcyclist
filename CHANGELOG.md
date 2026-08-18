@@ -1,3 +1,29 @@
+# [5.0.0](https://github.com/glandais/vcyclist/compare/v4.3.0...v5.0.0) (2026-08-18)
+
+
+* feat(engine)!: align the six façade surfaces, and make the alignment build-enforced ([54804e2](https://github.com/glandais/vcyclist/commit/54804e2d24f4661566ae39263ed5228bd697e99b))
+
+
+### Bug Fixes
+
+* **build:** make the TypeScript facade a finalizer of the JS distribution ([6529c51](https://github.com/glandais/vcyclist/commit/6529c51a36bc0ea5a62d0d687f49cf4e028eadb0))
+
+
+### Features
+
+* **engine:** measure cumulative ascent at a stated scale, the way Strava does ([1f2364e](https://github.com/glandais/vcyclist/commit/1f2364e3e2581d5d55348e3b27a37af1451075f5)), closes [#44](https://github.com/glandais/vcyclist/issues/44)
+* **engine:** ship real TypeScript types, generated from the JS façades ([1a5b44e](https://github.com/glandais/vcyclist/commit/1a5b44e8fd36c8dfe3e84631cbc1a375fc8d5ed6))
+
+
+### BREAKING CHANGES
+
+* --road-condition now overrides --cyclist-max-angle and
+--cyclist-max-brake instead of losing to them, matching the JS and WASI doors.
+`enhance` warns on stderr when both are passed; drop --road-condition to keep your
+own grip values.
+
+Co-Authored-By: Claude Opus 5 (1M context) <noreply@anthropic.com>
+
 # [4.3.0](https://github.com/glandais/vcyclist/compare/v4.2.1...v4.3.0) (2026-08-18)
 
 
