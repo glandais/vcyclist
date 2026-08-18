@@ -1,3 +1,17 @@
+# [4.1.0](https://github.com/glandais/vcyclist/compare/v4.0.0...v4.1.0) (2026-08-18)
+
+
+### Bug Fixes
+
+* **demo:** follow R17's rename and repair the broken power model (task 40) ([9200ee7](https://github.com/glandais/vcyclist/commit/9200ee718dee7c4efb52cba5d1fb66df7f089bec))
+
+
+### Features
+
+* **demo:** surface the ledger's rider models in the UI (task 42) ([cfd9dee](https://github.com/glandais/vcyclist/commit/cfd9deee156fa5a0f4bd9a8d91c58df10e32b7da))
+* **engine:** reach R9, R15, R16, R18 and R19 from JavaScript (task 41) ([413a8c0](https://github.com/glandais/vcyclist/commit/413a8c0f3c50c64cfe9af2c38cb1cb82351beafa))
+* **engine:** share one power catalog across the four surfaces (task 43) ([6ff3b94](https://github.com/glandais/vcyclist/commit/6ff3b94667ae5ce436fcf78a9901a3dd9160728b))
+
 # [4.0.0](https://github.com/glandais/vcyclist/compare/v3.1.1...v4.0.0) (2026-08-17)
 
 
