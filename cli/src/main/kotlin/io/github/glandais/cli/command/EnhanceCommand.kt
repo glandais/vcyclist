@@ -275,6 +275,10 @@ class EnhanceCommand : Callable<Int> {
                 }
             }
 
+        // A preset that silently beats an explicit flag is unconventional on a command line, so
+        // say so rather than leaving the user to wonder why --cyclist-max-angle did nothing.
+        cyclist.roadConditionWarning()?.let { spec.commandLine().err.println(it) }
+
         val skipped = mutableListOf<String>()
         val inputs = files.collectGpxFiles { file, why -> skipped.add("${file.path} $why") }
         if (inputs.isEmpty()) {

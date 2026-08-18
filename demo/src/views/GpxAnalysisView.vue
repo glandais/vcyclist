@@ -12,8 +12,15 @@ import { loadConfig, useConfigPersistence } from '~/composables/useConfigPersist
 import { useClimbs } from '~/composables/useClimbs';
 import { useGPXDemo } from '~/composables/useGPXDemo';
 import { useHoverSync } from '~/composables/useHoverSync';
-import { getField, pathToFit, writeGpxAt } from '~/engine-shim';
-import { downloadBytes, downloadText, FIT_MIME, GPX_MIME } from '~/utils/download';
+import { getField, pathToCsv, pathToJson, pathToFit, writeGpxTracks } from '~/engine-shim';
+import {
+    CSV_MIME,
+    downloadBytes,
+    downloadText,
+    FIT_MIME,
+    GPX_MIME,
+    JSON_MIME,
+} from '~/utils/download';
 
 const toast = useToast();
 
@@ -26,6 +33,10 @@ useConfigPersistence(config);
 const {
     currentPath,
     originalPath,
+    tracks,
+    selectedTrackIndex,
+    waypoints,
+    selectTrack,
     racingLineReport,
     isProcessing,
     statusText,
@@ -90,12 +101,17 @@ const onDownloadGpx = () => {
         // engine default ('input' — only what the file already said) would hand back a GPX with
         // the physics stripped out. Falls back to the recorded power wherever the simulation
         // produced none.
-        const xml = writeGpxAt(
-            currentPath.value,
-            resolveStartTimeMs(),
+        // `writeGpxTracks` rather than `writeGpxAt`: it is the only writer that takes waypoints,
+        // and the source document's `<wpt>` entries would otherwise be destroyed by a
+        // load → enhance → download round trip. It gained `trackNames` and `startTimeEpochMs` in
+        // S1 of the surface-alignment work, which is what makes it a drop-in here.
+        const xml = writeGpxTracks(
+            [currentPath.value],
+            waypoints.value,
             true,
             'computed-or-input',
-            exportBaseName.value
+            [exportBaseName.value],
+            resolveStartTimeMs()
         );
         downloadText(xml, `${exportBaseName.value}-virtualized.gpx`, GPX_MIME);
         toast.add({
@@ -144,8 +160,59 @@ const onDownloadFit = () => {
     }
 };
 
+/**
+ * Tabular exports. Both writers are synchronous and emit every one of the path's fields — column
+ * selection exists on `CsvOptions` but reaches no door yet, so there is nothing to choose here.
+ */
+const onDownloadCsv = () => {
+    if (currentPath.value === null) {
+        return;
+    }
+    try {
+        downloadText(
+            pathToCsv(currentPath.value, ',', true),
+            `${exportBaseName.value}.csv`,
+            CSV_MIME
+        );
+        warnIfNotEnhanced();
+    } catch (error) {
+        toast.add({
+            color: 'error',
+            title: 'CSV Export Failed',
+            description: (error as Error).message,
+            duration: 5000,
+        });
+    }
+};
+
+const onDownloadJson = () => {
+    if (currentPath.value === null) {
+        return;
+    }
+    try {
+        downloadText(
+            pathToJson(currentPath.value, true),
+            `${exportBaseName.value}.json`,
+            JSON_MIME
+        );
+        warnIfNotEnhanced();
+    } catch (error) {
+        toast.add({
+            color: 'error',
+            title: 'JSON Export Failed',
+            description: (error as Error).message,
+            duration: 5000,
+        });
+    }
+};
+
 // Climb detection : recomputed once per enhanced path, never per render.
-const { climbs } = useClimbs(currentPath);
+const {
+    climbs,
+    tuning: climbTuning,
+    isTuned: climbsTuned,
+    resetTuning: resetClimbTuning,
+} = useClimbs(currentPath);
 const selectedClimbIndex = ref<number | null>(null);
 
 // Clicking a climb row recentres the map on it and zooms the chart to its distance range.
@@ -319,6 +386,8 @@ defineExpose({ resizeAll });
             :files-section-visible="filesSectionVisible"
             :config-visible="configVisible"
             :fields-sidebar-visible="fieldsSidebarVisible"
+            :track-count="tracks.length"
+            :selected-track-index="selectedTrackIndex"
             @toggle-files-section="filesSectionVisible = !filesSectionVisible"
             @toggle-config="configVisible = !configVisible"
             @toggle-fields-sidebar="fieldsSidebarVisible = !fieldsSidebarVisible"
@@ -326,6 +395,9 @@ defineExpose({ resizeAll });
             @reset-zoom="handleResetZoom"
             @download-gpx="onDownloadGpx"
             @download-fit="onDownloadFit"
+            @download-csv="onDownloadCsv"
+            @download-json="onDownloadJson"
+            @select-track="selectTrack"
         />
         <FieldsSidebar v-model="config.selectedFields" v-model:visible="fieldsSidebarVisible" />
 
@@ -377,7 +449,11 @@ defineExpose({ resizeAll });
                 <ClimbsPanel
                     :climbs="climbs"
                     :selected-index="selectedClimbIndex"
+                    :tuning="climbTuning"
+                    :is-tuned="climbsTuned"
                     @select="onClimbSelect"
+                    @reset-tuning="resetClimbTuning"
+                    @tune="(key, value) => (climbTuning[key] = value)"
                 />
             </div>
         </div>

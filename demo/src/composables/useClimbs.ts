@@ -1,5 +1,5 @@
-import { computed, type Ref, shallowRef, watch } from 'vue';
-import { type ClimbDto, detectClimbs, type Path } from '~/engine-shim';
+import { computed, reactive, type Ref, shallowRef, watch } from 'vue';
+import { type ClimbDto, detectClimbsWithOptions, type Path } from '~/engine-shim';
 
 /**
  * Cycling's conventional grade colours. Thresholds are on the dimensionless grade
@@ -25,9 +25,30 @@ export function gradeColor(grade: number): string {
  * watcher below — rather than on every render. `shallowRef` keeps Vue from deep-proxying the
  * DTOs coming out of the Kotlin bundle, which would be wasted work on immutable data.
  */
+/**
+ * The six knobs `detectClimbsWithOptions` takes, at the engine's own defaults.
+ *
+ * Spelled out here because the JS door is a positional function rather than an options object, so
+ * there is nothing to read them off. They match `ClimbOptions`' declaration; the seventh field,
+ * `maxAnalysisPoints`, is the O(n²) guard and is left at its default — a UI control for a
+ * performance backstop would invite users to make the tab freeze.
+ */
+export const CLIMB_DEFAULTS = {
+    minMinClimbElevationM: 10,
+    maxMinClimbElevationM: 35,
+    minClimbElevationRatio: 100,
+    minGradePercent: 3,
+    maxDiffRealGrade: 1.3,
+    booster: 1.3,
+} as const;
+
+export type ClimbTuning = { -readonly [K in keyof typeof CLIMB_DEFAULTS]: number };
+
 export function useClimbs(currentPath: Ref<Path | null>) {
     const climbs = shallowRef<ClimbDto[]>([]);
     const error = shallowRef<string | null>(null);
+    /** Reactive copy of {@link CLIMB_DEFAULTS}, driven by the controls in `ClimbsPanel`. */
+    const tuning = reactive<ClimbTuning>({ ...CLIMB_DEFAULTS });
 
     const recompute = () => {
         if (!currentPath.value) {
@@ -36,7 +57,18 @@ export function useClimbs(currentPath: Ref<Path | null>) {
             return;
         }
         try {
-            climbs.value = detectClimbs(currentPath.value);
+            // `detectClimbsWithOptions`, not `detectClimbs`: the six knobs were bound in the shim
+            // and reachable from no control at all, which the coverage ledger counts as not
+            // crossing the demo surface. Same defaults, so an untouched UI detects what it did.
+            climbs.value = detectClimbsWithOptions(
+                currentPath.value,
+                tuning.minMinClimbElevationM,
+                tuning.maxMinClimbElevationM,
+                tuning.minClimbElevationRatio,
+                tuning.minGradePercent,
+                tuning.maxDiffRealGrade,
+                tuning.booster
+            );
             error.value = null;
         } catch (e) {
             climbs.value = [];
@@ -44,7 +76,7 @@ export function useClimbs(currentPath: Ref<Path | null>) {
         }
     };
 
-    watch(currentPath, recompute, { immediate: true });
+    watch([currentPath, tuning], recompute, { immediate: true, deep: true });
 
     const hasClimbs = computed(() => climbs.value.length > 0);
 
@@ -52,5 +84,11 @@ export function useClimbs(currentPath: Ref<Path | null>) {
     const maxPartGrade = (climb: ClimbDto): number =>
         climb.parts.reduce((max, part) => Math.max(max, part.grade), 0);
 
-    return { climbs, hasClimbs, error, maxPartGrade, recompute };
+    const isTuned = computed(() =>
+        Object.entries(CLIMB_DEFAULTS).some(([k, v]) => tuning[k as keyof ClimbTuning] !== v)
+    );
+
+    const resetTuning = () => Object.assign(tuning, CLIMB_DEFAULTS);
+
+    return { climbs, hasClimbs, error, maxPartGrade, recompute, tuning, isTuned, resetTuning };
 }

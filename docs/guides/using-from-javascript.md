@@ -140,10 +140,10 @@ Any of the five may be `null` for engine defaults. The parameters, in order:
 
 - **`CyclistDto`** — all six numeric fields are required when the DTO is passed, plus an optional
   `roadCondition` of `"dry"` or `"wet"`. The preset sets cornering grip and braking *together*;
-  wet cuts cornering speed by 1.58× and braking to 0.23 g. Note that **the preset wins over
-  `maxLeanAngleDeg` and `maxBrakeG`** here, which is the opposite of the CLI — a JS caller always
-  supplies all six fields, so "explicit wins" would make the preset unreachable. Omit
-  `roadCondition` to keep your raw values.
+  wet cuts cornering speed by 1.58× and braking to 0.23 g. **The preset wins over `maxLeanAngleDeg`
+  and `maxBrakeG`** — omit `roadCondition` to keep your raw values. This door's behaviour has not
+  changed, but it is no longer the odd one out: the CLI used to let an explicit flag win, and was
+  brought into line in the S8 alignment step. The rule now lives once, in `RoadCondition.applyTo`.
 - **`BikeDto`** — `maxPedalingLeanAngleDeg` is the pedal-strike cut-off: past this lean the rider
   stops pedalling and coasts. `90` disables it.
 - **`WindDto`** — `windDirection` is in degrees, `0` = north, `90` = east, naming the direction the
@@ -176,6 +176,25 @@ const json  = pathToJson(out, false);           // column-oriented: one array pe
 `writeGpx`, `writeGpxAt` and `writeGpxTracks` all take a `writeExtensions` flag (default `true`)
 and a `powerSource`. `writeGpx` and `writeGpxAt` also take a `trackName`; `writeGpxAt`
 additionally stamps an absolute start time.
+
+`writeGpxTracks` takes two more: `trackNames`, which names the tracks positionally — a shorter
+list, or none, leaves the rest unnamed, which is *not* the `"virtualized"` default `writeGpx` puts
+on its single track — and `startTimeEpochMs`, which does what `writeGpxAt` does, to every track at
+once:
+
+```js
+const dated = writeGpxTracks(tracks, [], true, 'computed', ['montee', 'descente'], Date.now());
+```
+
+One asymmetry survives: **only `writeGpxTracks` takes waypoints.** `writeGpx` and `writeGpxAt` have
+no `waypoints` parameter, so a load → enhance → write round trip through them destroys every `<wpt>`
+of the source file. Parse them with `parseGpxWaypoints` and write through `writeGpxTracks` if you
+need them to survive.
+
+`pathToCsv` has exactly three parameters and `pathToJson` two, so **`decimals`, `includeMeta`,
+`fields` and `lineSeparator` are unreachable from JavaScript** although the core writers accept
+them and the WASI door exposes three of them. Every export therefore writes all 43 `PointField`s.
+Step S4 closes this.
 
 ### Which power lands in `<power>`
 
@@ -218,6 +237,7 @@ const climbs = detectClimbs(out);
 const tuned  = detectClimbsWithOptions(out, 10, 35, 100, 3, 1.3, 1.3);
 //   minMinClimbElevationM, maxMinClimbElevationM, minClimbElevationRatio,
 //   minGradePercent, maxDiffRealGrade, booster  — these are the defaults
+//   `ClimbOptions` has a seventh, maxAnalysisPoints (3000, the O(n²) guard), not exposed here
 
 const report = analyzeRacingLine(out, { racingLineCorridor: 'lane' });  // moves nothing
 const worst  = dominantHeadwindAzimuth(out);                            // degrees, or NaN
@@ -232,6 +252,10 @@ says nothing about wind *speed*. It returns `NaN` when the question has no answe
 4 points, or a perfectly symmetric loop — and `0` is a valid answer, so check with `Number.isNaN`.
 
 ## DEM elevation on its own
+
+> The elevation options are key-checked like every engine DTO: a misspelled `step` throws rather
+> than being silently ignored, and the error names the offending key. It throws **synchronously**,
+> at the call site, not as a rejected promise — so it does not need an `await` to be seen.
 
 ```js
 const { newElevationProvider, getElevation, getElevationsAlong } = elevation;

@@ -125,4 +125,64 @@ class EngineWasiApiTest {
         assertEquals(WasiAbi.ERR_GENERIC, WasiAbi.fail(IllegalStateException()))
         assertTrue(WasiAbi.lastError.isNotEmpty(), "an empty lastError tells a host nothing")
     }
+    // ── writeGpxTracksText — every option the reader accepts must reach the output ────────────
+    //
+    // The rule this section exists for: an accepted key is not a used key. `requireOnly` proved
+    // `trackName` and `startTimeEpochMs` were parsed; nothing proved they were written, and for
+    // two releases they were not. Only a behavioural assertion under the export sees that.
+
+    @Test
+    fun `writeGpxTracksText names every track with the trackName the reader parsed`() {
+        val xml =
+            writeGpxTracksText(
+                listOf(path(), path(4)),
+                writeGpxOptions(trackName = "col de la madeleine"),
+            )
+
+        assertEquals(
+            2,
+            Regex("<name>col de la madeleine</name>").findAll(xml).count(),
+            "one <trk><name> per track — this was silently dropped before the export was extracted",
+        )
+    }
+
+    @Test
+    fun `writeGpxTracksText stamps absolute times from the startTimeEpochMs the reader parsed`() {
+        val start = 1_714_550_400_000.0
+
+        val xml = writeGpxTracksText(listOf(path()), writeGpxOptions(startTimeEpochMs = start))
+
+        // path() sets time(i) = i * 10 s, and <time> must be startTimeEpochMs + time(i).
+        assertTrue("2024-05-01T08:00:00Z" in xml, "point 0 must carry the absolute start:\n$xml")
+        assertTrue("2024-05-01T08:00:20Z" in xml, "point 2 must be 20 s later:\n$xml")
+    }
+
+    @Test
+    fun `writeGpxTracksText without a start time leaves the times relative`() {
+        val xml = writeGpxTracksText(listOf(path()), writeGpxOptions())
+
+        assertTrue("1970-01-01T00:00:10Z" in xml, "relative times stay as they stand:\n$xml")
+    }
+
+    @Test
+    fun `writeGpxTracksText honours writeExtensions like the single-track writer`() {
+        val bare = writeGpxTracksText(listOf(path()), writeGpxOptions(writeExtensions = false))
+
+        assertTrue("gpxtpx" !in bare, "extensions must be gone:\n$bare")
+    }
+
+    /** The options a host gets from `{}` — the reader's own defaults, not literals restated here. */
+    private fun writeGpxOptions(
+        trackName: String? = null,
+        startTimeEpochMs: Double? = null,
+        writeExtensions: Boolean? = null,
+    ): WriteGpxOptions {
+        val defaults = null.toWriteGpxOptions()
+        return WriteGpxOptions(
+            writeExtensions = writeExtensions ?: defaults.writeExtensions,
+            startTimeEpochMs = startTimeEpochMs,
+            trackName = trackName ?: defaults.trackName,
+            powerSource = defaults.powerSource,
+        )
+    }
 }

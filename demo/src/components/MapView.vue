@@ -61,6 +61,21 @@ onMounted(() => {
                 <span class="inline-block h-0 w-6 border-t-[3px] border-red-600"></span>
                 <span>Racing line ridden</span>
             </div>
+
+            <!-- The solver hit its iteration cap. The line drawn is still corridor-feasible — that
+                 is enforced at every step — but it is not the optimum, and saying nothing would
+                 present a half-solved trajectory as a finished one. `converged` was in the report
+                 from the start and nothing read it until S11. -->
+            <div
+                v-if="racingLineReport && !racingLineReport.converged"
+                class="mt-2 flex items-start gap-2 border-t border-amber-300 pt-2 text-amber-700"
+            >
+                <span aria-hidden="true">⚠️</span>
+                <span>
+                    Solver did not converge ({{ racingLineReport.newtonIterations }} iterations).
+                    The line stays inside the corridor but is not optimal.
+                </span>
+            </div>
         </div>
     </section>
 </template>

@@ -531,6 +531,16 @@ assumed road width, so `defaultRoadWidthM = 6.0` being wrong by 2× makes the wh
 2×, in an unknown direction. Design §12 question 1 remains the honest caveat, and `--road-width` is
 exposed precisely so a user who knows better can say so.
 
+**Surfaces** : core ✅ · CLI ✅ (`--racing-line`, `--racing-line-report`, `--corridor`) · JS ✅ · WASI
+✅ · JVM/Java ✅ · démo ✅ — mais **trois** des vingt-trois champs de `RacingLineOptions` seulement.
+Les vingt autres, dont la `CurvatureOptions` **imbriquée** (que le `curvatureEnabled` des portes ne
+vise pas : il vise `EnhanceOptions.curvature`) et `simplifyToleranceCapM`, restent Kotlin, et c'est
+délibéré — réglés par la mesure, arité épinglée à 3 par `EngineModelJvmCoverageTest.kt:77` pour que
+l'élargir soit une décision. Voir `EngineModelJvm.kt:97-104`. Le **rapport**, lui, est partiel en
+aval : le CLI n'a qu'une table texte sans variante JSON, et la démo lit 3 de ses 13 champs —
+`converged` n'est jamais lu, donc une résolution non convergée est tracée sans avertissement
+(`useMap.ts:289`).
+
 ### R25 — Time weighting of the racing-line objective ❌
 
 `docs/archive/plans/racing-line-design.md` §3.7: reweight the trajectory objective toward `∫√κ ds` by IRLS, mask
@@ -615,6 +625,10 @@ the pedal-strike cut-off. It is nonetheless the more promising of the two tags, 
 `v_max = √(µgR)` directly and so moves the envelope *everywhere* rather than refining it where the
 envelope binds — the distinction R11, R24 and R25 all turn on. The caveat is that the available
 data is as thin here as for width: 4965 of 4966 tagged points on the 128 km sample are `asphalt`.
+
+**Surfaces** : core ✅ · CLI ✅ (`--road-width`, qui pose `racingLineRoadWidthM`) · JS ✅ · WASI ✅ ·
+JVM/Java ✅ · démo ✅. Même réserve que R24 : c'est l'un des trois champs de `RacingLineOptions` qui
+franchissent une porte.
 
 ## C. Physiological
 

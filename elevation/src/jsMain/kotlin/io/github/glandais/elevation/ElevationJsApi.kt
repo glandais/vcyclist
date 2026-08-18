@@ -72,6 +72,7 @@ private fun coordsEle(
 
 @JsExport
 fun newElevationProvider(configDto: ElevationProviderConfigDto?): ElevationProvider {
+    configDto?.requireOnlyKeys("ElevationProviderConfigDto", CONFIG_KEYS)
     val defaults = ElevationProviderConfig()
     val cfg =
         ElevationProviderConfig(
@@ -100,15 +101,21 @@ fun getElevationsAlong(
     provider: ElevationProvider,
     path: Array<CoordinatesDto>,
     options: GetElevationsAlongOptionsDto?,
-): Promise<Array<CoordinatesElevationDto>> =
-    GlobalScope.promise {
+): Promise<Array<CoordinatesElevationDto>> {
+    // Validated OUTSIDE the promise: a misspelled key is a programming error at the call site, and
+    // throwing there is what a caller can act on. Inside `GlobalScope.promise` it would become a
+    // rejected promise, which an `await`-less caller drops on the floor as an unhandled rejection.
+    options?.requireOnlyKeys("GetElevationsAlongOptionsDto", ALONG_KEYS)
+    options?.smoothingOptions?.requireOnlyKeys("SmoothingOptionsDto", SMOOTHING_KEYS)
+    options?.filterOptions?.requireOnlyKeys("FilterOptionsDto", FILTER_KEYS)
+    return GlobalScope.promise {
         val coords = path.map { LatLon(it.latitude, it.longitude) }
         val results =
             provider.getElevationsAlong(
                 path = coords,
-                step = options?.step ?: 10.0,
-                minDistance = options?.minDistance ?: 1.0,
-                interpolation = options?.interpolation ?: true,
+                step = options?.step ?: ElevationDefaults.STEP_M,
+                minDistance = options?.minDistance ?: ElevationDefaults.MIN_DISTANCE_M,
+                interpolation = options?.interpolation ?: ElevationDefaults.INTERPOLATION,
                 smoothingOptions = options?.smoothingOptions?.toKotlin(),
                 filterOptions = options?.filterOptions?.toKotlin(),
             )
@@ -117,7 +124,43 @@ fun getElevationsAlong(
             coordsEle(c.latitude, c.longitude, c.elevation)
         }
     }
+}
 
 private fun SmoothingOptionsDto.toKotlin() = SmoothingOptions(windowSize = windowSize, enabled = enabled)
 
 private fun FilterOptionsDto.toKotlin() = FilterOptions(tolerance = tolerance, zExaggeration = zExaggeration, enabled = enabled)
+
+private val CONFIG_KEYS = setOf("zoomLevel", "cacheSize", "tileUrlTemplate", "tileSize")
+
+private val ALONG_KEYS = setOf("step", "minDistance", "interpolation", "smoothingOptions", "filterOptions")
+
+private val SMOOTHING_KEYS = setOf("enabled", "windowSize")
+
+private val FILTER_KEYS = setOf("enabled", "tolerance", "zExaggeration")
+
+/**
+ * Reject a DTO carrying a key this façade does not read.
+ *
+ * `EngineJsApi` has had this since task 43 and this façade had **nothing**: a misspelled `step` in
+ * a `GetElevationsAlongOptionsDto` was silently ignored and the caller got the default, while the
+ * identical typo was a hard error on every guarded engine DTO and on every WASI reader — WASI even
+ * validates the provider config this door did not. An `external interface` ignores unknown
+ * properties in silence, so nothing but this check can tell a caller they misspelled something.
+ *
+ * Duplicated from `EngineJsApi` rather than shared: `:elevation` does not depend on `:engine` (the
+ * dependency runs the other way), and a public utility existing only to be shared across that line
+ * would be worse than twelve lines twice — the same call `jvmFuture` makes in three modules.
+ */
+private fun Any.requireOnlyKeys(
+    dtoName: String,
+    allowed: Set<String>,
+) {
+    val keys = js("Object.keys")(this).unsafeCast<Array<String>>()
+    val unknown = keys.filterNot { it in allowed }
+    if (unknown.isNotEmpty()) {
+        error(
+            "Unknown $dtoName key(s): ${unknown.joinToString()} — expected one of " +
+                allowed.sorted().joinToString(),
+        )
+    }
+}

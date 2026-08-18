@@ -392,6 +392,10 @@ call answering "no", so the return value is its byte length, not an error code.
 The six parameters of the JS `detectClimbsWithOptions`, under the same names. Omit the object
 entirely (length `0`) for `detectClimbs`' defaults.
 
+> `ClimbOptions` actually has **seven** properties. The seventh, `maxAnalysisPoints` (default
+> `3000` — the O(n²) guard), is not tunable here and is **rejected as an unknown key**, on this door
+> and on the JS one. Step S4 of [`surface-alignment.md`](../tasks/surface-alignment.md) adds it.
+
 ### `vcWriteGpx` / `vcWriteGpxTracks` — options
 
 ```json
@@ -412,6 +416,17 @@ An unknown spelling is an error, like an unknown key — it does not fall back t
 `time(i)`**. On a simulated path, where `time(0) == 0`, that dates the ride as you would expect.
 On a path that was merely *parsed*, `time(i)` still holds absolute epoch milliseconds and the
 output lands decades in the future — enhance first, or leave the option out.
+
+The schema is shared by both exports and **all four keys reach the output of both**. On
+`vcWriteGpxTracks`, `startTimeEpochMs` is the shared instant of point 0 of every track, and the
+single `trackName` names **every** track — the core takes a per-track `List<String>?` and this ABI
+has one string, so a host wanting distinct names per track writes them itself.
+
+> That was not true before: `toWriteGpxOptions()` parsed all four keys and `requireOnly` accepted
+> them while `vcWriteGpxTracks` forwarded only `powerSource` and `writeExtensions`, so a host got a
+> positive byte count and a document with unnamed tracks and epoch-relative times. The body now
+> lives in an `internal fun writeGpxTracksText` with a `wasmWasiTest` under it, because a key check
+> proves a *reader* accepts a key and never that an *export* forwards it.
 
 ### `vcPathToCsv` / `vcPathToJson` — options
 
@@ -472,7 +487,7 @@ and a JVM test fails the build if a JS export ever appears without a decision he
 | `parseGpxWaypoints` | `vcParseGpxWaypointsJson` | JSON instead of objects |
 | `writeGpx` | `vcWriteGpx` | `writeExtensions`, `powerSource` and `trackName` moved into the options |
 | `writeGpxAt` | `vcWriteGpx` | same export; `startTimeEpochMs` in the options |
-| `writeGpxTracks` | `vcWriteGpxTracks` | **waypoints are not written** — the ABI has no waypoint handle |
+| `writeGpxTracks` | `vcWriteGpxTracks` | **waypoints are not written** — the ABI has no waypoint handle. JS takes a `trackNames` array, this ABI one `trackName` for every track |
 | `pathSize`, `pathTotalDistance`, `pathDurationMs`, `pathElevationGain`, `pathElevationLoss` | `vcPathSize`, `vcPathTotalDistance`, `vcPathDurationMs`, `vcPathElevationGain`, `vcPathElevationLoss` | ported |
 | `pathLatitudeDeg`, `pathLongitudeDeg` | `vcPathLatitudeDeg`, `vcPathLongitudeDeg` | ported |
 | `pointAt` | `vcPointJson` | `PointDto` as JSON |
@@ -509,6 +524,10 @@ Three things have no JS counterpart: `vcAbiVersion`, `vcSetElevationConfig`,
 - **No concurrency.** One instance, one caller, tiles fetched one at a time.
 - **`vcWriteGpxTracks` drops waypoints**, as noted above. Keep them from
   `vcParseGpxWaypointsJson` and merge them yourself if you need them.
+- **`vcPathToCsv` / `vcPathToJson` do not accept `fields` or `lineSeparator`** — `requireOnly`
+  **rejects** them, it does not ignore them, so every export writes all 43 `PointField`s.
+- **`vcWriteGpxTracks` names every track alike.** One `trackName` for N tracks; per-track names
+  would be a wire-format addition, not a bug fix.
 
 ## 12. See also
 

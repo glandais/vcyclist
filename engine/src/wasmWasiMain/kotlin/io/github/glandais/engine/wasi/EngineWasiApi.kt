@@ -728,7 +728,39 @@ fun vcWriteGpx(
     }
 
 /**
+ * The body of [vcWriteGpxTracks], separated from its export so a test can call it: anything that
+ * reaches `read_input` cannot be instantiated by the KGP test runner (task w03).
+ *
+ * Every key [toWriteGpxOptions] parses is used here. That was not true until this was extracted —
+ * `trackName` and `startTimeEpochMs` were accepted by `requireOnly` and then dropped on the floor,
+ * so a host got a positive byte count and a document with unnamed tracks and epoch-relative times.
+ * A key check proves a *reader* accepts a key, never that an *export* forwards it, which is why
+ * this function exists at all rather than the body staying inline.
+ *
+ * [WriteGpxOptions.trackName] is one string and the core takes a per-track list, so **every track
+ * gets the same name** — the same value `vcWriteGpx` puts on its single track. A host that needs
+ * distinct names per track writes them itself; giving this ABI a `trackNames` array would be a
+ * wire-format addition, not a bug fix.
+ */
+internal fun writeGpxTracksText(
+    paths: List<Path>,
+    options: WriteGpxOptions,
+): String =
+    GpxWriter.write(
+        pathsToGpxDocument(
+            paths,
+            trackNames = List(paths.size) { options.trackName },
+            startTime = options.startTimeEpochMs?.let { Instant.fromEpochMilliseconds(it.toLong()) },
+            powerSource = options.powerSource,
+        ),
+        writeExtensions = options.writeExtensions,
+    )
+
+/**
  * Serialise every path of a list handle as a multi-track GPX — one `<trk>` per path.
+ *
+ * Options are [vcWriteGpx]'s, and all four are honoured — see [writeGpxTracksText] for what
+ * `trackName` means when there is more than one track.
  *
  * Waypoints are **not** written: the JS `writeGpxTracks` takes them as an argument, and this ABI
  * has no waypoint handle to pass. A host that needs them keeps the source document's `<wpt>`
@@ -742,12 +774,7 @@ fun vcWriteGpxTracks(
     guarded {
         val paths = requireList(handle)
         val options = readOptions(optionsJsonLen).toWriteGpxOptions()
-        writeTextToHost(
-            GpxWriter.write(
-                pathsToGpxDocument(paths, powerSource = options.powerSource),
-                writeExtensions = options.writeExtensions,
-            ),
-        )
+        writeTextToHost(writeGpxTracksText(paths, options))
     }
 
 /** The path as CSV — `pathToCsv`. Options: `separator`, `unitsInHeader`, `decimals`. */

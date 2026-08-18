@@ -14,9 +14,10 @@ import kotlin.test.assertTrue
  * to `CONTRIBUTING.md`. Adding a field is a documented, four-step operation (see `CLAUDE.md`) and
  * this is the step no reviewer can be relied upon to perform.
  *
- * **Caveat.** The documents are not declared Gradle inputs, so this task goes `UP-TO-DATE` when
- * only prose changes — the 529e782 breakage sat unnoticed for two commits for exactly that
- * reason. It is caught on any run that recompiles the test classpath, and on CI, which is clean.
+ * The four documents **are** declared inputs of `jvmTest` (`gpx/build.gradle.kts`), so a
+ * prose-only edit re-runs this task. That was not always true: the 529e782 breakage sat unnoticed
+ * for two commits because the task went `UP-TO-DATE` on exactly the change it watches. Any
+ * source-text test needs the same declaration, or it is worth nothing between clean builds.
  *
  * JVM-only by necessity : reading the repository from a test is not portable. The test locates the
  * repository root by walking up to `settings.gradle.kts`, and skips silently if it cannot — a

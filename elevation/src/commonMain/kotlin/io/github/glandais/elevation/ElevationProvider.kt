@@ -42,9 +42,9 @@ class ElevationProvider(
 
     suspend fun getElevationsAlong(
         path: List<Coordinates>,
-        step: Double = 10.0,
-        minDistance: Double = 1.0,
-        interpolation: Boolean = true,
+        step: Double = ElevationDefaults.STEP_M,
+        minDistance: Double = ElevationDefaults.MIN_DISTANCE_M,
+        interpolation: Boolean = ElevationDefaults.INTERPOLATION,
         smoothingOptions: SmoothingOptions? = null,
         filterOptions: FilterOptions? = null,
     ): List<CoordinatesElevation> =
@@ -57,4 +57,24 @@ class ElevationProvider(
             smoothingOptions,
             filterOptions,
         )
+}
+
+/**
+ * The sampling defaults of [ElevationProvider.getElevationsAlong], in `commonMain` so that every
+ * door reads them instead of writing them out again.
+ *
+ * They were literals in the signature and again in `ElevationJsApi`, which is the shape of drift
+ * that once had the façades defending 250 W against the CLI's 280 W: the two spellings agree until
+ * somebody changes one. The engine's own catalogues — `PowerModel`, `GpxPowerSource` — work the
+ * same way, and `DoorDefaultsTest` exists to fail a reader that spells a default.
+ */
+object ElevationDefaults {
+    /** Densification step along the path, in metres. */
+    const val STEP_M: Double = 10.0
+
+    /** Points closer than this to their predecessor are dropped, in metres. */
+    const val MIN_DISTANCE_M: Double = 1.0
+
+    /** Bilinear interpolation between DEM samples rather than nearest-neighbour. */
+    const val INTERPOLATION: Boolean = true
 }

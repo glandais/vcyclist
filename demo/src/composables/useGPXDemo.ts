@@ -1,9 +1,10 @@
 import type { Ref } from 'vue';
-import { ref } from 'vue';
+import { ref, shallowRef } from 'vue';
 import {
     analyzeRacingLine,
     enhanceWithCourse,
-    parseGpx,
+    parseGpxTracks,
+    parseGpxWaypoints,
     pathDurationMs,
     pathSize,
     pathTotalDistance,
@@ -13,6 +14,7 @@ import {
     type Path,
     type PowerProviderDto,
     type RacingLineReportDto,
+    type WaypointDto,
     type WindDto,
 } from '~/engine-shim';
 import { type Config, PowerSourceType, SLEW_W_PER_S } from '~/types';
@@ -21,6 +23,13 @@ export interface UseGPXDemoReturn {
     currentPath: Ref<Path | null>;
     /** The path as parsed, before enhancement — the reference the racing-line report indexes. */
     originalPath: Ref<Path | null>;
+    /** Every `<trk>` and `<rte>` the file carried, in document order. Never empty once loaded. */
+    tracks: Ref<Path[]>;
+    /** Which of {@link tracks} the rest of the UI is looking at. */
+    selectedTrackIndex: Ref<number>;
+    /** The document's `<wpt>` entries, kept so the GPX download can write them back. */
+    waypoints: Ref<WaypointDto[]>;
+    selectTrack: (index: number) => void;
     /** The corridor and offsets behind the current path, or `null` when the stage did not run. */
     racingLineReport: Ref<RacingLineReportDto | null>;
     isProcessing: Ref<boolean>;
@@ -34,6 +43,9 @@ export interface UseGPXDemoReturn {
 export function useGPXDemo(config: Ref<Config>): UseGPXDemoReturn {
     const originalPath: Ref<Path | null> = ref(null);
     const currentPath: Ref<Path | null> = ref(null);
+    const tracks: Ref<Path[]> = shallowRef([]);
+    const selectedTrackIndex = ref(0);
+    const waypoints: Ref<WaypointDto[]> = shallowRef([]);
     const racingLineReport: Ref<RacingLineReportDto | null> = ref(null);
     const isProcessing = ref(false);
     const statusText = ref('');
@@ -148,22 +160,54 @@ export function useGPXDemo(config: Ref<Config>): UseGPXDemoReturn {
         };
     };
 
+    /**
+     * Everything the file carried, not just the first track.
+     *
+     * This used to call `parseGpx`, which is `firstTrackAsPath` — a two-track file lost its second
+     * `<trk>` at load with nothing said, and the waypoints were never read at all, so the GPX
+     * download destroyed every `<wpt>` of the source. Both are kept now: the tracks so a human can
+     * pick one, the waypoints so `writeGpxTracks` can put them back.
+     */
     const parseAndStore = async (gpxContent: string, filename: string) => {
         setProcessing(true, 'Parsing GPX data...');
         try {
-            const path = parseGpx(gpxContent);
-            originalPath.value = path;
-            currentPath.value = path;
+            const parsed = parseGpxTracks(gpxContent);
+            if (parsed.length === 0) {
+                throw new Error('no <trk> or <rte> in this file');
+            }
+            tracks.value = parsed;
+            waypoints.value = parseGpxWaypoints(gpxContent);
+            selectedTrackIndex.value = 0;
+            originalPath.value = parsed[0];
+            currentPath.value = parsed[0];
             racingLineReport.value = null;
             fileName.value = filename;
             console.log('GPX parsed successfully:', {
                 filename,
-                points: pathSize(path),
-                distance: pathTotalDistance(path),
+                tracks: parsed.length,
+                waypoints: waypoints.value.length,
+                points: pathSize(parsed[0]),
+                distance: pathTotalDistance(parsed[0]),
             });
         } catch (error) {
             throw new Error('Failed to parse GPX: ' + (error as Error).message, { cause: error });
         }
+    };
+
+    /**
+     * Look at another track of the same file. The enhancement does not carry over — it was
+     * computed for a different road — so this drops back to the parsed path, exactly as a fresh
+     * load would.
+     */
+    const selectTrack = (index: number) => {
+        const path = tracks.value[index];
+        if (!path || index === selectedTrackIndex.value) {
+            return;
+        }
+        selectedTrackIndex.value = index;
+        originalPath.value = path;
+        currentPath.value = path;
+        racingLineReport.value = null;
     };
 
     const loadGPXFile = async (url: string) => {
@@ -244,6 +288,10 @@ export function useGPXDemo(config: Ref<Config>): UseGPXDemoReturn {
     return {
         currentPath,
         originalPath,
+        tracks,
+        selectedTrackIndex,
+        waypoints,
+        selectTrack,
         racingLineReport,
         isProcessing,
         statusText,

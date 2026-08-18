@@ -6,6 +6,7 @@ import io.github.glandais.engine.EnhanceOptions
 import io.github.glandais.engine.RoadCondition
 import io.github.glandais.engine.SimplifyPathOptions
 import io.github.glandais.engine.WPrimeBalanceOptions
+import io.github.glandais.engine.applyTo
 import io.github.glandais.engine.climb.ClimbOptions
 import io.github.glandais.engine.gpx.GpxPowerSource
 import io.github.glandais.engine.io.CsvOptions
@@ -134,19 +135,23 @@ internal fun JsonObj?.toCyclist(): Cyclist {
     val conditionName = stringOrNull("roadCondition")
     val condition =
         conditionName?.let { name ->
-            RoadCondition.entries.firstOrNull { it.name.equals(name, ignoreCase = true) }
+            RoadCondition.fromWire(name)
                 ?: throw IllegalArgumentException(
-                    "unknown roadCondition '$name' — expected one of " +
-                        RoadCondition.entries.joinToString { it.name.lowercase() },
+                    "unknown roadCondition '$name' — expected one of ${RoadCondition.wireNames.joinToString()}",
                 )
         }
-    return Cyclist(
-        massKg = double("massKg", d.massKg),
-        maxBrakeG = condition?.maxBrakeG ?: double("maxBrakeG", d.maxBrakeG),
-        cd = double("cd", d.cd),
-        frontalAreaM2 = double("frontalAreaM2", d.frontalAreaM2),
-        maxLeanAngleDeg = condition?.leanAngleDeg ?: double("maxLeanAngleDeg", d.maxLeanAngleDeg),
-        maxSpeedKmH = double("maxSpeedKmH", d.maxSpeedKmH),
+    // The preset is the last word, applied by the one rule in `commonMain`. This reader could tell
+    // "absent" from "given" — `JsonObj` is a map — and deliberately does not use that: the rule has
+    // to be the same on every door, and `CyclistDto`'s non-nullable fields cannot express any other.
+    return condition.applyTo(
+        Cyclist(
+            massKg = double("massKg", d.massKg),
+            maxBrakeG = double("maxBrakeG", d.maxBrakeG),
+            cd = double("cd", d.cd),
+            frontalAreaM2 = double("frontalAreaM2", d.frontalAreaM2),
+            maxLeanAngleDeg = double("maxLeanAngleDeg", d.maxLeanAngleDeg),
+            maxSpeedKmH = double("maxSpeedKmH", d.maxSpeedKmH),
+        ),
     )
 }
 
@@ -203,7 +208,9 @@ internal fun JsonObj?.toPowerSpec(): CyclistPowerSpec {
     if (this == null) return CyclistPowerSpec()
     requireOnly(POWER_KEYS)
     val d = CyclistPowerSpec()
-    val type = string("type", PowerModel.CONSTANT.id)
+    // `d.model.id`, not `PowerModel.CONSTANT.id`: the default model belongs to CyclistPowerSpec,
+    // and spelling it here would survive a change to that default. Caught by DoorDefaultsTest.
+    val type = string("type", d.model.id)
     val model =
         PowerModel.fromIdOrNull(type)
             ?: throw IllegalArgumentException(
@@ -228,12 +235,17 @@ private val CLIMB_KEYS =
         "minGradePercent",
         "maxDiffRealGrade",
         "booster",
+        "maxAnalysisPoints",
     )
 
 /**
  * Read climb-detection options. The key is `maxDiffRealGrade`, matching
  * `detectClimbsWithOptions`' parameter name on the JS side, even though the Kotlin field is
  * `maxDiffRealGradeRatio` — the JS name is the published one.
+ *
+ * `maxAnalysisPoints` is the O(n²) guard (default 3000). It was the seventh of seven `ClimbOptions`
+ * properties and the only one no door exposed — and because `requireOnly` rejects rather than
+ * ignores, a host that sent it got a hard error. Added in S4.
  */
 internal fun JsonObj?.toClimbOptions(): ClimbOptions {
     if (this == null) return ClimbOptions()
@@ -246,10 +258,11 @@ internal fun JsonObj?.toClimbOptions(): ClimbOptions {
         minGradePercent = double("minGradePercent", d.minGradePercent),
         maxDiffRealGradeRatio = double("maxDiffRealGrade", d.maxDiffRealGradeRatio),
         booster = double("booster", d.booster),
+        maxAnalysisPoints = double("maxAnalysisPoints", d.maxAnalysisPoints.toDouble()).toInt(),
     )
 }
 
-private val CSV_KEYS = setOf("separator", "unitsInHeader", "decimals")
+private val CSV_KEYS = setOf("separator", "unitsInHeader", "decimals", "lineSeparator")
 
 /**
  * Read CSV options. `separator` takes its first character only, as the JS façade does, and an
@@ -264,6 +277,8 @@ internal fun JsonObj?.toCsvOptions(): CsvOptions {
         separator = string("separator", "").firstOrNull() ?: d.separator,
         unitsInHeader = bool("unitsInHeader", d.unitsInHeader),
         decimals = if (decimals.isNaN()) d.decimals else decimals.toInt(),
+        // An empty string would produce one unterminated line, so it falls back like `separator`.
+        lineSeparator = string("lineSeparator", "").ifEmpty { d.lineSeparator },
     )
 }
 

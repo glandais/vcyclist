@@ -13,6 +13,7 @@ from __future__ import annotations
 
 import math
 import os
+import re
 import subprocess
 import unittest
 from pathlib import Path
@@ -193,6 +194,28 @@ class ParsingTest(HostTestCase):
         self.assertNotIn("<extensions>", bare)
         self.assertIn("2024-05-01", stamped, "startTimeEpochMs must date the ride")
 
+    def test_write_gpx_tracks_honours_every_option_it_accepts(self):
+        """`requireOnly` accepted `trackName` and `startTimeEpochMs` from the first release and
+        `vcWriteGpxTracks` forwarded neither, so a host got a success byte count and a document
+        with unnamed tracks and epoch-relative times. An accepted key is not a used key; only a
+        behavioural assertion through the ABI sees the difference."""
+        # A list handle only ever comes from vcParseGpxMulti, so these paths are parsed rather
+        # than simulated: their TIME field holds absolute epoch milliseconds. Asserting a date
+        # would assert the trap test_write_gpx_options_cover_writeGpx_and_writeGpxAt documents,
+        # so the start time is checked by its effect — the <time> elements must move.
+        listed = self.host.parse_gpx_multi(fixtures.gpx_fixture("SAMPLE_GPX"))
+
+        plain = self.host.write_gpx_tracks(listed, {"trackName": "col de la madeleine"})
+        stamped = self.host.write_gpx_tracks(listed, {"startTimeEpochMs": 1_714_550_400_000})
+
+        self.assertEqual(self.host.list_size(listed), plain.count("<name>col de la madeleine</name>"),
+                         "every track must carry the name the reader parsed")
+        self.assertNotEqual(
+            re.findall(r"<time>([^<]+)</time>", plain),
+            re.findall(r"<time>([^<]+)</time>", stamped),
+            "startTimeEpochMs must reach the output — it was parsed and dropped before S1",
+        )
+
     def test_the_four_multi_parse_modes(self):
         gpx = fixtures.gpx_fixture("SAMPLE_GPX")
 
@@ -333,6 +356,21 @@ class ExportsTest(HostTestCase):
         self.assertEqual(self.host.size(handle), as_json["size"])
         self.assertIn("elevation", as_json["fields"])
 
+    def test_csv_and_json_options_that_only_this_door_had(self):
+        """S4 widened the JS door to match this one. The assertions here pin the WASI side of the
+        pair: `lineSeparator` was rejected outright by `requireOnly` before, and `maxAnalysisPoints`
+        — ClimbOptions' seventh field — reached no door at all."""
+        handle = self.host.parse_gpx(fixtures.gpx_fixture("SAMPLE_GPX"))
+
+        crlf = self.host.to_csv(handle, {"lineSeparator": "\r\n"})
+        bare = self.host.to_json(handle, {"includeMeta": False})
+        capped = self.host.climbs(handle, {"maxAnalysisPoints": 50})
+
+        self.assertIn("\r\n", crlf, "lineSeparator must reach CsvWriter")
+        self.assertNotIn("meta", bare, "includeMeta=False drops the totals block")
+        self.assertIn("fields", bare, "the data itself always stays")
+        self.assertIsInstance(capped, list)
+
     def test_climb_detection(self):
         handle = self.host.parse_gpx(fixtures.gpx_fixture("SAMPLE_GPX"))
 
@@ -342,6 +380,27 @@ class ExportsTest(HostTestCase):
         for climb in climbs:
             self.assertIn("parts", climb)
             self.assertGreater(climb["lengthM"], 0)
+
+    def test_racing_line_report_round_trips_through_the_abi(self):
+        """The one export whose ABI path — handle lookup, options staging, host-memory round trip
+        — nothing here exercised until this test. `WasiJsonOutputTest` pins the JSON shape; what
+        is checked from the outside is that a host can actually reach it."""
+        handle = self.host.parse_gpx(fixtures.gpx_fixture("SAMPLE_GPX"))
+        # A raw 7-point parse is too short to project; the report is meant for a densified path.
+        enhanced = self.host.enhance(handle, {**fixtures.PARITY_OPTIONS, "simplifyEnabled": False})
+
+        report = self.host.racing_line(enhanced, {"racingLineEnabled": True})
+
+        self.assertIsNotNone(report, "an enhanced sample path is projectable")
+        self.assertEqual(self.host.size(enhanced), report["size"])
+        self.assertEqual(len(report["corridorLo"]), report["size"])
+        self.assertEqual(len(report["corridorHi"]), report["size"])
+        self.assertIsInstance(report["converged"], bool)
+        self.assertGreaterEqual(report["newtonIterations"], 0)
+        for corner in report["corners"]:
+            self.assertLessEqual(corner["fromIndex"], corner["apexIndex"])
+            self.assertLessEqual(corner["apexIndex"], corner["untilIndex"])
+            self.assertIn("kind", corner)
 
     def test_dominant_headwind_is_an_azimuth_or_nan(self):
         handle = self.host.parse_gpx(fixtures.gpx_fixture("SAMPLE_GPX"))

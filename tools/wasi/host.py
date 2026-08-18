@@ -276,6 +276,12 @@ class VcyclistHost:
         self._with_options("vcDetectClimbsJson", handle, options)
         return json.loads(self._captured.decode())
 
+    def racing_line(self, handle: int, options: Optional[dict] = None) -> Optional[dict]:
+        """The racing-line report, or None — the export emits the JSON literal `null` when the
+        path cannot be projected, which is a successful call answering "no"."""
+        self._with_options("vcAnalyzeRacingLineJson", handle, options)
+        return json.loads(self._captured.decode())
+
     def set_elevation_config(self, config: Optional[dict] = None) -> int:
         if config is None:
             return self._checked("vcSetElevationConfig", 0)

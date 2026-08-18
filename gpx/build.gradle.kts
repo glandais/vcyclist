@@ -61,3 +61,20 @@ kotlin {
 
 // Maven Central publication (coordinates, POM, signing) is configured once for every
 // module in the root build.gradle.kts — see the `subprojects` block there.
+
+// ── Source-text tests need their sources declared as inputs ──────────────────────────────────
+//
+// `DocumentedFieldCountTest` reads four prose documents and compares the number they quote to
+// `PointField.COUNT`. Its own KDoc recorded the caveat that they were not declared inputs, so the
+// task went UP-TO-DATE on a prose-only change and a breakage sat unnoticed for two commits. This
+// closes it.
+tasks.named<Test>("jvmTest") {
+    inputs
+        .files(
+            rootProject.file("CLAUDE.md"),
+            rootProject.file("CONTRIBUTING.md"),
+            rootProject.file("demo/README.md"),
+            rootProject.file("docs/guides/using-from-javascript.md"),
+        ).withPropertyName("documentedFieldCountClaims")
+        .withPathSensitivity(PathSensitivity.RELATIVE)
+}

@@ -13,4 +13,7 @@ export const gpxSamples: GpxSample[] = [
     { label: 'Movescount Track', value: './gpx/movescount.gpx' },
     { label: 'Sports Tracker', value: './gpx/sports-tracker.gpx' },
     { label: 'Strava Track', value: './gpx/strava.gpx' },
+    // The only bundled file with more than one <trk> or any <wpt> — which is why the demo could
+    // discard both for so long without anyone noticing. Keep it in the list.
+    { label: 'Two tracks + waypoints', value: './gpx/two-tracks.gpx' },
 ];

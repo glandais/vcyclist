@@ -70,4 +70,64 @@ enum class RoadCondition(
      * `v_max = √(g·R·tan θ)` is `√(µ·g·R)`, so the two are the same parameter.
      */
     val leanAngleDeg: Double get() = atan(mu) * 180.0 / PI
+
+    /** The spelling every door accepts. Case is the caller's business, not this enum's. */
+    val wireName: String
+        get() =
+            when (this) {
+                DRY -> "dry"
+                WET -> "wet"
+            }
+
+    companion object {
+        /** The value every door falls back to. Never restate it as a literal. */
+        val DEFAULT = DRY
+
+        /**
+         * Parse the wire spelling, case-insensitively, or `null` when it names no condition.
+         *
+         * The single catalogue the CLI, the JS façade and the WASI door parse through — the same
+         * shape as [io.github.glandais.engine.gpx.GpxPowerSource.fromWire], and for the same
+         * reason: a constant added to this enum breaks `wireName` in `commonMain`, on every target
+         * at once, instead of leaving one door unable to name it.
+         *
+         * Before this existed, `RoadCondition` was the one cross-door enum with no wire catalogue,
+         * and the three doors spelled *and resolved* it separately. That is how their precedence
+         * came to disagree — see [applyTo].
+         */
+        fun fromWire(value: String): RoadCondition? = entries.firstOrNull { it.wireName == value.lowercase() }
+
+        /** The accepted spellings, for error messages and option validation. */
+        val wireNames: List<String> get() = entries.map { it.wireName }
+    }
 }
+
+/**
+ * Apply a road-condition preset to [cyclist] — **the preset is the last word**.
+ *
+ * A `null` condition changes nothing, which is how a caller keeps raw grip values. A non-null one
+ * overwrites both `maxLeanAngleDeg` and `maxBrakeG`, together, always.
+ *
+ * ## Why the preset wins, and why this function exists
+ *
+ * The three doors used to resolve this themselves and they did not agree. The CLI wrote
+ * `maxBrakeG ?: roadCondition.maxBrakeG` — an explicit flag beat the preset — while JS and WASI
+ * wrote `condition?.maxBrakeG ?: maxBrakeG`, so the preset beat an explicit value. The same
+ * configuration produced two different cornering physics: `maxLeanAngleDeg = 42` with
+ * `roadCondition = "wet"` gave 42° from the CLI and 15.6° from the other two.
+ *
+ * Preset-wins is the rule, decided rather than inherited. It is the one the demo's UI is built
+ * around and says out loud ("a wet road overrides the lean angle and braking sliders below"), it
+ * keeps the two limits moving together — which is the entire point of R9 — and it is expressible on
+ * every door, whereas explicit-wins is not: `CyclistDto`'s fields are non-nullable, so a JS caller
+ * always supplies all six and the façade cannot tell "absent" from "given".
+ *
+ * The cost is real and is paid on the CLI: `--cyclist-max-angle 42 --road-condition wet` no longer
+ * gives 42°. `CyclistMixin` warns when both are passed rather than ignoring one in silence.
+ */
+fun RoadCondition?.applyTo(cyclist: Cyclist): Cyclist =
+    if (this == null) {
+        cyclist
+    } else {
+        cyclist.copy(maxLeanAngleDeg = leanAngleDeg, maxBrakeG = maxBrakeG)
+    }

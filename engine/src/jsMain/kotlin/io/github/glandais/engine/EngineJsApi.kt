@@ -347,6 +347,18 @@ fun parseGpxRoutesOnly(xml: String): Array<Path> =
  * is written as `<wpt>` entries before the tracks (typically the source document's
  * [io.github.glandais.engine.gpx.GpxDocument.waypoints], forwarded so a parse → enhance → write
  * round-trip does not silently drop points of interest — see g03).
+ *
+ * [trackNames] names the tracks positionally; a shorter list — or `null` — leaves the remaining
+ * tracks unnamed, which is `pathsToGpxDocument`'s own contract and **not** the
+ * [DEFAULT_TRACK_NAME] that [writeGpx] applies to its single track. Extra names are ignored.
+ *
+ * [startTimeEpochMs] is what [writeGpxAt] does, applied to every track at once: `<time>` =
+ * `startTimeEpochMs + time(i)`. `null` (the default) writes the times as they stand. It is a
+ * `Double` for the reason [writeGpxAt] gives.
+ *
+ * Both arrived late — the WASI door had accepted `trackName` and `startTimeEpochMs` since w09 and
+ * this façade had no way to say either, so a multi-track export was the one GPX a JS caller could
+ * not date or name.
  */
 @JsExport
 fun writeGpxTracks(
@@ -354,11 +366,15 @@ fun writeGpxTracks(
     waypoints: Array<WaypointDto> = emptyArray(),
     writeExtensions: Boolean = true,
     powerSource: String? = null,
+    trackNames: Array<String>? = null,
+    startTimeEpochMs: Double? = null,
 ): String =
     GpxWriter.write(
         pathsToGpxDocument(
             paths.toList(),
+            trackNames = trackNames?.toList(),
             waypoints = waypoints.map { it.toGpxWaypoint() },
+            startTime = startTimeEpochMs?.let { Instant.fromEpochMilliseconds(it.toLong()) },
             powerSource = powerSource.toGpxPowerSource(),
         ),
         writeExtensions = writeExtensions,
@@ -380,8 +396,16 @@ private fun String?.toGpxPowerSource(): GpxPowerSource {
         )
 }
 
-private fun WaypointDto.toGpxWaypoint(): io.github.glandais.engine.gpx.GpxWaypoint =
-    io.github.glandais.engine.gpx.GpxWaypoint(
+/**
+ * The one input DTO that had no key check: a caller hand-building a waypoint could misspell `sym`
+ * as `symbol`'s neighbour and silently write a `<wpt>` without it.
+ */
+private val WAYPOINT_KEYS =
+    setOf("latitudeDeg", "longitudeDeg", "elevationM", "name", "description", "symbol", "type", "timeEpochMs")
+
+private fun WaypointDto.toGpxWaypoint(): io.github.glandais.engine.gpx.GpxWaypoint {
+    requireOnlyKeys("WaypointDto", WAYPOINT_KEYS)
+    return io.github.glandais.engine.gpx.GpxWaypoint(
         latitudeDeg = latitudeDeg,
         longitudeDeg = longitudeDeg,
         elevationM = elevationM,
@@ -391,6 +415,7 @@ private fun WaypointDto.toGpxWaypoint(): io.github.glandais.engine.gpx.GpxWaypoi
         type = type,
         timeEpochMs = timeEpochMs?.toLong(),
     )
+}
 
 @JsExport
 fun pathSize(path: Path): Int = path.size
@@ -494,32 +519,45 @@ fun enhance(
         Enhancer.enhanceCourseDefault(path, elevationProvider = provider, options = opts)
     }
 
-private fun EnhanceOptionsDto?.toEnhanceOptions(): EnhanceOptions {
-    if (this == null) return defaultJsOptions()
+/**
+ * **Every fallback here is read off [defaultJsOptions] or off the stage's own options object.**
+ * Not one is written out.
+ *
+ * There are two default sites on this façade, and they used to disagree by construction: this
+ * function spelled its fallbacks out, and `defaultJsOptions()` spelled the same values out again
+ * for the `enhance(path, null)` path. A default changed in one did not apply to the other, and
+ * `simplifyToleranceM` / `simplifyZExaggeration` / `curvatureEnabled` were `10.0` / `3.0` / `true`
+ * here while `SimplifyPathOptions` and `CurvatureOptions.DEFAULT` held the real values — in a file
+ * whose own KDoc forbids exactly that, and which is how the façades once defended 250 W against
+ * the CLI's 280 W. `DoorDefaultsTest` now fails a reader that spells a default.
+ */
+internal fun EnhanceOptionsDto?.toEnhanceOptions(): EnhanceOptions {
+    val d = defaultJsOptions()
+    if (this == null) return d
     requireOnlyKeys("EnhanceOptionsDto", ENHANCE_OPTIONS_KEYS)
     return EnhanceOptions(
-        fixElevation = fixElevation ?: false,
-        computeMaxSpeeds = computeMaxSpeeds ?: true,
-        virtualizeTrack = virtualizeTrack ?: true,
-        computeOnePointPerSecond = computeOnePointPerSecond ?: false,
+        fixElevation = fixElevation ?: d.fixElevation,
+        computeMaxSpeeds = computeMaxSpeeds ?: d.computeMaxSpeeds,
+        virtualizeTrack = virtualizeTrack ?: d.virtualizeTrack,
+        computeOnePointPerSecond = computeOnePointPerSecond ?: d.computeOnePointPerSecond,
         simplifyPath =
             SimplifyPathOptions(
-                enabled = simplifyEnabled ?: false,
-                toleranceM = simplifyToleranceM ?: 10.0,
-                zExaggeration = simplifyZExaggeration ?: 3.0,
+                enabled = simplifyEnabled ?: d.simplifyPath.enabled,
+                toleranceM = simplifyToleranceM ?: d.simplifyPath.toleranceM,
+                zExaggeration = simplifyZExaggeration ?: d.simplifyPath.zExaggeration,
             ),
         wPrimeBalance =
             WPrimeBalanceOptions(
-                enabled = wPrimeBalanceEnabled ?: WPrimeBalanceOptions().enabled,
-                criticalPowerW = wPrimeBalanceCriticalPower ?: EngineConstants.DEFAULT_CRITICAL_POWER_W,
-                wPrimeJ = wPrimeBalanceWPrime ?: EngineConstants.DEFAULT_W_PRIME_J,
+                enabled = wPrimeBalanceEnabled ?: d.wPrimeBalance.enabled,
+                criticalPowerW = wPrimeBalanceCriticalPower ?: d.wPrimeBalance.criticalPowerW,
+                wPrimeJ = wPrimeBalanceWPrime ?: d.wPrimeBalance.wPrimeJ,
             ),
-        curvature = CurvatureOptions(enabled = curvatureEnabled ?: true),
+        curvature = CurvatureOptions(enabled = curvatureEnabled ?: d.curvature.enabled),
         racingLine =
             RacingLineOptions(
-                enabled = racingLineEnabled ?: false,
+                enabled = racingLineEnabled ?: d.racingLine.enabled,
                 corridor = parseCorridor(racingLineCorridor),
-                defaultRoadWidthM = racingLineRoadWidthM ?: RacingLineOptions.DEFAULT.defaultRoadWidthM,
+                defaultRoadWidthM = racingLineRoadWidthM ?: d.racingLine.defaultRoadWidthM,
             ),
     )
 }
@@ -532,6 +570,11 @@ private fun parseCorridor(name: String?): CorridorMode = if (name == null) Racin
  * `fixElevation: true` which triggers a default [ElevationProvider] inside [enhance]), skip 1 Hz
  * resample (the 2024-stamped sample fixtures blow up `PointPerSecond` — see task 27 notes) and
  * skip simplify so smoke results stay deterministic.
+ *
+ * **This is the JS door's single default site**, and [toEnhanceOptions] reads every fallback off
+ * it. The four booleans below are the only values this façade decides for itself — they differ
+ * from the engine's on purpose, for the reasons above. Everything nested comes from the stage's
+ * own options object, so a tolerance changed in `SimplifyPathOptions` moves this door with it.
  */
 private fun defaultJsOptions(): EnhanceOptions =
     EnhanceOptions(
@@ -540,8 +583,8 @@ private fun defaultJsOptions(): EnhanceOptions =
         virtualizeTrack = true,
         computeOnePointPerSecond = false,
         simplifyPath = SimplifyPathOptions(enabled = false),
-        curvature = CurvatureOptions(enabled = true),
-        racingLine = RacingLineOptions(enabled = false),
+        curvature = CurvatureOptions(),
+        racingLine = RacingLineOptions(),
     )
 
 // ── Expanded JS API (task 34) ────────────────────────────────────────────────────────────────
@@ -559,14 +602,17 @@ private fun defaultJsOptions(): EnhanceOptions =
 private fun CyclistDto?.toCyclist(): Cyclist {
     if (this == null) return Cyclist()
     requireOnlyKeys("CyclistDto", CYCLIST_KEYS)
-    val condition = roadCondition?.toRoadCondition()
-    return Cyclist(
-        massKg = massKg,
-        maxBrakeG = condition?.maxBrakeG ?: maxBrakeG,
-        cd = cd,
-        frontalAreaM2 = frontalAreaM2,
-        maxLeanAngleDeg = condition?.leanAngleDeg ?: maxLeanAngleDeg,
-        maxSpeedKmH = maxSpeedKmH,
+    // The preset is the last word, and that rule now lives once, in `commonMain` — see `applyTo`.
+    // This door's behaviour does not change; the CLI's did, to match it.
+    return roadCondition?.toRoadCondition().applyTo(
+        Cyclist(
+            massKg = massKg,
+            maxBrakeG = maxBrakeG,
+            cd = cd,
+            frontalAreaM2 = frontalAreaM2,
+            maxLeanAngleDeg = maxLeanAngleDeg,
+            maxSpeedKmH = maxSpeedKmH,
+        ),
     )
 }
 
@@ -577,11 +623,8 @@ private fun CyclistDto?.toCyclist(): Cyclist {
  * for `GpxPathKind`).
  */
 private fun String.toRoadCondition(): RoadCondition =
-    RoadCondition.entries.firstOrNull { it.name.equals(this, ignoreCase = true) }
-        ?: error(
-            "Unknown CyclistDto.roadCondition: $this (expected one of " +
-                "${RoadCondition.entries.map { it.name.lowercase() }})",
-        )
+    RoadCondition.fromWire(this)
+        ?: error("Unknown CyclistDto.roadCondition: $this (expected one of ${RoadCondition.wireNames})")
 
 /** Convert a JS [BikeDto] (or `null` → defaults) into a [Bike]. */
 private fun BikeDto?.toBike(): Bike {
@@ -593,8 +636,7 @@ private fun BikeDto?.toBike(): Bike {
         inertiaRear = inertiaRear,
         wheelRadiusM = wheelRadiusM,
         efficiency = efficiency,
-        maxPedalingLeanAngleDeg =
-            maxPedalingLeanAngleDeg ?: EngineConstants.DEFAULT_MAX_PEDALING_LEAN_ANGLE_DEG,
+        maxPedalingLeanAngleDeg = maxPedalingLeanAngleDeg ?: Bike().maxPedalingLeanAngleDeg,
     )
 }
 
@@ -787,28 +829,54 @@ fun pathLongitudeDeg(
  *
  * [separator] takes only its first character (JS has no `Char` type at the interop boundary) ;
  * an empty string falls back to `,`.
+ *
+ * [decimals] and [lineSeparator] arrived in S4 of the surface-alignment work. The WASI door had
+ * accepted `decimals` since w09 while this signature had three parameters, so the same core writer
+ * was configurable from one wire door and not the other. `null` on either keeps the [CsvOptions]
+ * default rather than a literal restated here.
  */
 @JsExport
 fun pathToCsv(
     path: Path,
     separator: String,
     unitsInHeader: Boolean,
-): String =
-    CsvWriter.write(
+    decimals: Int? = null,
+    lineSeparator: String? = null,
+): String {
+    val defaults = CsvOptions()
+    return CsvWriter.write(
         path,
-        CsvOptions(separator = separator.firstOrNull() ?: ',', unitsInHeader = unitsInHeader),
+        CsvOptions(
+            separator = separator.firstOrNull() ?: defaults.separator,
+            unitsInHeader = unitsInHeader,
+            decimals = decimals,
+            lineSeparator = lineSeparator?.ifEmpty { null } ?: defaults.lineSeparator,
+        ),
     )
+}
 
 /**
  * Serialise [path] to JSON, column-oriented (one array per [PointField]) — see [JsonWriter] /
  * task g07. Lets a browser demo hand the result straight to `JSON.parse` and feed a chart
  * library (e.g. Chart.js) without a server round-trip.
+ *
+ * [decimals] rounds every value; [includeMeta] drops the `size` / `fields` preamble when `false`.
+ * Both were reachable from the WASI door and not from here until S4 — `null` keeps the
+ * [JsonOptions] default, which is where the default lives.
  */
 @JsExport
 fun pathToJson(
     path: Path,
     pretty: Boolean,
-): String = JsonWriter.write(path, JsonOptions(pretty = pretty))
+    decimals: Int? = null,
+    includeMeta: Boolean? = null,
+): String {
+    val defaults = JsonOptions()
+    return JsonWriter.write(
+        path,
+        JsonOptions(pretty = pretty, decimals = decimals, includeMeta = includeMeta ?: defaults.includeMeta),
+    )
+}
 
 // ── FIT export (task g10) ────────────────────────────────────────────────────────────────────
 
@@ -959,6 +1027,7 @@ fun detectClimbsWithOptions(
     minGradePercent: Double,
     maxDiffRealGrade: Double,
     booster: Double,
+    maxAnalysisPoints: Int? = null,
 ): Array<ClimbDto> =
     ClimbDetector
         .detect(
@@ -970,6 +1039,7 @@ fun detectClimbsWithOptions(
                 minGradePercent = minGradePercent,
                 maxDiffRealGradeRatio = maxDiffRealGrade,
                 booster = booster,
+                maxAnalysisPoints = maxAnalysisPoints ?: ClimbOptions().maxAnalysisPoints,
             ),
         ).map { it.toDto() }
         .toTypedArray()

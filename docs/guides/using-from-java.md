@@ -115,8 +115,35 @@ compiling when a field is appended — and is how four capabilities once became 
 Java while every other door exposed them. `EngineModelJvmCoverageTest` now fails the build when a
 factory falls behind its class.
 
-Defaults always come from `EngineConstants`, never from a literal restated here — so they cannot
-drift from what the CLI, the JavaScript façade and the WASI module do.
+Defaults are meant to come from `EngineConstants` (or from the stage's own options object), never
+from a literal restated here — so they cannot drift from what the CLI, the JavaScript façade and
+the WASI module do. **Two facades break that rule today**: `ClimbDetectorJvm.climbOptions` restates
+seven values and `EngineModelJvm.simplifyPathOptions` / `curvatureOptions` eight more. Step S6 of
+[`surface-alignment.md`](../tasks/surface-alignment.md) fixes it and adds the
+`factory() == DataClass()` assertion that keeps it fixed.
+
+### Assembling a whole ride
+
+```java
+Course course = EngineModelJvm.course(samplePath(), EngineModelJvm.cyclist(72.0), EngineModelJvm.bike());
+CoursePhysics physics =
+    EngineModelJvm.coursePhysics(
+        course, EngineModelJvm.cyclistPowerSpec(PowerModel.CRITICAL_POWER).toProvider());
+
+Path enhanced = EnhancerJvm.enhanceCourseBlocking(physics);
+```
+
+`CyclistPowerSpec` is the class the CLI, the JS façade and the WASI module all parse into, and it
+had no factory until S5 — changing one field meant all seven arguments positionally, naming
+`DEFAULT_CYCLIST_POWER_W` and friends yourself, because `copy()` is Kotlin-only. `CoursePhysics` and
+`Course` were in the same position, and `EnhancerJvm.enhanceCourseBlocking` needs a `CoursePhysics`
+that no factory produced.
+
+**`coursePhysics` does not take its parameters in `CoursePhysics`' order**, and that is deliberate.
+`@JvmOverloads` truncates from the right, so the order decides what you can omit: the data class
+puts `cyclistPowerProvider` last, which would have made the one provider anybody overrides reachable
+only by also naming the three nobody touches. The factories are ordered by how often each argument
+is actually set.
 
 ## Outputs
 
@@ -160,6 +187,20 @@ to ten tiles are fetched at once. `elevation/README.md` has a complete example, 
 (`fetchTileBytesBlocking`, `decodeTileBytesBlocking`, `fetchAndDecodeTileBlocking`, each with an
 `…Async` twin) if you only want to wrap one of them.
 
+`getElevationsAlongBlocking` / `…Async` sample elevations along a path, densifying to `step` metres:
+
+```java
+List<CoordinatesElevation> along =
+    ElevationProviderJvm.getElevationsAlongBlocking(
+        provider, path, 25.0, 1.0, true,
+        ElevationProviderJvm.smoothingOptions(50.0, true),
+        ElevationProviderJvm.filterOptions(10.0, 3.0, true));
+```
+
+Until S5 this was the one member of the public façade a Java caller could not invoke at all without
+hand-writing a `Continuation` — and the one with five defaulted parameters, so also the one that
+most needed the ladder. Its two option types had no factory either.
+
 ## Why the facades exist at all, and how they are kept honest
 
 `kotlin.jvm.*` annotations **do not resolve from a common source set** — `@JvmOverloads`,
@@ -171,6 +212,17 @@ no longer breaks Java callers, as long as the facade keeps its own signature.
 
 Java callability is something no Kotlin test can check, so each module carries Java tests under
 `src/jvmTest/java/`, run as part of `jvmTest`. If a bridge disappears, they stop compiling.
+
+`EngineModelJvmCoverageTest` checks two things across every `*Jvm.kt` facade: that each factory's
+widest overload has the **arity** of the data class's primary constructor, and that calling it with
+no arguments **equals** constructing the data class with none. The second is what catches a factory
+restating `10.0` where the class now says `12.0` — right arity, wrong answer, and invisible to every
+key check. It does not check parameter *order*, deliberately, because `coursePhysics` reorders on
+purpose (above).
+
+The coverage ledger grew a JVM/Java column in August 2026 precisely because a capability can be ✅ on
+all four wire doors and out of Java's reach — see
+[`surface-coverage.md`](../ledgers/surface-coverage.md).
 
 ## See also
 

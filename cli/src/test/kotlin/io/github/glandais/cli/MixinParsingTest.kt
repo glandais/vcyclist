@@ -26,6 +26,7 @@ import kotlin.test.Test
 import kotlin.test.assertContains
 import kotlin.test.assertEquals
 import kotlin.test.assertNotEquals
+import kotlin.test.assertNotNull
 import kotlin.test.assertTrue
 
 /**
@@ -196,8 +197,11 @@ class MixinParsingTest {
 
     @Test
     fun `case 05b — road condition defaults to dry and changes both grip limits`() {
-        assertEquals(RoadCondition.DRY, parse().cyclist.roadCondition)
+        // `null` means NO preset was asked for, which is not the same as asking for dry: the dry
+        // preset would overwrite an explicit --cyclist-max-angle, and an absent flag must not.
+        assertEquals(null, parse().cyclist.roadCondition)
         assertEquals(Cyclist(), parse().cyclist.toCyclist(), "dry must be the library default")
+        assertEquals(Cyclist(), parse("--road-condition", "dry").cyclist.toCyclist())
 
         val wet = parse("--road-condition", "wet").cyclist.toCyclist()
         assertEquals(RoadCondition.WET.leanAngleDeg, wet.maxLeanAngleDeg, 1e-12)
@@ -207,11 +211,31 @@ class MixinParsingTest {
     }
 
     @Test
-    fun `case 05c — an explicit angle or brake value overrides the preset`() {
-        val cyclist =
-            parse("--road-condition", "wet", "--cyclist-max-angle", "40").cyclist.toCyclist()
-        assertEquals(40.0, cyclist.maxLeanAngleDeg, "the explicit option must win")
-        assertEquals(RoadCondition.WET.maxBrakeG, cyclist.maxBrakeG, 1e-12, "…and only for that value")
+    fun `case 05c — the preset overrides an explicit angle or brake value, and says so`() {
+        // Changed in S8 of docs/tasks/surface-alignment.md, deliberately. The CLI used to let an
+        // explicit flag win while JS and WASI let the preset win, so the same configuration
+        // produced two different cornering physics depending on the door. One rule now, and it is
+        // the preset's — a road surface takes grip from cornering AND braking together, which is
+        // the whole point of R9, and it is the only rule every door can express.
+        val mixin = parse("--road-condition", "wet", "--cyclist-max-angle", "40").cyclist
+        val cyclist = mixin.toCyclist()
+
+        assertEquals(RoadCondition.WET.leanAngleDeg, cyclist.maxLeanAngleDeg, 1e-12, "the preset wins")
+        assertEquals(RoadCondition.WET.maxBrakeG, cyclist.maxBrakeG, 1e-12, "…and it moves both limits")
+
+        val warning = mixin.roadConditionWarning()
+        assertNotNull(warning, "a flag that loses to a preset must not lose in silence")
+        assertContains(warning, "--cyclist-max-angle")
+        assertContains(warning, "--road-condition=wet")
+    }
+
+    @Test
+    fun `case 05c-bis — with no preset asked for, explicit grip values stand`() {
+        val cyclist = parse("--cyclist-max-angle", "40", "--cyclist-max-brake", "0.8").cyclist
+
+        assertEquals(40.0, cyclist.toCyclist().maxLeanAngleDeg)
+        assertEquals(0.8, cyclist.toCyclist().maxBrakeG)
+        assertEquals(null, cyclist.roadConditionWarning(), "nothing was overridden, so nothing to say")
     }
 
     @Test

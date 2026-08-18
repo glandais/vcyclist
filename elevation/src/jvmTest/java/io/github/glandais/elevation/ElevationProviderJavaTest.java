@@ -1,6 +1,7 @@
 package io.github.glandais.elevation;
 
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertThrows;
 import static org.junit.Assert.assertTrue;
@@ -32,6 +33,43 @@ public class ElevationProviderJavaTest {
         double longForm = ElevationProviderJvm.getElevationBlocking(provider, 0.0, 0.0, true);
 
         assertEquals("the @JvmOverloads short form must mean interpolation = true", longForm, shortForm, 0.0);
+    }
+
+    @Test
+    public void getElevationsAlongIsReachableFromJavaAtAllThreeWidths() throws Exception {
+        // Step S5: this was the ONE member of the public facade with no bridge at all, so a Java
+        // caller could not invoke it without hand-writing a Continuation — and it is the one with
+        // five defaulted parameters, so it is also the one that most needed the ladder.
+        ElevationProvider provider = JvmBridgeFixtures.syntheticProvider();
+        List<Coordinates> path = new ArrayList<>();
+        path.add(ElevationProviderJvm.latLon(45.0, 6.0));
+        path.add(ElevationProviderJvm.latLon(45.001, 6.001));
+
+        List<CoordinatesElevation> shortForm =
+                ElevationProviderJvm.getElevationsAlongBlocking(provider, path);
+        List<CoordinatesElevation> configured =
+                ElevationProviderJvm.getElevationsAlongBlocking(
+                        provider,
+                        path,
+                        25.0,
+                        1.0,
+                        true,
+                        ElevationProviderJvm.smoothingOptions(50.0, true),
+                        ElevationProviderJvm.filterOptions(10.0, 3.0, true));
+        List<CoordinatesElevation> async =
+                ElevationProviderJvm.getElevationsAlongAsync(provider, path).get(60, TimeUnit.SECONDS);
+
+        assertFalse("densifying two points must produce some", shortForm.isEmpty());
+        assertFalse(configured.isEmpty());
+        assertEquals("the future must agree with the blocking form", shortForm.size(), async.size());
+    }
+
+    @Test
+    public void smoothingAndFilterOptionFactoriesDefaultToTheDataClasses() {
+        // Both option types had no factory either, so `new SmoothingOptions()` did not compile and
+        // every field became mandatory.
+        assertEquals(JvmBridgeFixtures.defaultSmoothingOptions(), ElevationProviderJvm.smoothingOptions());
+        assertEquals(JvmBridgeFixtures.defaultFilterOptions(), ElevationProviderJvm.filterOptions());
     }
 
     @Test

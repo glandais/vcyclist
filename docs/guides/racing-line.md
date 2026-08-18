@@ -30,6 +30,21 @@ From Kotlin: `EnhanceOptions(racingLine = RacingLineOptions(enabled = true))`, o
 `RacingLine.analyze(path)` for the read-only report. From JavaScript: `racingLineEnabled` on the
 enhance options, and `analyzeRacingLine(path, options)`.
 
+### The door surface is three knobs out of twenty-three
+
+Every door — CLI, JS, WASI, the Java facade, the demo — exposes exactly `enabled`, `corridor` and
+`defaultRoadWidthM`. The other twenty fields of `RacingLineOptions` are Kotlin-only **on purpose**:
+they were tuned by measurement, not reasoning, and `EngineModelJvmCoverageTest.kt:77` pins the
+facade arity at 3 so that widening it stays a decision rather than an accident. Two of them are easy
+to trip over:
+
+- `RacingLineOptions.curvature` is a **nested** `CurvatureOptions`, distinct from the top-level
+  `EnhanceOptions.curvature` that every door's `curvatureEnabled` actually targets.
+- `simplifyToleranceCapM` caps the Douglas-Peucker tolerance downstream (`Enhancer.kt:174-175`), so
+  it changes the output of a stage that is not this one.
+
+Reach for Kotlin if you need any of the twenty.
+
 ## What it is worth
 
 Measured on real routes, full pipeline, `FULL_ROAD` — the *most* favourable corridor:
@@ -99,6 +114,12 @@ report is how you find them.
 
 `converged=false` means the solver hit its iteration cap. The line is still corridor-feasible — that
 is enforced at every step — but it is not the optimum.
+
+The report carries thirteen fields; **the demo reads three** (`size`, `corridorLo`, `corridorHi`) and
+never looks at `converged` or `newtonIterations`, so a non-converged solve is drawn on the map as a
+finished racing line with no warning (`useMap.ts:289`). Step S11 of
+[`surface-alignment.md`](../tasks/surface-alignment.md) adds the badge. From the CLI the report is
+a fixed text table with no JSON variant; JS and WASI return the full structure.
 
 ## What it will not do
 

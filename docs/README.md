@@ -1,11 +1,12 @@
 # Documentation index
 
-Four kinds of document live here, and the distinction is the point:
+Five kinds of document live here, and the distinction is the point:
 
 | Directory | What it is | Do I trust it? |
 |---|---|---|
 | [`guides/`](#guides) | How to use and extend the project | **Yes** — describes the code as it is |
 | [`ledgers/`](#ledgers) | Living inventories, updated as work lands | **Yes** — each row carries its own verdict |
+| [`tasks/`](#open-tasks) | Specs for work not yet delivered | Yes as intent, no as description |
 | [`research/`](#research) | The solo-rider simulation research report | Yes, per its own evidence grades |
 | [`archive/`](#archive) | Finished plans and the task specs that built the project | **No** — frozen at their date, read for the *why* |
 
@@ -35,8 +36,16 @@ Module-level guides live next to their module: [`cli/README.md`](../cli/README.m
 | Document | Tracks |
 |---|---|
 | [`ledgers/improvements-ledger.md`](ledgers/improvements-ledger.md) | One row per research-derived improvement (R1…), scored against the code: applied / recommended / deferred / rejected, with the measurement behind each verdict |
-| [`ledgers/surface-coverage.md`](ledgers/surface-coverage.md) | Which of the four surfaces — core, CLI, JS, WASI — exposes which option |
+| [`ledgers/surface-coverage.md`](ledgers/surface-coverage.md) | Which of the six surfaces — core, CLI, JS, WASI, JVM/Java, demo — exposes which capability, and where each one is short. Its per-option table is **generated** from `OptionCatalog` (`./gradlew :codegen:generateSurfaceLedger`); the capability table above it is written by hand, because "reachable by a human in the UI" does not derive |
 | [`ledgers/build-warnings-ledger.md`](ledgers/build-warnings-ledger.md) | Everything `./gradlew clean build` emits that is not a task line, and what was done about it |
+
+## Open tasks
+
+| Document | Goal |
+|---|---|
+| [`tasks/surface-alignment.md`](tasks/surface-alignment.md) | Make façade alignment build-enforced instead of review-enforced, and close the 23 confirmed gaps between the six doors. **S0–S9 and S11 delivered; S10 (code generation) deliberately not started — the reasoning is in the step.** |
+
+Completed specs move to `archive/tasks/`.
 
 ## Research
 

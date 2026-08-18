@@ -112,8 +112,19 @@ cornering friction and braking — because a wet road takes both away:
 | µ (cornering) | 0.70 (35° lean) | 0.28 (15.6° lean) |
 | braking | 0.40 g | 0.23 g |
 
-`dry` *is* the library default, so it changes nothing. `wet` cuts cornering speed by **1.58×**,
-and `--cyclist-max-angle` / `--cyclist-max-brake` override the preset when given explicitly.
+`dry` *is* the library default, so it changes nothing. `wet` cuts cornering speed by **1.58×**.
+
+**The preset is the last word.** `--road-condition=wet --cyclist-max-angle 42` gives 15.6°, not 42 —
+a road surface takes grip from cornering *and* braking together, which is the whole point, and
+letting one of the two be overridden separately would model a rider who cannot corner but can still
+stop like it is dry. `enhance` warns on stderr when you pass both, rather than ignoring your flag in
+silence. Drop `--road-condition` to use your own values: with no preset asked for, explicit grip
+options stand.
+
+> **Changed.** Until the August 2026 surface-alignment work, an explicit `--cyclist-max-angle` beat
+> the preset *here* while the preset beat it on the JS and WASI doors — the same configuration
+> produced two different cornering physics depending on which door you came through. The doors agree
+> now, on the CLI's cost.
 
 Measured cost on the shipped fixtures (`--no-fix-elevation`, default rider):
 

@@ -29,6 +29,14 @@ object JvmBridgeFixtures {
     @JvmStatic
     fun syntheticProvider(): ElevationProvider = ElevationProvider(config()) { syntheticTile() }
 
+    /** `SmoothingOptions()` — a Java test cannot call a constructor that relies on defaults. */
+    @JvmStatic
+    fun defaultSmoothingOptions(): SmoothingOptions = SmoothingOptions()
+
+    /** `FilterOptions()`, same reason. */
+    @JvmStatic
+    fun defaultFilterOptions(): FilterOptions = FilterOptions()
+
     /** A provider whose every fetch throws — for the exception-propagation tests. */
     @JvmStatic
     fun failingProvider(message: String): ElevationProvider = ElevationProvider(config()) { error(message) }

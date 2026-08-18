@@ -16,7 +16,7 @@ documentation index; read it before going looking for anything.
 | `:fit` | JVM, JS, wasmWasi | FIT course encoding (`PathToFit`) |
 | `:map` | JVM only | Static map rendering on `java.awt`. Depends on `:gpx`/`:elevation`; **nothing may depend on it**. |
 | `:cli` | JVM only | picocli command-line tool, shipped as an executable jar, not to Maven Central |
-| `:codegen` | JVM only | Regenerates `GeneratedPath.kt` + `PointFieldAccessors.kt` into `:gpx` |
+| `:codegen` | JVM only | Regenerates `GeneratedPath.kt` + `PointFieldAccessors.kt` into `:gpx`, and the per-option table of `surface-coverage.md` (`:codegen:generateSurfaceLedger`). Also hosts `surface/OptionCatalog.kt` — `KClass` refs + lens paths, completeness derived by reflection, driving the door-parity tests. It depends on `:engine` for that; there is no cycle, since `:gpx` never depends on `:codegen`. Not in `commonMain`: `kotlin-reflect` is JVM-only and the wasm size budget is real |
 | `:demo` | — | Browser demo (two routes: GPX analysis, elevation explorer), consumes the JS façades via `demo/src/engine-shim.ts` and `demo/src/elevation-shim.ts` |
 
 ## Build commands
@@ -29,6 +29,7 @@ documentation index; read it before going looking for anything.
 ./gradlew :engine:jsNodeTest             # also :jsBrowserTest (headless Chrome)
 ./gradlew :map:test / :cli:test          # JVM-only modules
 ./gradlew :codegen:run                   # regenerate Path sources after editing PointField
+./gradlew :codegen:generateSurfaceLedger # regenerate the per-option table of surface-coverage.md
 ./gradlew :cli:run -Pargs="enhance in.gpx --gpx out.gpx"    # CLI smoke
 ./gradlew :cli:executableJar             # distributable CLI jar
 INTEGRATION=1 ./gradlew :elevation:jvmTest --tests '*Integration*'   # live HTTP
@@ -116,18 +117,56 @@ Implement the interface in `engine/src/commonMain/.../physics/`, document any `P
 writes in its KDoc, add it to `CoursePhysics` if it is a first-class strategy, and test the formula
 at sentinel inputs.
 
-### Adding a capability users can reach — the four surfaces
+### Adding a capability users can reach — the six surfaces
 
 Core → CLI → JS (`EngineJsApi`) → WASI (`WasiOptions` + `docs/guides/wasm-wasi-abi.md`) →
-`demo/src/engine-shim.ts` → a row in [`docs/ledgers/surface-coverage.md`](docs/ledgers/surface-coverage.md).
+**JVM/Java (`*Jvm.kt` + a Java test in `src/jvmTest/java/`)** → `demo/src/engine-shim.ts`
+**and a control in the UI** → a row in
+[`docs/ledgers/surface-coverage.md`](docs/ledgers/surface-coverage.md).
 This has been forgotten three times; the matrix is the only check.
 
 - A new **power model** is safe: adding a `PowerModel` entry breaks the `when` in `CyclistPowerSpec`
   in `commonMain`, and all three doors parse into that spec.
 - A new **option** is not: JS and WASI reject unknown DTO keys, which catches a stale caller but
   never a façade that forgot the field.
-- **Defaults come from `EngineConstants`, never a literal** — the façades once hardcoded 250 W
-  against the CLI's 280 W.
+- **A shim re-export is not a surface crossing.** The Démo column means *reachable by a human in
+  the UI*. `writeGpx` sat in `engine-shim.ts` for four tasks with no caller;
+  `detectClimbsWithOptions` still does.
+- **An accepted key is not a used key.** `requireOnly` / `requireOnlyKeys` prove a *reader* accepts
+  the key, never that an *export* forwards it — `vcWriteGpxTracks` parses `trackName` and
+  `startTimeEpochMs` and drops both (`EngineWasiApi.kt:747`), and the ABI guide documents them as
+  working. Every WASI export that reads an options object needs a behavioural test below it:
+  extract an `internal fun` and pin it (the `w03` idiom). No static check sees this class of defect.
+- **Defaults come from `EngineConstants` for physics and from the stage's own options object for
+  the pipeline** (`SimplifyPathOptions()`, `CurvatureOptions.DEFAULT`, `RacingLineOptions.DEFAULT`,
+  `ClimbOptions.DEFAULT`, `ElevationDefaults`) — **never a literal**. The façades once hardcoded
+  250 W against the CLI's 280 W. `DoorDefaultsTest` and `EngineJsApiDefaultsTest` now fail a door
+  that spells a default; `EngineModelJvmCoverageTest` does the same for the Java factories.
+- `RoadCondition` is the one cross-door enum with **no wire catalogue in `commonMain`**, and that is
+  why its precedence diverged: the CLI lets an explicit `maxLeanAngleDeg` win, JS and WASI let the
+  preset win. Same config, different cornering physics. Until S8, don't copy either spelling — fix
+  the catalogue.
+
+### Adding an option to an existing options data class
+
+The real edit sites, in order: the `commonMain` data class → the CLI mixin → the JS `external
+interface` **and** its `requireOnlyKeys` allowlist **and** `defaultJsOptions()` (a default set only
+in `toEnhanceOptions` does not apply to `enhance(path, null)`) → the WASI reader **and** its
+`requireOnly` set **and** the export body that must actually forward it → the `*Jvm.kt` factory →
+`demo/src/engine-shim.ts` plus a UI control → the ledger row.
+
+`ENHANCE_OPTIONS_KEYS` is a hand-written `Set<String>` with no compiler link to `EnhanceOptionsDto`:
+adding a property without editing the set compiles cleanly and ships a façade that rejects its own
+documented option. That already happened once, across the `43`/`44` merge — `DoorKeyParityTest`
+catches it now.
+
+**A façade has one default site, not two.** `EngineJsApi` had `toEnhanceOptions` and
+`defaultJsOptions()` spelling the same values separately, so a default changed in one did not reach
+`enhance(path, null)`. Read every fallback off the single site.
+
+**Validate keys outside `GlobalScope.promise`.** A misspelled key is a programming error at the call
+site; inside the promise it becomes a rejected promise that an `await`-less caller drops as an
+unhandled rejection.
 
 ### Java interop from `commonMain`
 
@@ -173,6 +212,19 @@ release). `feat!:` or a `BREAKING CHANGE:` body for a major. Scopes: `engine`, `
 - `src/jvmTest/java/` sources run as part of `jvmTest` and exist to pin **Java callability**, which
   no Kotlin test can check. The KMP JVM target runs **JUnit 4** — `org.junit.Test`, not JUnit 5.
   Anything Java cannot express goes in a `JvmBridgeFixtures` object beside it.
+- **Cross-source-set drift has exactly one sanctioned idiom**: a JVM test that reads the other
+  source sets *as text* (`DoorKeyParityTest`, `WasiParityTableTest`, `DocumentedFieldCountTest`).
+  Nothing else can see `jsMain`, `wasmWasiMain` and `demo/src` at once — `ENHANCE_OPTIONS_KEYS` and
+  `ENHANCE_KEYS` are both `private` in their own source set, and Kotlin/JS emits no body for an
+  `external interface`. Two obligations come with it, both load-bearing:
+    - **a size self-check per extractor** (`assertEquals(expectedSize, …)`), so a broken regex fails
+      loudly instead of degrading into `assertEquals(emptySet, emptySet)`, which passes forever;
+    - **every source it reads declared as a task input** — and if the extractor walks a directory,
+      declare the *directory* (`inputs.dir`), not the file you had in mind. This trap has bitten
+      three times: `DoorKeyParityTest` missed two of its four cases without `WasiOptions.kt` and
+      `engine-shim.ts`; `CliSurfaceTest` and `DemoReachabilityTest` both landed green-but-blind
+      against a single-file list. The assertions were right and simply never ran. A directory input
+      cannot fall behind a new extractor the way a file list does.
 
 ### Numerical tolerances
 
@@ -230,3 +282,4 @@ picocli (`:cli`), fit-kotlin-sdk (`:fit`).
 | How do I run the CLI? | [`cli/README.md`](cli/README.md) |
 | How do I cut a release? | [`docs/guides/publishing.md`](docs/guides/publishing.md) |
 | Why this design decision? | The task markdown's "Notes", or its plan in `docs/archive/plans/` |
+| Which door is missing which capability? | [`docs/ledgers/surface-coverage.md`](docs/ledgers/surface-coverage.md); the plan to fix it is [`docs/tasks/surface-alignment.md`](docs/tasks/surface-alignment.md) |

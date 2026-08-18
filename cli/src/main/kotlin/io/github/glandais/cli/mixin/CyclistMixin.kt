@@ -3,6 +3,7 @@ package io.github.glandais.cli.mixin
 import io.github.glandais.engine.Cyclist
 import io.github.glandais.engine.EngineConstants
 import io.github.glandais.engine.RoadCondition
+import io.github.glandais.engine.applyTo
 import io.github.glandais.engine.physics.CyclistPowerProvider
 import io.github.glandais.engine.physics.CyclistPowerSpec
 import io.github.glandais.engine.physics.PowerModel
@@ -17,13 +18,27 @@ import picocli.CommandLine
  * produce different numbers from the same input depending on whether it went through the CLI.
  * `CyclistMixinTest` asserts the correspondence field by field.
  *
- * ## `--road-condition` is a preset, and explicit options win over it
+ * ## `--road-condition` is a preset, and it wins over explicit options
  *
- * `--road-condition=wet` sets both grip-dependent limits at once ([RoadCondition]). Passing
- * `--cyclist-max-angle` or `--cyclist-max-brake` explicitly overrides the preset for that one
- * value, which is why those two fields are nullable here : `null` means "not given on the command
- * line", and only then does the preset apply. The dry preset *is* the library default, so an
- * unconfigured CLI still builds exactly [Cyclist].
+ * `--road-condition=wet` sets both grip-dependent limits at once ([RoadCondition]), and it is the
+ * **last word** : `--cyclist-max-angle 42 --road-condition wet` gives 15.6°, not 42.
+ *
+ * That is the opposite of what this mixin did until the S8 alignment step, and the change is
+ * deliberate. The three doors resolved the preset themselves and disagreed — an explicit value won
+ * here, the preset won on JS and WASI — so the same configuration produced two different cornering
+ * physics depending on which door you came through. One rule now, in `commonMain`, applied by
+ * [applyTo]; the reasoning is in its KDoc.
+ *
+ * A CLI flag that quietly loses to a preset is unconventional, so passing both **warns** rather
+ * than silently ignoring one. The two grip fields stay nullable precisely so that warning can tell
+ * "not given" from "given".
+ *
+ * `--road-condition` is nullable too, and that distinction is load-bearing: `null` means *no preset
+ * was requested*, so explicit values stand. Defaulting it to [RoadCondition.DRY] instead would make
+ * the dry preset overwrite `--cyclist-max-angle 40` on a command line that never mentioned road
+ * surface at all — which is what the first attempt at this did, and `MixinParsingTest` case 05
+ * caught. The dry preset *is* the library default, so an unconfigured CLI still builds exactly
+ * [Cyclist] either way; the difference only shows when the user names an explicit value.
  *
  * ## Power is not part of [Cyclist]
  *
@@ -77,11 +92,12 @@ class CyclistMixin {
         names = ["--road-condition"],
         converter = [RoadConditionConverter::class],
         description = [
-            "Road surface: \${COMPLETION-CANDIDATES} (default: \${DEFAULT-VALUE}). " +
-                "Sets cornering grip and braking together; wet cuts cornering speed by 1.58x.",
+            "Road surface: \${COMPLETION-CANDIDATES} (default: dry, i.e. the library values). " +
+                "Sets cornering grip and braking together, and OVERRIDES --cyclist-max-angle and " +
+                "--cyclist-max-brake; wet cuts cornering speed by 1.58x.",
         ],
     )
-    var roadCondition: RoadCondition = RoadCondition.DRY
+    var roadCondition: RoadCondition? = null
 
     @field:CommandLine.Option(
         names = ["--cyclist-max-speed"],
@@ -131,14 +147,35 @@ class CyclistMixin {
     var maxSlewWPerS: Double = 0.0
 
     fun toCyclist(): Cyclist =
-        Cyclist(
-            massKg = massKg,
-            maxBrakeG = maxBrakeG ?: roadCondition.maxBrakeG,
-            cd = cd,
-            frontalAreaM2 = frontalAreaM2,
-            maxLeanAngleDeg = maxLeanAngleDeg ?: roadCondition.leanAngleDeg,
-            maxSpeedKmH = maxSpeedKmH,
+        roadCondition.applyTo(
+            Cyclist(
+                massKg = massKg,
+                maxBrakeG = maxBrakeG ?: Cyclist.DEFAULT.maxBrakeG,
+                cd = cd,
+                frontalAreaM2 = frontalAreaM2,
+                maxLeanAngleDeg = maxLeanAngleDeg ?: Cyclist.DEFAULT.maxLeanAngleDeg,
+                maxSpeedKmH = maxSpeedKmH,
+            ),
         )
+
+    /**
+     * What to tell the user when they passed a grip flag *and* a preset: the preset won.
+     *
+     * `null` when there is nothing to say. Returned rather than printed so the mixin stays free of
+     * I/O and the commands decide where warnings go — and so a test can assert the text.
+     */
+    fun roadConditionWarning(): String? {
+        val overridden =
+            listOfNotNull(
+                "--cyclist-max-angle".takeIf { maxLeanAngleDeg != null },
+                "--cyclist-max-brake".takeIf { maxBrakeG != null },
+            )
+        if (overridden.isEmpty()) return null
+        val condition = roadCondition ?: return null
+        return "warning: --road-condition=${condition.wireName} overrides ${overridden.joinToString(" and ")}; " +
+            "a road-surface preset sets cornering grip and braking together, so it is the last word. " +
+            "Drop --road-condition to use your own values."
+    }
 
     /**
      * Power is a separate strategy in vcyclist — see the class KDoc.
@@ -206,13 +243,15 @@ class CyclistMixin {
 
     /**
      * Case-insensitive [RoadCondition] parsing : `--road-condition=wet` is what anyone types, and
-     * picocli's built-in enum conversion is case-sensitive.
+     * picocli's built-in enum conversion is case-sensitive. Goes through
+     * [RoadCondition.fromWire], the one catalogue every door parses through — the CLI kept its own
+     * `entries.firstOrNull` until S8, which is how the spellings could have drifted apart.
      */
     class RoadConditionConverter : CommandLine.ITypeConverter<RoadCondition> {
         override fun convert(value: String): RoadCondition =
-            RoadCondition.entries.firstOrNull { it.name.equals(value, ignoreCase = true) }
+            RoadCondition.fromWire(value)
                 ?: throw CommandLine.TypeConversionException(
-                    "expected one of ${RoadCondition.entries.map { it.name.lowercase() }} but was '$value'",
+                    "expected one of ${RoadCondition.wireNames} but was '$value'",
                 )
     }
 }

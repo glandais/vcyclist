@@ -8,6 +8,9 @@ const props = defineProps<{
     filesSectionVisible: boolean;
     configVisible: boolean;
     fieldsSidebarVisible: boolean;
+    /** How many `<trk>`/`<rte>` the loaded file carried. The selector appears only above one. */
+    trackCount: number;
+    selectedTrackIndex: number;
 }>();
 
 const emit = defineEmits<{
@@ -18,6 +21,9 @@ const emit = defineEmits<{
     resetZoom: [];
     downloadGpx: [];
     downloadFit: [];
+    downloadCsv: [];
+    downloadJson: [];
+    selectTrack: [index: number];
 }>();
 
 // Nuxt UI's dropdown wants its items as data, not markup.
@@ -26,7 +32,25 @@ const downloadItems = [
         { label: 'GPX', onSelect: () => emit('downloadGpx') },
         { label: 'FIT course', onSelect: () => emit('downloadFit') },
     ],
+    [
+        { label: 'CSV', onSelect: () => emit('downloadCsv') },
+        { label: 'JSON', onSelect: () => emit('downloadJson') },
+    ],
 ];
+
+/**
+ * One entry per track of the loaded file. Before this existed the demo called `parseGpx`, which
+ * keeps only the first track, so every other one was discarded at load with nothing said.
+ */
+const trackItems = computed(() =>
+    Array.from({ length: props.trackCount }, (_, i) => ({
+        label: `Track ${i + 1}`,
+        onSelect: () => emit('selectTrack', i),
+    }))
+);
+const trackButtonLabel = computed(
+    () => `🛤️ Track ${props.selectedTrackIndex + 1}/${props.trackCount}`
+);
 
 const fileButtonLabel = computed(() =>
     props.filesSectionVisible ? '📁 Hide Files' : '📁 Load File'
@@ -87,6 +111,13 @@ const fieldsButtonLabel = computed(() =>
                 size="sm"
             >
                 ⬇️ Download
+            </UButton>
+        </UDropdownMenu>
+
+        <!-- Track picker, only when the file actually carried more than one. -->
+        <UDropdownMenu v-if="trackCount > 1" :items="[trackItems]">
+            <UButton :disabled="isProcessing" color="neutral" variant="outline" size="sm">
+                {{ trackButtonLabel }}
             </UButton>
         </UDropdownMenu>
 

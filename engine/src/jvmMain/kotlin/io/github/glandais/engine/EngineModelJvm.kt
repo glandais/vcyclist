@@ -2,6 +2,13 @@
 
 package io.github.glandais.engine
 
+import io.github.glandais.engine.path.Path
+import io.github.glandais.engine.physics.AeroProvider
+import io.github.glandais.engine.physics.CyclistPowerProvider
+import io.github.glandais.engine.physics.CyclistPowerSpec
+import io.github.glandais.engine.physics.PowerModel
+import io.github.glandais.engine.physics.RhoProvider
+import io.github.glandais.engine.physics.WindProvider
 import io.github.glandais.engine.trajectory.CorridorMode
 import io.github.glandais.engine.trajectory.CurvatureOptions
 import io.github.glandais.engine.trajectory.RacingLineOptions
@@ -73,8 +80,8 @@ fun enhanceOptions(
 @JvmOverloads
 fun simplifyPathOptions(
     enabled: Boolean = true,
-    toleranceM: Double = 10.0,
-    zExaggeration: Double = 3.0,
+    toleranceM: Double = SimplifyPathOptions().toleranceM,
+    zExaggeration: Double = SimplifyPathOptions().zExaggeration,
 ): SimplifyPathOptions = SimplifyPathOptions(enabled, toleranceM, zExaggeration)
 
 @JvmOverloads
@@ -87,10 +94,10 @@ fun wPrimeBalanceOptions(
 @JvmOverloads
 fun curvatureOptions(
     enabled: Boolean = true,
-    geometrySmoothWindowM: Double = 3.0,
-    curvatureWindowsM: List<Double> = listOf(3.0, 6.0, 12.0, 25.0),
-    headingNoiseRad: Double = 0.05,
-    curvatureSmoothWindowM: Double = 3.0,
+    geometrySmoothWindowM: Double = CurvatureOptions.DEFAULT.geometrySmoothWindowM,
+    curvatureWindowsM: List<Double> = CurvatureOptions.DEFAULT.curvatureWindowsM,
+    headingNoiseRad: Double = CurvatureOptions.DEFAULT.headingNoiseRad,
+    curvatureSmoothWindowM: Double = CurvatureOptions.DEFAULT.curvatureSmoothWindowM,
 ): CurvatureOptions = CurvatureOptions(enabled, geometrySmoothWindowM, curvatureWindowsM, headingNoiseRad, curvatureSmoothWindowM)
 
 /**
@@ -112,3 +119,55 @@ fun racingLineOptions(
         corridor = corridor,
         defaultRoadWidthM = defaultRoadWidthM,
     )
+
+// ── The classes the three wire doors parse into ──────────────────────────────────────────────
+
+/**
+ * The power configuration, as a value — the class the CLI, the JS façade and the WASI module all
+ * parse into. It had no factory here at all, which made it the widest hole in the Java door: seven
+ * positional arguments, with three of the defaults being `EngineConstants` names the caller had to
+ * know and spell, because `copy()` is Kotlin-only.
+ *
+ * The model catalogue, the `base -> pacing -> slew` composition order and the defaults all live on
+ * [CyclistPowerSpec] itself; this repeats the parameter list, never the values.
+ */
+@JvmOverloads
+fun cyclistPowerSpec(
+    model: PowerModel = CyclistPowerSpec().model,
+    powerW: Double = CyclistPowerSpec().powerW,
+    criticalPowerW: Double = CyclistPowerSpec().criticalPowerW,
+    wPrimeJ: Double = CyclistPowerSpec().wPrimeJ,
+    useHarmonics: Boolean = CyclistPowerSpec().useHarmonics,
+    pacing: Boolean = CyclistPowerSpec().pacing,
+    maxSlewWPerS: Double = CyclistPowerSpec().maxSlewWPerS,
+): CyclistPowerSpec = CyclistPowerSpec(model, powerW, criticalPowerW, wPrimeJ, useHarmonics, pacing, maxSlewWPerS)
+
+/** A [Course] — a path plus who is riding it on what. */
+@JvmOverloads
+fun course(
+    path: Path,
+    cyclist: Cyclist = Cyclist.DEFAULT,
+    bike: Bike = Bike.DEFAULT,
+): Course = Course(path, cyclist, bike)
+
+/**
+ * A [CoursePhysics], which is what [EnhancerJvm.enhanceCourseBlocking] actually takes.
+ *
+ * Without this the only reachable instance from Java was `Enhancer.getDefaultCourse(path)`, which
+ * takes a `Path` and nothing else — so a Java caller could configure a rider and then had no way
+ * to hand it to the enhancer.
+ *
+ * **The parameter order is not [CoursePhysics]'s.** `@JvmOverloads` truncates from the right, so
+ * the order decides what a Java caller can actually omit: putting `cyclistPowerProvider` last, as
+ * the data class does, would have made the one provider anybody overrides reachable only by also
+ * naming the three nobody touches. Ordered by how often each is set instead. `EngineModelJvmCoverageTest`
+ * checks arity, not order, precisely so a facade can make this call.
+ */
+@JvmOverloads
+fun coursePhysics(
+    course: Course,
+    cyclistPowerProvider: CyclistPowerProvider = CoursePhysics.DEFAULT_CYCLIST_POWER_PROVIDER,
+    windProvider: WindProvider = CoursePhysics(course).windProvider,
+    rhoProvider: RhoProvider = CoursePhysics(course).rhoProvider,
+    aeroProvider: AeroProvider = CoursePhysics(course).aeroProvider,
+): CoursePhysics = CoursePhysics(course, rhoProvider, aeroProvider, windProvider, cyclistPowerProvider)

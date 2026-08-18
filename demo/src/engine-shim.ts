@@ -22,6 +22,18 @@ export interface PointDto {
     readonly grade: number;
 }
 
+/** One `<wpt>` of the source document. Everything but the coordinates is optional in GPX. */
+export interface WaypointDto {
+    readonly latitudeDeg: number;
+    readonly longitudeDeg: number;
+    readonly elevationM: number | null;
+    readonly name: string | null;
+    readonly description: string | null;
+    readonly symbol: string | null;
+    readonly type: string | null;
+    readonly timeEpochMs: number | null;
+}
+
 export interface CyclistDto {
     readonly massKg: number;
     readonly cd: number;
@@ -191,7 +203,8 @@ export const writeGpx: (
 /**
  * Like `writeGpx`, but stamps every point with an ABSOLUTE `<time>` = `startTimeEpochMs + time(i)`.
  * `writeGpx` emits the path's own relative clock, which after `enhance` starts at 0 — i.e. 1970.
- * Both writers hardcode `trackName = "virtualized"`; the JS facade exposes no name parameter.
+ * Neither writer takes waypoints: a round trip through them destroys every `<wpt>` of the source
+ * file. Use `writeGpxTracks` for that, which is what this demo's download does.
  */
 export const writeGpxAt: (
     path: Path,
@@ -242,6 +255,11 @@ export const analyzeRacingLine: (
     path: Path,
     options?: EnhanceOptionsDto | null
 ) => RacingLineReportDto | null = ns.analyzeRacingLine;
+/**
+ * `maxAnalysisPoints` bounds the O(n²) candidate search (default 3000); above it the path is
+ * decimated for the analysis only. It is the seventh `ClimbOptions` field and reached no door at
+ * all until S4 of the surface-alignment work.
+ */
 export const detectClimbsWithOptions: (
     path: Path,
     minMinClimbElevationM: number,
@@ -249,5 +267,93 @@ export const detectClimbsWithOptions: (
     minClimbElevationRatio: number,
     minGradePercent: number,
     maxDiffRealGrade: number,
-    booster: number
+    booster: number,
+    maxAnalysisPoints?: number | null
 ) => ClimbDto[] = ns.detectClimbsWithOptions;
+
+// ── Multi-track parsing (g24, g29) ───────────────────────────────────────────────────────────
+
+/** Every `<trk>` **and** `<rte>` of the document, in order. `parseGpx` returns only the first. */
+export const parseGpxTracks: (xml: string) => Path[] = ns.parseGpxTracks;
+/** One Path per `<trkseg>`, across all tracks. Every returned Path is continuous. */
+export const parseGpxSegments: (xml: string) => Path[] = ns.parseGpxSegments;
+/** Recorded tracks only — `<rte>` routes left out. */
+export const parseGpxTracksOnly: (xml: string) => Path[] = ns.parseGpxTracksOnly;
+/** Planned routes only — `<trk>` recordings left out. */
+export const parseGpxRoutesOnly: (xml: string) => Path[] = ns.parseGpxRoutesOnly;
+/**
+ * The document's `<wpt>` entries. A `Path` carries none, so these have to be kept beside it and
+ * handed back to `writeGpxTracks` — otherwise a load → enhance → download round trip destroys them.
+ */
+export const parseGpxWaypoints: (xml: string) => WaypointDto[] = ns.parseGpxWaypoints;
+
+// ── Multi-track and tabular output ───────────────────────────────────────────────────────────
+
+/**
+ * One `<trk>` per path, with the document's waypoints written before them.
+ *
+ * `trackNames` names the tracks positionally; a shorter list leaves the rest unnamed, which is
+ * NOT the `"virtualized"` default `writeGpx` puts on its single track. `startTimeEpochMs` does
+ * what `writeGpxAt` does, to every track at once. Both arrived in S1 of the surface-alignment
+ * work — before that this was the one GPX writer that could neither name nor date its output.
+ */
+export const writeGpxTracks: (
+    paths: Path[],
+    waypoints?: WaypointDto[],
+    writeExtensions?: boolean,
+    powerSource?: GpxPowerSource,
+    trackNames?: string[],
+    startTimeEpochMs?: number
+) => string = ns.writeGpxTracks;
+/**
+ * Every field as CSV, one row per point. `separator` is a single character; `decimals` rounds every
+ * value and `lineSeparator` overrides the `\n` line ending. Omit either to keep the engine default.
+ */
+export const pathToCsv: (
+    path: Path,
+    separator: string,
+    unitsInHeader: boolean,
+    decimals?: number | null,
+    lineSeparator?: string | null
+) => string = ns.pathToCsv;
+/**
+ * Column-oriented JSON: one array per field, plus `size` and a `fields` map. `includeMeta: false`
+ * drops that preamble; `decimals` rounds every value.
+ */
+export const pathToJson: (
+    path: Path,
+    pretty: boolean,
+    decimals?: number | null,
+    includeMeta?: boolean | null
+) => string = ns.pathToJson;
+/** Every path as one multi-lap FIT course. `interPathGapMs` spaces the laps; 0 butt-joins them. */
+export const pathsToFit: (
+    paths: Path[],
+    name: string,
+    startTimeEpochMs: number,
+    interPathGapMs?: number
+) => Int8Array = ns.pathsToFit;
+/** `dominantHeadwindAzimuth` over several paths at once. */
+export const dominantHeadwindAzimuthOfTracks: (paths: Path[]) => number =
+    ns.dominantHeadwindAzimuthOfTracks;
+
+// ── Declared but not reached by any UI control ───────────────────────────────────────────────
+//
+// A re-export is NOT a surface crossing: `docs/ledgers/surface-coverage.md`'s Démo column means
+// "reachable by a human in the UI", and `writeGpx` sat here unused from g29 until g35 precisely
+// because nobody checked. These are bound and typed so a component can use them without touching
+// this file, and listed here so nobody mistakes a binding for coverage:
+//
+//   enhance                       — the view uses `enhanceWithCourse`, which is a superset
+//   writeGpx, writeGpxAt          — neither takes waypoints; the download moved to
+//                                   `writeGpxTracks` in S2 so the source's `<wpt>` survive
+//   pathsToFit                    — the FIT export is single-path; multi-lap has no control
+//   parseGpxSegments,
+//   parseGpxTracksOnly,
+//   parseGpxRoutesOnly            — the track picker uses `parseGpxTracks`, the superset
+//   pointAt                       — the chart reads fields in bulk through `getField`
+//   dominantHeadwindAzimuth,
+//   dominantHeadwindAzimuthOfTracks
+//   detectClimbs                  — superseded by `detectClimbsWithOptions`, which the climbs
+//                                   panel now drives; kept bound for a caller wanting the
+//                                   defaults without naming six numbers

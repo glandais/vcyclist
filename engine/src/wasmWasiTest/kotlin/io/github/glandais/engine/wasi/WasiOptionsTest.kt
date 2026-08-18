@@ -7,6 +7,7 @@ import io.github.glandais.engine.EngineConstants
 import io.github.glandais.engine.RoadCondition
 import io.github.glandais.engine.climb.ClimbOptions
 import io.github.glandais.engine.gpx.GpxPowerSource
+import io.github.glandais.engine.io.CsvOptions
 import io.github.glandais.engine.path.Path
 import io.github.glandais.engine.physics.PowerModel
 import io.github.glandais.engine.physics.PowerProviderConstant
@@ -181,9 +182,33 @@ class WasiOptionsTest {
     }
 
     @Test
+    fun `climb options expose the O(n squared) guard`() {
+        // ClimbOptions' seventh field. Until S4 it reached no door at all, and because `requireOnly`
+        // rejects rather than ignores, a host that sent it got a hard error rather than silence.
+        val o = json("""{"maxAnalysisPoints":500}""").toClimbOptions()
+
+        assertEquals(500, o.maxAnalysisPoints)
+        assertEquals(
+            ClimbOptions().maxAnalysisPoints,
+            json("""{}""").toClimbOptions().maxAnalysisPoints,
+            "the default must come from ClimbOptions, not from a literal in the reader",
+        )
+    }
+
+    @Test
     fun `csv separator takes one character and an empty string keeps the default`() {
         assertEquals(';', json("""{"separator":";"}""").toCsvOptions().separator)
         assertEquals(',', json("""{"separator":""}""").toCsvOptions().separator)
+    }
+
+    @Test
+    fun `csv line separator crosses the wire and falls back like the separator`() {
+        assertEquals("\r\n", json("""{"lineSeparator":"\r\n"}""").toCsvOptions().lineSeparator)
+        assertEquals(
+            CsvOptions().lineSeparator,
+            json("""{"lineSeparator":""}""").toCsvOptions().lineSeparator,
+            "an empty line separator would produce one unterminated line",
+        )
     }
 
     @Test

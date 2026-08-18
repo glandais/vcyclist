@@ -4,6 +4,8 @@
 /** MIME types of what the engine can emit. */
 export const GPX_MIME = 'application/gpx+xml';
 export const FIT_MIME = 'application/vnd.ant.fit';
+export const CSV_MIME = 'text/csv';
+export const JSON_MIME = 'application/json';
 
 export function downloadBlob(blob: Blob, filename: string): void {
     const url = URL.createObjectURL(blob);

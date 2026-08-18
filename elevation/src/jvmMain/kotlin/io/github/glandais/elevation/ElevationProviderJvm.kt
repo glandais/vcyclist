@@ -164,6 +164,58 @@ fun ElevationProvider.setElevationsAsync(
 ): CompletableFuture<List<CoordinatesElevation>> = jvmFuture(executor) { setElevations(coordinates, interpolation) }
 
 /**
+ * Sample elevations **along** a path, densifying to [step] metres and dropping points closer than
+ * [minDistance] — the batch entry point, and the one with the most to configure.
+ *
+ * It was the only member of the public [ElevationProvider] façade with no bridge at all, so a Java
+ * caller could not invoke it without hand-writing a `Continuation`. It is also the one that most
+ * needed one: five defaulted parameters, of which two are option objects that had no factory
+ * either (see [smoothingOptions] and [filterOptions] below).
+ */
+@JvmOverloads
+fun ElevationProvider.getElevationsAlongBlocking(
+    path: List<Coordinates>,
+    step: Double = ElevationDefaults.STEP_M,
+    minDistance: Double = ElevationDefaults.MIN_DISTANCE_M,
+    interpolation: Boolean = ElevationDefaults.INTERPOLATION,
+    smoothingOptions: SmoothingOptions? = null,
+    filterOptions: FilterOptions? = null,
+): List<CoordinatesElevation> =
+    runBlocking {
+        getElevationsAlong(path, step, minDistance, interpolation, smoothingOptions, filterOptions)
+    }
+
+/** [getElevationsAlongBlocking] as a future. `executor = null` means `Dispatchers.IO`. */
+@JvmOverloads
+fun ElevationProvider.getElevationsAlongAsync(
+    path: List<Coordinates>,
+    step: Double = ElevationDefaults.STEP_M,
+    minDistance: Double = ElevationDefaults.MIN_DISTANCE_M,
+    interpolation: Boolean = ElevationDefaults.INTERPOLATION,
+    smoothingOptions: SmoothingOptions? = null,
+    filterOptions: FilterOptions? = null,
+    executor: Executor? = null,
+): CompletableFuture<List<CoordinatesElevation>> =
+    jvmFuture(executor) {
+        getElevationsAlong(path, step, minDistance, interpolation, smoothingOptions, filterOptions)
+    }
+
+/** Moving-average smoothing settings for [getElevationsAlongBlocking]. */
+@JvmOverloads
+fun smoothingOptions(
+    windowSize: Double? = SmoothingOptions().windowSize,
+    enabled: Boolean = SmoothingOptions().enabled,
+): SmoothingOptions = SmoothingOptions(windowSize, enabled)
+
+/** Douglas-Peucker 3D settings for [getElevationsAlongBlocking]. */
+@JvmOverloads
+fun filterOptions(
+    tolerance: Double? = FilterOptions().tolerance,
+    zExaggeration: Double? = FilterOptions().zExaggeration,
+    enabled: Boolean = FilterOptions().enabled,
+): FilterOptions = FilterOptions(tolerance, zExaggeration, enabled)
+
+/**
  * Runs [block] on a scope of its own and hands back a future wired both ways: the coroutine
  * completes the future, and cancelling the future cancels the coroutine.
  *

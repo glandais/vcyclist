@@ -152,6 +152,32 @@ tasks.withType<org.jetbrains.kotlin.gradle.targets.js.testing.KotlinJsTest>().co
     )
 }
 
+// ── Source-text tests need their sources declared as inputs ──────────────────────────────────
+//
+// `WasiParityTableTest` and `DoorKeyParityTest` read `jsMain`, `wasmWasiMain`, the reference host
+// and the demo's hand-written TypeScript mirror **as text** — the only way to see two source sets
+// at once (see their KDocs). Gradle has no idea, so without this the task stays UP-TO-DATE on
+// exactly the edits it exists to watch: a `@JsExport` with no parity row, a `@WasmExport` with no
+// host helper, a DTO key added to three doors out of four. `DocumentedFieldCountTest` documented
+// that hole about itself after a breakage sat unnoticed for two commits.
+//
+// **Every file a source-text test reads belongs in this list.** The first version of it omitted
+// `WasiOptions.kt` and `engine-shim.ts`, and `DoorKeyParityTest` duly failed to notice a key
+// deleted from the WASI reader — the guard was real, the task simply never re-ran. Adding an
+// extractor means adding its file here, in the same commit.
+tasks.named<Test>("jvmTest") {
+    inputs
+        .files(
+            fileTree("src/jsMain/kotlin") { include("**/EngineJsApi.kt") },
+            fileTree("src/wasmWasiMain/kotlin") {
+                include("**/WasiExportCatalog.kt", "**/EngineWasiApi.kt", "**/WasiOptions.kt")
+            },
+            rootProject.file("tools/wasi/host.py"),
+            rootProject.file("demo/src/engine-shim.ts"),
+        ).withPropertyName("sourceTextUnderTest")
+        .withPathSensitivity(PathSensitivity.RELATIVE)
+}
+
 // The JVM `run` task that used to launch `EngineCli` is gone: task g18 removed that entry point
 // in favour of the `:cli` module, which covers it. Use:
 //

@@ -24,9 +24,6 @@ REPO_ROOT = Path(__file__).resolve().parents[2]
 GPX_FIXTURES_KT = (
     REPO_ROOT / "gpx/src/commonTestFixtures/kotlin/io/github/glandais/engine/gpx/GpxFixtures.kt"
 )
-PARITY_FIXTURES_KT = (
-    REPO_ROOT / "engine/src/commonTest/kotlin/io/github/glandais/engine/parity/ParityFixtures.kt"
-)
 STELVIO_GPX = REPO_ROOT / "demo/public/gpx/stelvio.gpx"
 
 
@@ -45,26 +42,46 @@ def gpx_fixture(name: str) -> bytes:
     return match.group(1).encode("utf-8")
 
 
+#: Reference metrics for `vcEnhance` under :data:`PARITY_OPTIONS`, one entry per GPX fixture.
+#:
+#: These used to be read out of `ParityFixtures.kt`, which commit 865dd0b deleted along with the
+#: rest of the TypeScript parity harness — and `run-all.sh` has raised `FileNotFoundError` on two
+#: tests ever since. The values themselves stay useful: they are the Kotlin pipeline's own output,
+#: measured on the JVM, so asserting them here is still what proves the wasmWasi target agrees with
+#: the JVM one across an ABI. So they live here now, and this harness is self-contained.
+#:
+#: **When to update**: only when the physics or the resampling/simplification defaults change on
+#: purpose. Print the measured values from a JVM run of the same pipeline and paste them in, with a
+#: comment saying why they moved. `assertRelative` tolerates 0.5 %, which is the cross-target band
+#: documented in `CLAUDE.md` — a change that trips these numbers is a change in behaviour.
+PARITY_METRICS = {
+    # SAMPLE_GPX — 7 trkpts, ~420 m, collapses to 3 points after Douglas-Peucker.
+    "SAMPLE": {
+        "totalDistance": 420.0556496172967,
+        "totalElevationGain": 0.21774882435903464,
+        "totalElevationLoss": -0.30713405604768695,
+        "pointCount": 3,
+        "durationMs": 49_000.0,
+    },
+    # GARMIN_GPX — 3 trkpts, ~14 m, ~18 s span; collapses to start + end.
+    "GARMIN": {
+        "totalDistance": 14.929920010888091,
+        "totalElevationGain": 0.0,
+        "totalElevationLoss": -0.004834919456122577,
+        "pointCount": 2,
+        "durationMs": 5_000.0,
+    },
+}
+
+
 def parity_metrics(name: str) -> dict:
-    """The five expected metrics of `ParityFixtures.<name>`.
-
-    Reads the named `ParityMetrics(...)` block and pulls `field = <number>` out of it, ignoring
-    the comment lines — those are documentation, not assertions.
-    """
-    text = _read(PARITY_FIXTURES_KT)
-    match = re.search(rf"val {name} =\s*ParityMetrics\((.*?)\n        \)", text, re.S)
-    if not match:
-        raise LookupError(f"no `val {name} = ParityMetrics(...)` in {PARITY_FIXTURES_KT}")
-
-    body = "\n".join(line for line in match.group(1).splitlines() if not line.strip().startswith("//"))
-    fields = {}
-    for key in ("totalDistance", "totalElevationGain", "totalElevationLoss", "pointCount", "durationMs"):
-        value = re.search(rf"{key}\s*=\s*(-?[0-9_.eE+-]+)", body)
-        if not value:
-            raise LookupError(f"{name}.{key} not found in {PARITY_FIXTURES_KT}")
-        fields[key] = float(value.group(1).replace("_", ""))
-    fields["pointCount"] = int(fields["pointCount"])
-    return fields
+    """The five expected metrics for a fixture — see :data:`PARITY_METRICS`."""
+    try:
+        return PARITY_METRICS[name]
+    except KeyError:
+        raise LookupError(
+            f"no parity metrics for {name!r} — known fixtures: {', '.join(sorted(PARITY_METRICS))}"
+        ) from None
 
 
 #: The options `EnhancerParityTest.runPipeline` uses: `EnhanceOptions.DEFAULT` minus the
