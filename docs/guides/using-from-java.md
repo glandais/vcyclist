@@ -89,9 +89,31 @@ Bike bike = EngineModelJvm.bike();
 EnhanceOptions options = EngineModelJvm.enhanceOptions();  // also simplifyPathOptions()
 ```
 
+The pipeline's sub-option objects have factories of their own, so every stage is configurable
+from Java:
+
+```java
+EnhanceOptions tuned =
+    EngineModelJvm.enhanceOptions(
+        false, true, true, true,
+        EngineModelJvm.simplifyPathOptions(true, 10.0, 3.0),
+        EngineModelJvm.wPrimeBalanceOptions(true, 260.0, 22000.0),
+        EngineModelJvm.curvatureOptions(true),
+        EngineModelJvm.racingLineOptions(true, CorridorMode.LANE, 6.0));
+```
+
+`racingLineOptions` exposes the three knobs the CLI, JS and WASI doors expose, not all 23 of
+`RacingLineOptions` — the other twenty were tuned by measurement and are not part of any door's
+public surface. Reach for Kotlin if you need one.
+
 `GpxModelJvm` does the same for the GPX model (`trackPoint`, `waypoint`, `track`, `document`),
 `TabularWritersJvm` for the export options (`csvOptions`, `jsonOptions`), and
 `ClimbDetectorJvm.climbOptions` for climb detection.
+
+These factories call their data-class constructors positionally, which keeps Java call sites
+compiling when a field is appended — and is how four capabilities once became unreachable from
+Java while every other door exposed them. `EngineModelJvmCoverageTest` now fails the build when a
+factory falls behind its class.
 
 Defaults always come from `EngineConstants`, never from a literal restated here — so they cannot
 drift from what the CLI, the JavaScript façade and the WASI module do.

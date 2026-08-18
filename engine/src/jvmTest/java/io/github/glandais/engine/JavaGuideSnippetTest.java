@@ -10,6 +10,9 @@ import io.github.glandais.engine.gpx.GpxWriterJvm;
 import io.github.glandais.engine.io.TabularWritersJvm;
 import io.github.glandais.engine.path.Path;
 import io.github.glandais.engine.path.PathSimplifierJvm;
+import io.github.glandais.engine.trajectory.CorridorMode;
+import io.github.glandais.engine.trajectory.CurvatureOptions;
+import io.github.glandais.engine.trajectory.RacingLineOptions;
 import org.junit.Test;
 
 /**
@@ -48,6 +51,40 @@ public class JavaGuideSnippetTest {
         assertNotNull(rider);
         assertNotNull(bike);
         assertNotNull(options);
+    }
+
+    /**
+     * The four capabilities that were unreachable from Java until the factories were widened:
+     * {@code maxPedalingLeanAngleDeg} on the bike, and W'bal / curvature / racing line on the
+     * options. The Kotlin-side arity guard is {@code EngineModelJvmCoverageTest}; this pins that
+     * Java can actually call them, which no Kotlin test can check.
+     */
+    @Test
+    public void everyCapabilityIsReachableFromJava() {
+        Bike bike = EngineModelJvm.bike(0.004, 0.05, 0.07, 0.35, 0.976, 25.0);
+
+        WPrimeBalanceOptions wBal = EngineModelJvm.wPrimeBalanceOptions(true, 260.0, 22000.0);
+        CurvatureOptions curvature = EngineModelJvm.curvatureOptions(false);
+        RacingLineOptions racingLine =
+                EngineModelJvm.racingLineOptions(true, CorridorMode.FULL_ROAD, 7.0);
+
+        EnhanceOptions options =
+                EngineModelJvm.enhanceOptions(
+                        false,
+                        true,
+                        true,
+                        true,
+                        EngineModelJvm.simplifyPathOptions(),
+                        wBal,
+                        curvature,
+                        racingLine);
+
+        assertTrue(bike.getMaxPedalingLeanAngleDeg() == 25.0);
+        assertTrue(options.getWPrimeBalance().getCriticalPowerW() == 260.0);
+        assertTrue(!options.getCurvature().getEnabled());
+        assertTrue(options.getRacingLine().getEnabled());
+        assertTrue(options.getRacingLine().getCorridor() == CorridorMode.FULL_ROAD);
+        assertTrue(options.getRacingLine().getDefaultRoadWidthM() == 7.0);
     }
 
     /** The guide's "Outputs" section. FIT is covered by {@code FitJavaInteropTest} in {@code :fit}. */
