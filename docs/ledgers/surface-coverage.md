@@ -10,7 +10,7 @@ aucune toute seule :
 | **JS** | `engine/src/jsMain/…/EngineJsApi.kt` | oui depuis `43` (`requireOnlyKeys`) |
 | **WASI** | `engine/src/wasmWasiMain/…/WasiOptions.kt` | oui (`requireOnly`) |
 | **JVM/Java** | `*/src/jvmMain/…/*Jvm.kt` | le compilateur Java |
-| **Démo** | `demo/src/engine-shim.ts` + un contrôle dans l'UI | non (TypeScript à la main) |
+| **Démo** | un contrôle dans l'UI de `demo/src` | oui, par le type (`index.d.ts` engendré) |
 
 La colonne **JVM/Java** est neuve (audit d'août 2026) et c'était l'angle mort structurel du tableau :
 une capacité peut être ✅ sur les quatre portes fil et rester **inatteignable depuis Java**, parce
@@ -18,31 +18,37 @@ que `copy()`, les paramètres nommés et les valeurs par défaut sont réservés
 aujourd'hui de `CyclistPowerSpec` — la classe unique dans laquelle le CLI, JS et WASI parsent tous
 les trois — qui n'a aucune fabrique dans `EngineModelJvm`.
 
-`DemoReachabilityTest` (S9) vérifie ce qu'un scan de texte peut honnêtement vérifier : que le shim
-lie les trente `@JsExport`, et que chaque symbole lié est soit **appelé** quelque part dans
-`demo/src`, soit nommé dans le bloc « declared but not reached » du shim — dans les deux sens, pour
-que la liste reste vraie. Ce qu'il ne peut pas vérifier, c'est l'existence d'un **contrôle** :
-« atteignable par un humain » est une affirmation sur l'UI, qu'aucune analyse statique ne fait. C'est
-pourquoi les cellules Démo de ce tableau restent écrites à la main.
+`DemoReachabilityTest` (S9) vérifie ce qu'un scan de texte peut honnêtement vérifier : que chaque
+`@JsExport` est soit **appelé** quelque part dans `demo/src`, soit nommé dans
+`demo/src/engine-coverage.md` — dans les deux sens, pour que la liste reste vraie. Ce qu'il ne peut
+pas vérifier, c'est l'existence d'un **contrôle** : « atteignable par un humain » est une
+affirmation sur l'UI, qu'aucune analyse statique ne fait. C'est pourquoi les cellules Démo de ce
+tableau restent écrites à la main.
 
-La **démo** consomme JS via `demo/src/engine-shim.ts`, dont les types TypeScript sont écrits à la
-main (Kotlin/JS n'émet aucun corps pour un `external interface`, donc il n'y a rien à importer ni à
-comparer — vérifié : le `.d.ts` engendré référence `EnhanceOptionsDto` sans jamais le déclarer, et
-les interfaces qui *ont* un corps portent une marque `__doNotUseOrImplementIt` qu'aucun littéral
-d'objet ne satisfait).
+La **démo** consomme les deux paquets npm tels qu'ils sont publiés, `@glandais/vcyclist-engine` et
+`@glandais/vcyclist-elevation`, aliasés sur la sortie Gradle. Leur `index.d.ts` est **engendré** depuis l'`external interface` par
+`:codegen:generateTsFacade`, et `TsFacadeTest` échoue si la copie committée dérive. Ce qui était la
+faiblesse de cette surface — « il n'y a rien à importer ni à comparer », le `.d.ts` du compilateur
+référençant `EnhanceOptionsDto` sans jamais le déclarer — est donc clos, et l'ancien contrôle de
+parité TypeScript de `DoorKeyParityTest` a été **supprimé** : engendrer rend l'écart impossible, et
+un test qui ne peut plus échouer est exactement le vert-aveugle que cette suite combat. Le tour de
+force reste que l'`external interface` est obligatoire côté Kotlin — une interface `@JsExport`
+porte une marque `__doNotUseOrImplementIt` qu'aucun littéral d'objet ne satisfait, donc
+`{ massKg: 75 }` cesserait de compiler.
 
-**La colonne Démo veut dire « atteignable par un humain dans l'UI », pas « réexporté par
-`engine-shim.ts` ».** La distinction n'était pas théorique : `writeGpx` était réexporté par le shim
-depuis `g29` et **aucun composant ne l'appelait**. Sous l'autre lecture, la ligne aurait affiché ✅
-pendant tout ce temps. Le piège est toujours actif : `detectClimbsWithOptions` est déclaré dans le
-shim et n'est appelé nulle part.
+**La colonne Démo veut dire « atteignable par un humain dans l'UI », pas « exporté par le
+paquet ».** La distinction n'était pas théorique : `writeGpx` était réexporté depuis `g29` et
+**aucun composant ne l'appelait**. Sous l'autre lecture, la ligne aurait affiché ✅ pendant tout ce
+temps. Le piège est plus vif depuis que l'export est gratuit : `detectClimbsWithOptions` est
+importable et n'est appelé nulle part.
 
 Depuis que la démo autonome de `:elevation` a été repliée dans `demo/` (route `#/elevation`), la
-démo consomme **deux** façades : `engine-shim.ts` et `demo/src/elevation-shim.ts`
-(`ElevationJsApi.kt`). Même contrainte, même piège : un renommage côté Kotlin reste silencieux
-jusqu'à l'exécution. `:elevation` n'a ni porte CLI ni porte WASI pour ces trois fonctions
-(`newElevationProvider`, `getElevation`, `getElevationsAlong`) — le tableau d'état ci-dessous ne
-concerne que les capacités du cœur `:engine`.
+démo consomme **deux** façades. Elle charge `@glandais/vcyclist-elevation` séparément plutôt que par
+le bundle `:engine` qui le contient aussi : cela coûte 54 Kio gzip de stdlib Kotlin dupliquée, et
+cela achète la seule chose qui exerce ce paquet tel qu'il est publié. `:elevation` n'a ni porte CLI
+ni porte WASI pour ces trois fonctions (`newElevationProvider`, `getElevation`,
+`getElevationsAlong`) — le tableau d'état ci-dessous ne concerne que les capacités du cœur
+`:engine`.
 
 **Toutes les portes JS contrôlent désormais leurs clés.** `ElevationJsApi` n'avait *aucun*
 `requireOnlyKeys` jusqu'à S7 : un `step` mal orthographié dans un `GetElevationsAlongOptionsDto`
@@ -173,7 +179,7 @@ Légende : ✅ atteignable · ⚠️ partiel (la note dit en quoi) · ❌ absent
     `ElevationProvider` : `--dem-zoom`, la clé `demZoom` du DTO JS, `vcSetElevationConfig` côté WASI.
     Java a déjà `ElevationProviderJvm.elevationProviderConfig(zoomLevel)` mais rien ne relaie ce
     fournisseur jusqu'à `enhanceCourse` : ⚠️, pas ✅. La démo n'a pas de contrôle, et **une
-    ré-exportation de shim n'est pas une traversée** : `elevation-shim.ts` expose `zoomLevel` depuis
+    ré-exportation n'est pas une traversée** : le paquet expose `zoomLevel` depuis
     toujours pour l'explorateur d'altitude, mais rien dans l'UI d'analyse GPX ne le règle. R30 est
     mesuré et rejeté (zoom 12 = résolution native), donc la case reste ❌ sans être une dette.
 
@@ -207,9 +213,10 @@ attraper, et restée invisible parce que FIT n'y figurait pas.
 **Refermé** : la démo télécharge désormais GPX et FIT depuis la vue `#/`. En le câblant, deux
 choses sont apparues, et elles valent plus que la ligne elle-même :
 
-1. **Un réexport de shim n'est pas une traversée de surface.** `writeGpx` attendait dans
-   `engine-shim.ts` depuis `g29`, appelé par personne — d'où la définition explicite de la colonne
-   Démo plus haut, et la ligne « Export GPX » qui manquait au tableau.
+1. **Un export n'est pas une traversée de surface.** `writeGpx` attendait, exporté depuis `g29`
+   et appelé par personne — d'où la définition explicite de la colonne Démo plus haut, et la ligne
+   « Export GPX » qui manquait au tableau. La règle a durci depuis que `index.d.ts` est engendré :
+   exporter ne coûte plus rien, donc n'atteste plus de rien.
 2. **`--gpx-power-source` n'avait jamais franchi la porte JS.** Le CLI choisit quelle puissance
    part dans le `<power>` du GPX écrit ; `writeGpx` / `writeGpxAt` étaient figés sur le défaut
    `INPUT`. Conséquence concrète : le GPX exporté par la démo ne contenait **pas** la puissance
@@ -431,9 +438,16 @@ Sans porte CLI, avec la raison :
   Deux obligations vont avec, et elles ne sont pas décoratives. **Un auto-contrôle de taille par
   extracteur**, sinon une regex cassée transforme le test en `assertEquals(vide, vide)` qui passe
   pour toujours. Et **chaque fichier lu doit être un `inputs.files` de la tâche de test** : la
-  première version de la liste (S0) oubliait `WasiOptions.kt` et `engine-shim.ts`, et `DoorKeyParityTest`
-  n'a donc pas vu une clé supprimée du lecteur WASI — la garde était bonne, la tâche n'a simplement
-  jamais été relancée. Vérifié en cassant les quatre portes une par une.
+  première version de la liste (S0) oubliait `WasiOptions.kt` et le miroir TypeScript de la démo, et
+  `DoorKeyParityTest` n'a donc pas vu une clé supprimée du lecteur WASI — la garde était bonne, la
+  tâche n'a simplement jamais été relancée. Vérifié en cassant les quatre portes une par une.
+
+  **Le piège a resservi une quatrième fois**, en engendrant la façade TypeScript : `TsFacadeTest`
+  s'annonçait vert alors qu'`index.d.ts` avait été cassé à la main, parce que les `inputs` de
+  `:codegen` ne nommaient ni les répertoires de façade ni les répertoires engendrés. Un générateur
+  n'échappe pas à la règle — son test de régénération-et-comparaison lit du texte comme les autres.
+  Corrigé en déclarant les **répertoires** (`inputs.dir`), puis revérifié en cassant chacune des
+  quatre gardes une par une.
 
 Aucun des deux ne couvre une capacité qui **n'est pas** un modèle de puissance : R9 vit sur
 `Cyclist`, R15 sur `EnhanceOptions`. Et surtout, aucun des deux ne couvre une **fonction de
@@ -490,8 +504,8 @@ Le plan pour refermer tout ça est [`docs/tasks/surface-alignment.md`](../tasks/
    plus [`wasm-wasi-abi.md`](../guides/wasm-wasi-abi.md).
 5. **JVM/Java** — une fabrique dans le `*Jvm.kt` du module, et un test Java dans `src/jvmTest/java/`
    qui épingle la forme courte. Rien d'autre ne prouve qu'un appelant Java y arrive.
-6. **Démo** — `engine-shim.ts` (à la main), **puis un contrôle dans l'UI** : le réexport seul ne
-   compte pas.
+6. **Démo** — **un contrôle dans l'UI**. Le type TypeScript suit tout seul (`index.d.ts` est
+   engendré), et c'est précisément pourquoi la disponibilité ne compte pas : seul l'appel compte.
 7. **Ledger** — la ligne `Surfaces` de l'entrée, si c'en est une, et la ligne de ce tableau.
 
 Un modèle de puissance saute les étapes 2 à 4 : le catalogue les fait.

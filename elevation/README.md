@@ -126,14 +126,17 @@ All async work returns `Promise` (per the `kotlin-js-jvm-webp.md` §3 convention
 an `ElevationProvider` passed opaquely, arrays are native JS `Array<T>`, numbers are plain
 `Double`, and `@JsExport` covers both top-level functions and classes.
 
-The demo consumes it through [`demo/src/elevation-shim.ts`](../demo/src/elevation-shim.ts), which
-re-exports those three functions under flat names and hand-writes the DTO types — Kotlin/JS emits
-no body for an `external interface`, so there is nothing to import. `:engine` declares
-`api(project(":elevation"))`, so the single `@glandais/vcyclist-engine` bundle the demo already
-aliases carries this façade too, under `io.github.glandais.elevation`.
+The demo consumes `@glandais/vcyclist-elevation` directly. `:engine` declares
+`api(project(":elevation"))`, so the `@glandais/vcyclist-engine` bundle carries this façade too
+under `io.github.glandais.elevation`, and the demo deliberately does **not** take that shortcut: at
+54 KiB gzipped of duplicated Kotlin stdlib, loading the real package is the only thing that
+exercises it as published.
 
-TypeScript definitions are emitted alongside the library (`generateTypeScriptDefinitions()` is
-enabled on the `js(IR)` target).
+The package's TypeScript surface — `index.d.ts`, plus `index.mjs` / `index.cjs` which unwrap the
+UMD namespace into flat named exports — is generated from `ElevationJsApi.kt` by
+`./gradlew :codegen:generateTsFacade` and committed under `src/jsMain/typescript/`. The compiler's
+own `generateTypeScriptDefinitions()` output ships beside it but nothing points at it: Kotlin/JS
+emits no body for an `external interface`, so it references the DTOs without declaring them.
 
 ## Live HTTP integration tests
 

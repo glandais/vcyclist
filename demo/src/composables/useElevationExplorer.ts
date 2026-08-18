@@ -3,8 +3,8 @@ import {
     getElevationsAlong,
     type CoordinatesDto,
     type CoordinatesElevationDto,
-} from '~/elevation-shim';
-import { parseGpx, pathLatitudeDeg, pathLongitudeDeg, pathSize } from '~/engine-shim';
+} from '@glandais/vcyclist-elevation';
+import { parseGpx, pathLatitudeDeg, pathLongitudeDeg, pathSize } from '@glandais/vcyclist-engine';
 import { useElevationProvider } from './useElevationProvider';
 import { cumulativeDistances, debounce } from '~/utils/geo';
 

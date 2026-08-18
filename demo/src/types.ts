@@ -1,7 +1,8 @@
-import type { BikeDto, CyclistDto } from '~/engine-shim';
+import type { PointFieldProp } from '@glandais/vcyclist-engine';
+import type { BikeDto, CyclistDto } from '@glandais/vcyclist-engine';
 
 export interface DemoFieldDefinition {
-    prop: string;
+    prop: PointFieldProp;
     unit: string;
     shortDescription: string;
     categoryId: string;
@@ -15,7 +16,7 @@ export interface CategoryConfig {
     name: string;
     axis: string;
     unit: string;
-    fields: Record<string, DemoFieldDefinition>;
+    fields: Partial<Record<PointFieldProp, DemoFieldDefinition>>;
 }
 
 export interface WindDemo {
@@ -107,7 +108,7 @@ export type ElevationGainPreset = 'raw' | 'barometric' | 'dem' | 'gps';
 export type CorridorMode = 'lane' | 'lane-left' | 'full-road';
 
 export interface Config {
-    selectedFields: Set<string>;
+    selectedFields: Set<PointFieldProp>;
     bike: BikeDto;
     cyclist: CyclistDto;
     wind: WindDemo;
@@ -193,7 +194,7 @@ export const PRESETS: Record<'beginner' | 'recreational' | 'pro', Preset> = {
 };
 
 export const DEFAULT_CONFIG: Config = {
-    selectedFields: new Set<string>(['elevation', 'speed']),
+    selectedFields: new Set<PointFieldProp>(['elevation', 'speed']),
     bike: PRESETS.recreational.bike,
     // Road condition is a property of today's ride, not of the rider, so it lives here rather
     // than in the presets — applying a preset must not silently dry the road.

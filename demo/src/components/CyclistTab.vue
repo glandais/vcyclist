@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed } from 'vue';
-import type { CyclistDto } from '~/engine-shim';
+import type { CyclistDto } from '@glandais/vcyclist-engine';
 import SliderInput from './SliderInput.vue';
 
 type CyclistProperties = CyclistDto;

@@ -1,3 +1,4 @@
+import type { PointFieldProp } from '@glandais/vcyclist-engine';
 import {
     CategoryScale,
     Chart,
@@ -16,7 +17,7 @@ import zoomPlugin from 'chartjs-plugin-zoom';
 import { computed, type Ref, shallowRef, watch } from 'vue';
 import { fieldConfig } from '~/config/fieldConfig';
 import { gradeColor } from './useClimbs';
-import { type ClimbDto, getField, pathSize, type Path } from '~/engine-shim';
+import { type ClimbDto, getField, pathSize, type Path } from '@glandais/vcyclist-engine';
 import type { HoverInfo } from './useHoverSync';
 
 // Register Chart.js components
@@ -36,7 +37,7 @@ Chart.register(
 export function useChart(
     canvasRef: Ref<HTMLCanvasElement | null>,
     currentPath: Ref<Path | null>,
-    selectedFields: Ref<Set<string>>,
+    selectedFields: Ref<Set<PointFieldProp>>,
     hoveredInfo: Ref<HoverInfo | null>,
     onHoverChange: (index: number | null) => void,
     climbs: Ref<ClimbDto[]>

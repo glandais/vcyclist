@@ -57,7 +57,13 @@ module.exports = [
             eqeqeq: ['error', 'always'],
             curly: ['error', 'all'],
             'brace-style': ['error', '1tbs'],
-            '@typescript-eslint/no-unused-vars': ['error', { argsIgnorePattern: '^_' }],
+            // `ignoreRestSiblings` is what makes omit-by-rest — `const { k, ...rest } = obj` —
+            // legal without a discard name. useClimbs.ts drops one key from the engine's generated
+            // `climbDefaults` that way, which is the alternative to restating the other six.
+            '@typescript-eslint/no-unused-vars': [
+                'error',
+                { argsIgnorePattern: '^_', ignoreRestSiblings: true },
+            ],
             'no-unused-vars': 'off',
             '@typescript-eslint/explicit-function-return-type': 'off',
             '@typescript-eslint/no-explicit-any': 'warn',

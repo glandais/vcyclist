@@ -1,5 +1,11 @@
 import { computed, type Ref, ref } from 'vue';
-import { getField, pathLatitudeDeg, pathLongitudeDeg, pathSize, type Path } from '~/engine-shim';
+import {
+    getField,
+    pathLatitudeDeg,
+    pathLongitudeDeg,
+    pathSize,
+    type Path,
+} from '@glandais/vcyclist-engine';
 
 export interface HoverInfo {
     index: number;

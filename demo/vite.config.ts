@@ -10,6 +10,11 @@ import { defineConfig } from 'vite';
 // this whole directory. An alias keeps the same import specifier with a manifest Dependabot can
 // read. `predev` / `prebuild` in package.json still produce the directory below.
 const enginePackage = path.resolve(__dirname, '../engine/build/dist/js/productionLibrary');
+// `:elevation` is consumed as its own package rather than through the engine bundle, which also
+// carries it. It costs a duplicated Kotlin stdlib, and it buys the only thing that exercises
+// `@glandais/vcyclist-elevation` as published: on the shared bundle, a rename in `ElevationJsApi`
+// stayed silent because nothing ever loaded that package.
+const elevationPackage = path.resolve(__dirname, '../elevation/build/dist/js/productionLibrary');
 
 function manualChunks(id: string): string | null {
     if (id.includes('node_modules/@nuxt/ui')) {
@@ -27,6 +32,9 @@ function manualChunks(id: string): string | null {
     if (id.includes(enginePackage)) {
         return 'engine';
     }
+    if (id.includes(elevationPackage)) {
+        return 'elevation';
+    }
     if (id.includes('node_modules')) {
         return 'vendor';
     }
@@ -39,6 +47,7 @@ export default defineConfig({
         alias: [
             { find: /^~\/(.*)$/, replacement: path.resolve(__dirname, './src/$1') },
             { find: /^@glandais\/vcyclist-engine$/, replacement: enginePackage },
+            { find: /^@glandais\/vcyclist-elevation$/, replacement: elevationPackage },
         ],
         extensions: ['.mjs', '.js', '.ts', '.jsx', '.tsx', '.json', '.vue'],
     },
@@ -53,6 +62,7 @@ export default defineConfig({
             include: [
                 /node_modules/,
                 new RegExp(enginePackage.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')),
+                new RegExp(elevationPackage.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')),
             ],
         },
         rollupOptions: {
@@ -65,10 +75,15 @@ export default defineConfig({
         port: 3000,
         // enginePackage sits above the Vite root, which fs strictness blocks by default.
         fs: {
-            allow: [path.resolve(__dirname), enginePackage],
+            allow: [path.resolve(__dirname), enginePackage, elevationPackage],
         },
     },
     optimizeDeps: {
-        include: ['@glandais/vcyclist-engine', 'chart.js', 'chartjs-plugin-zoom'],
+        include: [
+            '@glandais/vcyclist-engine',
+            '@glandais/vcyclist-elevation',
+            'chart.js',
+            'chartjs-plugin-zoom',
+        ],
     },
 });

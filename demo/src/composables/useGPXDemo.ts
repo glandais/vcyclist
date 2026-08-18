@@ -16,7 +16,7 @@ import {
     type RacingLineReportDto,
     type WaypointDto,
     type WindDto,
-} from '~/engine-shim';
+} from '@glandais/vcyclist-engine';
 import { type Config, PowerSourceType, SLEW_W_PER_S } from '~/types';
 
 export interface UseGPXDemoReturn {

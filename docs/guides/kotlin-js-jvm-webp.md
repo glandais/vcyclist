@@ -158,8 +158,22 @@ kotlin {
 }
 ```
 
-Le compilateur scanne les `@JsExport` top-level et les `external interface` référencées, et
-produit un `.d.ts` à côté du `.mjs`.
+Le compilateur scanne les `@JsExport` top-level et produit un `.d.ts` à côté du `.mjs`.
+
+**Il n'émet aucun corps pour une `external interface`.** C'est la conséquence directe du mot-clé :
+`external` déclare une forme qui *existe déjà* en JavaScript, donc le compilateur n'a rien à
+engendrer pour elle. Le `.d.ts` la **référence** sans jamais la déclarer, et `tsc` le rejette hors
+`skipLibCheck` — dix-huit `TS2304` sur `vcyclist-engine.d.ts` avant que ce soit corrigé. Les
+interfaces qui *ont* un corps dans le `.d.ts` sont les interfaces Kotlin ordinaires annotées
+`@JsExport`, et elles portent une marque `__doNotUseOrImplementIt` qu'aucun littéral d'objet ne
+satisfait : elles sont donc inutilisables pour un DTO d'**entrée**.
+
+Les deux contraintes ensemble n'ont qu'une issue : garder l'`external interface` côté Kotlin, et
+**engendrer** le `.d.ts` depuis elle. C'est ce que fait `./gradlew :codegen:generateTsFacade` pour
+les deux paquets npm ; voir [`using-from-javascript.md`](using-from-javascript.md).
+
+Le compilateur écrit par ailleurs `any` pour tout type non exporté qui traverse la signature —
+`Path`, `ElevationProvider` — ce que le fichier engendré remplace par un type opaque marqué.
 
 ### Le piège du JSON sérialisé
 

@@ -2,7 +2,7 @@
 import { onMounted, ref, toRef } from 'vue';
 import type { HoverInfo } from '~/composables/useHoverSync';
 import { useMap } from '~/composables/useMap';
-import type { ClimbDto, Path, RacingLineReportDto } from '~/engine-shim';
+import type { ClimbDto, Path, RacingLineReportDto } from '@glandais/vcyclist-engine';
 
 const props = defineProps<{
     currentPath: Path | null;

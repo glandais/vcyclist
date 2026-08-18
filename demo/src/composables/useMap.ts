@@ -9,7 +9,7 @@ import {
     pathSize,
     type Path,
     type RacingLineReportDto,
-} from '~/engine-shim';
+} from '@glandais/vcyclist-engine';
 import { gradeColor } from './useClimbs';
 import type { HoverInfo } from './useHoverSync';
 

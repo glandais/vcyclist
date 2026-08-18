@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { ref } from 'vue';
 import { type ClimbTuning, GRADE_COLORS, gradeColor } from '~/composables/useClimbs';
-import type { ClimbDto } from '~/engine-shim';
+import type { ClimbDto } from '@glandais/vcyclist-engine';
 
 const props = defineProps<{
     climbs: ClimbDto[];
@@ -24,7 +24,8 @@ const tuningOpen = ref(false);
  * The six knobs of `detectClimbsWithOptions`, in the engine's declaration order.
  *
  * They existed on every wire door and reached no control here, which is what the coverage ledger
- * means by a capability not crossing the demo surface — a shim binding is not a surface crossing.
+ * means by a capability not crossing the demo surface — an exported symbol is not a surface
+ * crossing, and it counts for even less now that `index.d.ts` is generated and exporting is free.
  */
 const TUNING_FIELDS: { key: keyof ClimbTuning; label: string; step: number; hint: string }[] = [
     {

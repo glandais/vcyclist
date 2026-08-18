@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import type { BikeDto } from '~/engine-shim';
+import type { BikeDto } from '@glandais/vcyclist-engine';
 import { PRESETS } from '~/types';
 import SliderInput from './SliderInput.vue';
 

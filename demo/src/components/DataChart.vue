@@ -1,12 +1,13 @@
 <script setup lang="ts">
+import type { PointFieldProp } from '@glandais/vcyclist-engine';
 import { onMounted, ref, toRef } from 'vue';
 import { useChart } from '~/composables/useChart';
 import type { HoverInfo } from '~/composables/useHoverSync';
-import type { ClimbDto, Path } from '~/engine-shim';
+import type { ClimbDto, Path } from '@glandais/vcyclist-engine';
 
 const props = defineProps<{
     currentPath: Path | null;
-    selectedFields: Set<string>;
+    selectedFields: Set<PointFieldProp>;
     isProcessing: boolean;
     hoveredInfo: HoverInfo | null;
     climbs: ClimbDto[];

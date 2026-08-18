@@ -68,16 +68,22 @@ vcyclist/
 - **Nothing JVM-only in `commonMain`** — it must compile on JVM, JS Node, JS browser and wasmWasi.
 - **`GeneratedPath.kt` and `PointFieldAccessors.kt` are generated.** Never hand-edit them; edit
   `PointField.kt` and run `:codegen:run`. New fields go **last** — ordinals are the wire format.
+  Two other artifacts are generated and regenerate-and-compare checked the same way: the per-option
+  table of `surface-coverage.md` (`:codegen:generateSurfaceLedger`) and the npm packages'
+  TypeScript surface under `*/src/jsMain/typescript/` (`:codegen:generateTsFacade`).
 - **No `kotlin.jvm.*` annotation resolves from a common source set** (`@JvmOverloads`,
   `@JvmStatic`, assume the rest). The convention is a `…Jvm.kt` facade in `jvmMain` — see
   [`docs/guides/using-from-java.md`](docs/guides/using-from-java.md).
 - **The `Enhancer` stage order is load-bearing.** If you change it, update `Enhancer.kt`'s
   docstring, the `README.md` diagram, and run a CLI smoke.
-- **A capability must cross four doors**: core → CLI → JS (`EngineJsApi`) → WASI (`WasiOptions`),
-  then the demo shim, then a row in
-  [`docs/ledgers/surface-coverage.md`](docs/ledgers/surface-coverage.md). This has been forgotten
-  three times; the matrix is the only check. Defaults come from `EngineConstants`, never a literal
-  — the façades once hardcoded 250 W against the CLI's 280 W.
+- **A capability must cross six surfaces**: core → CLI → JS (`EngineJsApi`) → WASI
+  (`WasiOptions`) → JVM/Java (`*Jvm.kt` + a Java test) → **a control in the demo's UI**, then a row
+  in [`docs/ledgers/surface-coverage.md`](docs/ledgers/surface-coverage.md). This has been forgotten
+  three times; the matrix is the only check. The demo's TypeScript needs no edit — `index.d.ts` is
+  generated from the façade — and that is exactly why an export is not a crossing: only a control a
+  human can reach counts. Defaults come from `EngineConstants` for physics and from the stage's own
+  options object for the pipeline, never a literal — the façades once hardcoded 250 W against the
+  CLI's 280 W.
 - Curvature estimation and the racing line were tuned by measurement, not reasoning. Read
   [`docs/guides/racing-line.md`](docs/guides/racing-line.md) and ledger rows R23–R26 before
   touching `engine`'s `trajectory` package.

@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { onMounted, ref, toRef } from 'vue';
 import { useElevationChart } from '~/composables/useElevationChart';
-import type { CoordinatesElevationDto } from '~/elevation-shim';
+import type { CoordinatesElevationDto } from '@glandais/vcyclist-elevation';
 
 const props = defineProps<{ profile: CoordinatesElevationDto[] }>();
 

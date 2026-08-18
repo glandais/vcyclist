@@ -7,8 +7,15 @@ import kotlin.test.assertTrue
 import kotlin.test.fail
 
 /**
- * The five option DTOs cross four doors, and each door spells their key set out **again**, by hand.
- * This test asserts the four spellings agree.
+ * The five option DTOs cross three hand-written doors, and each spells their key set out **again**.
+ * This test asserts the three spellings agree.
+ *
+ * A fourth used to be here: the demo's TypeScript mirror in `demo/src/engine-shim.ts`. It is gone
+ * because the mirror is gone — `@glandais/vcyclist-engine`'s `index.d.ts` is generated from this
+ * very `external interface` by `:codegen:generateTsFacade`, so the two can no longer disagree, and
+ * an assertion between them could not fail. Generation replaced that check with something strictly
+ * stronger: it carries the property **types** too, which this test never compared (its extractor
+ * discarded everything after the colon), and it covers all twelve DTOs rather than five.
  *
  * ## Why it is a text scan
  *
@@ -16,9 +23,6 @@ import kotlin.test.fail
  *
  * - `ENHANCE_OPTIONS_KEYS` is `private` in `jsMain`, `ENHANCE_KEYS` is `private` in `wasmWasiMain`,
  *   and neither source set is visible to any other;
- * - Kotlin/JS emits **no body** for an `external interface`, so the generated `.d.ts` names
- *   `EnhanceOptionsDto` without declaring it — there is nothing for the demo to import, which is
- *   why `demo/src/engine-shim.ts` mirrors all five by hand in the first place;
  * - nothing on the JVM can reflect over a JS or wasm declaration.
  *
  * So the only place where all four are simultaneously visible is a JVM test reading the repository
@@ -42,7 +46,6 @@ import kotlin.test.fail
 class DoorKeyParityTest {
     private val jsApi = File("src/jsMain/kotlin/io/github/glandais/engine/EngineJsApi.kt")
     private val wasiOptions = File("src/wasmWasiMain/kotlin/io/github/glandais/engine/wasi/WasiOptions.kt")
-    private val shim = File("../demo/src/engine-shim.ts")
 
     /**
      * One DTO, and what each door calls its key set.
@@ -98,27 +101,12 @@ class DoorKeyParityTest {
         return Regex(""""([A-Za-z0-9_]+)"""").findAll(withoutComments).map { it.groupValues[1] }.toSet()
     }
 
-    /** `readonly name?: T;` inside `export interface <dto> { … }` of the hand-written TS mirror. */
-    private fun typeScriptInterfaceProperties(dto: String): Set<String> {
-        val body =
-            Regex("""export interface $dto \{(.*?)\n\}""", RegexOption.DOT_MATCHES_ALL)
-                .find(shim.readText())
-                ?.groupValues
-                ?.get(1)
-                ?: fail("no `export interface $dto` in ${shim.path} — the demo mirrors these by hand")
-        return Regex("""^\s{4}(?:readonly\s+)?([A-Za-z0-9_]+)\??\s*:""", RegexOption.MULTILINE)
-            .findAll(body)
-            .map { it.groupValues[1] }
-            .toSet()
-    }
-
     // ── Tests ────────────────────────────────────────────────────────────────────────────────
 
     @Test
     fun `every source is where this test thinks it is`() {
         assertTrue(jsApi.isFile, "not found: ${jsApi.absolutePath}")
         assertTrue(wasiOptions.isFile, "not found: ${wasiOptions.absolutePath}")
-        assertTrue(shim.isFile, "not found: ${shim.absolutePath} — did the demo shim move?")
     }
 
     /**
@@ -136,11 +124,6 @@ class DoorKeyParityTest {
             )
             assertEquals(dto.expectedSize, keySet(jsApi, dto.jsKeySet).size, "${dto.name}: ${dto.jsKeySet}")
             assertEquals(dto.expectedSize, keySet(wasiOptions, dto.wasiKeySet).size, "${dto.name}: ${dto.wasiKeySet}")
-            assertEquals(
-                dto.expectedSize,
-                typeScriptInterfaceProperties(dto.name).size,
-                "${dto.name}: the TypeScript mirror in ${shim.path}",
-            )
         }
     }
 
@@ -174,27 +157,6 @@ class DoorKeyParityTest {
                 keySet(wasiOptions, dto.wasiKeySet),
                 "${dto.name}: the two wire doors disagree. Every capability crosses both or " +
                     "neither — see docs/ledgers/surface-coverage.md.",
-            )
-        }
-    }
-
-    @Test
-    fun `the demo's hand-written TypeScript mirrors the same keys`() {
-        for (dto in dtos) {
-            val kotlin = kotlinInterfaceProperties(dto.name)
-            val typescript = typeScriptInterfaceProperties(dto.name)
-
-            assertEquals(
-                emptySet(),
-                kotlin - typescript,
-                "${dto.name}: the demo cannot set these — its mirror is behind the façade. " +
-                    "Kotlin/JS emits no interface body, so nothing but this test compares them.",
-            )
-            assertEquals(
-                emptySet(),
-                typescript - kotlin,
-                "${dto.name}: the demo declares keys the façade will reject at runtime. " +
-                    "requireOnlyKeys throws on an unknown key; TypeScript will not warn you.",
             )
         }
     }

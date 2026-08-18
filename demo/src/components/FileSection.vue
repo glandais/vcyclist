@@ -10,7 +10,7 @@ import {
     pathSize,
     pathTotalDistance,
     type Path,
-} from '~/engine-shim';
+} from '@glandais/vcyclist-engine';
 
 const props = defineProps<{
     fileName: string;

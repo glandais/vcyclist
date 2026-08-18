@@ -1,3 +1,4 @@
+import { fieldDefinitions, type PointFieldProp } from '@glandais/vcyclist-engine';
 import type { Ref } from 'vue';
 import { onUnmounted, watch } from 'vue';
 import { type Config, DEFAULT_CONFIG, PowerSourceType } from '~/types';
@@ -84,8 +85,21 @@ const deserializeConfig = (data: SerializableConfig): Config => {
     const migrated = migrateConfig(data);
     return {
         ...migrated,
-        selectedFields: new Set<string>(migrated.selectedFields),
+        selectedFields: new Set<PointFieldProp>(selectableFields(migrated.selectedFields)),
     };
+};
+
+/**
+ * Keep only the stored names the engine still has a field for.
+ *
+ * `selectedFields` is now typed as `PointFieldProp`, the closed set generated from `PointField`,
+ * and localStorage is the one place a name arrives from outside the type system — a config saved
+ * before a field was renamed would otherwise reach `getField`, which throws on an unknown prop.
+ * Same reason `migrateConfig` exists for `power.type`.
+ */
+const selectableFields = (stored: string[]): PointFieldProp[] => {
+    const known = new Set<string>(fieldDefinitions().map(d => d.prop));
+    return stored.filter((name): name is PointFieldProp => known.has(name));
 };
 
 /**

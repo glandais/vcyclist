@@ -134,7 +134,7 @@ w: … Exported declaration uses non-exportable parameter type 'Path'.
 
 `EngineJsApi.kt` lines: 335, 346, 353, 362, 370, 385, 428, 431, 434, 437, 440, 449, 453, 457, 461,
 465, 496, 520, 535, 537, 790, 792, 819, 851, 858, 873, 889, 905, 923, 952, 956, 1027, 1035, 1142.
-`ElevationJsApi.kt` lines: 73, 89, 100.
+`ElevationJsApi.kt` lines: 74, 90, 101.
 
 **Changed by R27** (2026-08-18): now 34 sites. **Four** are new —
 `pathElevationGainFiltered`, `pathElevationLossFiltered`, `pathReportedElevationGain`,
@@ -149,6 +149,13 @@ count is the claim, the numbers are only an aid.
 These are the expected consequence of the opaque-handle façade pattern documented in
 `docs/guides/kotlin-js-jvm-webp.md` — `Path` / `ElevationProvider` cross the JS boundary as opaque
 handles on purpose. Recorded so the count is pinned and a future regression is visible.
+
+**What the warning costs is now paid downstream.** Each of these sites made the compiler emit
+`any/* io.github.glandais.engine.path.Path */` into `vcyclist-engine.d.ts`, which accepts anything
+and permits any property access. The generated `index.d.ts` replaces them with a branded opaque
+type, so `path.length` is a compile error for a consumer. The warnings stay — they still mark a
+real property of the façade, and they are the canary for a *new* non-exportable type appearing —
+but they no longer describe what a TypeScript consumer sees.
 
 ### C3 — `ExperimentalCoroutinesApi` opt-in missing — 3 sites
 
@@ -512,8 +519,12 @@ it parses the GPX.
 
 ### Why it cannot simply be tree-shaken
 
-- `engine-shim.ts` does `import * as ns from '@glandais/vcyclist-engine'`, which forfeits tree-shaking
-  before the bundler even starts.
+- The consumer entry point does a namespace import of the bundle, which forfeits tree-shaking before
+  the bundler even starts. This did not change when the demo's `engine-shim.ts` was replaced by the
+  generated `index.mjs` — the wrapper still has to `import * as bundle` to reach
+  `io.github.glandais.engine`. What *did* change is who controls it: the namespace import is now one
+  line in `:codegen`'s emitter rather than a hand-written file, so the fix below is a generator
+  change rather than an API change.
 - More fundamentally, Kotlin/JS emits **per-module** granularity in UMD/CommonJS, so `pathToFit` pulls
   `vcyclist-fit.js` → `fit-kotlin-sdk.js` in wholesale regardless of what the consumer imports.
 - Splitting `pathToFit` into its own npm package is blocked by an existing architectural constraint:
@@ -536,7 +547,8 @@ also flip the published package format, which is a breaking change for CommonJS 
    `Path`-handle constraint blocks.) This removes the cheapest lever on the demo's biggest chunk,
    which *strengthens* the decision below rather than weakening it: option 3 is now the only path.
 3. **Re-test per-file granularity** on Kotlin 2.4.20 final (task w08), where the property may work
-   again; combine with named imports in `engine-shim.ts`.
+   again; combine with named imports in the generated `index.mjs` (`TsFacade.esModule`), which
+   `useEsModules()` would make expressible.
 
 **Decision (2026-08-17): option 3.** E1 is parked until the compiler is stable — the clean fix is the
 granularity setting, and re-testing it costs nothing once w08 happens, whereas an API change made now

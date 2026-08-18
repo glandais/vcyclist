@@ -2,7 +2,7 @@
 import { onMounted, ref, toRef } from 'vue';
 import type { ExplorerMode } from '~/composables/useElevationExplorer';
 import { useElevationMap, type ReliefMode } from '~/composables/useElevationMap';
-import type { CoordinatesDto } from '~/elevation-shim';
+import type { CoordinatesDto } from '@glandais/vcyclist-elevation';
 
 const props = defineProps<{
     mode: ExplorerMode;

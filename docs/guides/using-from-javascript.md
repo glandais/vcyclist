@@ -10,33 +10,43 @@ npm install @glandais/vcyclist-elevation   # DEM tile lookups on their own
 `:engine` declares `api(project(":elevation"))`, so `@glandais/vcyclist-engine` already carries the
 elevation façade — install the second package only if you want DEM lookups *without* the physics.
 
-`generateTypeScriptDefinitions()` is enabled on `js(IR)`, so a `.d.ts` ships next to each bundle
-(`build/dist/js/productionExecutable/vcyclist-engine.d.{ts,mts}`).
+Both packages ship a full TypeScript surface: `index.d.ts`, with every DTO declared and every
+option that is a closed set typed as a union of its literal spellings.
 
 ## Getting at the exports
 
-Kotlin/JS emits a **UMD bundle that preserves the package namespace**, so the module has exactly
-one top-level export, `io`. Named imports do not work — `import { parseGpx } from
-'@glandais/vcyclist-engine'` fails under Node ESM with *"Named export 'parseGpx' not found"*.
-Unwrap the namespace once and destructure from it:
+Named imports, in both module systems:
 
-```js
-import * as engineRaw from '@glandais/vcyclist-engine';   // or: require('@glandais/vcyclist-engine')
-
-const engine    = engineRaw.io.github.glandais.engine;
-const elevation = engineRaw.io.github.glandais.elevation;   // the :elevation façade, same bundle
+```ts
+import { parseGpx, enhanceWithCourse, type CyclistDto } from '@glandais/vcyclist-engine';
+const { getElevation } = require('@glandais/vcyclist-elevation');
 ```
 
-Every snippet below assumes that `engine`. [`demo/src/engine-shim.ts`](../../demo/src/engine-shim.ts)
-and [`demo/src/elevation-shim.ts`](../../demo/src/elevation-shim.ts) do the same unwrap and add
-TypeScript types for the DTOs, which Kotlin/JS emits as referenced names only. They are worked
-examples of everything here — and a warning: those types are **hand-written**, so a rename on the
-Kotlin side stays silent until runtime.
+Every snippet below assumes that shape.
+
+### What is actually in the package
+
+Kotlin/JS emits a **UMD bundle that preserves the package namespace**, so the compiled module has
+exactly one top-level export, `io`, and named imports off it do not work. The packages therefore
+ship a small generated facade — `index.mjs` / `index.cjs` — that unwraps
+`io.github.glandais.engine` once and re-exports it flat; `main`, `module`, `types` and `exports`
+all point at it. The raw bundle is still there beside it and is unchanged.
+
+The same generation produces `index.d.ts`, and that half is not cosmetic. Kotlin/JS emits **no
+body** for an `external interface`, so the compiler's own `vcyclist-engine.d.ts` names
+`EnhanceOptionsDto`, `PointDto` and sixteen more without ever declaring them — 18 `TS2304`s under
+`skipLibCheck: false` — and writes `any` for every `Path`. `index.d.ts` declares all of them, and
+gives `Path` an opaque branded type instead of `any`, so `path.length` is a compile error rather
+than silently `undefined`.
+
+Both files are generated from the Kotlin façade by `./gradlew :codegen:generateTsFacade` and
+committed under `<module>/src/jsMain/typescript/`; `TsFacadeTest` fails the build if what is
+committed drifts from the façade.
 
 ## Parsing
 
 ```js
-const { parseGpx, parseGpxTracks, parseGpxSegments, parseGpxWaypoints } = engine;
+import { parseGpx, parseGpxTracks, parseGpxSegments, parseGpxWaypoints } from '@glandais/vcyclist-engine';
 
 const path = parseGpx(gpxXml);          // the FIRST track — what most files contain
 ```
@@ -58,10 +68,10 @@ dropped silently. `parseGpxTracksOnly` and `parseGpxRoutesOnly` select one conta
 ## Metrics and fields
 
 ```js
-const { pathSize, pathTotalDistance, pathDurationMs, pathElevationGain, pathElevationLoss,
+import { pathSize, pathTotalDistance, pathDurationMs, pathElevationGain, pathElevationLoss,
         pathElevationGainFiltered, pathElevationLossFiltered,
         pathReportedElevationGain, pathReportedElevationLoss,
-        pathLatitudeDeg, pathLongitudeDeg, pointAt, getField, fieldDefinitions } = engine;
+        pathLatitudeDeg, pathLongitudeDeg, pointAt, getField, fieldDefinitions } from '@glandais/vcyclist-engine';
 
 pathSize(path);                     // number of points
 pathTotalDistance(path);            // metres
@@ -90,7 +100,7 @@ list — it is how the demo's chart offers every field without knowing them.
 ### `enhance` — the quick door
 
 ```js
-const { enhance, writeGpx } = engine;
+import { enhance, writeGpx } from '@glandais/vcyclist-engine';
 
 const out = await enhance(path, null);                    // physics only, no HTTP
 const xml = writeGpx(out);
@@ -137,7 +147,7 @@ benefit is small.
 same pipeline with all five inputs exposed:
 
 ```js
-const out = await engine.enhanceWithCourse(
+const out = await enhanceWithCourse(
   path,
   { massKg: 72, cd: 0.7, frontalAreaM2: 0.5, maxLeanAngleDeg: 35, maxBrakeG: 0.4,
     maxSpeedKmH: 100, roadCondition: 'wet' },
@@ -176,7 +186,7 @@ not silently simulate the default rider.
 ## Outputs
 
 ```js
-const { writeGpx, writeGpxAt, writeGpxTracks, pathToCsv, pathToJson, pathToFit, pathsToFit } = engine;
+import { writeGpx, writeGpxAt, writeGpxTracks, pathToCsv, pathToJson, pathToFit, pathsToFit } from '@glandais/vcyclist-engine';
 
 const xml   = writeGpx(out);                    // GPX 1.1, one <trk>
 const bare  = writeGpx(out, false);             // no <extensions>: no power, HR, cadence
@@ -244,18 +254,39 @@ not emit).
 ## Analysis
 
 ```js
-const { detectClimbs, detectClimbsWithOptions, analyzeRacingLine,
-        dominantHeadwindAzimuth, dominantHeadwindAzimuthOfTracks } = engine;
+import { detectClimbs, detectClimbsWithOptions, analyzeRacingLine,
+        dominantHeadwindAzimuth, dominantHeadwindAzimuthOfTracks } from '@glandais/vcyclist-engine';
 
 const climbs = detectClimbs(out);
 const tuned  = detectClimbsWithOptions(out, 10, 35, 100, 3, 1.3, 1.3);
 //   minMinClimbElevationM, maxMinClimbElevationM, minClimbElevationRatio,
-//   minGradePercent, maxDiffRealGrade, booster  — these are the defaults
-//   `ClimbOptions` has a seventh, maxAnalysisPoints (3000, the O(n²) guard), not exposed here
+//   minGradePercent, maxDiffRealGrade, booster
+//   `ClimbOptions` has a seventh, maxAnalysisPoints (3000, the O(n²) guard), optional and last
 
 const report = analyzeRacingLine(out, { racingLineCorridor: 'lane' });  // moves nothing
 const worst  = dominantHeadwindAzimuth(out);                            // degrees, or NaN
 ```
+
+### Defaults for the positional doors
+
+`detectClimbsWithOptions`, `pathToCsv` and `pathToJson` take their options **positionally**, so
+changing the last one means naming all the others and there is no field to omit. Their defaults are
+published as frozen constants, generated from the same catalogue the CLI and WASI doors resolve
+theirs through — so they cannot drift from the engine:
+
+```ts
+import { climbDefaults, detectClimbsWithOptions } from '@glandais/vcyclist-engine';
+
+const { minMinClimbElevationM, maxMinClimbElevationM, minClimbElevationRatio,
+        minGradePercent, maxDiffRealGrade, booster } = { ...climbDefaults, booster: 2 };
+
+const steeper = detectClimbsWithOptions(out, minMinClimbElevationM, maxMinClimbElevationM,
+    minClimbElevationRatio, minGradePercent, maxDiffRealGrade, booster);
+```
+
+`csvDefaults` and `jsonDefaults` are the same idea. The DTO-shaped doors deliberately have no such
+constant: omitting a field from `EnhanceOptionsDto` already gets you the default, so publishing the
+value would only create a second place for it to be wrong.
 
 `analyzeRacingLine` returns the racing-line report **without** applying it — corner spans,
 curvature before and after, the corridor, the solver's convergence. It returns `null` when there
@@ -272,7 +303,7 @@ says nothing about wind *speed*. It returns `NaN` when the question has no answe
 > at the call site, not as a rejected promise — so it does not need an `await` to be seen.
 
 ```js
-const { newElevationProvider, getElevation, getElevationsAlong } = elevation;
+import { newElevationProvider, getElevation, getElevationsAlong } from '@glandais/vcyclist-elevation';
 
 const provider = newElevationProvider({ zoomLevel: 12, cacheSize: 100 });
 

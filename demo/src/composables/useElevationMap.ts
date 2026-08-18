@@ -4,7 +4,7 @@ import 'leaflet/dist/leaflet.css';
 // load-bearing, but keeping it after the leaflet import matches how the plugin documents itself.
 import 'leaflet-relief';
 import { onUnmounted, type Ref, shallowRef, watch } from 'vue';
-import { getElevation, type CoordinatesDto } from '~/elevation-shim';
+import { getElevation, type CoordinatesDto } from '@glandais/vcyclist-elevation';
 import { useElevationProvider } from './useElevationProvider';
 import type { ExplorerMode } from './useElevationExplorer';
 

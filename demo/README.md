@@ -53,13 +53,14 @@ dependencies", so the demo's own dependencies were never updated. The engine is 
 Kotlin/JS compiled output of the `:engine` module — same physics, same GPX
 parser, same DEM-fix pipeline as the JVM CLI (see [`../README.md`](../README.md)).
 
-- `src/engine-shim.ts` — thin re-export of the engine's `@JsExport` symbols, plus hand-written
-  TypeScript declarations for the DTOs. They have to be hand-written: Kotlin/JS emits no body in
-  the generated `.d.ts` for an `external interface`, so there is nothing to import or check
-  against. Keep this file in step with `EngineJsApi.kt` — a rename here is silent until runtime.
-- `src/elevation-shim.ts` — same thing for the `:elevation` façade (`ElevationJsApi.kt`), with the
-  same hand-written-types caveat. `:engine` declares `api(project(":elevation"))`, so the one
-  aliased bundle carries both façades and no extra build wiring is needed.
+- The engine and elevation façades are imported straight from `@glandais/vcyclist-engine` and
+  `@glandais/vcyclist-elevation`, which `vite.config.ts` aliases onto the Gradle build output. Their
+  `index.d.ts` is generated from the Kotlin `external interface` by
+  `./gradlew :codegen:generateTsFacade`, so a rename on the Kotlin side is now a compile error here
+  rather than a runtime surprise.
+- `src/engine-coverage.md` — the exports no UI control reaches, with a reason each.
+  `DemoReachabilityTest` parses it and fails if it stops being true in either direction. An export
+  is free now that the package is generated, so availability means nothing and only a call counts.
 - `src/composables/useGPXDemo.ts` — `parse → enhance → render` orchestration.
 - `src/composables/useChart.ts` — Chart.js wrapper (zoom, crosshair, all 44 fields).
 - `src/composables/useMap.ts` — Leaflet wrapper + hover sync.

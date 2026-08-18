@@ -66,9 +66,10 @@ private fun coordsEle(
     return o.unsafeCast<CoordinatesElevationDto>()
 }
 
-// Free-function shape so the demo's JS shim (`new ElevationProvider(config)` etc.) stays simple.
-// The ElevationProvider instance is returned directly (no JsReference handle needed: Kotlin/JS
-// classes are first-class JS objects and the demo treats them as opaque).
+// Free-function shape so the generated TypeScript facade stays a flat list of functions, with no
+// class to construct. The ElevationProvider instance is returned directly (no JsReference handle
+// needed: Kotlin/JS classes are first-class JS objects), and consumers treat it as opaque — which
+// `index.d.ts` now enforces with a branded type rather than the `any` the compiler emits.
 
 @JsExport
 fun newElevationProvider(configDto: ElevationProviderConfigDto?): ElevationProvider {

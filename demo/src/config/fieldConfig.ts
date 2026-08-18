@@ -1,4 +1,4 @@
-import { fieldDefinitions, type FieldDefinitionDto } from '~/engine-shim';
+import { fieldDefinitions, type FieldDefinitionDto } from '@glandais/vcyclist-engine';
 import type { CategoryConfig, DemoFieldDefinition } from '~/types';
 
 /**
@@ -46,13 +46,9 @@ function getFieldConfig(): Record<string, CategoryConfig> {
     let i = 0;
     const dh = count > 0 ? 360 / count : 0;
     for (const categoryId in result) {
-        const categoryConfig = result[categoryId];
-        for (const fieldId in categoryConfig.fields) {
-            const field = categoryConfig.fields[fieldId];
-            if (field) {
-                const h = i++ * dh;
-                field.color = `hsl(${h} 50% 50%)`;
-            }
+        for (const field of Object.values(result[categoryId].fields)) {
+            const h = i++ * dh;
+            field.color = `hsl(${h} 50% 50%)`;
         }
     }
     return result;

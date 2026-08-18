@@ -4,8 +4,8 @@
     "private": true,
     "type": "module",
     "scripts": {
-        "predev": "cd .. && ./gradlew :engine:jsBrowserProductionLibraryDistribution",
-        "prebuild": "cd .. && ./gradlew :engine:jsBrowserProductionLibraryDistribution",
+        "predev": "cd .. && ./gradlew :engine:jsBrowserProductionLibraryDistribution :elevation:jsBrowserProductionLibraryDistribution :codegen:generateTsFacade",
+        "prebuild": "cd .. && ./gradlew :engine:jsBrowserProductionLibraryDistribution :elevation:jsBrowserProductionLibraryDistribution :codegen:generateTsFacade",
         "dev": "vite",
         "build": "vite build",
         "preview": "vite preview",

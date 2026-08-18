@@ -12,7 +12,13 @@ import { loadConfig, useConfigPersistence } from '~/composables/useConfigPersist
 import { useClimbs } from '~/composables/useClimbs';
 import { useGPXDemo } from '~/composables/useGPXDemo';
 import { useHoverSync } from '~/composables/useHoverSync';
-import { getField, pathToCsv, pathToJson, pathToFit, writeGpxTracks } from '~/engine-shim';
+import {
+    getField,
+    pathToCsv,
+    pathToJson,
+    pathToFit,
+    writeGpxTracks,
+} from '@glandais/vcyclist-engine';
 import {
     CSV_MIME,
     downloadBytes,

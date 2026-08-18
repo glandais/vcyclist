@@ -295,6 +295,10 @@ pour le groupe enhance ; la valeur est prospective. Ajouter le contrôle d'attei
 Livré, vert sur `develop`. Quatre groupes de plus (33 options), la complétude devenue **récursive**,
 et deux extracteurs neufs : `CliSurfaceTest` et `DemoReachabilityTest`.
 
+> **Depuis** (2026-08-18) : `engine-shim.ts` n'existe plus — voir le complément de S10. Le test
+> `DemoReachabilityTest` lit désormais l'`index.d.ts` engendré et `demo/src/engine-coverage.md` ;
+> ce qu'il vérifie n'a pas changé, seulement où il le lit.
+
 **`Wind` a été écarté du catalogue**, et c'est un vrai constat plutôt qu'un oubli : `WindDto` ne
 correspond à aucune classe d'options à défauts. `windDirection` est en **degrés** et se lit dans
 `Wind.directionRad` en radians, l'absence de l'objet donne `WindProviderNone` — un autre type — et
@@ -353,6 +357,27 @@ Le reste est un `StringBuilder`.
 `surface-coverage.md` est engendrée depuis le catalogue (S11), avec régénération-et-comparaison. Le
 mécanisme « engendrer et vérifier » existe donc dans le dépôt et a un utilisateur — simplement pas
 celui que le plan avait prévu.
+
+**Suite (2026-08-18) : un second utilisateur, et il ne contredit pas ce qui précède.**
+`:codegen:generateTsFacade` engendre l'`index.d.ts` (plus `index.mjs` / `index.cjs`) des deux
+paquets npm depuis l'`external interface` des façades JS. Les quatre arguments ci-dessus visent
+l'émission des **lecteurs**, écrits à la main et qui marchent ; ils ne transposent pas :
+
+1. le critère « diff quasi nul » n'a pas de sens ici, parce que **l'artefact n'existait pas** — le
+   `.d.ts` du compilateur référence `EnhanceOptionsDto` sans jamais le déclarer, et le seul corps
+   écrit était le miroir à la main de la démo, hors du paquet publié ;
+2. le vrai coût n'était pas la frappe non plus, mais il n'était pas non plus « se souvenir des
+   portes » : c'était qu'aucune vérification n'était *possible* côté type. `DoorKeyParityTest`
+   comparait des **noms de clés** et jetait tout ce qui suit le `:` ;
+3. engendrer a donc **supprimé** un test au lieu d'en ajouter un — le contrôle du miroir TypeScript —
+   parce qu'il ne pouvait plus échouer. Un test qui ne peut plus échouer est le vert-aveugle que S4
+   combattait ;
+4. le quatrième argument tient toujours : c'est un fichier engendré de plus à surveiller, d'où
+   `TsFacadeTest` en régénération-et-comparaison, exactement comme `SurfaceLedgerTest`.
+
+Ce que ça ne change pas : la note ci-dessous rejetant l'émission de l'`external interface` **côté
+Kotlin** reste valable, et c'est même elle qui force la direction — Kotlin reste la source, le
+TypeScript est dérivé.
 
 ### S11 — La matrice et les derniers manques de la démo ✅ livré
 

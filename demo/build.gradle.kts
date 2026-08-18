@@ -12,11 +12,17 @@ node {
     nodeProjectDir.set(projectDir)
 }
 
-// Ensure the engine bundle is built before npm install resolves the file: dependency.
+// The demo resolves both npm packages through a vite alias onto these directories (see
+// vite.config.ts), so they must exist before npm runs. `generateTsFacade` is in the chain because
+// tsconfig.json type-checks against the GENERATED index.d.ts, not the Kotlin-emitted one.
 val engineDist =
     tasks.register("engineDist") {
-        description = "Builds the :engine Kotlin/JS library that this demo links via file:."
-        dependsOn(":engine:jsBrowserProductionLibraryDistribution")
+        description = "Builds the Kotlin/JS libraries and the TypeScript facade this demo aliases."
+        dependsOn(
+            ":engine:jsBrowserProductionLibraryDistribution",
+            ":elevation:jsBrowserProductionLibraryDistribution",
+            ":codegen:generateTsFacade",
+        )
     }
 
 tasks.named("npmInstall") {

@@ -1,14 +1,15 @@
 <script setup lang="ts">
+import type { PointFieldProp } from '@glandais/vcyclist-engine';
 import { computed } from 'vue';
 import { fieldConfig } from '~/config/fieldConfig';
 
 const props = defineProps<{
-    modelValue: Set<string>;
+    modelValue: Set<PointFieldProp>;
     visible: boolean;
 }>();
 
 const emit = defineEmits<{
-    'update:modelValue': [fields: Set<string>];
+    'update:modelValue': [fields: Set<PointFieldProp>];
     'update:visible': [visible: boolean];
 }>();
 
@@ -29,7 +30,7 @@ const accordionItems = computed(() =>
     }))
 );
 
-const toggleField = (fieldKey: string) => {
+const toggleField = (fieldKey: PointFieldProp) => {
     const newSet = new Set(props.modelValue);
     if (newSet.has(fieldKey)) {
         newSet.delete(fieldKey);

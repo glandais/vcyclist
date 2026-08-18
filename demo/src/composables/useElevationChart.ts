@@ -11,7 +11,7 @@ import {
     Tooltip,
 } from 'chart.js';
 import { onUnmounted, type Ref, shallowRef, watch } from 'vue';
-import type { CoordinatesElevationDto } from '~/elevation-shim';
+import type { CoordinatesElevationDto } from '@glandais/vcyclist-elevation';
 import { cumulativeDistances } from '~/utils/geo';
 
 // Idempotent, and the GPX view registers the same set plus the zoom plugin — this view does not

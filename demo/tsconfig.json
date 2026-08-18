@@ -4,6 +4,11 @@
         "useDefineForClassFields": true,
         "module": "ESNext",
         "lib": ["ES2022", "DOM", "DOM.Iterable"],
+        // Stays on for `node_modules` only: vite's own .d.ts needs Node globals this browser app
+        // deliberately does not declare ("types": [] below), and 170 errors from a dependency's
+        // types would drown ours. It is no longer load-bearing for the engine packages — their
+        // index.d.ts is generated and self-contained, and `TsFacadeTest` fails the build on a
+        // dangling reference, which is what skipLibCheck used to hide here (18 of them).
         "skipLibCheck": true,
 
         /* Globals */
@@ -26,11 +31,13 @@
         /* Path mapping */
         "paths": {
             "~/*": ["./src/*"],
-            /* Mirrors the resolve.alias in vite.config.ts — the engine is read from the Gradle
-               build output, not from node_modules. */
-            "@glandais/vcyclist-engine": [
-                "../engine/build/dist/js/productionLibrary/vcyclist-engine.d.ts"
-            ]
+            /* Mirrors the resolve.alias in vite.config.ts — the packages are read from the
+               Gradle build output, not from node_modules. These point at the GENERATED facade
+               (`:codegen:generateTsFacade`), not at the Kotlin-emitted `vcyclist-*.d.ts`, which
+               references every DTO interface without declaring it. That is also why
+               skipLibCheck is off above: it was hiding 18 dangling references. */
+            "@glandais/vcyclist-engine": ["../engine/src/jsMain/typescript/index.d.ts"],
+            "@glandais/vcyclist-elevation": ["../elevation/src/jsMain/typescript/index.d.ts"]
         }
     },
     "include": ["src/**/*.ts", "src/**/*.tsx", "src/**/*.vue"],
