@@ -7,8 +7,9 @@ port of `@glandais/virtual-cyclist` (physics-based cycling simulator).
 
 vcyclist is a multi-module Kotlin Multiplatform project transforming GPS GPX traces into
 physics-aware virtualized rides. See [`README.md`](README.md) for the high-level pitch and the
-runtime/CLI usage. See [`docs/PLAN.md`](docs/PLAN.md) for the full task-by-task progress with
-commit hashes.
+runtime/CLI usage. See [`docs/README.md`](docs/README.md) for the documentation index, and
+[`docs/archive/plans/PLAN.md`](docs/archive/plans/PLAN.md) for the historical task-by-task progress
+with commit hashes.
 
 The port is structured as:
 
@@ -77,7 +78,7 @@ Browser demos (in `:elevation`) :
 
 ### `Path` model (`:gpx`)
 
-- `Path` extends `GeneratedPath(size)` and stores **39 fields × `DoubleArray`** flat. Fields
+- `Path` extends `GeneratedPath(size)` and stores **43 fields × `DoubleArray`** flat. Fields
   defined in `gpx/src/commonMain/.../path/PointField.kt` (single source of truth).
 - A field may declare `nanDefault = true`, which makes `:codegen` NaN-fill that slot at
   construction instead of leaving it `0.0`. Use it whenever *absence* is meaningful and the
@@ -114,7 +115,7 @@ It is an annotation pass : it reads `pComputedPower`, writes the `wPrimeBalance`
 touches nothing else, so the other 36 fields — the ones the TS reference also has — are
 bit-identical whether it runs or not (`WPrimeBalanceComputerTest` pins exactly that). Making the
 simulated rider *react* to a low W′ is a separate change — see
-[`docs/research/improvements-ledger.md`](docs/research/improvements-ledger.md) R16.
+[`docs/ledgers/improvements-ledger.md`](docs/ledgers/improvements-ledger.md) R16.
 
 ### Physics
 
@@ -177,7 +178,7 @@ simulated rider *react* to a low W′ is a separate change — see
 ### Kotlin/JS ↔ JS interop
 
 The patterns for `@JsExport` façades and WebP decoding are documented exhaustively in
-[`docs/kotlin-js-jvm-webp.md`](docs/kotlin-js-jvm-webp.md). **Always read this guide
+[`docs/guides/kotlin-js-jvm-webp.md`](docs/guides/kotlin-js-jvm-webp.md). **Always read this guide
 before touching `jsMain/` code.** Key points :
 
 - DTOs : `external interface …` for the exported JS-facing types.
@@ -191,19 +192,38 @@ The complete reference façades are :
 
 - `elevation/src/jsMain/.../ElevationJsApi.kt` + `engine/src/jsMain/.../EngineJsApi.kt`
 
+## Documentation layout
+
+[`docs/README.md`](docs/README.md) is the index, and the split it describes is load-bearing :
+
+- **`docs/guides/`** and **`docs/ledgers/`** describe the code **as it is**. English. Keep them
+  true : a capability that lands without its ledger row is the drift `docs/ledgers/surface-coverage.md`
+  exists to catch.
+- **`docs/archive/`** is **frozen**. Three completed plans and 100+ task specs, mostly French,
+  accurate on the day each was written and never retro-patched — the Kotlin/Wasm (`wasmJs`) target
+  they assume no longer exists. Read them for the *why* behind a decision, never for current state.
+  When a spec and the code disagree, the code is right.
+
 ## Task workflow
 
-Each implementation task lives in `docs/tasks/NN-slug.md` with sections : Goal / Depends on /
-Inputs / Steps / Outputs / Validation / Done when / Notes. The conventional flow is :
+The three plans are complete, so **new work does not need a task spec**. When one is warranted —
+a multi-session job worth specifying up front — write it as `docs/tasks/<slug>.md` (a live
+directory, created on demand; the archive stays frozen) using the shape the corpus established:
+Goal / Depends on / Inputs / Steps / Outputs / Validation / Done when / Notes. In English. Move it
+to `docs/archive/tasks/` once it is delivered, and add its row to
+[`docs/archive/tasks/README.md`](docs/archive/tasks/README.md).
 
-1. Write the task spec markdown.
+The flow that produced the existing corpus, still the right one :
+
+1. Write the task spec markdown (if the work warrants one).
 2. Dispatch an agent to implement (using `general-purpose` agent).
 3. Validate (tests green on all targets, ktlint OK, working tree clean).
-4. Check off the `[x]` boxes in the task markdown.
-5. Two commits per task : `feat(engine|elevation): <subject> (Phase N task NN)` then
-   `docs(plan): mark task NN done in PLAN.md`.
+4. Check off the `[x]` boxes in the task markdown — and leave a box unchecked with a reason rather
+   than checking it to tidy up.
+5. Two commits per task : `feat(engine|elevation): <subject> (task NN)` then the docs commit.
 
-`docs/PLAN.md` is the canonical progress tracker. Update its `Avancement` table after each task.
+**Research-derived work is tracked in [`docs/ledgers/improvements-ledger.md`](docs/ledgers/improvements-ledger.md)**
+(one `RNN` row per improvement, with its measurement), not in a plan.
 
 ## Conventions
 
@@ -212,7 +232,7 @@ Inputs / Steps / Outputs / Validation / Done when / Notes. The conventional flow
 `develop` is the **default and only long-lived branch** (no separate `main`). Feature work
 happens on short-lived topic branches that PR back into `develop` ; semantic-release tags
 `develop` directly on each push and commits the version bump + changelog back to `develop`
-with `[skip ci]`. See [`docs/publishing.md`](docs/publishing.md) for the release flow.
+with `[skip ci]`. See [`docs/guides/publishing.md`](docs/guides/publishing.md) for the release flow.
 
 ### Commit messages
 
@@ -231,7 +251,7 @@ Types : `feat`, `fix`, `test`, `docs`, `chore`, `style`, `refactor`. Scopes : `e
 **The commit type drives the release** : `feat:` triggers a minor bump, `fix:` a patch
 bump, anything else is a no-op for semantic-release. Use `feat!:` or include `BREAKING
 CHANGE:` in the body for a major bump. The release pipeline runs on every push to
-`develop`. See [`docs/publishing.md`](docs/publishing.md) for the full flow.
+`develop`. See [`docs/guides/publishing.md`](docs/guides/publishing.md) for the full flow.
 
 ### Release versioning
 
@@ -320,9 +340,9 @@ capability added to the core does not reach them by itself, and three times runn
 `g29`, then tasks `41` and `43`. R17 renamed one string on one surface and left the demo broken
 for nine ledger entries.
 
-So, in order: core → CLI → JS (`EngineJsApi`) → WASI (`WasiOptions` + `docs/wasm-wasi-abi.md`) →
+So, in order: core → CLI → JS (`EngineJsApi`) → WASI (`WasiOptions` + `docs/guides/wasm-wasi-abi.md`) →
 `demo/src/engine-shim.ts` → the ledger's `Surfaces` line. The matrix and the reasoning live in
-[`docs/surface-coverage.md`](docs/surface-coverage.md).
+[`docs/ledgers/surface-coverage.md`](docs/ledgers/surface-coverage.md).
 
 Two mechanical guards exist, and neither covers everything:
 
@@ -431,16 +451,16 @@ catalogue before trusting a number here.
 
 | Question | Answer |
 |---|---|
-| What is task N about ? | `docs/tasks/N-slug.md` (and the `Avancement` table in `docs/PLAN.md`) |
-| What is task gNN / wNN about ? | `docs/PLAN-GPX2WEB.md` / `docs/PLAN-WASM-WASI.md` + the matching `docs/tasks/` file |
-| How does the `wasmWasi` target work ? | [`docs/kotlin-wasm-wasi.md`](docs/kotlin-wasm-wasi.md) (engineering notes), `docs/PLAN-WASM-WASI.md` (the work) |
-| Why no Component Model / WIT ? | [`docs/wasm-wasi-component-model.md`](docs/wasm-wasi-component-model.md) — w13's measured verdict; [`tools/wasi-component`](tools/wasi-component/README.md) replays it |
-| How does a WASI host call the engine ? | [`docs/wasm-wasi-abi.md`](docs/wasm-wasi-abi.md) — imports, exports, error codes. A working host: [`tools/wasi`](tools/wasi/README.md) |
-| Why this design decision ? | The relevant task markdown's "Notes" section, or `docs/PLAN.md` if architectural |
-| How does Kotlin/JS export this type ? | `docs/kotlin-js-jvm-webp.md` |
+| Where is *any* document ? | [`docs/README.md`](docs/README.md) — the index |
+| What is task `NN` / `gNN` / `wNN` / `tNN` about ? | [`docs/archive/tasks/README.md`](docs/archive/tasks/README.md) — every ID, its subject, and which plan owned it |
+| How does the `wasmWasi` target work ? | [`docs/guides/kotlin-wasm-wasi.md`](docs/guides/kotlin-wasm-wasi.md) (engineering notes), `docs/archive/plans/PLAN-WASM-WASI.md` (the work) |
+| Why no Component Model / WIT ? | [`docs/archive/plans/wasm-wasi-component-model.md`](docs/archive/plans/wasm-wasi-component-model.md) — w13's measured verdict; [`tools/wasi-component`](tools/wasi-component/README.md) replays it |
+| How does a WASI host call the engine ? | [`docs/guides/wasm-wasi-abi.md`](docs/guides/wasm-wasi-abi.md) — imports, exports, error codes. A working host: [`tools/wasi`](tools/wasi/README.md) |
+| Why this design decision ? | The relevant task markdown's "Notes" section, or its plan in `docs/archive/plans/` if architectural |
+| How does Kotlin/JS export this type ? | `docs/guides/kotlin-js-jvm-webp.md` |
 | What's the TS equivalent of `<class>` ? | Same name in `../virtual-cyclist/src/` — Kotlin file's KDoc names the TS source |
 | Why is `time(0) = 0` ? | `VirtualizeService.kt` KDoc (relative-time simulation) |
-| How does the racing line work / what is it worth ? | [`docs/racing-line.md`](docs/racing-line.md) — user-facing; ledger R23-R26 for the measurements |
+| How does the racing line work / what is it worth ? | [`docs/guides/racing-line.md`](docs/guides/racing-line.md) — user-facing; ledger R23-R26 for the measurements |
 | How to run the CLI ? | [`cli/README.md`](cli/README.md) — usage, exit codes, and the gpxtools-cli migration table |
-| Where did gpx2web's `<class>` go ? | [`docs/gpx2web-coverage.md`](docs/gpx2web-coverage.md) — one row per Java class, ported / replaced / not ported with the reason |
-| How to cut a release / publish to npm or Maven Central ? | [`docs/publishing.md`](docs/publishing.md) |
+| Where did gpx2web's `<class>` go ? | [`docs/ledgers/gpx2web-coverage.md`](docs/ledgers/gpx2web-coverage.md) — one row per Java class, ported / replaced / not ported with the reason |
+| How to cut a release / publish to npm or Maven Central ? | [`docs/guides/publishing.md`](docs/guides/publishing.md) |

@@ -7,10 +7,10 @@ appelés à travers une petite façade.
 C'est le **seul** endroit où l'ABI est exercée de bout en bout. `wasmWasiWasmtimeTest`, le runner
 de KGP, ne sait pas fournir les imports custom (`vcyclist.read_input`, `write_output`,
 `fetch_tile`) : un test qui atteint un export qui en utilise un ne s'instancie même pas — voir
-[`docs/kotlin-wasm-wasi.md`](../../docs/kotlin-wasm-wasi.md) §5. Tout ce que le module promet à un
+[`docs/guides/kotlin-wasm-wasi.md`](../../docs/guides/kotlin-wasm-wasi.md) §5. Tout ce que le module promet à un
 hôte se vérifie donc ici.
 
-C'est aussi la **documentation exécutable** de l'ABI : [`docs/wasm-wasi-abi.md`] pointe sur
+C'est aussi la **documentation exécutable** de l'ABI : [`docs/guides/wasm-wasi-abi.md`] pointe sur
 `host.py` plutôt que de recopier du Python dans un markdown qui divergerait.
 
 ## Lancer
@@ -84,4 +84,4 @@ système. Tester une autre version que celle de la CI donnerait des verts locaux
 CI sur les proposals GC / exnref. S'il est absent (aucune tâche `wasmWasi` jamais lancée), le test
 est *skippé* plutôt que faux.
 
-[`docs/wasm-wasi-abi.md`]: ../../docs/wasm-wasi-abi.md
+[`docs/guides/wasm-wasi-abi.md`]: ../../docs/guides/wasm-wasi-abi.md

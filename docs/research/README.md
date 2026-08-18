@@ -35,7 +35,7 @@ repository, or kept locally and git-ignored, before pushing.
 | 5 | [Implementations & validation gaps](06-implementations-and-validation.md) — GoldenCheetah, Best Bike Split, Zwift | **Mixed** — source code read directly, vendor claims flagged |
 | 6 | [What this means for vcyclist](07-vcyclist-implementation-notes.md) | Actionable synthesis |
 
-Tracking surface: [`improvements-ledger.md`](improvements-ledger.md) — one ID'd row per suggested
+Tracking surface: [`improvements-ledger.md`](../ledgers/improvements-ledger.md) — one ID'd row per suggested
 improvement, scored against the code as it stands (applied / recommended / deferred / rejected, with
 the numbers behind each verdict).
 

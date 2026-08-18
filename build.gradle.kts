@@ -37,7 +37,7 @@ subprojects {
             // Sign only when a key is actually available — i.e. in CI, where the release
             // workflow provides GPG_PRIVATE_KEY. Signing unconditionally makes
             // `./gradlew publishToMavenLocal` fail on a developer machine, which is precisely
-            // the command `docs/publishing.md` tells you to run to inspect an artefact before a
+            // the command `docs/guides/publishing.md` tells you to run to inspect an artefact before a
             // release, and the one task g19 needs in order to verify a real consumer.
             val hasSigningKey =
                 providers.gradleProperty("signingInMemoryKey").isPresent ||

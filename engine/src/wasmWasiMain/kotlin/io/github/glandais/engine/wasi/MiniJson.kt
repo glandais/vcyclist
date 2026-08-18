@@ -6,7 +6,7 @@ package io.github.glandais.engine.wasi
  * That is a **measured** decision, not a reflex (task w03): adding
  * `kotlinx-serialization-json:1.9.0` and one four-field `@Serializable` class took the optimized
  * `.wasm` from 148 904 to 281 030 bytes — **+89 %** for an options object, well past the ~50 %
- * threshold `docs/PLAN-WASM-WASI.md` set for choosing the library. That cost is the serialization
+ * threshold `docs/archive/plans/PLAN-WASM-WASI.md` set for choosing the library. That cost is the serialization
  * machinery itself and only amortises over many classes; this ABI has a handful of flat option
  * objects and emits column arrays, so it never would.
  *

@@ -1,10 +1,10 @@
 # `tools/wasi-component` — le spike Component Model (tâche w13)
 
-Tout ce qui a produit les chiffres de [`docs/wasm-wasi-component-model.md`](../../docs/wasm-wasi-component-model.md),
+Tout ce qui a produit les chiffres de [`docs/archive/plans/wasm-wasi-component-model.md`](../../docs/archive/plans/wasm-wasi-component-model.md),
 pour qu'ils soient vérifiables plutôt que crus.
 
 **Rien ici n'est du code de production.** Ce répertoire n'est pas dans le build Gradle de
-vcyclist, pas dans la CI, pas publié. L'ABI v1 (`docs/wasm-wasi-abi.md`) est inchangée, et
+vcyclist, pas dans la CI, pas publié. L'ABI v1 (`docs/guides/wasm-wasi-abi.md`) est inchangée, et
 `vcAbiVersion` vaut toujours 1.
 
 ## Les fichiers

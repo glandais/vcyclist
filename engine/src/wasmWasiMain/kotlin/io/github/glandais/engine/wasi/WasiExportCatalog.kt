@@ -9,7 +9,7 @@ package io.github.glandais.engine.wasi
  * declarations straight out of `EngineJsApi.kt` and fails if any of them is missing from this
  * list — so the table cannot silently fall behind the façade it claims to mirror.
  *
- * Task w10 renders this into `docs/wasm-wasi-abi.md`; this stays the source of truth.
+ * Task w10 renders this into `docs/guides/wasm-wasi-abi.md`; this stays the source of truth.
  */
 internal enum class ParityDecision {
     /** Same capability, same name modulo the `vc` prefix. */

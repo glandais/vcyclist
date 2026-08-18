@@ -13,7 +13,7 @@ import kotlin.math.round
  * so this object rolls its own formatter instead of delegating to the platform.
  *
  * `internal` (not `private` to `CsvWriter`) : g07's `JsonWriter` reuses it verbatim for the same
- * reason (see docs/tasks/g07-export-json.md).
+ * reason (see docs/archive/tasks/g07-export-json.md).
  */
 internal object CsvNumberFormat {
     /** Largest number of fractional digits [format] will ever try when [decimals] is `null`. */

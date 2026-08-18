@@ -12,7 +12,7 @@ path, distance-based smoothing, and Douglas-Peucker 3D simplification.
 | JS (browser) | ✅ supported | `createImageBitmap` + canvas 2D (same DOM pipeline) |
 | JS (Node) | ✅ supported | `@jsquash/webp` WASM decoder (runtime dep, lazy `eval('require')`) |
 
-See `../docs/PLAN.md` and `../docs/kotlin-js-jvm-webp.md` for the design rationale and
+See `../docs/archive/plans/PLAN.md` and `../docs/guides/kotlin-js-jvm-webp.md` for the design rationale and
 multi-target interop conventions.
 
 ## Bringing your own tile transport
@@ -140,9 +140,33 @@ functions in an `ElevationProvider` class shim. `demo.js` consumes
 TypeScript definitions are emitted alongside the bundle (`generateTypeScriptDefinitions()` is
 enabled on the `js(IR)` target).
 
+## Live HTTP integration tests
+
+`ElevationProviderIntegrationTest` makes **real HTTP calls** to `tiles.mapterhorn.com`. It is
+skipped unless `INTEGRATION=1` is set in the environment (or `-Dintegration=true` as a system
+property):
+
+```bash
+INTEGRATION=1 ./gradlew :elevation:jvmTest --tests '*ElevationProviderIntegrationTest*' --rerun-tasks
+```
+
+The six tests cover: Mont Blanc (~4805 m) and the Dead Sea (~−430 m, below sea level) and Badwater
+Basin (~−85 m), each to ±50 m; that the LRU cache works (a second call on the same coordinates
+re-fetches nothing); that the default attribution points at mapterhorn; and that
+`getElevationsAlong` over four alpine waypoints returns a densified profile of ≥ 10 points with no
+outliers.
+
+**Cost**: ~6 WebP tiles × ~30–50 kB ≈ 200 kB per full run. `java.net.http.HttpClient` does not use
+the JDK's HTTP cache, so every run pays the round trip.
+
+**Why it does not run in CI**: it depends on a third-party service, the
+[attribution terms](https://mapterhorn.com/attribution/) discourage heavy automated use, and
+runner latency makes it flaky. The `INTEGRATION=1` gate keeps it available as a deliberate manual
+check — before a module release, or after reworking the pipeline.
+
 ## Status
 
-Phase 1 (port of TS algorithms) is complete — see `../docs/PLAN.md` for the full task list and
+Phase 1 (port of TS algorithms) is complete — see `../docs/archive/plans/PLAN.md` for the full task list and
 parity numbers. The browser demo is **not** part of the formal task plan; it lives here as a
 runnable smoke test of the `js(IR)` target and as the visual reference for the upcoming Compose
 Multiplatform demo (Phase 9). End-to-end check against `tiles.mapterhorn.com`: Mont Blanc

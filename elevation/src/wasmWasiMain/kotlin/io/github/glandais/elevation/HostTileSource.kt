@@ -132,7 +132,7 @@ private external fun fetchTile(
  *
  * Kept as a separate, pure function on purpose: it is the only part of this file a unit test can
  * reach, since anything touching the import cannot even be instantiated by the KGP test runner
- * (see `docs/kotlin-wasm-wasi.md` §5).
+ * (see `docs/guides/kotlin-wasm-wasi.md` §5).
  */
 internal fun parseTileUrl(url: String): TileCoordinates {
     val body = url.removePrefix("host://")

@@ -11,7 +11,7 @@ package io.github.glandais.elevation.webp
  * bytes), so [RiffParserTest] would catch a walker that forgot the padding on the very first
  * fixture it reads.
  *
- * Only the lossless codec is in scope here (see `docs/tasks/w11-vp8l-decoder.md`): Mapterhorn
+ * Only the lossless codec is in scope here (see `docs/archive/tasks/w11-vp8l-decoder.md`): Mapterhorn
  * serves Terrarium tiles as VP8L, and a lossy decoder would be several thousand lines for a codec
  * that would corrupt elevations anyway — Terrarium packs metres into the R/G/B bytes, so any
  * quantisation is a 256 m error on R. Everything else is therefore rejected loudly, by name, so a

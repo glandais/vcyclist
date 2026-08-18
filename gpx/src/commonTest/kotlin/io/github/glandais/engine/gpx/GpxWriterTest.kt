@@ -12,7 +12,7 @@ import kotlin.test.assertTrue
 import kotlin.time.Instant
 
 /**
- * Covers the 18 cases listed in `docs/tasks/15-engine-gpx-writer.md` §3.
+ * Covers the 18 cases listed in `docs/archive/tasks/15-engine-gpx-writer.md` §3.
  *
  * Round-trip tests intentionally compare **semantically** (re-parse the output and compare
  * [GpxDocument] instances with a numeric tolerance) rather than byte-for-byte — formatting of

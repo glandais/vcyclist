@@ -259,7 +259,7 @@ enum class PointField(
      *
      * Only ever populated from a file or an explicit hint — nothing infers it from geometry. The
      * racing-line corridor half-width is linear in it, so a wrong width is a proportionally wrong
-     * trajectory; see `docs/design/racing-line.md` §12 question 1.
+     * trajectory; see `docs/archive/plans/racing-line-design.md` §12 question 1.
      *
      * Categorised as [PointFieldCategory.ROAD] rather than `COORDINATES`: the coordinate group is
      * TS-parity and its membership *and order* are pinned by a test, so a field the TS reference

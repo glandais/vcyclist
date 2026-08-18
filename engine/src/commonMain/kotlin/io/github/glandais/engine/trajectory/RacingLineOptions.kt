@@ -83,7 +83,7 @@ enum class CornerKind {
  *   the output**. That is not a refinement an existing caller asked for, so it has to be requested.
  * @property defaultRoadWidthM width assumed where the path carries none — two 3 m lanes. The
  *   corridor half-width is linear in this, so it is the single most consequential number here
- *   when no file supplies a width. See `docs/design/racing-line.md` §12 question 1.
+ *   when no file supplies a width. See `docs/archive/plans/racing-line-design.md` §12 question 1.
  * @property edgeMarginM kept clear of each edge: half a handlebar plus the gutter
  * @property corridor which part of the road may be used
  * @property cornerEnterRadiusM a bend opens when the radius drops below this

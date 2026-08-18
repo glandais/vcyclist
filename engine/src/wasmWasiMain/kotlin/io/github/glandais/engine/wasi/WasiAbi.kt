@@ -9,7 +9,7 @@ import io.github.glandais.engine.path.Path
  * The split from [EngineWasiApi] is not cosmetic. `wasmWasiWasmtimeTest` runs the module through
  * the KGP test runner, which knows nothing of the custom `vcyclist` imports and cannot supply
  * them; a test that reached an export using `read_input` would fail to instantiate (see
- * `docs/kotlin-wasm-wasi.md` §5). Keeping the state machine here means the parts worth unit
+ * `docs/guides/kotlin-wasm-wasi.md` §5). Keeping the state machine here means the parts worth unit
  * testing — handle lifecycle, error mapping — are testable, while the thin `@WasmExport` layer
  * that marshals bytes stays for the reference host of task w09.
  */

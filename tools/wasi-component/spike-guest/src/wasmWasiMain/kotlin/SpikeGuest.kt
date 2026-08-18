@@ -14,7 +14,7 @@ import kotlin.wasm.unsafe.componentModelRealloc
 
 /*
  * Throwaway guest for the w13 spike. **Not production, not built by the vcyclist Gradle build**
- * — its world is `../../spike.wit`, its verdict `docs/wasm-wasi-component-model.md`.
+ * — its world is `../../spike.wit`, its verdict `docs/archive/plans/wasm-wasi-component-model.md`.
  *
  * Exports named as the Canonical ABI wants them, over the real engine. The one that matters is
  * `parse-gpx: func(gpx: string) -> s32`: it takes the string **directly out of linear memory**,

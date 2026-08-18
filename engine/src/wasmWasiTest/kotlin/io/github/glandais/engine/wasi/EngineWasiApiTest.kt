@@ -16,7 +16,7 @@ import kotlin.test.assertTrue
  *
  * The other half — the exports themselves — cannot be tested here: they call `read_input` /
  * `write_output`, and the KGP test runner does not supply the custom `vcyclist` imports (see
- * `docs/kotlin-wasm-wasi.md` §5). Reaching one from a test would fail at instantiation, so the
+ * `docs/guides/kotlin-wasm-wasi.md` §5). Reaching one from a test would fail at instantiation, so the
  * end-to-end coverage is a real host's job, which is task w09. That constraint is precisely why
  * [WasiAbi] is a separate object from `EngineWasiApi`.
  */

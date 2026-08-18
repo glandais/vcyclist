@@ -94,7 +94,7 @@ kotlin {
 // consumer who never writes a FIT file.
 //
 // The FIT format is still Garmin's, so `fit-kotlin-sdk` carries the FIT Protocol License and a
-// consumer accepts those terms in practice. `docs/publishing.md` records the full reasoning,
+// consumer accepts those terms in practice. `docs/guides/publishing.md` records the full reasoning,
 // including the pre-w12 argument it replaces.
 val copyReadmeToJsPackage =
     tasks.register<Copy>("copyReadmeToJsPackage") {

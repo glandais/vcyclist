@@ -47,7 +47,7 @@ import kotlin.wasm.unsafe.withScopedMemoryAllocator
  * ## The protocol, in full
  *
  * A host needs this section and nothing else — no Kotlin is required to implement it. Task w10
- * turns it into `docs/wasm-wasi-abi.md`; the two must not drift.
+ * turns it into `docs/guides/wasm-wasi-abi.md`; the two must not drift.
  *
  * **Module shape.** No `fun main()`, so the module is a *reactor*: the Wasm `start` section runs
  * the global initialisers at instantiation and there is no `_start` (nor `_initialize`) to call.

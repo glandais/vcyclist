@@ -19,7 +19,7 @@ import kotlin.test.fail
  *
  * Comparing the two files' text is therefore the only way to check the invariant at all — and it
  * checks the one that matters: a `@JsExport` added without a decision recorded for the WASI ABI
- * fails the build, instead of quietly leaving a hole in `docs/wasm-wasi-abi.md` (task w10).
+ * fails the build, instead of quietly leaving a hole in `docs/guides/wasm-wasi-abi.md` (task w10).
  */
 class WasiParityTableTest {
     private val jsApi = File("src/jsMain/kotlin/io/github/glandais/engine/EngineJsApi.kt")

@@ -45,8 +45,8 @@ TypeScript library for elevation data.
 | Module | Purpose | Targets |
 |---|---|---|
 | **`:elevation`** | Terrarium tile fetch + DEM lookup + Haversine + Douglas-Peucker 3D + triangular smoother. See [`elevation/README.md`](elevation/README.md). | JVM, JS Node, JS browser, WASI |
-| **`:gpx`** | Path model (38 fields × `DoubleArray`), resamplers, Douglas-Peucker simplifier, elevation steps, GPX I/O. Published to Maven Central; **not** published to npm — its JS output ships inside `@glandais/vcyclist-engine`. | JVM, JS Node, JS browser, WASI |
-| **`:engine`** | Physics (4 resistive `PowerProvider`s + cyclist input + `MaxSpeedComputer` + `VirtualizeService`), `Enhancer` pipeline, JVM CLI, JS façades. Re-exports `:gpx` via `api`, so `io.github.glandais.engine.path.*` and `…engine.gpx.*` stay importable from `:engine`. Also the module that links the standalone `.wasm` — see [`docs/wasm-wasi-abi.md`](docs/wasm-wasi-abi.md). | JVM, JS Node, JS browser, WASI |
+| **`:gpx`** | Path model (43 fields × `DoubleArray`), resamplers, Douglas-Peucker simplifier, elevation steps, GPX I/O. Published to Maven Central; **not** published to npm — its JS output ships inside `@glandais/vcyclist-engine`. | JVM, JS Node, JS browser, WASI |
+| **`:engine`** | Physics (4 resistive `PowerProvider`s + cyclist input + `MaxSpeedComputer` + `VirtualizeService`), `Enhancer` pipeline, JVM CLI, JS façades. Re-exports `:gpx` via `api`, so `io.github.glandais.engine.path.*` and `…engine.gpx.*` stay importable from `:engine`. Also the module that links the standalone `.wasm` — see [`docs/guides/wasm-wasi-abi.md`](docs/guides/wasm-wasi-abi.md). | JVM, JS Node, JS browser, WASI |
 | **`:fit`** | Garmin FIT encoding. `FitCourse` model, unit conversions and `FitEncoder` itself, all in commonMain over [`fit-kotlin-sdk`](https://github.com/glandais/fit-kotlin-sdk) — a multiplatform SDK generated from the FIT profile. One encoder, byte-identical output on every target, and no vendor SDK for consumers to install. | JVM, JS Node, JS browser, WASI |
 | **`:map`** | Static map rendering: Web Mercator projection, image framing, tile download + cache, PNG output (`java.awt` / `ImageIO`). **JVM-only.** No default tile source — see [`map/README.md`](map/README.md) for the usage-policy obligations. | JVM only |
 | **`:cli`** | Command-line tool (picocli). **JVM-only, not published as a library** — distributed as an executable jar. Replaces gpx2web's `gpxtools-cli`. | JVM only |
@@ -68,14 +68,14 @@ print(exports["vcPathTotalDistance"](store, handle), "m")
 
 The host provides `read_input`, `write_output` and `fetch_tile` (the last one may simply answer
 "no tile"); everything else is numeric exports and integer handles.
-[`docs/wasm-wasi-abi.md`](docs/wasm-wasi-abi.md) is the full contract, and
+[`docs/guides/wasm-wasi-abi.md`](docs/guides/wasm-wasi-abi.md) is the full contract, and
 [`tools/wasi`](tools/wasi/README.md) is a working host that CI runs on every pull request.
 
 ### Migrating from gpx2web
 
 vcyclist replaces the `gpx` and `gpxtools-cli` modules of
 [gpx2web](https://github.com/glandais/gpx2web).
-[`docs/gpx2web-coverage.md`](docs/gpx2web-coverage.md) has one row per Java class — ported,
+[`docs/ledgers/gpx2web-coverage.md`](docs/ledgers/gpx2web-coverage.md) has one row per Java class — ported,
 replaced, or not ported with the reason — plus the deliberate behavioural differences. For the
 command-line options specifically, see [`cli/README.md`](cli/README.md).
 
@@ -103,7 +103,7 @@ get the platform-specific variant (`-jvm`, `-js`) for their target.
 `vcyclist-gpx` (the `Path` model + GPX I/O) comes in transitively via `vcyclist-engine`, and
 can also be depended on alone if you only need parsing and resampling.
 
-See [`docs/publishing.md`](docs/publishing.md) for the release process.
+See [`docs/guides/publishing.md`](docs/guides/publishing.md) for the release process.
 
 ## Quick start
 
@@ -336,16 +336,23 @@ See [`demo/README.md`](demo/README.md) for the dev workflow and architecture.
 
 ```
 vcyclist/
-├── settings.gradle.kts          # multi-module Gradle KMP project
-├── gradle/libs.versions.toml    # version catalog (Kotlin 2.3.21, coroutines 1.11, xmlutil 0.91, …)
+├── settings.gradle.kts       # multi-module Gradle KMP project
+├── gradle/libs.versions.toml # version catalog — the source of truth for every version
 ├── docs/
-│   ├── PLAN.md                  # task-by-task progress (Phases 1-2bis)
-│   ├── elevation-integration.md # how to run live HTTP integration tests
-│   ├── kotlin-js-jvm-webp.md    # Kotlin/JS ↔ JS interop guide
-│   └── tasks/                   # one Markdown per implementation task (00-31, + bonus demos)
-├── elevation/                   # :elevation KMP module
-├── engine/                      # :engine KMP module (depends on :elevation)
-└── codegen/                     # :codegen JVM helper for Path accessor generation
+│   ├── README.md             # documentation index — start here
+│   ├── guides/               # how to use and extend the project
+│   ├── ledgers/              # living inventories (improvements, warnings, coverage)
+│   ├── research/             # solo-rider simulation research report
+│   └── archive/              # finished plans + the task specs that built the project
+├── elevation/                # :elevation  DEM tiles + 3D geometry
+├── gpx/                      # :gpx        Path model + GPX I/O
+├── engine/                   # :engine     physics + Enhancer + JS/WASI façades
+├── fit/                      # :fit        Garmin FIT encoding
+├── map/                      # :map        static map rendering (JVM only)
+├── cli/                      # :cli        command-line tool (JVM only)
+├── codegen/                  # :codegen    Path accessor generation (JVM only)
+├── demo/                     # Vue/Vite browser demo
+└── tools/                    # reference WASI hosts
 ```
 
 ## Status
@@ -372,12 +379,15 @@ output points covering ~128.6 km / ~5.3 h of simulated ride.
 
 ## Documentation
 
-- [`docs/PLAN.md`](docs/PLAN.md) — task-by-task plan with commit hashes for every step.
-- [`docs/tasks/`](docs/tasks/) — detailed Markdown spec for each task (00-31 + bonus demos).
-- [`docs/kotlin-js-jvm-webp.md`](docs/kotlin-js-jvm-webp.md) — Kotlin/JS ↔ JS interop
-  guide that underpins the `@JsExport` façades and the WebP tile decoding.
-- [`docs/publishing.md`](docs/publishing.md) — release flow (Maven Central + npm via
-  semantic-release on push to `develop`).
+Everything lives under [`docs/`](docs/README.md), which is the index. The short version:
+
+- [`docs/guides/`](docs/README.md#guides) — how to use and extend the project: the racing line,
+  the release flow, Kotlin/JS interop, the WASI ABI.
+- [`docs/ledgers/`](docs/README.md#ledgers) — living state: research improvements, build warnings,
+  façade coverage, gpx2web coverage.
+- [`docs/research/`](docs/research/README.md) — the solo-rider simulation research report.
+- [`docs/archive/`](docs/archive/README.md) — the finished plans and the 100+ task specs that
+  built the project. Historical: read for the *why*, never for the current state.
 - [`elevation/README.md`](elevation/README.md) — `:elevation` module details + browser demos.
 
 ## Contributing
@@ -388,7 +398,7 @@ against `develop` using [Conventional Commits](https://www.conventionalcommits.o
 Every push to `develop` runs the full multi-target test suite via
 `.github/workflows/release.yml` and, if green, lets semantic-release tag a new version,
 publish to Maven Central + npm, and commit the version bump back to `develop` with
-`[skip ci]`. See [`docs/publishing.md`](docs/publishing.md) for the full flow.
+`[skip ci]`. See [`docs/guides/publishing.md`](docs/guides/publishing.md) for the full flow.
 
 ## License
 

@@ -26,7 +26,7 @@ kotlin {
         }
         // No `binaries.library()` / `packageJson` / `npmPublish*` here on purpose : `:gpx` is
         // NOT published to npm. Its JS output is inlined into the `@glandais/vcyclist-engine`
-        // bundle, so consumers keep installing a single package. See docs/publishing.md.
+        // bundle, so consumers keep installing a single package. See docs/guides/publishing.md.
     }
 
     @OptIn(org.jetbrains.kotlin.gradle.ExperimentalWasmDsl::class)
