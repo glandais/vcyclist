@@ -147,7 +147,7 @@ class PowerProviderTerrainPacingTest {
             Path(200).apply {
                 for (i in 0 until 200) {
                     setDistance(i, i * 10.0)
-                    setElapsed(i, i * 1000.0)
+                    setElapsed(i, i * 1.0)
                     setGrade(i, 0.08)
                 }
             }

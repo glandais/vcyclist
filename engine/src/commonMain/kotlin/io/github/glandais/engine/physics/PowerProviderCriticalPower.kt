@@ -101,7 +101,7 @@ class PowerProviderCriticalPower(
         if (pointIndex < lastIndex) reset()
 
         if (pointIndex > lastIndex) {
-            val elapsedS = path.elapsed(pointIndex) / 1000.0
+            val elapsedS = path.elapsed(pointIndex)
             val dtS = elapsedS - lastElapsedS
             if (dtS > 0.0 && dtS.isFinite()) {
                 // The interval that just closed was ridden at the previous call's power.

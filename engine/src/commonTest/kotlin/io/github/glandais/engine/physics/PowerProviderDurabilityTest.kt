@@ -36,7 +36,7 @@ class PowerProviderDurabilityTest {
         stepS: Double,
     ): Path =
         Path(n).apply {
-            for (i in 0 until n) setElapsed(i, i * stepS * 1000.0)
+            for (i in 0 until n) setElapsed(i, i * stepS)
         }
 
     // ---- 1. The dose is supra-CP work, not time --------------------------------

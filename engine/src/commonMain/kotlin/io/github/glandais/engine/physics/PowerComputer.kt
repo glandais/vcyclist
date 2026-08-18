@@ -161,7 +161,7 @@ object PowerComputer {
             path.setPBrake(i, 0.0)
             return
         }
-        val dtSeconds = path.dt(i) / 1000.0
+        val dtSeconds = path.dt(i)
         if (dtSeconds <= 0.0) {
             // Zero-length segment (duplicate GPS point). No time passed, so no power was
             // delivered — dividing by it would write ±Infinity into four fields.

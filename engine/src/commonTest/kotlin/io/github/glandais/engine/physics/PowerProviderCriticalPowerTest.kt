@@ -36,7 +36,7 @@ class PowerProviderCriticalPowerTest {
         stepS: Double = 1.0,
     ): Path =
         Path(n).apply {
-            for (i in 0 until n) setElapsed(i, i * stepS * 1000.0)
+            for (i in 0 until n) setElapsed(i, i * stepS)
         }
 
     private fun provider(

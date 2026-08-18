@@ -261,17 +261,23 @@ bump with `[skip ci]` and pushes it back to `develop`).
   test compilation see each other, so anything Java cannot express (a `suspend` lambda, a default
   argument) goes in a `JvmBridgeFixtures` object next to it.
 
-### `elapsed` and `dt` are seconds after the pipeline, not ms
+### `time` is milliseconds, `elapsed` and `dt` are seconds — everywhere
 
-`PointField.ELAPSED` and `DT` declare **ms**, and `VirtualizeService` writes ms — but
-`Path.computeDerivedData` rewrites both in **seconds** (`(time − timeStart) / 1000`, `Δtime / 2000`)
-and runs last, so a finished path carries seconds under fields labelled ms. The TS reference does
-the same (`Path.ts:219`), so it is inherited, not introduced.
+**`TIME` is the only millisecond field.** `ELAPSED` and `DT` declare and carry **seconds**, at
+every moment of the pipeline. `TemporalFieldUnitsTest` pins both against `time` (mid-pipeline and
+post-`Enhancer`), which is what makes the rule enforceable rather than merely written down.
 
-Consequence for new code: **read `time` (unambiguously ms) when you need an interval outside the
-simulation.** Providers are safe because they run *during* it, where the millisecond values are
-still in place — `WPrimeBalanceComputer` runs after, read `dt`, and silently under-integrated the
-whole W′ balance by 1000× until R16 caught it.
+Until task 45 they were declared `"ms"` and carried whichever the last writer chose:
+`VirtualizeService` wrote ms, `Path.computeDerivedData` rewrote both in seconds and ran last, so a
+finished path — and its CSV / JSON / `fieldDefinitions` export, unit string included — published
+seconds labelled ms. Every reader compensated with its own `/ 1000.0`, and nothing failed when one
+forgot: `WPrimeBalanceComputer` did, and silently under-integrated the whole W′ balance by 1000×
+until R16 caught it by measurement. The TS reference still carries the same mislabel
+(`fieldDefinitions.ts` vs `Path.ts:219`) — this is a deliberate divergence.
+
+`DT`'s **window** still changes with the moment, which the unit alone does not say: backward
+interval `t(i) − t(i−1)` during the simulation, centred half-interval `(t(i+1) − t(i−1)) / 2` after
+`computeDerivedData`. `DX` does the same, so `speed = dx / dt` holds in both.
 
 ### Numerical tolerances
 

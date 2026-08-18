@@ -83,13 +83,12 @@ object WPrimeBalanceComputer {
         path.setWPrimeBalance(0, balance)
 
         for (i in 1 until path.size) {
-            // Interval from `time`, NOT from `dt` or `elapsed`. Those two are written in
-            // milliseconds by `VirtualizeService` and then **rewritten in seconds** by
-            // `Path.computeDerivedData` (`(time − timeStart) / 1000`, `Δtime / 2000`), which runs
-            // last — so a finished path carries seconds under fields that `PointField` declares as
-            // ms. Reading `dt` here under-integrated the whole balance by a factor of 1000, which
-            // is how a five-hour ride 30 W above CP came out having spent 568 J of a 20 kJ
-            // reserve. `time` has one meaning everywhere: milliseconds.
+            // Interval from `time`, NOT from `dt`. Both are in seconds since task 45, so `dt`
+            // would no longer be wrong by 1000× — the way it once was, which is how a five-hour
+            // ride 30 W above CP came out having spent 568 J of a 20 kJ reserve (ledger R16).
+            // `time` is still the better source here: `dt` is a **centred** half-interval after
+            // `computeDerivedData`, and this loop wants the backward one it is pairing with
+            // `pComputedPower(i)`.
             val dtSeconds = (path.time(i) - path.time(i - 1)) / 1000.0
             val power = path.pComputedPower(i)
             if (dtSeconds.isFinite() && dtSeconds > 0.0 && power.isFinite()) {

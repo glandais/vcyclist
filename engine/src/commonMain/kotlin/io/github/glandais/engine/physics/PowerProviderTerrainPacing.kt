@@ -136,7 +136,7 @@ class PowerProviderTerrainPacing(
             if (distanceM.isFinite()) lastDistanceM = distanceM
 
             // Settle the account for the interval that just closed, at the previous point's rates.
-            val elapsedS = path.elapsed(pointIndex) / 1000.0
+            val elapsedS = path.elapsed(pointIndex)
             val dtS = elapsedS - lastElapsedS
             if (dtS > 0.0 && dtS.isFinite()) {
                 energyDebtJ += (lastDeliveredW - lastTargetW) * dtS

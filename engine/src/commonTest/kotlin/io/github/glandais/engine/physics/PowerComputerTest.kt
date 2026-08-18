@@ -221,7 +221,7 @@ class PowerComputerTest {
         path.setLongitude(1, 0.0)
         path.setSpeed(0, 5.0)
         path.setSpeed(1, 5.5)
-        path.setDt(1, 1000.0) // 1 s
+        path.setDt(1, 1.0) // 1 s
         path.setGrade(0, 0.0)
         path.setGrade(1, 0.0)
 

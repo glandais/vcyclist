@@ -34,7 +34,7 @@ class PowerProviderSlewLimitedTest {
         stepS: Double = 1.0,
     ): Path =
         Path(n).apply {
-            for (i in 0 until n) setElapsed(i, i * stepS * 1000.0)
+            for (i in 0 until n) setElapsed(i, i * stepS)
         }
 
     /** A provider that returns whatever the test dictates, per point. */
@@ -177,11 +177,6 @@ class PowerProviderSlewLimitedTest {
                 )
 
             for (i in 1 until out.size) {
-                // `elapsed` is in SECONDS here, not milliseconds: `computeDerivedData` rewrites it
-                // as `(time - timeStart) / 1000` at the end of the simulation, even though
-                // `PointField.ELAPSED` declares "ms" — a unit inconsistency inherited verbatim
-                // from the TS reference. The limiter itself ran *during* the simulation, where
-                // VirtualizeService's millisecond values were still in place.
                 val dtS = out.elapsed(i) - out.elapsed(i - 1)
                 if (dtS <= 0.0 || !dtS.isFinite()) continue
                 val delta = abs(out.pCyclistProvidedMuscular(i) - out.pCyclistProvidedMuscular(i - 1))

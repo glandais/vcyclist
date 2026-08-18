@@ -80,7 +80,7 @@ object VirtualizeService {
                 // 0 m" (its search tolerance is `dx / 10_000_000`, i.e. 0, and never converges).
                 copyAllFields(input, i, out, i)
                 out.setTime(i, timeMs)
-                out.setElapsed(i, timeMs - startTimeMs)
+                out.setElapsed(i, (timeMs - startTimeMs) / 1000.0)
                 out.setDx(i, 0.0)
                 out.setDt(i, 0.0)
                 out.setSpeed(i, speed)
@@ -105,9 +105,9 @@ object VirtualizeService {
             timeMs += dt * 1000.0
 
             out.setTime(i, timeMs)
-            out.setElapsed(i, timeMs - startTimeMs)
+            out.setElapsed(i, (timeMs - startTimeMs) / 1000.0)
             out.setDx(i, dx)
-            out.setDt(i, dt * 1000.0)
+            out.setDt(i, dt)
             out.setSpeed(i, speed)
             out.setVirtSpeedCurrent(i, speed)
 

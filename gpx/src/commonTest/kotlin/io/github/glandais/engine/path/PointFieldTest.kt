@@ -131,7 +131,9 @@ class PointFieldTest {
             setOf(
                 "radians",
                 "meters",
+                // "ms" is TIME and only TIME ; ELAPSED and DT are seconds (see PointField).
                 "ms",
+                "s",
                 "%",
                 "m/s",
                 "watts",

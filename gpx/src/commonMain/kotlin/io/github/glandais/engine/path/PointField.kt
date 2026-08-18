@@ -57,8 +57,18 @@ enum class PointField(
         PointFieldCategory.TEMPORAL,
         notSelectable = true,
     ),
-    ELAPSED("elapsed", "ms", "Elapsed duration (ms)", PointFieldCategory.TEMPORAL),
-    DT("dt", "ms", "dt (ms)", PointFieldCategory.TEMPORAL),
+    ELAPSED("elapsed", "s", "Elapsed duration (s)", PointFieldCategory.TEMPORAL),
+
+    /**
+     * Time step, in **seconds** — like [ELAPSED], and unlike [TIME], which is the only
+     * millisecond field.
+     *
+     * Its *window* changes with the moment, which the unit alone does not say : during the
+     * simulation it is the backward interval `t(i) − t(i−1)`, and after
+     * [Path.computeDerivedData] the **centred** half-interval `(t(i+1) − t(i−1)) / 2`. [DX] does
+     * the same, so `speed = dx / dt` holds in both — but one name covers two windows.
+     */
+    DT("dt", "s", "dt (s)", PointFieldCategory.TEMPORAL),
 
     // --- Angles --------------------------------------------------------------
     BEARING(

@@ -70,7 +70,7 @@ class PowerProviderSlewLimited(
         if (pointIndex < lastIndex) reset()
         if (pointIndex == lastIndex) return lastPowerW
 
-        val elapsedS = path.elapsed(pointIndex) / 1000.0
+        val elapsedS = path.elapsed(pointIndex)
         val dtS = elapsedS - lastElapsedS
         val limited =
             if (dtS > 0.0 && dtS.isFinite()) {
