@@ -1,3 +1,25 @@
+# [4.2.0](https://github.com/glandais/vcyclist/compare/v4.1.0...v4.2.0) (2026-08-18)
+
+
+### Bug Fixes
+
+* **cli:** report the offset at the apex, not the largest one in the corner ([efb9e78](https://github.com/glandais/vcyclist/commit/efb9e78cfdc09448e97f1df944936eace82f6408))
+* **engine:** report the curvature the racing line actually has, not the analytic one ([e37c34b](https://github.com/glandais/vcyclist/commit/e37c34b2a577b99dd9bf74136d793192fd5d9383))
+
+
+### Features
+
+* **demo:** show the racing line, its corridor and the road it left (task 44) ([42ea52d](https://github.com/glandais/vcyclist/commit/42ea52d819045cedd55071e8ea0249cc84f6b4ff))
+* **engine:** detect corners and build the racing-line corridor (Phase T task t04) ([1f25ccb](https://github.com/glandais/vcyclist/commit/1f25ccb0368a11b1049716a01b037d94642e858c))
+* **engine:** estimate turn radius by heading regression (Phase T task t03) ([1d73706](https://github.com/glandais/vcyclist/commit/1d73706c79e1445099d193131c86efc308a6164e))
+* **engine:** expose the racing line through the pipeline and all four surfaces (Phase T task t07) ([7f44f14](https://github.com/glandais/vcyclist/commit/7f44f14a638ee0f90541c5d1f74acc3266fbd6f2))
+* **engine:** make the racing line inspectable from JS and the CLI (Phase T task t11) ([796ca4a](https://github.com/glandais/vcyclist/commit/796ca4af196f1c4309c1aec32bdfc6eb8aea0506))
+* **engine:** port the racing-line analysis to WASI and close the option allowlist ([36d295e](https://github.com/glandais/vcyclist/commit/36d295ec3dd3bfbea30e1899a925731563b55e23))
+* **engine:** solve the racing line as a box-constrained QP (Phase T task t05) ([a0db8c6](https://github.com/glandais/vcyclist/commit/a0db8c6c2690bdd0cf0ef322acb86f2cdfe14638))
+* **gpx:** carry road width from GPX into the Path (Phase T task t02) ([0d04fa6](https://github.com/glandais/vcyclist/commit/0d04fa6af462d182d8e38b4af981d801f7ec41b9))
+* **gpx:** infer road width from the OSM highway class (Phase T task t08) ([07b5904](https://github.com/glandais/vcyclist/commit/07b5904dc2b7dffbcdd38d9a255f014500136ca1))
+* **gpx:** NaN-default point fields and a trajectory curvature slot (Phase T task t01) ([34e8377](https://github.com/glandais/vcyclist/commit/34e83779e8160957087e7f2554c941dab3022f20))
+
 # [4.1.0](https://github.com/glandais/vcyclist/compare/v4.0.0...v4.1.0) (2026-08-18)
 
 
