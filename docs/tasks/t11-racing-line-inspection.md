@@ -73,11 +73,20 @@ chose is what makes that trustworthy rather than merely opt-in.
 Shipped. `analyzeRacingLine` on the JS façade, `--racing-line-report` on the CLI, and
 [`docs/racing-line.md`](../racing-line.md) as the user-facing document.
 
-The CLI report immediately earned itself on a real file. Stelvio's hairpins open exactly as the
-geometry predicts — `R_line ≈ R_road + h` — 7.8 → 10.3 m, 5.0 → 7.5 m, 4.0 → 6.2 m, with the offset
-saturating at the ±2.50 m corridor edge. It also showed two corners the stage makes *worse*
-(a 190° hairpin at 1064 m, 20.0 → 17.1 m, and a bend at 2032 m, 36.8 → 35.8 m), which nothing else
-in the project would have surfaced: the aggregate duration is neutral-to-positive and hides them.
+The CLI report immediately earned itself on a real file. Stelvio's hairpins open as the geometry
+predicts — `R_line ≈ R_road + h` — 7.8 → 10.2 m, 5.0 → 7.4 m, with the offset saturating at the
+±2.50 m corridor edge.
+
+**Correction.** As first shipped it also reported several corners as severe regressions — 53.6 → 4.0 m,
+63.5 → 4.9 m — and those were an artefact of the report, not of the line. `analyze` returned the
+*analytic* offset curvature, the quantity t07 had already established spikes at every corridor-bound
+kink, while `compute` used the re-measured one. A textbook apex-cutting offset profile
+(`+1.4 +2.0 +2.3 +2.5 +2.3 +1.7`) was being reported as a 4 m hairpin. `analyze` now measures the
+same way `compute` does; see the fix commit. Eleven flagged corners became three, and those three
+are 15 % tightenings rather than 90 % ones.
+
+The lesson is worth keeping: a diagnostic that reports a quantity the stage does not itself act on
+will eventually be believed.
 
 Writing the fixture-based JS test turned up that `GpxFixtures.SAMPLE_GPX` has seven points, one
 below `LocalFrame.MIN_POINTS`, so the analysis declines on it. That is the documented contract

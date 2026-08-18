@@ -3,6 +3,8 @@ package io.github.glandais.engine.trajectory
 import io.github.glandais.engine.path.Path
 import io.github.glandais.engine.path.PointField
 import kotlin.math.abs
+import kotlin.math.cos
+import kotlin.math.sin
 
 /**
  * What the racing-line analysis found.
@@ -221,7 +223,7 @@ object RacingLine {
                 gradientTolerance = options.gradientTolerance,
                 boundEpsilonM = options.boundEpsilonM,
             )
-        val trajectoryCurvature = OffsetCurvature.exact(frame, solved.offset)
+        val trajectoryCurvature = measureOffsetCurvature(frame, solved.offset, options)
 
         return RacingLineReport(
             size = frame.size,
@@ -237,5 +239,54 @@ object RacingLine {
             converged = solved.converged,
             activeConstraints = solved.activeConstraints,
         )
+    }
+
+    /**
+     * Curvature of the offset line, **measured** on the geometry the offset describes rather than
+     * evaluated from the analytic offset formula.
+     *
+     * The analytic form is exact for a smooth `n` and useless for this one. It reads `n''` off a
+     * finite second difference at 1-2 m spacing, where a 0.1 m wiggle already looks like a 23 m
+     * bend, and a box-constrained solution is only C1 where it meets a bound, so it wiggles at
+     * every corridor contact. Reported through it, a textbook apex-cutting line whose offset runs a
+     * clean `+1.4 +2.0 +2.3 +2.5 +2.3 +1.7` reads as a 4 m hairpin.
+     *
+     * `compute` already sidesteps this by re-measuring the materialised path; doing the same here
+     * is what makes [analyze] agree with it. Reporting a number the stage itself does not act on is
+     * how a set of perfectly good corners came to be recorded as regressions.
+     */
+    private fun measureOffsetCurvature(
+        frame: PlanarFrame,
+        offset: DoubleArray,
+        options: RacingLineOptions,
+    ): DoubleArray {
+        val size = frame.size
+        val x = DoubleArray(size)
+        val y = DoubleArray(size)
+        for (i in 0 until size) {
+            x[i] = frame.x[i] - offset[i] * sin(frame.theta[i])
+            y[i] = frame.y[i] + offset[i] * cos(frame.theta[i])
+        }
+        val s = DoubleArray(size)
+        LocalFrame.arclengthOf(x, y, s)
+        val line =
+            PlanarFrame(
+                x = x,
+                y = y,
+                s = s,
+                theta = DoubleArray(size),
+                kappa = DoubleArray(size),
+                lat0 = frame.lat0,
+                lon0 = frame.lon0,
+                k = frame.k,
+            )
+        CurvatureEstimator.computeHeadings(line)
+        CurvatureEstimator.computeCurvature(
+            line,
+            options.curvature.curvatureWindowsM.toDoubleArray(),
+            options.curvature.headingNoiseRad,
+            options.curvature.curvatureSmoothWindowM,
+        )
+        return line.kappa
     }
 }

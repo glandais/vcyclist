@@ -128,7 +128,7 @@ internal object LocalFrame {
      * monotonicity. `sqrt(a*a + b*b)` rather than `hypot`: the latter is not bit-identical across
      * the JVM and JS, and this feeds a threshold comparison.
      */
-    private fun arclengthOf(
+    internal fun arclengthOf(
         x: DoubleArray,
         y: DoubleArray,
         s: DoubleArray,
