@@ -400,8 +400,8 @@ own when `develop` dropped the parity harness.
 - **D1** — not a project misconfiguration: KGP's check only recognises `nodejs()`. The only way to
   silence it is to declare `nodejs()` on modules that are verified under wasmtime, which would create
   pointless Node test tasks. Recorded in `docs/guides/kotlin-wasm-wasi.md` §1 instead, where it had been
-  filed as a "Beta2 roughness" — it persists on 2.4.20-RC, so it is KGP behaviour, and it closes the
-  first of w08's three re-verification questions early. Re-check at 2.4.20 final.
+  filed as a "Beta2 roughness" — it persists on 2.4.20-RC and on 2.4.20-RC2, so it is KGP behaviour,
+  and it closes the first of w08's three re-verification questions early. Re-check at 2.4.20 final.
 - **E1** — measured, not yet acted on: the warning is about an unshipped bundle, while the real cost is
   1.2 MB of dead FIT encoder in the deployed demo. See [E1 investigation](#e1-investigation) for the
   options, one of which is an API-shape decision.

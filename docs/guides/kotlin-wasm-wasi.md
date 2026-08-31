@@ -42,12 +42,14 @@ wasmWasi {
 - `wasmWasiWasmtimeTest` est un `KotlinJsTest` : les blocs existants
   `tasks.withType<KotlinJsTest>` (propagation `INTEGRATION`, timeouts…) s'y appliquent sans
   modification.
-- **Rugosité de KGP, toujours présente en `2.4.20-RC`** : KGP logue `⚠️ JS Environment Not
+- **Rugosité de KGP, toujours présente en `2.4.20-RC2`** : KGP logue `⚠️ JS Environment Not
   Selected` même quand `wasmtime()` est choisi — le check ne connaît que `nodejs()`. Avertissement
   inoffensif *aujourd'hui*, mais son texte annonce « Not choosing any of them will be an error in
   the future releases » : c'est donc un point de rupture potentiel, pas seulement du bruit. Ne pas
   le faire taire en ajoutant `nodejs()`, qui créerait des tâches de test Node inutiles pour un
   module vérifié sous wasmtime. À re-vérifier en 2.4.20 final (tâche w08, étape 3).
+  Re-vérifié le 2026-08-31 sur `2.4.20-RC2` : identique, et wasmtime provisionné toujours en
+  **v46.0.1**.
 
 ## 2. Compatibilité des dépendances et `expect`/`actual`
 
@@ -279,4 +281,6 @@ Ouvert (hors POC) :
 - Attacher le `.wasm` autonome à la publication Maven (classifier custom) si on veut le
   distribuer tel quel.
 - Attendre 2.4.20 final pour publier ; re-vérifier alors l'avertissement « JS Environment Not
-  Selected » et l'absence de `_initialize`.
+  Selected » et l'absence de `_initialize`. `2.4.20-RC2` (26/08/2026) n'est **pas** cette version
+  finale : ses cinq correctifs ne touchent ni wasmWasi ni le JS du projet, et le `.wasm` produit
+  est **identique au byte** à celui de la RC (550 889 o, sha256 `a180ae70…79cb1657`).
