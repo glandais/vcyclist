@@ -281,10 +281,11 @@ Never compare `Double` with `==`.
 
 ## Tools
 
-`gradle/libs.versions.toml` is the source of truth for versions. Notable: Gradle 9.7 (wrapper),
-Kotlin 2.4.20-RC (a release candidate on purpose — wasmtime support in KGP landed in that line),
-kotlinx-coroutines, xmlutil, TwelveMonkeys imageio-webp (JVM) / `@jsquash/webp` (JS), ktlint,
-picocli (`:cli`), fit-kotlin-sdk (`:fit`).
+`gradle/libs.versions.toml` is the source of truth for versions. Notable: Gradle 9.7.1 (wrapper),
+Kotlin 2.4.20-RC2 (a release candidate on purpose — wasmtime support in KGP landed in that line;
+2.4.20 final is what task w08 waits for before publishing), kotlinx-coroutines, xmlutil,
+TwelveMonkeys imageio-webp (JVM) / `@jsquash/webp` (JS), ktlint, picocli (`:cli`),
+fit-kotlin-sdk (`:fit`).
 
 ## Where to find things
 
