@@ -2,7 +2,7 @@
 kotlin = "2.4.20-RC"
 coroutines = "1.11.0"
 kotlinx-browser = "0.5.0"
-xmlutil = "1.0.2"
+xmlutil = "1.0.2.1"
 imageio-webp = "3.14.0"
 ktlint = "14.2.0"
 vanniktech-publish = "0.37.0"
