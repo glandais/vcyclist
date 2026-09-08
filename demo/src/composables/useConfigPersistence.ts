@@ -33,8 +33,7 @@ const serializeConfig = (config: Config): SerializableConfig => {
 const migrateConfig = (data: SerializableConfig): SerializableConfig => {
     // Read as an untyped bag: the value on disk may predate the current PowerParams shape.
     const power = data.power as unknown as
-        | (Omit<Partial<Config['power']>, 'type'> & { type?: string })
-        | undefined;
+        (Omit<Partial<Config['power']>, 'type'> & { type?: string }) | undefined;
     if (power?.type === 'constant_tiring') {
         data.power = {
             ...DEFAULT_CONFIG.power,
