@@ -1,3 +1,10 @@
+## [5.0.1](https://github.com/glandais/vcyclist/compare/v5.0.0...v5.0.1) (2026-09-25)
+
+
+### Bug Fixes
+
+* **map:** report missing tiles and self-heal undecodable cache entries ([6f355ed](https://github.com/glandais/vcyclist/commit/6f355edc8c200b4ee58e2ae7db3569cdb591e82d))
+
 # [5.0.0](https://github.com/glandais/vcyclist/compare/v4.3.0...v5.0.0) (2026-08-18)
 
 
