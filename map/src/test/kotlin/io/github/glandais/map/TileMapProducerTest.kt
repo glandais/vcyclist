@@ -151,6 +151,78 @@ class TileMapProducerTest {
         assertEquals(map.width, ImageIO.read(file).width)
         // Nothing was cached, so a later render retries rather than being permanently blank.
         assertTrue(cacheDir.walkTopDown().none { it.extension == "png" }, "failures must not be cached")
+        // ...but the gap is neither silent nor black.
+        assertTrue(map.tileCount > 0)
+        assertEquals(map.tileCount, map.missingTileCount, "every tile failed, every tile must be counted")
+        val corner = Color(ImageIO.read(file).getRGB(0, 0))
+        assertEquals(TileMapProducer.MISSING_TILE_COLOR, corner, "a missing tile must be painted grey, not black")
+    }
+
+    @Test
+    fun `case 16 — a single missing tile is counted, the others are drawn`() {
+        val complete =
+            TileMapProducer(cacheDir, RecordingFetcher())
+                .createTileMap(outputFile(), listOf(stelvio()), urlPattern, zoom = 14)
+        assertTrue(complete.tileCount > 1, "the fixture must span several tiles for this test to mean anything")
+        assertEquals(0, complete.missingTileCount)
+
+        cacheDir.deleteRecursively()
+        var first: String? = null
+        val oneFails =
+            RecordingFetcher(failFor = { url ->
+                if (first == null) first = url
+                url == first
+            })
+        val file = outputFile()
+        val map =
+            TileMapProducer(cacheDir, oneFails)
+                .createTileMap(file, listOf(stelvio()), urlPattern, zoom = 14)
+
+        assertEquals(complete.tileCount, map.tileCount)
+        assertEquals(1, map.missingTileCount)
+        val image = ImageIO.read(file)
+        var grey = 0
+        var blue = 0
+        for (x in 0 until image.width) {
+            for (y in 0 until image.height) {
+                when (Color(image.getRGB(x, y))) {
+                    TileMapProducer.MISSING_TILE_COLOR -> grey++
+                    Color.BLUE -> blue++
+                }
+            }
+        }
+        assertTrue(grey > 0, "the missing tile must show as grey")
+        assertTrue(blue > 0, "the tiles that were fetched must still be drawn")
+    }
+
+    @Test
+    fun `case 17 — an undecodable cached tile is deleted and fetched again`() {
+        TileMapProducer(cacheDir, RecordingFetcher())
+            .createTileMap(outputFile(), listOf(stelvio()), urlPattern, zoom = 12)
+        val cached = cacheDir.walkTopDown().filter { it.extension == "png" }.toList()
+        assertTrue(cached.isNotEmpty())
+        // What an interrupted write, or an HTML error page cached by an older version, looks like.
+        cached.forEach { it.writeText("<html>429 Too Many Requests</html>") }
+
+        val fetcher = RecordingFetcher()
+        val map =
+            TileMapProducer(cacheDir, fetcher)
+                .createTileMap(outputFile(), listOf(stelvio()), urlPattern, zoom = 12)
+
+        assertEquals(cached.size, fetcher.requested.size, "every corrupt entry must be re-fetched")
+        assertEquals(0, map.missingTileCount)
+        for (file in cached) {
+            assertTrue(ImageIO.read(file) != null, "the corrupt entry must be replaced by a decodable tile: $file")
+        }
+    }
+
+    @Test
+    fun `case 18 — the cache is written through a temp file that does not outlive the write`() {
+        TileMapProducer(cacheDir, RecordingFetcher())
+            .createTileMap(outputFile(), listOf(stelvio()), urlPattern, zoom = 14)
+        val leftovers = cacheDir.walkTopDown().filter { it.isFile && it.extension != "png" }.toList()
+        assertEquals(emptyList(), leftovers, "temporary files left in the cache")
+        assertTrue(cacheDir.walkTopDown().any { it.extension == "png" })
     }
 
     @Test

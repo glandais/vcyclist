@@ -21,8 +21,9 @@ import kotlin.test.assertTrue
  * `export` argument handling and the outputs that need no network.
  *
  * `--map` and `--elevation-map` both download (tiles and DEM respectively), so only their
- * argument validation is covered here; actually rendering them is exercised by `:map`'s own
- * tests and by the gated integration tests there.
+ * argument validation — and `--map`'s behaviour when every tile fails, against a refused loopback
+ * port — is covered here; actually rendering them is exercised by `:map`'s own tests and by the
+ * gated integration tests there.
  */
 class ExportCommandTest {
     private val work: File =
@@ -141,6 +142,39 @@ class ExportCommandTest {
         val result = run("export", gpxFixture().path, "--csv", File(work, "q.csv").path, "--quiet")
         assertEquals(0, result.code)
         assertEquals("", result.out.trim())
+    }
+
+    @Test
+    fun `case 21 — missing map tiles are reported on stderr, even under quiet`() {
+        // Port 1 on loopback refuses the connection at once: every tile fails, with no network.
+        val png = File(work, "m.png")
+        val result =
+            run(
+                "export",
+                gpxFixture().path,
+                "--map",
+                png.path,
+                "--tile-url",
+                "http://127.0.0.1:1/{z}/{x}/{y}.png",
+                "--cache",
+                File(work, "cache").path,
+                "--max-size",
+                "256",
+                "--quiet",
+            )
+        // Best effort: the map is still written and the export still succeeds...
+        assertEquals(0, result.code, result.err)
+        assertTrue(png.isFile && png.length() > 0, "no PNG written")
+        // ...but not silently.
+        assertContains(result.err, "warning:")
+        assertContains(result.err, "could not be fetched")
+        assertContains(result.err, png.path)
+    }
+
+    @Test
+    fun `case 22 — a complete map produces no warning`() {
+        assertEquals(null, missingTilesWarning(0, 4, File("m.png")))
+        assertContains(missingTilesWarning(3, 4, File("m.png"))!!, "3 of 4 map tile(s)")
     }
 
     @Test

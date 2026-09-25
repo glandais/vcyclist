@@ -55,6 +55,10 @@ means accepting its usage policy. See [`../map/README.md`](../map/README.md).
 
 Framing: `--max-size` (default), or `--width`/`--height`, or `--zoom`; plus `--margin`.
 
+A map tile that cannot be fetched does not fail the export: it is painted grey, and a warning with
+the number of missing tiles goes to stderr — even under `--quiet`. Failed tiles are not cached, so
+re-running fills them in.
+
 `--no-extensions` applies to `--gpx` here too.
 
 ### Several tracks, several CSV/JSON files

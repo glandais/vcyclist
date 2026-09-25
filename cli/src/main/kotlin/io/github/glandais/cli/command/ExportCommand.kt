@@ -203,18 +203,24 @@ class ExportCommand : Callable<Int> {
         mapOut?.let { target ->
             val file = naming.resolve(target, "png")
             file.absoluteFile.parentFile?.mkdirs()
-            TileMapProducer(files.cache, HttpTileFetcher()).createTileMap(
-                file = file,
-                paths = paths,
-                urlPattern = tileUrl!!,
-                margin = margin,
-                // Exactly one framing mode, in the same precedence the map module requires.
-                maxSize = if (zoom == null && width == null) maxSize else null,
-                width = if (zoom == null) width else null,
-                height = if (zoom == null) height else null,
-                zoom = zoom,
-            )
+            val map =
+                TileMapProducer(files.cache, HttpTileFetcher()).createTileMap(
+                    file = file,
+                    paths = paths,
+                    urlPattern = tileUrl!!,
+                    margin = margin,
+                    // Exactly one framing mode, in the same precedence the map module requires.
+                    maxSize = if (zoom == null && width == null) maxSize else null,
+                    width = if (zoom == null) width else null,
+                    height = if (zoom == null) height else null,
+                    zoom = zoom,
+                )
             if (!quiet) out.println("  wrote ${file.path}")
+            // A missing tile does not fail the export — the map is still useful — but it must not
+            // pass unnoticed either, so this goes to stderr even under --quiet.
+            missingTilesWarning(map.missingTileCount, map.tileCount, file)?.let {
+                spec.commandLine().err.println(it)
+            }
         }
 
         elevationMapOut?.let { target ->
@@ -255,3 +261,16 @@ class ExportCommand : Callable<Int> {
         if (!quiet) out.println("  wrote ${file.path}")
     }
 }
+
+/** The stderr line for a map drawn with [missing] of its [total] tiles absent, `null` if none. */
+internal fun missingTilesWarning(
+    missing: Int,
+    total: Int,
+    file: File,
+): String? =
+    if (missing == 0) {
+        null
+    } else {
+        "  warning: $missing of $total map tile(s) could not be fetched for ${file.path}; " +
+            "they are painted grey. Check --tile-url and the network, then re-run: failed tiles are not cached."
+    }

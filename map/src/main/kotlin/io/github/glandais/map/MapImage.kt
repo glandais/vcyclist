@@ -70,6 +70,21 @@ class MapImage private constructor(
     var startY: Double = 0.0
         private set
 
+    /**
+     * How many tiles a tile render needed to cover this frame. Stays `0` for a map whose
+     * background does not come from tiles (`SrtmMapProducer`).
+     */
+    var tileCount: Int = 0
+        internal set
+
+    /**
+     * Of [tileCount], how many could not be fetched or decoded. Those squares are painted
+     * [TileMapProducer.MISSING_TILE_COLOR] rather than left black, but a caller that needs a
+     * complete background must check this: the render itself does not fail on a missing tile.
+     */
+    var missingTileCount: Int = 0
+        internal set
+
     private var bufferedImage: BufferedImage? = null
 
     /** The backing image. Created on first access. */

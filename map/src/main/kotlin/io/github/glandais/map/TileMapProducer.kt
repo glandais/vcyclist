@@ -9,7 +9,11 @@ import java.awt.RenderingHints
 import java.awt.image.BufferedImage
 import java.io.ByteArrayInputStream
 import java.io.File
+import java.io.IOException
 import java.net.URI
+import java.nio.file.AtomicMoveNotSupportedException
+import java.nio.file.Files
+import java.nio.file.StandardCopyOption
 import java.util.concurrent.ThreadLocalRandom
 import javax.imageio.ImageIO
 import kotlin.math.ceil
@@ -41,6 +45,17 @@ import kotlin.math.floor
  * failure permanent — a single network blip would blank that tile forever. Here a failure just
  * means no tile this time, and the next render retries. Successful tiles are still cached
  * indefinitely, so reproducibility is unaffected.
+ *
+ * A tile is written to a temporary file in the same folder and moved into place, so a render
+ * interrupted mid-write never leaves a truncated tile behind. And a cached tile that no longer
+ * decodes is deleted and fetched again rather than skipped forever.
+ *
+ * ## Missing tiles
+ *
+ * A tile that cannot be obtained does not fail the render — a partly-drawn map beats an
+ * exception. But it is not silent either: its square is painted [MISSING_TILE_COLOR] (a neutral
+ * grey, not black, which reads as a tile that *is* dark) and counted in the returned
+ * [MapImage.missingTileCount]. A caller that needs a complete background checks that count.
  *
  * @param cacheFolder root of the on-disk tile cache.
  * @param fetcher how tiles are retrieved. Injected so tests never touch the network.
@@ -108,8 +123,9 @@ class TileMapProducer(
     }
 
     /**
-     * Draw every tile overlapping the frame. A tile that cannot be obtained is skipped, leaving
-     * background — a partly-drawn map beats an exception.
+     * Draw every tile overlapping the frame over a [MISSING_TILE_COLOR] background. A tile that
+     * cannot be obtained is skipped — a partly-drawn map beats an exception — and counted in
+     * [MapImage.missingTileCount], so the gap is grey and reported rather than black and silent.
      */
     private fun drawTiles(
         map: MapImage,
@@ -117,20 +133,32 @@ class TileMapProducer(
     ) {
         val graphics = map.createGraphics()
         try {
+            graphics.color = MISSING_TILE_COLOR
+            graphics.fillRect(0, 0, map.image.width, map.image.height)
+
             val tileSize = map.mapSpace.tileSize
             val iMin = floor(map.getTileI(map.minLon)).toInt()
             val iMax = ceil(map.getTileI(map.maxLon)).toInt()
             val jMin = floor(map.getTileJ(map.maxLat)).toInt()
             val jMax = ceil(map.getTileJ(map.minLat)).toInt()
 
+            var total = 0
+            var missing = 0
             for (i in iMin until iMax) {
                 for (j in jMin until jMax) {
-                    val tile = tile(urlPattern, map.zoom, i, j) ?: continue
+                    total++
+                    val tile = tile(urlPattern, map.zoom, i, j)
+                    if (tile == null) {
+                        missing++
+                        continue
+                    }
                     val x = (i.toDouble() * tileSize - map.startX).toInt()
                     val y = (j.toDouble() * tileSize - map.startY).toInt()
                     graphics.drawImage(tile, x, y, null)
                 }
             }
+            map.tileCount = total
+            map.missingTileCount = missing
         } finally {
             graphics.dispose()
         }
@@ -145,7 +173,11 @@ class TileMapProducer(
     ): BufferedImage? {
         val cached = cacheFile(urlPattern, zoom, x, y)
         if (cached.isFile && cached.length() > 0) {
-            return runCatching { ImageIO.read(cached) }.getOrNull()
+            runCatching { ImageIO.read(cached) }.getOrNull()?.let { return it }
+            // Undecodable: a truncated write from an older version, or disk damage. Skipping it
+            // would make that tile missing forever, since only a *present* file is looked at —
+            // drop it and fetch again.
+            cached.delete()
         }
 
         val url = expand(urlPattern, zoom, x, y)
@@ -153,11 +185,34 @@ class TileMapProducer(
         val image = runCatching { ImageIO.read(ByteArrayInputStream(bytes)) }.getOrNull() ?: return null
 
         // Only write once the bytes are known to decode, so the cache never holds an error page.
-        runCatching {
-            cached.parentFile?.mkdirs()
-            cached.writeBytes(bytes)
-        }
+        // A cache write failure costs a re-download next time, never the tile we already have.
+        runCatching { writeAtomically(cached, bytes) }
         return image
+    }
+
+    /**
+     * Write [bytes] to a temporary file beside [target], then move it into place, so a reader
+     * never sees a half-written tile. Atomic where the filesystem supports it; a plain replacing
+     * move otherwise.
+     */
+    private fun writeAtomically(
+        target: File,
+        bytes: ByteArray,
+    ) {
+        val parent = target.absoluteFile.parentFile
+        parent.mkdirs()
+        val tmp = Files.createTempFile(parent.toPath(), target.name, ".tmp")
+        try {
+            Files.write(tmp, bytes)
+            try {
+                Files.move(tmp, target.toPath(), StandardCopyOption.ATOMIC_MOVE, StandardCopyOption.REPLACE_EXISTING)
+            } catch (e: AtomicMoveNotSupportedException) {
+                Files.move(tmp, target.toPath(), StandardCopyOption.REPLACE_EXISTING)
+            }
+        } catch (e: IOException) {
+            Files.deleteIfExists(tmp)
+            throw e
+        }
     }
 
     /**
@@ -231,5 +286,12 @@ class TileMapProducer(
         const val DEFAULT_MARGIN: Double = 0.1
 
         val DEFAULT_TRACK_COLOR: Color = Color.RED
+
+        /**
+         * Painted where a tile could not be obtained: the same neutral grey
+         * [SrtmMapProducer.NO_DATA_COLOR] uses for missing elevation, so missing data looks the
+         * same on both kinds of map — and never black, which passes for a real (dark) tile.
+         */
+        val MISSING_TILE_COLOR: Color = SrtmMapProducer.NO_DATA_COLOR
     }
 }

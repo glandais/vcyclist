@@ -45,7 +45,16 @@ effectively immutable, and a render that changes because the background was upda
 runs makes regression testing impossible. To refresh, delete the folder.
 
 Failed fetches are *not* cached — a transient error should not blank a tile permanently. (Caching
-a zero-byte marker instead would make the failure stick.)
+a zero-byte marker instead would make the failure stick.) Only bytes that decode as an image are
+written, through a temp file moved into place, and a cached tile that no longer decodes is deleted
+and fetched again.
+
+## Missing tiles
+
+A tile that cannot be fetched does not fail the render, but it is not silent either: its square is
+painted `TileMapProducer.MISSING_TILE_COLOR` (the neutral grey `SrtmMapProducer` uses for missing
+elevation, never black) and counted in the returned `MapImage.missingTileCount`, out of
+`MapImage.tileCount`. Check it if you need a complete background.
 
 ## Tests
 
