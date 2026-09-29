@@ -1,3 +1,10 @@
+# [5.1.0](https://github.com/glandais/vcyclist/compare/v5.0.1...v5.1.0) (2026-09-29)
+
+
+### Features
+
+* **map:** add an opt-in FAIL policy for tiles that cannot be obtained ([cb65d6d](https://github.com/glandais/vcyclist/commit/cb65d6dd215b2b4b87e5e638a5c8ebfbe727c876))
+
 ## [5.0.1](https://github.com/glandais/vcyclist/compare/v5.0.0...v5.0.1) (2026-09-25)
 
 
