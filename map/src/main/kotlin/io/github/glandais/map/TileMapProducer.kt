@@ -10,7 +10,6 @@ import java.awt.image.BufferedImage
 import java.io.ByteArrayInputStream
 import java.io.File
 import java.io.IOException
-import java.net.URI
 import java.nio.file.AtomicMoveNotSupportedException
 import java.nio.file.Files
 import java.nio.file.StandardCopyOption
@@ -37,9 +36,31 @@ import kotlin.math.floor
  *
  * ## Cache
  *
- * Tiles land in `{cacheFolder}/{host}/{z}/{x}/{y}.png` and **never expire**. Tiles are immutable
+ * Tiles land in `{cacheFolder}/{source}/{z}/{x}/{y}.png` and **never expire**. Tiles are immutable
  * in practice, and a render that silently changes because the background was updated between two
  * runs makes regression testing impossible. Clearing the folder is the way to refresh.
+ *
+ * `{source}` identifies the tile source, not just its server. It is the host, `_{port}` when the
+ * port is explicit, then every whole path segment of the pattern before the first `{z}`/`{x}`/`{y}`:
+ *
+ * - `https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png` → `_s_.tile.openstreetmap.org`
+ * - `http://tileserver:8080/styles/colorful/256/{z}/{x}/{y}.png` →
+ *   `tileserver_8080/styles/colorful/256`
+ *
+ * Two styles of one server, or two servers on one host, therefore never share tiles. `{s}` is
+ * kept as `_s_` rather than expanded, so the `a`/`b`/`c` subdomains share one cache. Whatever the
+ * readable part cannot faithfully carry — a query string, an extension other than `.png`, a
+ * placeholder inside a segment, characters that had to be replaced — is folded into a trailing
+ * `h_{12 hex digits}` segment, a hash of the whole pattern, so distinct patterns still get distinct
+ * directories. The key stays readable in the common case on purpose: a hash alone would be opaque
+ * when working out why a render looks wrong. Segments are restricted to `[A-Za-z0-9._-]` and a
+ * dots-only segment is rewritten, so no pattern can write outside [cacheFolder]. Details in
+ * [TileCacheKey].
+ *
+ * Until 5.1.0 the directory was the host alone, which mixed sources sharing a host (a light and a
+ * dark style of one tileserver, say). Tiles cached under that layout are **not migrated** — they
+ * cannot be, since the old cache does not record which source a tile came from — so each source
+ * is downloaded once more into its new directory. The old `{host}` directories can be deleted.
  *
  * A *failed* fetch is deliberately **not** cached. Caching a zero-byte marker would make the
  * failure permanent — a single network blip would blank that tile forever. Here a failure just
@@ -263,24 +284,13 @@ class TileMapProducer(
         }
     }
 
-    /**
-     * `{cacheFolder}/{host}/{z}/{x}/{y}.png`. Keying on the host keeps two tile sources apart
-     * while staying readable — hashing the URL pattern would be shorter but opaque when you are
-     * trying to work out why a render looks wrong.
-     */
+    /** `{cacheFolder}/{source}/{z}/{x}/{y}.png`, with `{source}` from [TileCacheKey]. */
     private fun cacheFile(
         urlPattern: String,
         zoom: Int,
         x: Int,
         y: Int,
-    ): File {
-        val host =
-            runCatching { URI.create(expand(urlPattern, zoom, x, y)).host }
-                .getOrNull()
-                ?.replace(Regex("[^A-Za-z0-9._-]"), "_")
-                ?: "unknown"
-        return File(cacheFolder, "$host/$zoom/$x/$y.png")
-    }
+    ): File = File(cacheFolder, "${TileCacheKey.of(urlPattern)}/$zoom/$x/$y.png")
 
     private fun expand(
         urlPattern: String,
@@ -292,8 +302,8 @@ class TileMapProducer(
             .replace("{z}", zoom.toString())
             .replace("{x}", x.toString())
             .replace("{y}", y.toString())
-            // Spread requests over the source's subdomains. The cache is
-            // keyed on z/x/y, so which subdomain served a tile does not affect cache hits.
+            // Spread requests over the source's subdomains. The cache key is derived from the
+            // pattern, `{s}` unexpanded, so which subdomain served a tile does not affect cache hits.
             .replace("{s}", SUBDOMAINS[ThreadLocalRandom.current().nextInt(SUBDOMAINS.length)].toString())
 
     private fun drawPath(

@@ -40,9 +40,32 @@ second still fetches DEM tiles, so the usage-policy reasoning above applies to t
 
 ## Cache
 
-Tiles are cached at `{cacheFolder}/{host}/{z}/{x}/{y}.png` and **never expire**. Tiles are
+Tiles are cached at `{cacheFolder}/{source}/{z}/{x}/{y}.png` and **never expire**. Tiles are
 effectively immutable, and a render that changes because the background was updated between two
 runs makes regression testing impossible. To refresh, delete the folder.
+
+`{source}` is derived from the URL pattern: the host, `_{port}` if the port is explicit, then the
+path segments before the first `{z}`/`{x}`/`{y}`. For example:
+
+| URL pattern | Cache directory |
+|---|---|
+| `https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png` | `_s_.tile.openstreetmap.org` |
+| `http://tileserver:8080/styles/colorful/256/{z}/{x}/{y}.png` | `tileserver_8080/styles/colorful/256` |
+| `http://tileserver:8080/styles/eclipse/256/{z}/{x}/{y}.png` | `tileserver_8080/styles/eclipse/256` |
+| `https://tiles.example.com/dark/{z}/{x}/{y}.png?key=…` | `tiles.example.com/dark/h_3f1c…` |
+
+So two styles of one server, or two servers on one host, never share tiles, while the `a`/`b`/`c`
+subdomains of `{s}` do. Anything the readable part cannot carry faithfully (a query string, an
+extension other than `.png`, a placeholder in the middle of a segment, characters that had to be
+replaced) adds a trailing `h_…` segment, a short hash of the whole pattern. Directory names are
+restricted to `[A-Za-z0-9._-]`, so no pattern can write outside the cache folder.
+
+> **Changed in 5.1.1.** Up to 5.1.0 the directory was the host alone, which mixed sources sharing a
+> host — a dark render could be drawn with light tiles cached earlier. The old cache is **not
+> migrated**: it does not record which source a tile came from, so it cannot be split correctly.
+> Each source is downloaded once more into its new directory; the old `{host}/` directories can be
+> deleted. A query string is part of the hash, so rotating an API key carried in it also starts a
+> fresh cache for that source.
 
 Failed fetches are *not* cached — a transient error should not blank a tile permanently. (Caching
 a zero-byte marker instead would make the failure stick.) Only bytes that decode as an image are

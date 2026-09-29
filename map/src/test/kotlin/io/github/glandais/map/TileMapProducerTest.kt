@@ -406,12 +406,187 @@ class TileMapProducerTest {
     }
 
     @Test
-    fun `case 15 — the cache is laid out by host, zoom, x and y`() {
+    fun `case 15 — the cache is laid out by source, zoom, x and y`() {
         TileMapProducer(cacheDir, RecordingFetcher())
             .createTileMap(outputFile(), listOf(stelvio()), urlPattern, zoom = 12)
         val cached = cacheDir.walkTopDown().first { it.extension == "png" }
         val relative = cached.relativeTo(cacheDir).path.replace(File.separatorChar, '/')
-        assertTrue(relative.contains("tiles.example.invalid/12/"), "unexpected cache layout: $relative")
+        assertTrue(relative.startsWith("tiles.example.invalid/12/"), "unexpected cache layout: $relative")
         assertTrue(relative.endsWith(".png"))
+    }
+
+    /**
+     * A distinct solid colour per source, so a render drawn from the wrong source's cache shows.
+     * Counts the calls; `null` for any URL containing [missing].
+     */
+    private class ColourBySourceFetcher(
+        private val missing: String? = null,
+    ) : TileFetcher {
+        val requested = mutableListOf<String>()
+
+        override fun fetch(url: String): ByteArray? {
+            requested.add(url)
+            if (missing != null && url.contains(missing)) return null
+            val image = BufferedImage(256, 256, BufferedImage.TYPE_INT_RGB)
+            val g = image.createGraphics()
+            g.color = colourOf(url)
+            g.fillRect(0, 0, 256, 256)
+            g.dispose()
+            val out = ByteArrayOutputStream()
+            ImageIO.write(image, "png", out)
+            return out.toByteArray()
+        }
+
+        companion object {
+            fun colourOf(url: String): Color =
+                when {
+                    url.contains("/styles/a/") -> Color.BLUE
+                    url.contains("/styles/b/") -> Color.GREEN
+                    url.contains(":9090/") -> Color.MAGENTA
+                    else -> Color.WHITE
+                }
+        }
+    }
+
+    /** Colour of the rendered map's corner — background, since the track is nowhere near it. */
+    private fun cornerOf(file: File) = Color(ImageIO.read(file).getRGB(0, 0))
+
+    private fun cacheDirectories(): Set<String> =
+        cacheDir
+            .walkTopDown()
+            .filter { it.extension == "png" }
+            .map {
+                it.parentFile.parentFile.parentFile
+                    .relativeTo(cacheDir)
+                    .path
+                    .replace(File.separatorChar, '/')
+            }.toSet()
+
+    @Test
+    fun `case 24 — two styles of one server do not share cached tiles`() {
+        val a = "http://tileserver:8080/styles/a/256/{z}/{x}/{y}.png"
+        val b = "http://tileserver:8080/styles/b/256/{z}/{x}/{y}.png"
+
+        val first = ColourBySourceFetcher()
+        val fileA = outputFile()
+        TileMapProducer(cacheDir, first).createTileMap(fileA, listOf(stelvio()), a, zoom = 12)
+        assertTrue(first.requested.isNotEmpty())
+        assertEquals(Color.BLUE, cornerOf(fileA))
+
+        val second = ColourBySourceFetcher()
+        val fileB = outputFile()
+        TileMapProducer(cacheDir, second).createTileMap(fileB, listOf(stelvio()), b, zoom = 12)
+        assertEquals(first.requested.size, second.requested.size, "style b must be fetched, not read from a's cache")
+        assertTrue(second.requested.all { it.contains("/styles/b/") })
+        assertEquals(Color.GREEN, cornerOf(fileB), "style b drawn with style a's tiles")
+
+        assertEquals(
+            setOf("tileserver_8080/styles/a/256", "tileserver_8080/styles/b/256"),
+            cacheDirectories(),
+        )
+    }
+
+    @Test
+    fun `case 25 — two ports of one host do not share cached tiles`() {
+        val first = ColourBySourceFetcher()
+        TileMapProducer(cacheDir, first)
+            .createTileMap(outputFile(), listOf(stelvio()), "http://localhost:8080/{z}/{x}/{y}.png", zoom = 12)
+
+        val second = ColourBySourceFetcher()
+        val file = outputFile()
+        TileMapProducer(cacheDir, second)
+            .createTileMap(file, listOf(stelvio()), "http://localhost:9090/{z}/{x}/{y}.png", zoom = 12)
+        assertEquals(first.requested.size, second.requested.size, "port 9090 must be fetched, not read from 8080's cache")
+        assertEquals(Color.MAGENTA, cornerOf(file))
+
+        assertEquals(setOf("localhost_8080", "localhost_9090"), cacheDirectories())
+    }
+
+    @Test
+    fun `case 26 — the subdomain placeholder does not split the cache`() {
+        val pattern = "https://{s}.tiles.example.invalid/{z}/{x}/{y}.png"
+        val first = ColourBySourceFetcher()
+        TileMapProducer(cacheDir, first).createTileMap(outputFile(), listOf(stelvio()), pattern, zoom = 14)
+        assertTrue(first.requested.size > 1)
+
+        // Several renders, so several random draws of the subdomain: none may miss the cache.
+        repeat(10) {
+            val again = ColourBySourceFetcher()
+            TileMapProducer(cacheDir, again).createTileMap(outputFile(), listOf(stelvio()), pattern, zoom = 14)
+            assertEquals(emptyList(), again.requested, "render ${it + 2} missed the cache")
+        }
+        assertEquals(setOf("_s_.tiles.example.invalid"), cacheDirectories())
+    }
+
+    @Test
+    fun `case 27 — FAIL still throws when another style of the same server has the area cached`() {
+        // The Pédalons report: a render in a style that does not exist must fail, even after
+        // another style has put the very same z/x/y in the cache.
+        TileMapProducer(cacheDir, ColourBySourceFetcher())
+            .createTileMap(outputFile(), listOf(stelvio()), "http://tileserver:8080/styles/a/256/{z}/{x}/{y}.png", zoom = 12)
+
+        val fetcher = ColourBySourceFetcher(missing = "/no-such-style/")
+        val file = outputFile().also { it.delete() }
+        assertFailsWith<IOException> {
+            TileMapProducer(cacheDir, fetcher, MissingTilePolicy.FAIL)
+                .createTileMap(file, listOf(stelvio()), "http://tileserver:8080/styles/no-such-style/256/{z}/{x}/{y}.png", zoom = 12)
+        }
+        assertEquals(1, fetcher.requested.size)
+        assertFalse(file.exists())
+    }
+
+    @Test
+    fun `case 28 — a hostile or odd pattern cannot write outside the cache folder`() {
+        val patterns =
+            listOf(
+                "http://tileserver/../../../../tmp/evil/{z}/{x}/{y}.png",
+                "http://tileserver/%2e%2e/%2e%2e/{z}/{x}/{y}.png",
+                "http://tileserver/a/./b/../{z}/{x}/{y}.png",
+                "http://..:8080/{z}/{x}/{y}.png",
+                "http://user:secret@tileserver/{z}/{x}/{y}.png",
+                "http://tileserver/st yles/<dark>|\\?*\"/{z}/{x}/{y}.png",
+                "http://tileserver//absolute//{z}/{x}/{y}.png",
+                "http://tileserver/tiles/z{z}/{x}/{y}.png?style=../../x",
+                "file:///etc/{z}/{x}/{y}.png",
+                "not a url {z} {x} {y}",
+            )
+        val root = cacheDir.canonicalFile
+        val keys = mutableSetOf<String>()
+        for (pattern in patterns) {
+            val key = TileCacheKey.of(pattern)
+            assertTrue(keys.add(key), "two patterns share the key $key")
+            for (segment in key.split('/')) {
+                assertTrue(segment.matches(Regex("[A-Za-z0-9._-]+")), "unsafe segment '$segment' in $key ($pattern)")
+                assertFalse(segment.all { it == '.' }, "dots-only segment in $key ($pattern)")
+            }
+            TileMapProducer(cacheDir, ColourBySourceFetcher())
+                .createTileMap(outputFile(), listOf(stelvio()), pattern, zoom = 12)
+        }
+        val written = cacheDir.walkTopDown().filter { it.isFile }.toList()
+        assertTrue(written.isNotEmpty())
+        for (file in written) {
+            assertTrue(file.canonicalFile.startsWith(root), "written outside the cache: $file")
+        }
+    }
+
+    @Test
+    fun `case 29 — the cache key is readable for ordinary sources and hashed for the rest`() {
+        assertEquals("_s_.tile.openstreetmap.org", TileCacheKey.of("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"))
+        assertEquals(
+            "tileserver_8080/styles/colorful/256",
+            TileCacheKey.of("http://tileserver:8080/styles/colorful/256/{z}/{x}/{y}.png"),
+        )
+        // The scheme does not make a different source.
+        assertEquals(TileCacheKey.of("http://h/{z}/{x}/{y}.png"), TileCacheKey.of("https://h/{z}/{x}/{y}.png"))
+
+        // Whatever the readable part cannot carry lands in a hash, so it still tells sources apart.
+        val light = TileCacheKey.of("https://h/t/{z}/{x}/{y}.png?style=light")
+        val dark = TileCacheKey.of("https://h/t/{z}/{x}/{y}.png?style=dark")
+        assertTrue(light.startsWith("h/t/h_") && dark.startsWith("h/t/h_"), "$light / $dark")
+        assertTrue(light != dark)
+        val retina = TileCacheKey.of("https://h/t/{z}/{x}/{y}@2x.png")
+        assertTrue(retina.startsWith("h/t/h_") && retina != TileCacheKey.of("https://h/t/{z}/{x}/{y}.png"))
+        // A placeholder inside a segment: the whole segments before it stay readable.
+        assertTrue(TileCacheKey.of("https://h/tiles/z{z}/{x}/{y}.png").startsWith("h/tiles/h_"))
     }
 }
