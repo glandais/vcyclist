@@ -34,7 +34,8 @@ fun httpTileFetcher(
 fun tileMapProducer(
     cacheFolder: File,
     fetcher: TileFetcher = HttpTileFetcher(),
-): TileMapProducer = TileMapProducer(cacheFolder, fetcher)
+    onMissingTile: MissingTilePolicy = MissingTilePolicy.SKIP,
+): TileMapProducer = TileMapProducer(cacheFolder, fetcher, onMissingTile)
 
 @JvmOverloads
 fun srtmMapProducer(

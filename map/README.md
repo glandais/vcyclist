@@ -51,10 +51,25 @@ and fetched again.
 
 ## Missing tiles
 
-A tile that cannot be fetched does not fail the render, but it is not silent either: its square is
-painted `TileMapProducer.MISSING_TILE_COLOR` (the neutral grey `SrtmMapProducer` uses for missing
-elevation, never black) and counted in the returned `MapImage.missingTileCount`, out of
-`MapImage.tileCount`. Check it if you need a complete background.
+A tile that cannot be obtained — the fetcher returned nothing, or bytes that do not decode — is
+handled by the producer's `MissingTilePolicy`. `TileFetcher.fetch` only ever says "no tile" with
+`null`; failing the render is the producer's call.
+
+- `SKIP` (the default) does not fail the render, but it is not silent either: the square is
+  painted `TileMapProducer.MISSING_TILE_COLOR` (the neutral grey `SrtmMapProducer` uses for
+  missing elevation, never black) and counted in the returned `MapImage.missingTileCount`, out of
+  `MapImage.tileCount`.
+- `FAIL` makes `createTileMap` throw an `IOException` naming the tile's URL and z/x/y, and write
+  no output file — all or nothing:
+
+```java
+TileMapProducer producer = new TileMapProducer(cacheDir, fetcher, MissingTilePolicy.FAIL);
+// throws IOException on a missing tile, and out is not written
+producer.createTileMap(out, paths, urlPattern, TileMapProducer.DEFAULT_MARGIN, 512);
+```
+
+Either way the cache rules above hold: a corrupt entry is re-fetched before the tile counts as
+missing, and bytes that fail to decode are never cached.
 
 ## Tests
 

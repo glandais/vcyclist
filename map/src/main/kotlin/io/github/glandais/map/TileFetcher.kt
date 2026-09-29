@@ -19,6 +19,9 @@ fun interface TileFetcher {
      * @return the encoded image bytes, or `null` when the tile is unavailable. Returning `null`
      *   rather than throwing is deliberate: a map with one missing tile is more useful than an
      *   exception, and a tile server dropping a request should not fail a whole render.
+     *   Whether a missing tile *does* fail the render is the caller's decision, not the
+     *   fetcher's: `TileMapProducer` makes it through its [MissingTilePolicy]. A fetcher that
+     *   throws to force the issue is no longer needed — and would bypass the cache's handling.
      */
     fun fetch(url: String): ByteArray?
 }

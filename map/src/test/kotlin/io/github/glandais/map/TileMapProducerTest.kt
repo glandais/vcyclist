@@ -6,11 +6,13 @@ import java.awt.Color
 import java.awt.image.BufferedImage
 import java.io.ByteArrayOutputStream
 import java.io.File
+import java.io.IOException
 import javax.imageio.ImageIO
 import kotlin.test.AfterTest
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFailsWith
+import kotlin.test.assertFalse
 import kotlin.test.assertTrue
 
 /**
@@ -223,6 +225,101 @@ class TileMapProducerTest {
         val leftovers = cacheDir.walkTopDown().filter { it.isFile && it.extension != "png" }.toList()
         assertEquals(emptyList(), leftovers, "temporary files left in the cache")
         assertTrue(cacheDir.walkTopDown().any { it.extension == "png" })
+    }
+
+    @Test
+    fun `case 19 — a truncated cached PNG is re-fetched and replaced`() {
+        TileMapProducer(cacheDir, RecordingFetcher())
+            .createTileMap(outputFile(), listOf(stelvio()), urlPattern, zoom = 12)
+        val cached = cacheDir.walkTopDown().filter { it.extension == "png" }.toList()
+        assertTrue(cached.isNotEmpty())
+        val intact = cached.associateWith { it.readBytes() }
+        // A crash mid-write in an older version: a valid PNG header, then nothing.
+        cached.forEach { it.writeBytes(intact.getValue(it).copyOf(40)) }
+
+        val fetcher = RecordingFetcher()
+        val map =
+            TileMapProducer(cacheDir, fetcher, MissingTilePolicy.FAIL)
+                .createTileMap(outputFile(), listOf(stelvio()), urlPattern, zoom = 12)
+
+        assertEquals(cached.size, fetcher.requested.size, "every truncated entry must be re-fetched")
+        assertEquals(0, map.missingTileCount)
+        for (file in cached) {
+            assertTrue(intact.getValue(file).contentEquals(file.readBytes()), "not replaced by the fetched tile: $file")
+        }
+        assertNoTempFiles()
+    }
+
+    @Test
+    fun `case 20 — FAIL, a tile the fetcher cannot provide throws and writes no output`() {
+        val file = outputFile().also { it.delete() }
+        val fetcher = RecordingFetcher(failFor = { true })
+        val e =
+            assertFailsWith<IOException> {
+                TileMapProducer(cacheDir, fetcher, MissingTilePolicy.FAIL)
+                    .createTileMap(file, listOf(stelvio()), urlPattern, zoom = 12)
+            }
+
+        val url = fetcher.requested.single()
+        assertEquals(1, fetcher.requested.size, "a strict render must stop at the first missing tile")
+        val (z, x, y) = url.substringAfter("invalid/").removeSuffix(".png").split("/")
+        assertTrue(e.message!!.contains(url), "the URL must be named: ${e.message}")
+        assertTrue(e.message!!.contains("z=$z x=$x y=$y"), "z/x/y must be named: ${e.message}")
+        assertFalse(file.exists(), "no output file may be left behind")
+        assertNoTempFiles()
+    }
+
+    @Test
+    fun `case 21 — FAIL, undecodable bytes throw and are not cached`() {
+        val file = outputFile().also { it.delete() }
+        val garbage = TileFetcher { "<html>503 Service Unavailable</html>".toByteArray() }
+        val e =
+            assertFailsWith<IOException> {
+                TileMapProducer(cacheDir, garbage, MissingTilePolicy.FAIL)
+                    .createTileMap(file, listOf(stelvio()), urlPattern, zoom = 12)
+            }
+
+        assertTrue(e.message!!.contains("do not decode"), "the reason must be given: ${e.message}")
+        assertFalse(file.exists(), "no output file may be left behind")
+        assertEquals(emptyList(), cacheDir.walkTopDown().filter { it.isFile }.toList(), "nothing may be cached")
+    }
+
+    @Test
+    fun `case 22 — SKIP is the default, and FAIL renders normally when every tile is there`() {
+        val skipped =
+            TileMapProducer(cacheDir, RecordingFetcher(failFor = { true }))
+                .createTileMap(outputFile(), listOf(stelvio()), urlPattern, zoom = 12)
+        assertEquals(skipped.tileCount, skipped.missingTileCount)
+        val explicit =
+            TileMapProducer(cacheDir, RecordingFetcher(failFor = { true }), MissingTilePolicy.SKIP)
+                .createTileMap(outputFile(), listOf(stelvio()), urlPattern, zoom = 12)
+        assertEquals(explicit.tileCount, explicit.missingTileCount)
+
+        val file = outputFile()
+        val strict =
+            TileMapProducer(cacheDir, RecordingFetcher(), MissingTilePolicy.FAIL)
+                .createTileMap(file, listOf(stelvio()), urlPattern, zoom = 12)
+        assertEquals(0, strict.missingTileCount)
+        assertEquals(strict.width, ImageIO.read(file).width)
+    }
+
+    @Test
+    fun `case 23 — a failing fetch leaves no temp file in the cache`() {
+        var first: String? = null
+        val oneFails =
+            RecordingFetcher(failFor = { url ->
+                if (first == null) first = url
+                url == first
+            })
+        TileMapProducer(cacheDir, oneFails)
+            .createTileMap(outputFile(), listOf(stelvio()), urlPattern, zoom = 14)
+        assertTrue(cacheDir.walkTopDown().any { it.extension == "png" })
+        assertNoTempFiles()
+    }
+
+    private fun assertNoTempFiles() {
+        val leftovers = cacheDir.walkTopDown().filter { it.isFile && it.extension != "png" }.toList()
+        assertEquals(emptyList(), leftovers, "temporary files left in the cache")
     }
 
     @Test

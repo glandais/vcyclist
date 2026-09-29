@@ -50,12 +50,21 @@ import kotlin.math.floor
  * interrupted mid-write never leaves a truncated tile behind. And a cached tile that no longer
  * decodes is deleted and fetched again rather than skipped forever.
  *
+ * Neither rule depends on the [MissingTilePolicy]: a strict render still self-heals a corrupt
+ * entry before judging the tile missing, and never caches bytes that failed to decode.
+ *
  * ## Missing tiles
  *
- * A tile that cannot be obtained does not fail the render — a partly-drawn map beats an
- * exception. But it is not silent either: its square is painted [MISSING_TILE_COLOR] (a neutral
- * grey, not black, which reads as a tile that *is* dark) and counted in the returned
- * [MapImage.missingTileCount]. A caller that needs a complete background checks that count.
+ * A tile that cannot be obtained — no bytes from the fetcher, or bytes that do not decode — is
+ * handled by the [MissingTilePolicy]. [TileFetcher.fetch] reports unavailability with `null`
+ * either way; whether that fails the render is this class's decision, not the fetcher's.
+ *
+ * - [MissingTilePolicy.SKIP], the default: the render goes on, since a partly-drawn map beats an
+ *   exception. But it is not silent either: the square is painted [MISSING_TILE_COLOR] (a
+ *   neutral grey, not black, which reads as a tile that *is* dark) and counted in the returned
+ *   [MapImage.missingTileCount].
+ * - [MissingTilePolicy.FAIL]: [createTileMap] throws an [IOException] naming the tile's URL and
+ *   z/x/y, on the first such tile, and writes no output file.
  *
  * @param cacheFolder root of the on-disk tile cache.
  * @param fetcher how tiles are retrieved. Injected so tests never touch the network.
@@ -64,6 +73,24 @@ class TileMapProducer(
     private val cacheFolder: File,
     private val fetcher: TileFetcher = HttpTileFetcher(),
 ) {
+    private var onMissingTile: MissingTilePolicy = MissingTilePolicy.SKIP
+
+    /**
+     * A secondary constructor rather than a third defaulted parameter on the primary one: that
+     * would replace the `(File, TileFetcher)` constructor, and the synthetic one Kotlin callers
+     * use for defaults, breaking every binary compiled against 5.0.
+     *
+     * @param onMissingTile what a tile that cannot be obtained does to the render — see
+     *   [MissingTilePolicy].
+     */
+    constructor(
+        cacheFolder: File,
+        fetcher: TileFetcher,
+        onMissingTile: MissingTilePolicy,
+    ) : this(cacheFolder, fetcher) {
+        this.onMissingTile = onMissingTile
+    }
+
     /**
      * Render [paths] over tiles from [urlPattern] and write a PNG to [file].
      *
@@ -74,8 +101,11 @@ class TileMapProducer(
      * - [zoom] — an explicit zoom level, size follows from the track.
      *
      * @param colors one colour per path, cycled if there are more paths than colours.
+     * @throws IOException under [MissingTilePolicy.FAIL], when a tile cannot be obtained or
+     *   decoded. [file] is then left untouched: no partial image is written.
      */
     @JvmOverloads
+    @Throws(IOException::class)
     fun createTileMap(
         file: File,
         paths: List<Path>,
@@ -124,8 +154,9 @@ class TileMapProducer(
 
     /**
      * Draw every tile overlapping the frame over a [MISSING_TILE_COLOR] background. A tile that
-     * cannot be obtained is skipped — a partly-drawn map beats an exception — and counted in
-     * [MapImage.missingTileCount], so the gap is grey and reported rather than black and silent.
+     * cannot be obtained is, under [MissingTilePolicy.SKIP], skipped and counted in
+     * [MapImage.missingTileCount], so the gap is grey and reported rather than black and silent;
+     * under [MissingTilePolicy.FAIL] it throws, before the image is saved.
      */
     private fun drawTiles(
         map: MapImage,
@@ -164,7 +195,10 @@ class TileMapProducer(
         }
     }
 
-    /** Cached tile, fetching it if absent. `null` when it cannot be obtained or decoded. */
+    /**
+     * Cached tile, fetching it if absent. `null` when it cannot be obtained or decoded — or, under
+     * [MissingTilePolicy.FAIL], an [IOException] saying which tile and why.
+     */
     private fun tile(
         urlPattern: String,
         zoom: Int,
@@ -181,14 +215,28 @@ class TileMapProducer(
         }
 
         val url = expand(urlPattern, zoom, x, y)
-        val bytes = fetcher.fetch(url) ?: return null
-        val image = runCatching { ImageIO.read(ByteArrayInputStream(bytes)) }.getOrNull() ?: return null
+        val bytes = fetcher.fetch(url) ?: return missing(url, zoom, x, y, "the fetcher returned no bytes")
+        val image =
+            runCatching { ImageIO.read(ByteArrayInputStream(bytes)) }.getOrNull()
+                ?: return missing(url, zoom, x, y, "the ${bytes.size} bytes fetched do not decode as an image")
 
         // Only write once the bytes are known to decode, so the cache never holds an error page.
         // A cache write failure costs a re-download next time, never the tile we already have.
         runCatching { writeAtomically(cached, bytes) }
         return image
     }
+
+    private fun missing(
+        url: String,
+        zoom: Int,
+        x: Int,
+        y: Int,
+        reason: String,
+    ): BufferedImage? =
+        when (onMissingTile) {
+            MissingTilePolicy.SKIP -> null
+            MissingTilePolicy.FAIL -> throw IOException("Tile z=$zoom x=$x y=$y is unavailable from $url: $reason")
+        }
 
     /**
      * Write [bytes] to a temporary file beside [target], then move it into place, so a reader
