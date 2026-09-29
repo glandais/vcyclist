@@ -1,3 +1,10 @@
+## [5.1.1](https://github.com/glandais/vcyclist/compare/v5.1.0...v5.1.1) (2026-09-29)
+
+
+### Bug Fixes
+
+* **map:** key the tile cache on the source, not just the host ([3ca56b3](https://github.com/glandais/vcyclist/commit/3ca56b3ab04d1606d45c66fc84dc21d42e80066a))
+
 # [5.1.0](https://github.com/glandais/vcyclist/compare/v5.0.1...v5.1.0) (2026-09-29)
 
 
