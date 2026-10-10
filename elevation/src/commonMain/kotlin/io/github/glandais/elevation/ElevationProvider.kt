@@ -72,7 +72,7 @@ object ElevationDefaults {
     /** Densification step along the path, in metres. */
     const val STEP_M: Double = 10.0
 
-    /** Points closer than this to their predecessor are dropped, in metres. */
+    /** Points closer than this to the last kept point are dropped, in metres. */
     const val MIN_DISTANCE_M: Double = 1.0
 
     /** Bilinear interpolation between DEM samples rather than nearest-neighbour. */
