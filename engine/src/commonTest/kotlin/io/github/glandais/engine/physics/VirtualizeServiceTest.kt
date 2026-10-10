@@ -228,9 +228,10 @@ class VirtualizeServiceTest {
         }
     }
 
-    // 11 — iteration cap : even 110k points must terminate without infinite loop.
+    // 11 — large path : 110k points terminate, and every one of them is simulated (no
+    // iteration cap leaving trailing slots zeroed).
     @Test
-    fun iteration_cap_prevents_infinite_loop_on_large_path() {
+    fun large_path_terminates_and_simulates_every_point() {
         val n = 110_000
         val distances = DoubleArray(n) { it * 0.001 } // dx = 0.001 m → very small steps
         val p = Path(n)
@@ -244,9 +245,11 @@ class VirtualizeServiceTest {
         }
         val course = defaultCoursePhysics(p)
         val out = VirtualizeService.virtualizeTrack(course)
-        // Property : we returned a Path with the expected size. The iteration cap
-        // ensures we did not spin forever even though we did not simulate every point.
         assertEquals(n, out.size)
+        for (i in 1 until n) {
+            assertTrue(out.time(i) > out.time(i - 1), "time must be strictly monotone at $i")
+        }
+        assertEquals(p.longitude(n - 1), out.longitude(n - 1), 1e-12)
     }
 
     // 12 — side-effects : virtSpeedCurrent / time / elapsed written ; lat/lon/elevation
