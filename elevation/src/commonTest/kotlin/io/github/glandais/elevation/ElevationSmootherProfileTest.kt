@@ -67,7 +67,7 @@ class ElevationSmootherProfileTest {
     @Test
     fun a_linear_ramp_passes_through_a_triangular_kernel_unchanged_away_from_the_ends() {
         // A symmetric kernel preserves any affine function. This is why smoothing a steady climb
-        // costs almost nothing (sample.gpx loses 1.5 %) while smoothing noise costs a great deal.
+        // costs almost nothing (sample.gpx loses 1.7 %) while smoothing noise costs a great deal.
         val n = 400
         val distances = DoubleArray(n) { it * 2.0 }
         val elevations = DoubleArray(n) { 100.0 + 0.08 * distances[it] }

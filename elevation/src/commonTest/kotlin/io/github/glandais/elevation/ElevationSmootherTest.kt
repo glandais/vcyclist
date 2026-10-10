@@ -99,17 +99,25 @@ class ElevationSmootherTest {
     }
 
     @Test
-    fun `points far apart are unchanged`() {
+    fun `points far apart are still smoothed over the window`() {
+        // The kernel integrates the piecewise-linear profile over distance, so a sample whose
+        // neighbours lie outside the window is not passed through: it is averaged with the
+        // terrain inside the window. Exact values for a triangular window of half-width w:
+        // a one-sided end moves by `slope * w / 3`, a V-shaped apex by the mean of both slopes.
         val pts =
             listOf(
                 LatLonElevation(45.0, 0.0, 100.0),
                 LatLonElevation(45.01, 0.0, 200.0),
                 LatLonElevation(45.02, 0.0, 150.0),
             )
-        val r = ElevationSmoother.smooth(pts, 50.0)
-        assertEquals(100.0, r[0].elevation)
-        assertEquals(200.0, r[1].elevation)
-        assertEquals(150.0, r[2].elevation)
+        val w = 50.0
+        val r = ElevationSmoother.smooth(pts, w)
+        val d = Distance.cumulativeDistances(pts)
+        val s0 = 100.0 / (d[1] - d[0])
+        val s1 = -50.0 / (d[2] - d[1])
+        assertEquals(100.0 + s0 * w / 3.0, r[0].elevation, 1e-9)
+        assertEquals(200.0 + (s1 - s0) / 2.0 * w / 3.0, r[1].elevation, 1e-9)
+        assertEquals(150.0 - s1 * w / 3.0, r[2].elevation, 1e-9)
     }
 
     @Test
@@ -144,17 +152,46 @@ class ElevationSmootherTest {
     }
 
     @Test
-    fun `points beyond window keep their original elevation`() {
+    fun `a sparse straight ramp keeps its interior sample`() {
+        // Neighbours far beyond the window: the interior sample still sees the ramp's own
+        // terrain on both sides, which a symmetric kernel leaves unchanged; the ends move by the
+        // one-sided `slope * w / 3`.
         val pts =
             listOf(
                 LatLonElevation(45.0, 0.0, 100.0),
                 LatLonElevation(46.0, 0.0, 200.0),
                 LatLonElevation(47.0, 0.0, 300.0),
             )
-        val r = ElevationSmoother.smooth(pts, 10.0)
-        assertEquals(100.0, r[0].elevation)
-        assertEquals(200.0, r[1].elevation)
-        assertEquals(300.0, r[2].elevation)
+        val w = 10.0
+        val r = ElevationSmoother.smooth(pts, w)
+        val d = Distance.cumulativeDistances(pts)
+        val s0 = 100.0 / (d[1] - d[0])
+        val s1 = 100.0 / (d[2] - d[1])
+        assertEquals(100.0 + s0 * w / 3.0, r[0].elevation, 1e-9)
+        assertEquals(200.0 + (s1 - s0) / 2.0 * w / 3.0, r[1].elevation, 1e-9)
+        assertEquals(300.0 - s1 * w / 3.0, r[2].elevation, 1e-9)
+    }
+
+    @Test
+    fun `inserting points on the profile's own segments leaves the original samples unchanged`() {
+        val sparseD = doubleArrayOf(0.0, 37.0, 50.0, 120.0, 121.0, 300.0)
+        val sparseE = doubleArrayOf(10.0, 25.0, 18.0, 40.0, 39.0, 5.0)
+        // Every metre of the same piecewise-linear terrain, original vertices included.
+        val denseD = DoubleArray(301) { it.toDouble() }
+        val denseE =
+            DoubleArray(301) { k ->
+                val x = denseD[k]
+                var j = 0
+                while (j < sparseD.size - 2 && x > sparseD[j + 1]) j++
+                sparseE[j] + (sparseE[j + 1] - sparseE[j]) * (x - sparseD[j]) / (sparseD[j + 1] - sparseD[j])
+            }
+        for (w in doubleArrayOf(5.0, 30.0, 150.0)) {
+            val sparse = ElevationSmoother.smoothProfile(sparseD, sparseE, w)
+            val dense = ElevationSmoother.smoothProfile(denseD, denseE, w)
+            for (i in sparseD.indices) {
+                assertEquals(sparse[i], dense[sparseD[i].toInt()], 1e-9, "w=$w, vertex at ${sparseD[i]} m")
+            }
+        }
     }
 
     @Test

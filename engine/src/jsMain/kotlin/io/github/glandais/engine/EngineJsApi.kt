@@ -176,7 +176,7 @@ external interface EnhanceOptionsDto {
      * Triangular-kernel half-width for the elevation smoother, in metres.
      *
      * The single largest determinant of both the reported climbing and the gradients the
-     * simulation rides — it costs a clean route ~1.5 % and a noisy GPS trace ~48 %.
+     * simulation rides — it costs a clean route ~1.7 % and a noisy GPS trace ~49 %.
      */
     val elevationSmoothWindowM: Double?
 

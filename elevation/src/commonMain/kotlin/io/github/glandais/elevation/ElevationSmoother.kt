@@ -6,8 +6,10 @@ object ElevationSmoother {
     /**
      * Apply distance-based elevation smoothing using a triangular kernel.
      *
-     * For each point, average its elevation with all points within [windowSize] meters
-     * (along the cumulative path distance), weighted by `1 - d / windowSize`.
+     * For each point, average the elevation profile over the [windowSize] meters on each side
+     * (along the cumulative path distance), weighted by `1 - d / windowSize`. The average is taken
+     * over **distance**, not over samples — see [smoothProfile] — so the result does not depend on
+     * how densely the terrain is sampled.
      *
      * Returns the input unchanged if the path has fewer than [AlgorithmConstants.MIN_SMOOTHING_POINTS]
      * points. Throws if [windowSize] is not strictly positive.
@@ -33,6 +35,14 @@ object ElevationSmoother {
      * [distanceM] must be non-decreasing and the same length as [elevationM]. The window is a
      * **half-width** applied on each side, so a `windowSize` of 150 spans 300 m of path — the
      * extreme members carry a weight of ~0.
+     *
+     * The profile is read as the piecewise-linear interpolant of its samples, and each output is
+     * the exact integral of that interpolant against the triangular kernel, divided by the
+     * kernel's integral over the part of the window that lies on the path (so the ends use a
+     * one-sided, renormalised window). Weighting by path length rather than per sample is what
+     * makes the window truly metric: inserting points on the profile's own straight segments
+     * leaves every original sample's output unchanged, and segments longer than the window are
+     * still smoothed instead of being passed through untouched.
      *
      * Exists as its own entry point because callers that already hold a profile as arrays (the
      * cumulative-ascent accumulator, the engine's pipeline) would otherwise have to allocate a
@@ -67,12 +77,34 @@ object ElevationSmoother {
             if (endIndex < i) endIndex = i
             while (endIndex < n - 1 && distanceM[endIndex + 1] - current <= windowSize) endIndex++
 
+            // Segments [j, j + 1] that overlap the window: the one entering it from before
+            // `startIndex`, every segment inside, and the one leaving it after `endIndex`.
+            val lowerWindow = current - windowSize
+            val upperWindow = current + windowSize
             var totalWeight = 0.0
             var weightedSum = 0.0
-            for (j in startIndex..endIndex) {
-                val weight = 1.0 - (distanceM[j] - current).absoluteValue / windowSize
-                totalWeight += weight
-                weightedSum += elevationM[j] * weight
+            for (j in maxOf(startIndex - 1, 0)..minOf(endIndex, n - 2)) {
+                val d0 = distanceM[j]
+                val d1 = distanceM[j + 1]
+                val length = d1 - d0
+                if (length <= 0.0) continue
+                val a = maxOf(d0, lowerWindow)
+                val b = minOf(d1, upperWindow)
+                if (b <= a) continue
+                val e0 = elevationM[j]
+                val slope = (elevationM[j + 1] - e0) / length
+                val m = 0.5 * (a + b)
+                val ka = 1.0 - (a - current).absoluteValue / windowSize
+                val km = 1.0 - (m - current).absoluteValue / windowSize
+                val kb = 1.0 - (b - current).absoluteValue / windowSize
+                val fa = e0 + slope * (a - d0)
+                val fm = e0 + slope * (m - d0)
+                val fb = e0 + slope * (b - d0)
+                // `current` is a vertex, so no segment straddles the kernel's apex: on [a, b] both
+                // the kernel and the interpolant are affine, their product is quadratic, and
+                // Simpson's rule is exact. The kernel's own integral is exact by the trapezoid.
+                totalWeight += 0.5 * (b - a) * (ka + kb)
+                weightedSum += (b - a) / 6.0 * (fa * ka + 4.0 * fm * km + fb * kb)
             }
             out[i] = if (totalWeight > 0.0) weightedSum / totalWeight else elevationM[i]
         }

@@ -127,6 +127,52 @@ class ElevationGainTest {
     }
 
     @Test
+    fun an_opening_dip_is_booked_with_its_recovery_so_closure_holds() {
+        // The route sets off with a 2.9 m dip, then climbs. The climb is measured from the real
+        // low point (102.9 m), so the dip itself is booked as the opening leg: gain and loss tile
+        // the profile from h[0], and only the final unconfirmed 2.9 m wiggle is left over.
+        val r = gainOf(spacingM = 200.0, thresholdM = 3.0, 0.0, -2.9, 100.0, 97.1)
+        assertEquals(102.9, r.gainM, 1e-9)
+        assertEquals(-2.9, r.lossM, 1e-9)
+        assertEquals(2, r.legCount)
+        assertTrue(abs(r.gainM + r.lossM - 97.1) < 3.0)
+    }
+
+    @Test
+    fun the_swing_after_an_opening_dip_is_counted_in_full() {
+        // -2.9 -> 0.2 is a 3.1 m excursion that returns by 3.0 m: it clears the band, so it counts
+        // in full, and the closure is exact because the opening 2.9 m dip is booked too.
+        val r = gainOf(spacingM = 200.0, thresholdM = 3.0, 0.0, -2.9, 0.2, -2.8)
+        assertEquals(3.1, r.gainM, 1e-9)
+        assertEquals(-5.9, r.lossM, 1e-9)
+        assertEquals(3, r.legCount)
+        assertEquals(-2.8, r.gainM + r.lossM, 1e-9)
+    }
+
+    @Test
+    fun a_route_that_sets_off_in_the_confirmed_direction_has_no_opening_leg() {
+        val r = gainOf(spacingM = 200.0, thresholdM = 3.0, 0.0, 100.0, 97.1)
+        assertEquals(100.0, r.gainM, 1e-9)
+        assertEquals(0.0, r.lossM, 1e-9)
+        assertEquals(1, r.legCount)
+    }
+
+    @Test
+    fun a_circuit_started_at_mid_height_counts_every_lap() {
+        // 20 laps of 4.5 m swings at a 3 m band, started between the extremes: no turning point is
+        // ever a threshold away from h[0], yet every swing clears the band and must count.
+        val laps = 20
+        val e = DoubleArray(3 * laps + 1) { if (it == 3 * laps) 2.0 else doubleArrayOf(2.0, 4.5, 0.0)[it % 3] }
+        val d = DoubleArray(e.size) { it * 100.0 }
+        val r = ElevationGain.compute(d, e, ElevationGainOptions(thresholdM = 3.0, smoothWindowM = 0.0))
+        // Opening 2.5 m to the first top, then 19 full 4.5 m climbs; the final 2 m rise never
+        // confirms, so it is the unconfirmed wiggle closure allows for.
+        assertEquals(2.5 + 19 * 4.5, r.gainM, 1e-9)
+        assertEquals(-laps * 4.5, r.lossM, 1e-9)
+        assertTrue(abs(r.gainM + r.lossM) < 3.0)
+    }
+
+    @Test
     fun a_closed_loop_nets_to_zero() {
         val e = doubleArrayOf(0.0, 50.0, 10.0, 90.0, 30.0, 0.0)
         val d = DoubleArray(e.size) { it * 400.0 }

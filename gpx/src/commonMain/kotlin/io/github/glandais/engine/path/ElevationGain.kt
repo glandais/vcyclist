@@ -157,16 +157,30 @@ object ElevationGain {
      * direction. A leg `[ref, ext]` is banked when the profile retraces by `threshold` from `ext`,
      * which is what makes the count all-or-nothing: a bump of exactly `threshold` is counted in
      * full, one of `threshold - ε` is dropped entirely *including its matching descent*, so gain
-     * and loss stay balanced.
+     * and loss stay balanced. The single exception is the opening leg, below.
      *
      * Banked legs are intervals between consecutive confirmed turning points, so they tile the
      * profile disjointly — a climb with twenty 1 m sub-summits banks one leg, not twenty, and
-     * nothing is ever counted twice. Consequently `gain + loss` telescopes to
-     * `last - first`, to within one unconfirmed final wiggle (`threshold`).
+     * nothing is ever counted twice. The tiling starts at `h[0]` (see the opening leg below), so
+     * `gain + loss` telescopes to `last - first` to within one unconfirmed final wiggle, which is
+     * strictly less than `threshold`.
      *
      * The `dir == 0` prologue exists because the first leg's direction is unknown until the profile
      * has moved `threshold` in *some* direction; tracking both extrema and their indices until then
-     * is what stops a route that opens with a dip from booking that dip as a climb.
+     * is what stops a route that opens with a dip from booking that dip as a climb. When it
+     * resolves, the extremum reached *first* (`lo` for a first climb, `hi` for a first descent) is
+     * a real turning point, and the first full leg is measured from it — so the climb out of an
+     * opening dip is counted in full, like any excursion that clears `threshold` and returns.
+     *
+     * **The opening leg.** The move from `h[0]` to that first turning point is booked as a leg of
+     * its own, whatever its size. It is the one leg that may be shorter than `threshold`, and it is
+     * there for closure: dropping it while banking the climb out of the dip would count the dip's
+     * recovery without the dip, so the error at the start and the unconfirmed wiggle at the end
+     * could add up to `2 · threshold` (`[0, -2.9, 100, 97.1]` at 3 m used to report 102.9 m of gain
+     * and no loss for a 97.1 m net rise). Anchoring the first leg at `h[0]` instead would fix the
+     * closure but cut the following excursion short (`[0, -2.9, 0.2, -2.8]` would bank 0.2 m for a
+     * 3.1 m swing). Booking the opening move costs at most one sub-threshold leg per profile, in
+     * whichever direction the route set off, and leaves every later leg exactly as it was.
      */
     private fun accumulate(
         h: DoubleArray,
@@ -197,11 +211,21 @@ object ElevationGain {
                         iLo = i
                     }
                     if (hi - lo >= threshold) {
+                        // Book the opening leg h[0] -> first turning point (see the KDoc). It is
+                        // empty when the route set off in the confirmed direction.
                         if (iHi > iLo) {
+                            if (lo < h[0]) {
+                                loss += lo - h[0]
+                                legCount++
+                            }
                             dir = 1
                             ref = lo
                             ext = if (e > hi) e else hi
                         } else {
+                            if (hi > h[0]) {
+                                gain += hi - h[0]
+                                legCount++
+                            }
                             dir = -1
                             ref = hi
                             ext = if (e < lo) e else lo

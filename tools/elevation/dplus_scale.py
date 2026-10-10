@@ -49,25 +49,41 @@ def read_track(path):
 def smooth(dist, ele, window_m):
     """Distance-weighted triangular kernel — the same one as :elevation's ElevationSmoother.
 
-    ``window_m`` is a half-width applied on each side, weight ``1 - d / window_m``.
+    ``window_m`` is a half-width applied on each side, weight ``1 - d / window_m``. The profile is
+    read as the piecewise-linear interpolant of its samples and each output is the exact integral
+    of that interpolant against the kernel (Simpson per clipped segment), normalised by the
+    kernel's integral over the part of the window on the path — so the window is metric and the
+    result does not depend on the sampling density.
     """
-    if window_m <= 0:
-        return list(ele)
     n = len(ele)
+    if window_m <= 0 or n < 3:
+        return list(ele)
     out = []
     for i in range(n):
+        c = dist[i]
         lo = i
-        while lo > 0 and dist[i] - dist[lo - 1] <= window_m:
+        while lo > 0 and c - dist[lo - 1] <= window_m:
             lo -= 1
         hi = i
-        while hi < n - 1 and dist[hi + 1] - dist[i] <= window_m:
+        while hi < n - 1 and dist[hi + 1] - c <= window_m:
             hi += 1
         total_weight = 0.0
         weighted_sum = 0.0
-        for j in range(lo, hi + 1):
-            weight = 1.0 - abs(dist[j] - dist[i]) / window_m
-            total_weight += weight
-            weighted_sum += ele[j] * weight
+        for j in range(max(lo - 1, 0), min(hi, n - 2) + 1):
+            d0, d1 = dist[j], dist[j + 1]
+            length = d1 - d0
+            if length <= 0:
+                continue
+            a = max(d0, c - window_m)
+            b = min(d1, c + window_m)
+            if b <= a:
+                continue
+            slope = (ele[j + 1] - ele[j]) / length
+            m = 0.5 * (a + b)
+            ka, km, kb = (1.0 - abs(x - c) / window_m for x in (a, m, b))
+            fa, fm, fb = (ele[j] + slope * (x - d0) for x in (a, m, b))
+            total_weight += 0.5 * (b - a) * (ka + kb)
+            weighted_sum += (b - a) / 6.0 * (fa * ka + 4.0 * fm * km + fb * kb)
         out.append(weighted_sum / total_weight if total_weight > 0 else ele[i])
     return out
 
@@ -96,9 +112,12 @@ def gain(ele, threshold_m):
             if e < lo:
                 lo, i_lo = e, i
             if hi - lo >= threshold_m:
+                # The opening counter-move ele[0] -> opposite extremum is booked as its own leg,
+                # so the legs tile the profile from ele[0] — mirrors ElevationGain.accumulate.
                 if i_hi > i_lo:
                     direction, ref, ext = 1, lo, max(hi, e)
                 else:
+                    total += hi - ele[0]
                     direction, ref, ext = -1, hi, min(lo, e)
         elif direction == 1:
             if e > ext:

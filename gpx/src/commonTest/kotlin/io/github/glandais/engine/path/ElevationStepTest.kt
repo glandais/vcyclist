@@ -264,19 +264,25 @@ class ElevationStepTest {
     // ---- 9. smoothElevation with custom windowM ----------------------------
 
     @Test
-    fun smoothElevation_custom_window_smaller_than_spacing_keeps_elevations() {
-        // Points are spaced enough that a very small window only includes self → no change.
+    fun smoothElevation_custom_window_smaller_than_spacing_still_smooths_over_distance() {
+        // The kernel integrates the piecewise-linear profile over path distance, so a window far
+        // smaller than the spacing does not degenerate into "each point only sees itself": it
+        // averages the 1 m of terrain on either side. On a straight ramp that leaves the interior
+        // untouched (a symmetric kernel preserves affine functions) and lifts / lowers each end by
+        // `slope * w / 3`, the mean offset of a one-sided triangular window.
         val src =
             buildPath(
                 latDeg = doubleArrayOf(0.0, 0.0, 0.0),
                 lonDeg = doubleArrayOf(0.0, 0.01, 0.02), // ~1.1km apart
                 eleM = doubleArrayOf(100.0, 200.0, 300.0),
             )
-        val out = ElevationStep.smoothElevation(src, windowM = 1.0)
-        // Each point only sees itself -> weight = 1 -> elevation unchanged.
-        assertEquals(100.0, out.elevation(0), 1e-9)
-        assertEquals(200.0, out.elevation(1), 1e-9)
-        assertEquals(300.0, out.elevation(2), 1e-9)
+        val windowM = 1.0
+        val out = ElevationStep.smoothElevation(src, windowM = windowM)
+        val slope0 = 100.0 / (src.distance(1) - src.distance(0))
+        val slope1 = 100.0 / (src.distance(2) - src.distance(1))
+        assertEquals(100.0 + slope0 * windowM / 3.0, out.elevation(0), 1e-9)
+        assertEquals(200.0 + (slope1 - slope0) / 2.0 * windowM / 3.0, out.elevation(1), 1e-9)
+        assertEquals(300.0 - slope1 * windowM / 3.0, out.elevation(2), 1e-9)
     }
 
     // ---- 10. Default window constant ---------------------------------------

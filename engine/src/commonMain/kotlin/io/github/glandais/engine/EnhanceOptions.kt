@@ -73,7 +73,7 @@ data class WPrimeBalanceOptions(
  *   and no point. See `docs/guides/elevation.md`.
  * @param elevationSmoothWindowM triangular-kernel half-width for the elevation smoother, in
  *   metres. The single largest determinant of both the reported D+ and the gradients the
- *   simulation rides — it costs `sample.gpx` 1.5 % and `sports-tracker.gpx` 48 % — and it had
+ *   simulation rides — it costs `sample.gpx` 1.7 % and `sports-tracker.gpx` 49 % — and it had
  *   never been measured because no caller could reach it. Ledger row R28.
  */
 data class EnhanceOptions(
