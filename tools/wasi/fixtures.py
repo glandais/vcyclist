@@ -54,12 +54,15 @@ def gpx_fixture(name: str) -> bytes:
 #: purpose. Print the measured values from a JVM run of the same pipeline and paste them in, with a
 #: comment saying why they moved. `assertRelative` tolerates 0.5 %, which is the cross-target band
 #: documented in `CLAUDE.md` — a change that trips these numbers is a change in behaviour.
+#:
+#: Last moved by the resample-invariant `ElevationSmoother` (exact kernel integral over the
+#: piecewise-linear profile): the gain and loss of both fixtures and SAMPLE's distance shifted.
 PARITY_METRICS = {
     # SAMPLE_GPX — 7 trkpts, ~420 m, collapses to 3 points after Douglas-Peucker.
     "SAMPLE": {
-        "totalDistance": 420.0556496172967,
-        "totalElevationGain": 0.21774882435903464,
-        "totalElevationLoss": -0.30713405604768695,
+        "totalDistance": 420.05639620339184,
+        "totalElevationGain": 0.20927042339758373,
+        "totalElevationLoss": -0.30525084538243163,
         "pointCount": 3,
         "durationMs": 49_000.0,
     },
@@ -67,7 +70,7 @@ PARITY_METRICS = {
     "GARMIN": {
         "totalDistance": 14.929920010888091,
         "totalElevationGain": 0.0,
-        "totalElevationLoss": -0.004834919456122577,
+        "totalElevationLoss": -0.003867618935256445,
         "pointCount": 2,
         "durationMs": 5_000.0,
     },
