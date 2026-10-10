@@ -29,6 +29,9 @@ import kotlin.math.abs
  * unless you ask for state, and so it composes:
  * `PowerProviderSlewLimited(PowerProviderDurability(...))`.
  *
+ * It reports the limited power to its delegate through [CyclistPowerProvider.onDelivered], and
+ * forwards any report it receives, so a stateful delegate books what was actually ridden.
+ *
  * Two behaviours worth knowing:
  * - **Rides start from zero.** The first point has no previous power, so the rider ramps up from
  *   a standstill at [maxSlewWPerS] rather than appearing at full power. That is the honest model
@@ -68,7 +71,10 @@ class PowerProviderSlewLimited(
         val target = delegate.powerAt(course, path, pointIndex)
 
         if (pointIndex < lastIndex) reset()
-        if (pointIndex == lastIndex) return lastPowerW
+        if (pointIndex == lastIndex) {
+            delegate.onDelivered(pointIndex, lastPowerW)
+            return lastPowerW
+        }
 
         val elapsedS = path.elapsed(pointIndex)
         val dtS = elapsedS - lastElapsedS
@@ -85,8 +91,15 @@ class PowerProviderSlewLimited(
         if (elapsedS.isFinite()) lastElapsedS = elapsedS
         lastIndex = pointIndex
         lastPowerW = limited
+        delegate.onDelivered(pointIndex, limited)
         return limited
     }
+
+    /** Forwarded to [delegate]; the slew limit itself stays measured against what it returned. */
+    override fun onDelivered(
+        pointIndex: Int,
+        powerW: Double,
+    ) = delegate.onDelivered(pointIndex, powerW)
 
     /** Forget the previous point — call before reusing the instance on another course. */
     fun reset() {

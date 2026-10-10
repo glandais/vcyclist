@@ -48,9 +48,12 @@ import kotlin.math.exp
  *
  * So the rule carries a causal energy account: every joule spent above the delegate's target is
  * remembered, and the multiplier is pulled back in proportion to the debt, over a tolerance of
- * [energyBudgetSeconds] of riding. Nothing looks ahead — the rider simply notices it has been
- * overspending. Over any route this holds mean power to within a couple of percent of the
- * unmodulated rider, which is what makes a time comparison mean anything.
+ * [energyBudgetSeconds] of riding. The corrected ratio is clamped to `[min, max]` again, so the
+ * account can move the rider *within* the terrain bounds but never past them: credit banked on a
+ * descent does not turn the next wall into more than `max × target`, and debt from a long climb
+ * does not drop the next descent below `min × target`. Nothing looks ahead — the rider simply
+ * notices it has been overspending. Over any route this holds mean power to within a couple of
+ * percent of the unmodulated rider, which is what makes a time comparison mean anything.
  *
  * ## What it deliberately omits
  *
@@ -67,11 +70,12 @@ import kotlin.math.exp
  * A decorator, like [PowerProviderSlewLimited] — wrap the fatigue model, then rate-limit the whole
  * thing: `PowerProviderSlewLimited(PowerProviderTerrainPacing(PowerProviderCriticalPower(…)))`.
  *
- * The delegate books its own state against what *it* returned, not against what this multiplier
- * turns that into, so a W′ reserve depletes as if the rider had ridden the unmodulated target. The
- * modulation is bounded and partly cancels over rolling terrain, so the error is small — but it is
- * systematic on a climb, and the fix is a delivered-power feedback contract that would also settle
- * the same nit in [MuscularPowerProvider]. Recorded rather than papered over.
+ * The delegate is told what this multiplier turned its answer into, through the delivered-power
+ * feedback contract ([CyclistPowerProvider.onDelivered]): every [powerAt] reports the paced power
+ * back down, and any report arriving from further out (a slew limiter, the pedal-strike cut) is
+ * forwarded. So a [PowerProviderCriticalPower] reserve depletes on a paced climb at the paced power
+ * and refills on a paced descent below CP. This decorator's own energy account stays booked
+ * against what it returned.
  *
  * Stateful for the smoother, keyed on `pointIndex`: re-reading a point is idempotent, a backwards
  * index resets. One instance per simulation, no concurrent use.
@@ -79,8 +83,10 @@ import kotlin.math.exp
  * @param delegate the provider whose target is being redistributed
  * @param gradientGain multiplier change per unit of grade (`0.10` grade × `3.0` = +30 %)
  * @param headwindGainPerMS multiplier change per m/s of headwind component
- * @param minMultiplier floor, so a descent never zeroes the rider
- * @param maxMultiplier ceiling, so a wall never asks for a sprint
+ * @param minMultiplier floor on delivered / target, energy correction included, so a descent never
+ *   zeroes the rider
+ * @param maxMultiplier ceiling on delivered / target, energy correction included, so a wall never
+ *   asks for a sprint
  * @param rampDistanceM distance constant for *increases* only
  * @param energyBudgetSeconds how many seconds of overspend it takes to pull the multiplier fully
  *   back — the tolerance of the energy account
@@ -145,16 +151,27 @@ class PowerProviderTerrainPacing(
             lastIndex = pointIndex
         }
 
-        val delivered = target * multiplier * energyCorrection(target)
+        // The clamp bounds what the rider is *asked for*, not each factor alone: two factors
+        // clamped separately would multiply out to [min², max²].
+        val ratio = (multiplier * energyCorrection(target)).coerceIn(minMultiplier, maxMultiplier)
+        val delivered = target * ratio
         lastTargetW = target
         lastDeliveredW = delivered
+        delegate.onDelivered(pointIndex, delivered)
         return delivered
     }
+
+    /** Forwarded to [delegate]; this decorator's own account stays against what it returned. */
+    override fun onDelivered(
+        pointIndex: Int,
+        powerW: Double,
+    ) = delegate.onDelivered(pointIndex, powerW)
 
     /**
      * Pull-back factor from the running [energyDebtJ] : `1` while the account is square, less as
      * the rider overspends, more while it is in credit. Clamped so the account can never invert
-     * the terrain rule outright.
+     * the terrain rule outright; [powerAt] clamps its product with [multiplier] once more, so the
+     * delivered ratio honours [minMultiplier] / [maxMultiplier] too.
      */
     internal fun energyCorrection(target: Double): Double {
         if (target <= 0.0) return 1.0
