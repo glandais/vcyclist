@@ -112,8 +112,13 @@ object ClimbDetector {
                         IntArray(path.size) { it }
                     } else {
                         // Stride so that at most `maxPoints` are kept, last point always included.
-                        val stride = (path.size + maxPoints - 1) / maxPoints
-                        val kept = ArrayList<Int>(maxPoints + 1)
+                        // The last point needs a slot of its own: striding over `n` with
+                        // `ceil(n / maxPoints)` keeps `maxPoints` points *before* appending
+                        // `n - 1`, one over the bound. Striding the `n - 1` gaps over
+                        // `maxPoints - 1` slots keeps at most `maxPoints - 1` stride points
+                        // whenever the last one has to be appended (`maxPoints >= 2` is required).
+                        val stride = (path.size - 1 + maxPoints - 2) / (maxPoints - 1)
+                        val kept = ArrayList<Int>(maxPoints)
                         var i = 0
                         while (i < path.size) {
                             kept.add(i)
@@ -190,6 +195,7 @@ object ClimbDetector {
                         score = score,
                         positiveElevationM = positiveElevation,
                         negativeElevationM = negativeElevation,
+                        climbingDistanceM = distClimbing,
                     )
             }
         }
@@ -226,6 +232,7 @@ object ClimbDetector {
             endElevationM = profile.elevation[endIndex],
             positiveElevationM = positiveElevationM,
             negativeElevationM = negativeElevationM,
+            climbingDistanceM = climbingDistanceM,
             parts = splitIntoParts(profile, startIndex, endIndex),
         )
 
@@ -264,6 +271,7 @@ object ClimbDetector {
         val score: Double,
         val positiveElevationM: Double,
         val negativeElevationM: Double,
+        val climbingDistanceM: Double,
     ) {
         /** True when this candidate shares any point with [other], or fully contains it. */
         fun overlaps(other: Candidate): Boolean =
