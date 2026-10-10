@@ -31,8 +31,11 @@ data class SimplifyPathOptions(
  * cross-assertion, the WASI options DTO and the JS façade for no behavioural gain.
  *
  * @param enabled whether the W′bal field is computed (default `true` — it changes no other field)
- * @param criticalPowerW Critical Power in watts (default [EngineConstants.DEFAULT_CRITICAL_POWER_W])
- * @param wPrimeJ anaerobic work capacity in joules (default [EngineConstants.DEFAULT_W_PRIME_J])
+ * @param criticalPowerW Critical Power in watts, finite and `> 0`
+ *   (default [EngineConstants.DEFAULT_CRITICAL_POWER_W])
+ * @param wPrimeJ anaerobic work capacity in joules, finite and `> 0`
+ *   (default [EngineConstants.DEFAULT_W_PRIME_J])
+ * @throws IllegalArgumentException when either is non-positive, infinite or NaN
  */
 data class WPrimeBalanceOptions(
     val enabled: Boolean = true,
@@ -40,8 +43,13 @@ data class WPrimeBalanceOptions(
     val wPrimeJ: Double = EngineConstants.DEFAULT_W_PRIME_J,
 ) {
     init {
-        require(criticalPowerW > 0.0) { "criticalPowerW must be > 0, got $criticalPowerW" }
-        require(wPrimeJ > 0.0) { "wPrimeJ must be > 0, got $wPrimeJ" }
+        // Finite as well as positive, like `ElevationGainOptions`: an infinite W′ makes the first
+        // sub-CP recovery step evaluate `∞ − (∞ − ∞)·e^(−x/∞)` = NaN, and the NaN then runs
+        // through the whole trace.
+        require(criticalPowerW > 0.0 && criticalPowerW.isFinite()) {
+            "criticalPowerW must be finite and > 0, got $criticalPowerW"
+        }
+        require(wPrimeJ > 0.0 && wPrimeJ.isFinite()) { "wPrimeJ must be finite and > 0, got $wPrimeJ" }
     }
 }
 
