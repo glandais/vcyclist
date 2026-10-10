@@ -1,3 +1,28 @@
+# [6.0.0](https://github.com/glandais/vcyclist/compare/v5.1.1...v6.0.0) (2026-10-10)
+
+
+* fix(engine)!: report the climbing grade the detector actually bounds ([77be14e](https://github.com/glandais/vcyclist/commit/77be14ece3819f6785d715a88ea2ddd4f02f0534))
+
+
+### Bug Fixes
+
+* **elevation:** make the smoother resample-invariant and close D+ within one threshold ([235c889](https://github.com/glandais/vcyclist/commit/235c889d16c12803e9f876161cc1ff6cbda0f874))
+* **elevation:** survive cancelled loads, dense paths and antipodal points ([6dd99b7](https://github.com/glandais/vcyclist/commit/6dd99b7f39e738713820db3a3866a2fe2dab1510))
+* **engine:** accumulate the windowed turn instead of wrapping it to ±180° ([9bc6f9b](https://github.com/glandais/vcyclist/commit/9bc6f9ba39a9032e02debd17c3b45f5e7452398d))
+* **engine:** refill W' from delivered power and clamp the paced ratio ([6d8e736](https://github.com/glandais/vcyclist/commit/6d8e7369350265d6ab3a0cfce83c91200776d2ad))
+* **engine:** reject infinite critical power and W' in WPrimeBalanceOptions ([f53d979](https://github.com/glandais/vcyclist/commit/f53d979f4b64aa46bbe02e909b1aaa359b6d2de1))
+* **engine:** simulate every point of rides longer than 100k segments ([0f4312b](https://github.com/glandais/vcyclist/commit/0f4312bfba6a0cf605cb5d1ed6bbe8173ff2ce81))
+* **gpx:** keep aligned start points and interpolate across the antimeridian ([7aa5027](https://github.com/glandais/vcyclist/commit/7aa5027779ca079795d88d0945bcc8a33ab69b4e))
+
+
+### BREAKING CHANGES
+
+* Climb gains a climbingDistanceM constructor parameter before parts, which
+shifts componentN and breaks callers constructing Climb directly.
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_01PF2mcCsHUrfgyKnxPHBtYv
+
 ## [5.1.1](https://github.com/glandais/vcyclist/compare/v5.1.0...v5.1.1) (2026-09-29)
 
 
