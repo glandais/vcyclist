@@ -82,7 +82,9 @@ object MaxSpeedComputer {
      *
      * Prefers the `trajectoryCurvature` field when
      * [io.github.glandais.engine.trajectory.PathCurvature] has written it, and otherwise falls
-     * back to the historical windowed bearing-difference estimate below. The field defaults to
+     * back to the historical windowed estimate below, which sums the wrapped per-step bearing
+     * changes across the window (so a turn past π is not folded back) and divides the window's
+     * distance by that total angle. The field defaults to
      * `NaN` (`PointField.nanDefault`), so the preference is a strict no-op when the curvature
      * stage did not run — a zero default would read as "present, dead straight" and silently
      * suppress every cornering limit on the route.
@@ -107,7 +109,13 @@ object MaxSpeedComputer {
 
         val mini = max(0, i - k)
         val maxi = min(path.size - 1, i + k)
-        val totalBearingChange = normalizeAngleDiff(path.bearing(maxi) - path.bearing(mini))
+        // Sum the per-step changes, each wrapped on its own: diffing the two window endpoints
+        // folds a turn of more than π into (-π, π], so a hairpin or roundabout loop tighter than
+        // ~10 m read as a gentle bend — or, past ~2π, as dead straight (ledger R23, defect 1).
+        var totalBearingChange = 0.0
+        for (j in mini until maxi) {
+            totalBearingChange += normalizeAngleDiff(path.bearing(j + 1) - path.bearing(j))
+        }
         val totalDistance = path.distance(maxi) - path.distance(mini)
 
         if (abs(totalBearingChange) < BEARING_THRESHOLD) {
