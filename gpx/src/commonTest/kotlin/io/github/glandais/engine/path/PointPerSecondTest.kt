@@ -33,9 +33,9 @@ class PointPerSecondTest {
     }
 
     // --- Test 2 : single point mid-second --------------------------------------
-    // Source : 1 point at t = 1234 ms. i = 0 = n-1 ; msInSec != 0.
-    //   - branch i==0 && msInSec1 != 0  → Copy at epoch=1
-    //   - branch i==n-1 && msInSec1 != 0 → Copy at epoch=2 (overwrites? no, different key)
+    // Source : 1 point at t = 1234 ms. i = 0 = n-1 ; not aligned.
+    //   - branch i==0 (always)          → Copy at epoch=1
+    //   - branch i==n-1 && !aligned     → Copy at epoch=2 (different key)
     // Result : 2 points at times 1000 and 2000, both copies of source[0].
     @Test
     fun singlePointMidSecondYieldsTwoCopies() {
@@ -50,10 +50,10 @@ class PointPerSecondTest {
     }
 
     // --- Test 3 : two points exactly on epoch boundaries (0 ms, 1000 ms) -------
-    // i=0 : msInSec1 == 0, epoch1=0 ; epoch2=1 ; epoch1 != epoch2
+    // i=0 : aligned, epoch1=0 → seed Copy(0) at epoch 0 ; epoch2=1 ; epoch1 != epoch2
     //   → epochStart = epoch1 = 0 ; epochEnd = epoch2 = 1
     //   → loop e=0 (coef=0 → source[0]), e=1 (coef=1 → source[1])
-    // i=1 = n-1 : msInSec1 == 0, no copy added.
+    // i=1 = n-1 : aligned, no copy added.
     // Result : 2 epochs (0, 1), times 0 and 1000.
     @Test
     fun twoPointsAlignedYieldTwoBoundaryPoints() {
@@ -71,7 +71,7 @@ class PointPerSecondTest {
     fun twoPointsSpanningFiveSecondsYieldsSixSamples() {
         val source = pathWithTimes(longArrayOf(0L, 5000L))
         val out = PointPerSecond.computeOnePointPerSecond(source)
-        // epoch1=0, epoch2=5, msInSec1=0 → epochStart=0, epochEnd=5 → epochs 0..5 = 6 points.
+        // epoch1=0, epoch2=5, aligned → epochStart=0, epochEnd=5 → epochs 0..5 = 6 points.
         assertEquals(6, out.size)
         for (i in 0 until out.size) {
             assertEquals((i * 1000).toDouble(), out.time(i))
@@ -116,12 +116,12 @@ class PointPerSecondTest {
     }
 
     // --- Test 7 : idempotence on already 1 Hz path -----------------------------
-    // Source times 0/1000/2000/3000 ms. All aligned (msInSec == 0).
+    // Source times 0/1000/2000/3000 ms. All aligned (time == epoch * 1000.0).
     // Walk-through :
     //   i=0,e∈[0,1] → plan[0]=Interp(0,1,coef=0), plan[1]=Interp(0,1,coef=1)
     //   i=1,e∈[1,2] → plan[1]=Interp(1,2,coef=0), plan[2]=Interp(1,2,coef=1)
     //   i=2,e∈[2,3] → plan[2]=Interp(2,3,coef=0), plan[3]=Interp(2,3,coef=1)
-    //   i=3 = n-1, msInSec==0 → no copy.
+    //   i=3 = n-1, aligned → no copy.
     // Final plan : epoch 0/1/2/3 with coef=0 (source[i]) or coef=1 (source[i+1]) — exactly
     // the input values. Output identical in size and content (modulo derived data recompute).
     @Test
@@ -174,19 +174,22 @@ class PointPerSecondTest {
 
     // --- Test 10 : high-frequency input (~30 fps) ------------------------------
     // 30 points spaced 33 ms apart, covering ~957 ms total.
-    // - i=0 t=0 (aligned) ; loops will see epoch1=0 throughout until t crosses 1000 ms.
-    // - times go up to 29*33 = 957 ms : never reach a new epoch. Only the last point (i=29) is
-    //   mid-second → adds Copy at epoch=1. No interpolations triggered (all epoch1==epoch2=0).
-    // Result : 1 single point at time=1000 (Copy of source[29]).
+    // - i=0 t=0 (aligned) → the start is always seeded : Copy of source[0] at epoch 0.
+    // - times go up to 29*33 = 957 ms : never reach a new epoch, so no interpolation runs.
+    //   The last point (i=29) is mid-second → adds Copy at epoch=1.
+    // Result : 2 points, at time=0 (source[0]) and time=1000 (source[29]). Before the fix the
+    // start was dropped and the output began one second late.
     @Test
-    fun highFrequencyInputCollapsesToBoundaryCopy() {
+    fun highFrequencyInputKeepsStartAndBoundaryCopy() {
         val times = LongArray(30) { (it * 33L) }
         val source = pathWithTimes(times)
         val out = PointPerSecond.computeOnePointPerSecond(source)
-        assertEquals(1, out.size)
-        assertEquals(1000.0, out.time(0))
+        assertEquals(2, out.size)
+        assertEquals(0.0, out.time(0))
+        assertEquals(100.0, out.elevation(0))
+        assertEquals(1000.0, out.time(1))
         // It's a copy of source[29] : elevation = 100 + 29*10 = 390.
-        assertEquals(390.0, out.elevation(0))
+        assertEquals(390.0, out.elevation(1))
     }
 
     // --- Test 11 : interpolation preserves lat/lon ----------------------------
@@ -215,9 +218,9 @@ class PointPerSecondTest {
 
     // --- Test 12 : first point aligned, second mid-second ---------------------
     // time(0)=0 aligned, time(1)=1500 ms.
-    // i=0 : msInSec==0, no copy. epoch1=0, epoch2=1, epoch1 != epoch2.
+    // i=0 : aligned, seed Copy(0) at epoch 0 (overwritten below). epoch1=0, epoch2=1, epoch1 != epoch2.
     //   epochStart=0, epochEnd=1 → plan[0]=Interp(0,1,coef=0), plan[1]=Interp(0,1,coef=2/3)
-    // i=1 = n-1 : msInSec1 != 0 → Copy at epoch=2.
+    // i=1 = n-1 : not aligned → Copy at epoch=2.
     // Result : 3 epochs (0, 1, 2) at times 0, 1000, 2000.
     @Test
     fun firstPointAlignedSecondPointMidSecond() {
