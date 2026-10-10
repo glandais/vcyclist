@@ -8,7 +8,9 @@ import kotlin.math.ceil
  * - Source points closer than [minDistanceM] from the last kept point are dropped.
  * - Source points within `(minDistanceM, maxDistanceM]` are copied verbatim.
  * - Gaps larger than [maxDistanceM] are filled with linearly interpolated points at regular
- *   intervals so that no resulting gap exceeds [maxDistanceM].
+ *   intervals so that no resulting gap exceeds [maxDistanceM]. Circular fields (longitude,
+ *   bearings) take the shortest arc, so a segment across the ±180° meridian stays short — see
+ *   [FieldInterpolation].
  *
  * The first point is always kept. [minDistanceM] may be negative (e.g. `-1`) to disable the
  * lower bound (densify-only mode).
@@ -108,7 +110,7 @@ object PointPerDistance {
         for ((dstIdx, op) in plan.withIndex()) {
             when (op) {
                 is Op.Copy -> copyFields(source, op.sourceIndex, out, dstIdx)
-                is Op.Interpolate -> interpolateFields(source, op.from, op.to, op.coef, out, dstIdx)
+                is Op.Interpolate -> FieldInterpolation.interpolateFields(source, op.from, op.to, op.coef, out, dstIdx)
             }
         }
         out.computeDerivedData()
@@ -123,23 +125,6 @@ object PointPerDistance {
     ) {
         for (field in PointField.entries) {
             dst.set(dstIdx, field, src.get(srcIdx, field))
-        }
-    }
-
-    private fun interpolateFields(
-        src: Path,
-        i1: Int,
-        i2: Int,
-        coef: Double,
-        dst: Path,
-        dstIdx: Int,
-    ) {
-        for (field in PointField.entries) {
-            val v1 = src.get(i1, field)
-            val v2 = src.get(i2, field)
-            // Strict NaN handling : either side NaN → result NaN.
-            val v = if (v1.isNaN() || v2.isNaN()) Double.NaN else v1 + (v2 - v1) * coef
-            dst.set(dstIdx, field, v)
         }
     }
 }
