@@ -56,9 +56,12 @@ From [`Enhancer.kt`](../../engine/src/commonMain/kotlin/io/github/glandais/engin
 
 Step 4 is the single most consequential number in this document, and today it is a hard-coded
 constant (`ElevationStep.DEFAULT_SMOOTH_WINDOW_M`) that no CLI flag, JS DTO key or WASI option can
-reach. `ElevationSmoother` weights by `1 − d / windowSize` over path distance, so the window is
-metric and the stage is resample-invariant; a 150 m half-width has an effective averaging length of
-`150/√6 ≈ 61 m`.
+reach. `ElevationSmoother` integrates the piecewise-linear profile against the triangular kernel
+`1 − d / windowSize` over path distance — each sample weighs by the length it represents, not by
+being a sample — so the window is metric and the stage is resample-invariant: inserting points on
+the profile's own segments leaves every original sample's output unchanged, and a segment longer
+than the window is still smoothed rather than passed through. A 150 m half-width has an effective
+averaging length of `150/√6 ≈ 61 m`.
 
 `Path.elevationGain` / `elevationLoss` are computed in `Path.computeDerivedData` and are a **plain
 sum of every positive/negative delta** — no dead band, no scale awareness. They are recomputed after
@@ -101,7 +104,7 @@ computed on each file's own `<ele>` stream (no DEM, no pipeline).
 |---|---|---|---|---|---|
 | **0 m** | **1066** | 752 | 661 | 641 | 635 |
 | 25 m | 652 | 640 | 637 | 634 | 634 |
-| 50 m | 643 | 636 | 633 | 633 | 633 |
+| 50 m | 643 | 635 | 633 | 633 | 633 |
 | **150 m** (shipped) | **632** | 632 | 632 | 632 | 632 |
 | 300 m | 627 | 627 | 627 | 627 | 627 |
 
@@ -110,21 +113,21 @@ computed on each file's own `<ele>` stream (no DEM, no pipeline).
 | smooth ↓ / band → | 0 m | 3 m | 10 m |
 |---|---|---|---|
 | **0 m** | **1278** | 1239 | 1232 |
-| 25 m | 1230 | 1218 | 1218 |
-| 50 m | 1000 | 994 | 994 |
-| **150 m** | **668** | 668 | 668 |
-| 300 m | 568 | 568 | 564 |
+| 25 m | 1149 | 1139 | 1139 |
+| 50 m | 915 | 909 | 909 |
+| **150 m** | **656** | 656 | 656 |
+| 300 m | 566 | 566 | 561 |
 
 **`stelvio.gpx`** — 3.6 km, a DEM-derived route from gpx.studio, on a switchback hillside:
 
 | smooth ↓ / band → | 0 m | 3 m | 10 m |
 |---|---|---|---|
 | **0 m** | 222 | 213 | 166 |
-| 50 m | 177 | 170 | 140 |
-| **150 m** | **132** | 132 | 132 |
+| 50 m | 161 | 156 | 139 |
+| **150 m** | **133** | 133 | 133 |
 | 300 m | 124 | 124 | 124 |
 
-**`sample.gpx`** — Étape du Tour 2025, 130 km, a clean DEM route: 4551 → 4484 at 150 m, **1.5 %**.
+**`sample.gpx`** — Étape du Tour 2025, 130 km, a clean DEM route: 4551 → 4475 at 150 m, **1.7 %**.
 
 **`garmin.gpx`** — 3.9 km, genuinely flat: 6 m of gain at any band up to 5 m, and **0 m at 10 m**.
 
@@ -136,12 +139,12 @@ computed on each file's own `<ele>` stream (no DEM, no pipeline).
    *every* band from 0 to 10 m gives the same answer. Strava's headline 2 m / 10 m thresholds are a
    guard rail, not the mechanism.
 2. **A dead band cannot remove long-wavelength wander.** `sports-tracker.gpx` loses 4 % to a 10 m
-   band and 48 % to the 150 m kernel, because its GPS altitude drifts over hundreds of metres with
+   band and 49 % to the 150 m kernel, because its GPS altitude drifts over hundreds of metres with
    an amplitude far larger than any usable threshold. Only a low-pass touches that.
 3. **A large dead band destroys real terrain on flat rides.** `garmin.gpx` reports 0 m at Strava's
    GPS preset for a ride with 6 m of genuine undulation. The band is all-or-nothing by design.
-4. **150 m is not obviously right.** It halves `stelvio.gpx` (222 → 132) and cuts `sports-tracker`
-   by 48 %, while costing `sample.gpx` only 1.5 %. On a DEM-derived switchback profile some of what
+4. **150 m is not obviously right.** It halves `stelvio.gpx` (222 → 133) and cuts `sports-tracker`
+   by 49 %, while costing `sample.gpx` only 1.7 %. On a DEM-derived switchback profile some of what
    it removes is DEM artefact — the cell average of road *and* hillside oscillates as the road
    traverses — and some of it is real. Nothing in the repo has ever measured which. That is
    ledger row **R28**.
@@ -162,15 +165,21 @@ which is what the stage actually measures; `smoothed` is the one the physics rid
 |---|---|---|---|---|---|
 | `strava` | source | 1007 | 643 | **637** | 633 |
 | | smoothed | 632 | 632 | 632 | 631 |
-| `sports-tracker` | source | 1278 | 1234 | **1088** | 907 |
-| | smoothed | 655 | 649 | 641 | 628 |
-| `stelvio` | source | 222 | 197 | **173** | 139 |
+| `sports-tracker` | source | 1278 | 1233 | **1082** | 910 |
+| | smoothed | 656 | 649 | 641 | 629 |
+| `stelvio` | source | 222 | 196 | **173** | 139 |
 | | smoothed | 133 | 133 | 133 | 132 |
-| `sample` | source | 4551 | 4511 | **4501** | 4459 |
+| `sample` | source | 4551 | 4511 | **4501** | 4458 |
 | `garmin` | source | 6 | 6 | **6** | **0** |
 
 Note the `garmin` row: Strava's GPS preset reports **zero** for a ride with 6 m of genuine
 undulation. A dead band is all-or-nothing by design, and 10 m is a lot of ground.
+
+The one leg exempt from the band is the opening one: the move from the first sample to the first
+confirmed turning point is booked whatever its size, so the legs tile the profile from its start and
+`gain + loss` closes on the net change to within one threshold. Without it, a route that opened
+with a 2.9 m dip and then climbed counted the climb out of the dip but not the dip, and the closure
+was off by up to two thresholds. See `ElevationGain.accumulate`.
 
 Each preset carries its own smoothing as well as its own threshold, because a threshold without a
 scale is not an answer — `barometric` is 2 m over 15 m, `dem` 3 m over 30 m, `gps` 10 m over 50 m,

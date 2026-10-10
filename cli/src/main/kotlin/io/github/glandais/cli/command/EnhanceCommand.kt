@@ -168,8 +168,8 @@ class EnhanceCommand : Callable<Int> {
         description = [
             "Triangular-kernel half-width in metres for the elevation smoother",
             "(default: \${DEFAULT-VALUE}). This is the number that decides both the reported",
-            "climbing and the gradients the simulation rides: it costs a clean route ~1.5%",
-            "and a noisy GPS trace ~48%. See docs/guides/elevation.md.",
+            "climbing and the gradients the simulation rides: it costs a clean route ~1.7%",
+            "and a noisy GPS trace ~49%. See docs/guides/elevation.md.",
         ],
     )
     var elevationSmoothWindowM: Double = ElevationStep.DEFAULT_SMOOTH_WINDOW_M

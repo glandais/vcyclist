@@ -290,7 +290,7 @@ const updateWPrimeField = <K extends keyof DemoEnhanceOptions['wPrimeBalance']>(
                 :min="10"
                 :max="300"
                 :step="10"
-                tooltip="Triangular-kernel half-width. This decides both the reported climbing and the gradients the simulation rides: it costs a clean route ~1.5% and a noisy GPS trace ~48%."
+                tooltip="Triangular-kernel half-width. This decides both the reported climbing and the gradients the simulation rides: it costs a clean route ~1.7% and a noisy GPS trace ~49%."
             />
 
             <label class="block font-medium text-gray-800 text-base mb-3 mt-6">
