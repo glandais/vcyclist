@@ -28,6 +28,11 @@ data class Climb(
     val positiveElevationM: Double,
     /** Sum of the negative elevation deltas inside the climb, as a **negative** number. */
     val negativeElevationM: Double,
+    /**
+     * Summed length of the analysed profile segments that rise, in meters — the denominator of
+     * [climbingGrade], accumulated by the detector alongside [positiveElevationM].
+     */
+    val climbingDistanceM: Double,
     /** Homogeneous-grade segments the climb breaks down into, in order. */
     val parts: List<ClimbPart>,
 ) {
@@ -40,15 +45,19 @@ data class Climb(
     val averageGrade: Double get() = if (lengthM == 0.0) 0.0 else elevationGainM / lengthM
 
     /**
-     * Average grade counting only the rising sections, dimensionless. This is what makes a climb
-     * with dips feel steeper than [averageGrade] suggests, and it is the quantity
-     * [ClimbOptions.maxDiffRealGradeRatio] bounds.
+     * Average grade counting only the rising sections, dimensionless:
+     * [positiveElevationM] / [climbingDistanceM]. This is what makes a climb with dips feel
+     * steeper than [averageGrade] suggests, and it is exactly the quantity
+     * [ClimbOptions.maxDiffRealGradeRatio] bounds, so `climbingGrade / averageGrade` never exceeds
+     * that option on a detected climb.
+     *
+     * The denominator is the rising *profile segments* the detector scored, not the rising
+     * [parts]: the Douglas-Peucker split (10–50 m tolerance) can fold a gently rising false flat
+     * into a net-negative part, and dividing by the parts' length then reported a ratio the
+     * detector never accepted.
      */
     val climbingGrade: Double
-        get() {
-            val climbingLength = parts.filter { it.elevationGainM > 0 }.sumOf { it.lengthM }
-            return if (climbingLength == 0.0) 0.0 else positiveElevationM / climbingLength
-        }
+        get() = if (climbingDistanceM == 0.0) 0.0 else positiveElevationM / climbingDistanceM
 }
 
 /** A homogeneous-grade segment inside a [Climb]. */
@@ -90,7 +99,8 @@ data class ClimbOptions(
      */
     val booster: Double = 1.3,
     /**
-     * Upper bound on how many points the O(n²) candidate search looks at. Above it the path is
+     * Upper bound on how many points the O(n²) candidate search looks at, first and last point
+     * included — a hard bound, never exceeded by one. Above it the path is
      * uniformly decimated for the *analysis* only; reported indices still refer to the original
      * path.
      *
