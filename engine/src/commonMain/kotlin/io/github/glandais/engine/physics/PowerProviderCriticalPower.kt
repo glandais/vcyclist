@@ -43,6 +43,14 @@ import kotlin.random.Random
  * Recovery is the ODE's: ride below CP and the reserve refills, which raises the ceiling again —
  * a climb after a descent is ridden harder than a climb at the end of an hour above threshold.
  *
+ * The reserve is booked against the power **delivered**, not against this provider's own answer:
+ * its rationed output is never below CP, so on its own it could only ever deplete. The delivered
+ * figure arrives through [CyclistPowerProvider.onDelivered] — from a decorator such as
+ * [PowerProviderTerrainPacing] (a paced descent at half the target is ridden below CP), and from
+ * [MuscularPowerProvider] after the pedal-strike cut (a coasted corner is recovery). Driven bare,
+ * with nobody reporting, it books its own answer, and since that answer never drops below CP the
+ * reserve never refills — recovery needs something in the chain that rides below CP.
+ *
  * What it deliberately does *not* do: drop below CP to force recovery, look ahead at the terrain,
  * or modulate with gradient and wind. Those are pacing decisions, not fatigue state — ledger R19,
  * and §4.5 is emphatic that optimal-pacing models are prescriptive rather than descriptive.
@@ -119,8 +127,21 @@ class PowerProviderCriticalPower(
         }
 
         val rationed = ration(powerW)
+        // Provisional: overwritten by [onDelivered] when a decorator or the pedal cut changes it.
         lastPowerW = rationed
         return rationed
+    }
+
+    /**
+     * Books the interval that opens at [pointIndex] at the power actually ridden, rather than at
+     * this provider's own rationed answer — which is never below CP, so without this report the
+     * reserve could only ever drain. Ignored for any point other than the one just asked about.
+     */
+    override fun onDelivered(
+        pointIndex: Int,
+        powerW: Double,
+    ) {
+        if (pointIndex == lastIndex && powerW.isFinite()) lastPowerW = powerW
     }
 
     /** The taper : full [target] while the reserve is comfortable, CP once it is empty. */

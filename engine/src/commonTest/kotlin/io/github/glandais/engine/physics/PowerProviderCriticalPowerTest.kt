@@ -126,12 +126,82 @@ class PowerProviderCriticalPowerTest {
         val emptied = p.reserveFraction
         assertTrue(emptied < 0.05, "400 s at 100 W over CP must nearly empty the tank: $emptied")
 
-        // The provider rations its own target, so recovery is exercised through `step` with the
-        // power a rider would actually be doing while soft-pedalling.
-        val recovered =
-            WPrimeBalanceComputer.step(p.wPrimeBalanceJ, 150.0, cp, wPrime, 300.0)
-        assertTrue(recovered > p.wPrimeBalanceJ, "five minutes under CP must refill something")
+        // The provider's own answer never drops below CP; soft-pedalling is what something
+        // downstream reports back through the delivered-power feedback contract.
+        val drained = p.wPrimeBalanceJ
+        for (i in 400 until 701) {
+            p.powerAt(course, path, i)
+            p.onDelivered(i, 150.0)
+        }
+        val recovered = p.wPrimeBalanceJ
+        assertTrue(recovered > drained, "five minutes under CP must refill something")
         assertTrue(recovered / wPrime > 0.5, "…and enough to lift the taper again: ${recovered / wPrime}")
+        assertTrue(p.powerAt(course, path, 701) > p.ration(cp + 1e-9), "the ceiling rises again")
+    }
+
+    @Test
+    fun `without a delivered-power report the reserve only books the provider's own answer`() {
+        val p = provider()
+        val path = clockPath(800)
+        val course = physics(path, p)
+        for (i in 0 until 800) p.powerAt(course, path, i)
+        // Never below CP, so the ODE never takes its recovery branch: monotone drain.
+        assertTrue(p.reserveFraction < 0.01, "bare provider: ${p.reserveFraction}")
+    }
+
+    @Test
+    fun `a report for another point is ignored`() {
+        val p = provider()
+        val path = clockPath(3)
+        val course = physics(path, p)
+        p.powerAt(course, path, 0)
+        p.onDelivered(5, 0.0)
+        p.powerAt(course, path, 1)
+        assertEquals(WPrimeBalanceComputer.step(wPrime, 350.0, cp, wPrime, 1.0), p.wPrimeBalanceJ, 1e-9)
+    }
+
+    @Test
+    fun `a paced descent below CP refills the reserve through the decorator`() {
+        // 300 s at +6 % then -6 %, 1 s and 5 m per point.
+        val n = 501
+        val path =
+            Path(n).apply {
+                for (i in 0 until n) {
+                    setElapsed(i, i.toDouble())
+                    setDistance(i, i * 5.0)
+                    setGrade(i, if (i < 300) 0.06 else -0.06)
+                }
+            }
+        val base = provider(powerW = 400.0)
+        val chain = PowerProviderSlewLimited(PowerProviderTerrainPacing(base))
+        val course = physics(path, chain)
+        for (i in 0..300) chain.powerAt(course, path, i)
+        val afterClimb = base.wPrimeBalanceJ
+        var maxDescent = 0.0
+        for (i in 301..400) maxDescent = maxOf(maxDescent, chain.powerAt(course, path, i))
+        assertTrue(maxDescent < cp, "precondition: first 100 s of descent below CP, got $maxDescent")
+        assertTrue(base.wPrimeBalanceJ > afterClimb + 1000.0, "$afterClimb J -> ${base.wPrimeBalanceJ} J")
+    }
+
+    @Test
+    fun `a coasted corner is booked as recovery`() {
+        val n = 501
+        val path =
+            Path(n).apply {
+                for (i in 0 until n) {
+                    setElapsed(i, i.toDouble())
+                    setSpeed(i, 15.0)
+                    // A tight hairpin from point 400 on: far past pedal clearance at 15 m/s.
+                    setRadius(i, if (i < 400) 0.0 else 10.0)
+                }
+            }
+        val base = provider(powerW = 400.0)
+        val course = physics(path, base)
+        for (i in 0 until 400) MuscularPowerProvider.powerAt(course, path, i)
+        val beforeCorner = base.wPrimeBalanceJ
+        for (i in 400 until n) MuscularPowerProvider.powerAt(course, path, i)
+        assertEquals(0.0, path.pCyclistProvidedMuscular(450), 0.0, "precondition: pedals up")
+        assertTrue(base.wPrimeBalanceJ > beforeCorner, "$beforeCorner J -> ${base.wPrimeBalanceJ} J")
     }
 
     @Test

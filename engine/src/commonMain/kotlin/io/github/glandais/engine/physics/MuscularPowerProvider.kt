@@ -35,10 +35,11 @@ import io.github.glandais.engine.path.Path
  *   which the provider writes either way — the difference between the two is the cut-off.
  * - `pCyclistProvidedWheel(i)` : after multiplication by `bike.efficiency`.
  *
- * One accounting nit: a stateful provider ([PowerProviderDurability]) accumulates its dose from
- * the value it returned, not from what survives this cut-off, so it slightly over-counts work in
- * corners. Corners are a small fraction of ride time and the alternative is threading the bike's
- * geometry into every provider.
+ * The power that survives the cut-off is reported back to the provider chain through
+ * [CyclistPowerProvider.onDelivered], so [PowerProviderCriticalPower] books a coasted corner as
+ * recovery. One accounting nit remains: [PowerProviderDurability] ignores that report and
+ * accumulates its dose from the value it returned, so it slightly over-counts work in corners.
+ * Corners are a small fraction of ride time.
  */
 object MuscularPowerProvider : PowerProvider {
     override fun powerAt(
@@ -52,6 +53,8 @@ object MuscularPowerProvider : PowerProvider {
         val intent = course.cyclistPowerProvider.powerAt(course, path, pointIndex)
         val muscular = if (pedalsClear(course, path, pointIndex)) intent else 0.0
         path.setPCyclistProvidedMuscular(pointIndex, muscular)
+        // Close the delivered-power feedback loop: what reaches the cranks, after the cut.
+        course.cyclistPowerProvider.onDelivered(pointIndex, muscular)
 
         val wheel = muscular * course.bike.efficiency
         path.setPCyclistProvidedWheel(pointIndex, wheel)
