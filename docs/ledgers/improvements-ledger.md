@@ -430,6 +430,10 @@ the estimator could ship on its own. It did, as `:engine`'s `trajectory` package
    ±10-point window spans ~30 m at the 1–2 m spacing the pipeline resamples to, so any bend under
    ~9.5 m radius turned further than π across it. It wrapped to a *smaller* angle, hence a
    *larger* radius, hence a `√2` overspeed — at the tightest points on the route.
+   The field-based estimator sidesteps it, and the windowed fallback (still used when
+   `trajectoryCurvature` is NaN, e.g. `curvature.enabled = false`) now sums the per-step wrapped
+   bearing changes instead of diffing the window's endpoints, so it no longer folds either —
+   `FormalModelMaxSpeedTest` pins an 8 m and a 6.5 m circle.
 2. **`Δs` coupling.** The window was a fixed *point* count, so every radius silently depended on
    the resampler's spacing rather than on the road.
 3. **`computeBearing` shear.** `x = lon·cos(lat)` with *absolute* longitude gives
@@ -754,6 +758,25 @@ the simplifier keeps points on 3D geometry with no knowledge of this field — s
 carries a **sampled** W′bal trace and a deep trough between two kept points can vanish. Recorded in
 the KDoc.
 
+#### Recovery was unreachable until the delivered-power feedback contract
+
+As first landed, the provider booked W′bal against its *own* rationed answer — and the taper never
+returns less than CP, so the ODE only ever took its depletion branch: the reserve was monotone
+non-increasing for the whole ride, whatever pacing, slew or pedal cut did downstream. The KDoc's
+"a climb after a descent is ridden harder" was unreachable from every public composition (found by
+model-checking `CriticalPowerChain.tla`; pinned by `FormalModelStatefulProvidersTest`).
+
+Fixed with `CyclistPowerProvider.onDelivered`: each decorator reports what it turned its delegate's
+answer into, and `MuscularPowerProvider` reports what reaches the cranks after the pedal-strike cut.
+The reserve is now booked against the power actually ridden, so a paced descent below CP or a
+coasted corner refills it. `PowerProviderDurability` still ignores the report (the corner nit under
+R10).
+
+Effect on the CLI's default `critical-power` chain (no pacing, so the only sub-CP riding is the
+pedal-strike cut), `--no-fix-elevation`, measured before/after on the same build: `stelvio.gpx`
+595 s → 595 s, `strava.gpx` 3 068 s → 3 062 s, `sample.gpx` 21 103 s → 20 976 s (−0.6 %). The
+table above predates other changes and was not re-measured.
+
 ### R17 — Durability: decay on supra-CP work, not elapsed time ✅
 
 **Under-weighted by ch. 07**, which folds durability into the fuelling item (R21) and inherits its
@@ -915,10 +938,15 @@ reporting the time alone would have been a fabricated result.
 
 So the rule now carries a **causal energy account**: joules spent above the delegate's target are
 remembered and the multiplier is pulled back in proportion, over a tolerance of ten minutes of
-riding. Nothing looks ahead — the rider simply notices it has been overspending. A test asserts the
-account closes within 5 % of total work; without it the assertion fails by a factor of two.
+riding. Nothing looks ahead — the rider simply notices it has been overspending. The corrected
+ratio is clamped to the same `[0.5, 1.3]` as the terrain multiplier — clamping the two factors
+separately let a wall after a long descent ask for 1.49× target and a descent after a long climb
+drop to 0.42×. A test asserts the account closes within 5 % of total work; without it the
+assertion fails by a factor of two.
 
-Re-measured with the account:
+Re-measured with the account (before the corrected-ratio clamp above; not re-measured since —
+the clamp only bites on a wall in credit or a descent in debt, so `strava`/`sample` may shift
+slightly):
 
 | Route | time | mean power | reading |
 |---|---|---|---|
@@ -1018,10 +1046,10 @@ D+ in metres by profile and preset (`source` = densified, before the 150 m kerne
 |---|---|---|---|---|---|
 | `strava` (21 km, 1 Hz baro) | source | **1007** | 643 | **637** | 633 |
 | | smoothed | 632 | 632 | 632 | 631 |
-| `sports-tracker` (12 km, GPS altitude) | source | **1278** | 1234 | **1088** | 907 |
-| | smoothed | 655 | 649 | 641 | 628 |
-| `stelvio` (3.6 km, DEM switchbacks) | source | 222 | 197 | **173** | 139 |
-| `sample` (130 km, clean DEM route) | source | 4551 | 4511 | **4501** | 4459 |
+| `sports-tracker` (12 km, GPS altitude) | source | **1278** | 1233 | **1082** | 910 |
+| | smoothed | 656 | 649 | 641 | 629 |
+| `stelvio` (3.6 km, DEM switchbacks) | source | 222 | 196 | **173** | 139 |
+| `sample` (130 km, clean DEM route) | source | 4551 | 4511 | **4501** | 4458 |
 | `garmin` (3.9 km, flat) | source | 6 | 6 | **6** | **0** |
 
 Two things this settles. The dead band earns its place on the *source* profile — 1007 → 637 on
@@ -1040,10 +1068,10 @@ What 150 m removes from the *profile*, against no smoothing at all:
 
 | Fixture | unsmoothed | @150 m | change |
 |---|---|---|---|
-| `sample.gpx` (130 km, clean DEM route) | 4551 | 4484 | −1.5 % |
+| `sample.gpx` (130 km, clean DEM route) | 4551 | 4475 | −1.7 % |
 | `strava.gpx` (21 km, 1 Hz barometric) | 1066 | 632 | −41 % |
-| `stelvio.gpx` (3.6 km, DEM switchbacks) | 222 | 132 | −41 % |
-| `sports-tracker.gpx` (12 km, GPS altitude) | 1278 | 668 | −48 % |
+| `stelvio.gpx` (3.6 km, DEM switchbacks) | 222 | 133 | −40 % |
+| `sports-tracker.gpx` (12 km, GPS altitude) | 1278 | 656 | −49 % |
 
 What it is worth **on the clock**, which is the number that matters now that D+ is measured on
 `sourceElevation` and is therefore independent of this window (CLI, `--no-simplify`, defaults):
