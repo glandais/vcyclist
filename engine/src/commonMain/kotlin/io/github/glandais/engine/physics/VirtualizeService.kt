@@ -14,7 +14,11 @@ import io.github.glandais.engine.path.PointField
  * `dt`, `virtSpeedCurrent` populated, plus the inverse cyclist-power computation in
  * `pComputedPower`.
  *
- * Iteration cap : 100 000.
+ * No iteration cap : the loop visits each index in `[1, n - 1]` exactly once, so it terminates
+ * after `n - 1` steps whatever the input. A former `MAX_ITERATIONS = 100_000` guard broke out
+ * early on rides past ~200 km (the pipeline's 1–2 m spacing), leaving every later slot at
+ * `Path(n)`'s zero initialisation (`time = 0`, `lat = lon = 0`). Each step's own cost is bounded
+ * inside `PowerComputer.getDt` by the `MINIMAL_SPEED` clamp.
  *
  * The `speedMax` clip below is the simulation's **braking model** : the excess kinetic energy is
  * simply dropped. It is not lost from the *output* though — `PowerComputer.computeCyclistPower`
@@ -35,9 +39,6 @@ import io.github.glandais.engine.path.PointField
  *   consistent in the average.
  */
 object VirtualizeService {
-    /** Iteration cap protecting against pathological inputs. */
-    private const val MAX_ITERATIONS = 100_000
-
     /** Build a virtualized [Path] from `course.path`. */
     fun virtualizeTrack(course: CoursePhysics): Path {
         val input: Path = course.path
@@ -68,7 +69,6 @@ object VirtualizeService {
         out.setVirtSpeedCurrent(0, speed)
 
         var i = 1
-        var iter = 0
         while (i < n) {
             val dx = input.distance(i) - input.distance(i - 1)
 
@@ -112,7 +112,6 @@ object VirtualizeService {
             out.setVirtSpeedCurrent(i, speed)
 
             i++
-            if (iter++ > MAX_ITERATIONS) break
         }
 
         // Inverse problem : back-calculate cyclist power from speed changes (all indices,
