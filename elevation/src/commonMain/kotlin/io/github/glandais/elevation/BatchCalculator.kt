@@ -52,7 +52,8 @@ class BatchCalculator(
      * Compute elevations along a path defined by [path] waypoints.
      *
      * Densifies the path with intermediate points every [step] meters (linear lat/lon interpolation),
-     * skips segments shorter than [minDistance], then runs [setElevations]. Optionally applies
+     * drops waypoints closer than [minDistance] to the last kept one (see [generateCoordinatesAlong]),
+     * then runs [setElevations]. Optionally applies
      * distance-based smoothing then Douglas-Peucker simplification.
      */
     suspend fun getElevationsAlong(
@@ -84,6 +85,14 @@ class BatchCalculator(
         return withElevation
     }
 
+    /**
+     * Densifies [path] every [step] metres. A waypoint closer than [minDistance] to the **last
+     * kept** point (the anchor) is dropped, and the anchor stays put — distance is never measured
+     * from a dropped waypoint. Measuring each input segment on its own instead would let a
+     * densely sampled path (every fix closer than [minDistance] to the next) collapse to its first
+     * point: de-duplication, not truncation. The output therefore always ends within
+     * [minDistance] of the route's last waypoint.
+     */
     internal fun generateCoordinatesAlong(
         path: List<Coordinates>,
         step: Double,
@@ -91,15 +100,16 @@ class BatchCalculator(
     ): List<Coordinates> {
         if (path.isEmpty()) return emptyList()
         val out = ArrayList<Coordinates>(path.size * 2)
-        out += path[0]
+        var anchor = path[0]
+        out += anchor
 
-        for (i in 0 until path.size - 1) {
-            val a = path[i]
-            val b = path[i + 1]
-            val d = Distance.haversine(a, b)
+        for (i in 1 until path.size) {
+            val b = path[i]
+            val d = Distance.haversine(anchor, b)
             if (d < minDistance) continue
-            val between = generateCoordinatesBetween(a, b, step, d)
+            val between = generateCoordinatesBetween(anchor, b, step, d)
             for (j in 1 until between.size) out += between[j]
+            anchor = b
         }
         return out
     }

@@ -8,7 +8,8 @@ import kotlin.math.sqrt
 object Distance {
     /**
      * Great-circle distance in meters using the Haversine formula.
-     * Uses [EarthConstants.MEAN_RADIUS].
+     * Uses [EarthConstants.MEAN_RADIUS]. Finite for every finite input, antipodal points
+     * included (they return `π · MEAN_RADIUS`).
      */
     fun haversine(
         coord1: Coordinates,
@@ -22,7 +23,10 @@ object Distance {
         val sinHalfLat = sin(deltaLat / 2.0)
         val sinHalfLon = sin(deltaLon / 2.0)
         val a = sinHalfLat * sinHalfLat + cos(lat1Rad) * cos(lat2Rad) * sinHalfLon * sinHalfLon
-        val c = 2.0 * atan2(sqrt(a), sqrt(1.0 - a))
+        // Rounding can push `a` just past 1 for (near-)antipodal points, which would make
+        // sqrt(1 - a) NaN; clamp it into its mathematical range [0, 1].
+        val ac = a.coerceIn(0.0, 1.0)
+        val c = 2.0 * atan2(sqrt(ac), sqrt(1.0 - ac))
         return EarthConstants.MEAN_RADIUS * c
     }
 
