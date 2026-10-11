@@ -2,6 +2,7 @@ package io.github.glandais.engine.path
 
 import io.github.glandais.elevation.MathConstants
 import io.github.glandais.elevation.Vector3D
+import io.github.glandais.engine.trajectory.LocalFrame
 import kotlin.math.atan2
 import kotlin.math.cos
 import kotlin.math.hypot
@@ -71,6 +72,10 @@ fun List<Path>.dominantHeadwindDirection(): Vector3D? {
  * conformal, so it preserves local angles, and the normalisation of each vector removes the scale
  * distortion that is Mercator's only other effect. `PathWindTest` verifies the agreement against a
  * literal Mercator implementation instead of taking the argument on trust.
+ *
+ * `Δlon` is wrapped into `(-π, π]` first, the way `LocalFrame` unwraps longitudes, so a course
+ * crossing the antimeridian keeps its direction instead of reading every point past it as ~360°
+ * to the other side (`FormalModelPathWindTest`).
  */
 private fun Path.meanDirectionFromStart(): Pair<Double, Double>? {
     // Threshold: `size > 3`. Below it a "dominant direction" is noise, not a summary.
@@ -86,7 +91,7 @@ private fun Path.meanDirectionFromStart(): Pair<Double, Double>? {
     // dividing by `size` rather than `size - 1` would come to the same thing anyway — a uniform
     // scale factor on a mean that is normalised afterwards cannot change the direction.
     for (i in 1 until size) {
-        val dx = (longitude(i) - lon0) * cosLat0
+        val dx = LocalFrame.unwrap(longitude(i) - lon0) * cosLat0
         val dy = latitude(i) - lat0
         val length = hypot(dx, dy)
         if (length < DEGENERATE_EPSILON) continue
