@@ -95,9 +95,12 @@ data class FitRecord(
 )
 
 /**
- * One `LapMesg` summarising the whole course. FIT players use it for the course overview, so
- * the totals must agree with the records — a lap distance that disagrees with the last record's
- * distance makes some head units reject the file.
+ * One `LapMesg` summarising one [FitSegment] — the whole course when it has a single segment.
+ * FIT players use it for the course overview, so the totals must agree with the segment's own
+ * records — a lap distance that disagrees with the distance its records cover makes some head
+ * units reject the file. [FitRecord.distanceM] is cumulative from the course start, so on a
+ * single-segment course that is the last record's distance; on a multi-segment one it is the last
+ * record's distance minus the first's, since each lap's [totalDistanceM] is its own segment's.
  */
 data class FitLap(
     val startTime: Instant,

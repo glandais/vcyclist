@@ -149,5 +149,10 @@ class PathToFitMultiTest {
         assertEquals(short.totalDistance, course.segments[0].lap.totalDistanceM, 1e-6)
         assertEquals(long.totalDistance, course.segments[1].lap.totalDistanceM, 1e-6)
         assertTrue(course.segments[1].lap.totalDistanceM > course.segments[0].lap.totalDistanceM)
+        // Record distance runs on across segments, so a lap agrees with the span of its own records.
+        for (segment in course.segments) {
+            val covered = segment.records.last().distanceM - segment.records.first().distanceM
+            assertEquals(segment.lap.totalDistanceM, covered, 1e-6)
+        }
     }
 }
