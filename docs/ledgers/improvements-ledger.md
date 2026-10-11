@@ -490,8 +490,11 @@ the *smoothed* curve's own arclength, not the raw path's; and the scale-selectio
 measured from the trace at the *widest* window, since a fixed allowance rejects wide windows first
 and a narrow-window measurement mistakes jitter for signal.
 
-A duplicated first trackpoint takes the first real chord's heading rather than due east, which
-had put a ~25 m corner at the start of a straight road; `FormalModelCurvatureTest` pins it.
+Where there is no estimate at all it says so. A station with fewer than three points inside the
+widest window (a sparse planner route) is written `NaN`, not `0.0`, so `MaxSpeedComputer` falls
+back per point instead of reading "dead straight"; and a duplicated first trackpoint takes the
+first real chord's heading rather than due east, which had put a ~25 m corner at the start of a
+straight road. Both are pinned by `FormalModelCurvatureTest`.
 
 ### R24 — Racing line (optimal trajectory through corners) ✅, opt-in
 

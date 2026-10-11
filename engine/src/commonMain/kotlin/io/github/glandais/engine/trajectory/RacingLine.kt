@@ -14,7 +14,8 @@ import kotlin.math.sin
  *
  * @property size number of stations, equal to the analysed path's size
  * @property corners detected bends, in path order
- * @property centerlineCurvature signed curvature of the reference line, m⁻¹, positive left
+ * @property centerlineCurvature signed curvature of the reference line, m⁻¹, positive left —
+ *   `0.0` at a station no regression window could fit, since this is what the solver was given
  * @property corridorLo lower bound of the feasible lateral offset, metres, positive left
  * @property corridorHi upper bound of the same
  * @property roadHalfWidthM the half-width the corridor was derived from, before the clamps. A
@@ -22,7 +23,7 @@ import kotlin.math.sin
  *   a clamp did.
  * @property lateralOffsetM the solved line, metres from the reference, positive left
  * @property trajectoryCurvature the **exact** curvature of that line, m⁻¹, not the linearisation
- *   the solver minimised
+ *   the solver minimised; `NaN` at a station no regression window could fit
  * @property newtonIterations projected-Newton iterations taken
  * @property relativeGradient final `‖g_F‖_∞` relative to the initial gradient — scale-free, so it
  *   means the same on a 5 m fixture and a 500 km route
@@ -173,6 +174,11 @@ object RacingLine {
             options.curvature.headingNoiseRad,
             options.curvature.curvatureSmoothWindowM,
         )
+        // The corridor, the corner detector and the solver all need a number at every station. A
+        // station no window could fit (`NaN`) is treated as straight here, which leaves the line on
+        // the reference there; the field written for the physics keeps the `NaN`, because `compute`
+        // re-measures it with [PathCurvature].
+        for (i in 0 until frame.size) if (frame.kappa[i].isNaN()) frame.kappa[i] = 0.0
         return frame
     }
 

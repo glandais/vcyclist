@@ -107,7 +107,8 @@ internal object CurvatureEstimator {
     }
 
     /**
-     * Fill [PlanarFrame.kappa] with signed curvature, m⁻¹, positive turning left.
+     * Fill [PlanarFrame.kappa] with signed curvature, m⁻¹, positive turning left, or `NaN` at a
+     * station no regression window can fit.
      *
      * @param windowsM regression half-widths in metres, ascending
      * @param sigmaThetaRad floor on the heading-noise allowance; the trace's own measured noise is
@@ -176,14 +177,12 @@ internal object CurvatureEstimator {
             // means inventing 29 m corners on a straight road and capping the rider near 40 km/h
             // for a whole ride. Degrading toward the widest makes the failure mode "report no
             // corner" instead of "invent one".
-            raw[i] =
-                if (!chosen.isNaN()) {
-                    chosen
-                } else if (!widest.isNaN()) {
-                    widest
-                } else {
-                    0.0
-                }
+            //
+            // No window at all — fewer than three stations within the widest one, as on a sparse
+            // planner route — is a different case: there is no estimate to degrade to, and `0.0`
+            // would read as "present, dead straight" and suppress the cornering limit at what may
+            // well be a junction turn. Such a station stays `NaN`, "not computed".
+            raw[i] = if (!chosen.isNaN()) chosen else widest
         }
 
         val smoothed = LocalFrame.smooth(raw, frame.s, curvatureSmoothM)

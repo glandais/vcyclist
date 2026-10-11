@@ -62,6 +62,8 @@ data class CurvatureOptions(
  *
  * Failure is silent and safe: on a path too short to fit a window, or one carrying non-finite
  * coordinates, the field keeps its `NaN` default and consumers fall back to their own estimates.
+ * The same holds per station: a point with fewer than three stations inside the widest window — a
+ * sparse planner route, say — is written `NaN`, never `0.0`, which would read as dead straight.
  */
 object PathCurvature {
     /**

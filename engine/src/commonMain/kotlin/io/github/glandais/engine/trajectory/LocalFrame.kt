@@ -148,6 +148,9 @@ internal object LocalFrame {
      * Distance-weighted triangular convolution of [v] against the arclength [s], two-pointer,
      * `O(n)`.
      *
+     * `NaN` means "not computed" (an unfittable curvature station): it stays `NaN` in the output
+     * and is left out of its neighbours' averages, rather than spreading across the window.
+     *
      * This is `ElevationSmoother.smooth`'s algorithm. It is reimplemented rather than reused
      * because that object is hard-wired to `List<CoordinatesElevation>`, and this stage works on
      * bare `DoubleArray`s — building a list of coordinate objects per axis per call would allocate
@@ -172,11 +175,11 @@ internal object LocalFrame {
             var valueSum = 0.0
             for (j in lo..hi) {
                 val w = 1.0 - abs(s[j] - c) / windowM
-                if (w <= 0.0) continue
+                if (w <= 0.0 || v[j].isNaN()) continue
                 weightSum += w
                 valueSum += v[j] * w
             }
-            out[i] = if (weightSum > 0.0) valueSum / weightSum else v[i]
+            out[i] = if (v[i].isNaN() || weightSum <= 0.0) v[i] else valueSum / weightSum
         }
         return out
     }

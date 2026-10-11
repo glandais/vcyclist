@@ -73,4 +73,29 @@ class FormalModelCurvatureTest {
                 "(radius ${1.0 / abs(k[worst])} m) at station $worst",
         )
     }
+
+    /**
+     * Contract ([PathCurvature] KDoc): "Failure is silent and safe: on a path too short to fit a
+     * window [...] the field keeps its NaN default and consumers fall back to their own
+     * estimates." `MaxSpeedComputer.radiusAt` KDoc: a zero "would read as 'present, dead
+     * straight' and silently suppress every cornering limit".
+     *
+     * Counterexample: a path whose spacing exceeds the widest window (25 m) has no station where
+     * any window holds the three points `fitSlope` needs. `computeCurvature` then falls back to
+     * `raw[i] = 0.0`, the 3 m smoothing is the identity at that spacing, and `compute` returns
+     * `true` with `trajectoryCurvature = 0.0` everywhere — including at the vertex of a 90° turn.
+     * The field claims "straight" where it should say "unknown".
+     */
+    @Test
+    fun sparsePathDoesNotReportAStraightLineAtACorner() {
+        val xs = DoubleArray(10) { if (it <= 5) it * 40.0 else 200.0 }
+        val ys = DoubleArray(10) { if (it <= 5) 0.0 else (it - 5) * 40.0 }
+        val path = CurvatureFixtures.pathOf(xs, ys)
+        PathCurvature.compute(path)
+        val vertex = path.trajectoryCurvature(5)
+        assertTrue(
+            vertex.isNaN() || abs(vertex) > 1.0 / 200.0,
+            "90° turn at a sparse vertex reported as κ=$vertex (dead straight) instead of NaN or a bend",
+        )
+    }
 }
