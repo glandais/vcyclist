@@ -66,6 +66,9 @@ class ElevationFunctionsTest {
         assertEquals(0, r.tile.x)
         assertEquals(0, r.tile.y)
         assertEquals(2, r.tile.z)
+        // The pixel clamps with the tile: the edge pixel, not the far edge of tile 0.
+        assertEquals(0, r.x)
+        assertEquals(0, r.y)
     }
 
     @Test
@@ -75,6 +78,8 @@ class ElevationFunctionsTest {
         assertEquals(3, r.tile.x)
         assertEquals(3, r.tile.y)
         assertEquals(2, r.tile.z)
+        assertEquals(255, r.x)
+        assertEquals(255, r.y)
     }
 
     @Test
