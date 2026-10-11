@@ -17,10 +17,11 @@ import kotlin.time.Instant
  *  - power → at the top of `<extensions>`, non-namespaced
  *
  * Numbers are written as `xsd:decimal`, the GPX 1.1 type of `lat`/`lon`/`ele` — never in
- * scientific notation, and the same text on every target (see [GpxDecimal]).
+ * scientific notation, and the shortest digits that read back to the same `Double` (see
+ * [GpxDecimal]).
  *
- * Every entry point takes `writeExtensions` (default `true`, i.e. the pre-g23 behaviour to the
- * byte). Pass `false` for a bare GPX — a strict import target, a readable diff, an old GPS unit,
+ * Every entry point takes `writeExtensions` (default `true`, i.e. the extensions written before
+ * g23). Pass `false` for a bare GPX — a strict import target, a readable diff, an old GPS unit,
  * or simply a smaller file, since on a 1 Hz track the extensions are most of the bytes.
  */
 object GpxWriter {
