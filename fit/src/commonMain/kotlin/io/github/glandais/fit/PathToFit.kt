@@ -168,9 +168,12 @@ private fun Path.toFitSegment(
                 // It falls back to the raw sum on a path the gain stage never ran on.
                 totalAscentM = reportedElevationGain.roundToIntOrZero(),
                 totalDescentM = (-reportedElevationLoss).roundToIntOrZero(),
-                maxSpeedMs = (0 until size).maxOfOrNull { speed(it) }?.takeUnless { it.isNaN() },
-                minAltitudeM = (0 until size).minOfOrNull { elevation(it) }?.takeUnless { it.isNaN() },
-                maxAltitudeM = (0 until size).maxOfOrNull { elevation(it) }?.takeUnless { it.isNaN() },
+                // Over the values that are present only: `minOf`/`maxOf` propagate `NaN`, so one
+                // `NaN` point used to null the whole lap's range while every other record kept
+                // its value. A `NaN` drops that record's field, never the lap summary.
+                maxSpeedMs = presentValues { speed(it) }.maxOrNull(),
+                minAltitudeM = presentValues { elevation(it) }.minOrNull(),
+                maxAltitudeM = presentValues { elevation(it) }.maxOrNull(),
                 startLatitudeDeg = latitude(0) * MathConstants.RAD_TO_DEG,
                 startLongitudeDeg = longitude(0) * MathConstants.RAD_TO_DEG,
                 endLatitudeDeg = latitude(size - 1) * MathConstants.RAD_TO_DEG,
@@ -178,6 +181,9 @@ private fun Path.toFitSegment(
             ),
     )
 }
+
+/** The values of [field] over every point, `NaN` (absent) ones left out. */
+private inline fun Path.presentValues(field: Path.(Int) -> Double): List<Double> = (0 until size).map { field(it) }.filterNot { it.isNaN() }
 
 /**
  * `NaN` means "this sensor produced nothing" ; a genuine `0.0` reading is kept — 0 rpm while

@@ -127,4 +127,26 @@ class FormalModelFitCourseTest {
             assertEquals(0.0, diff, 1e-6, "record $i longitude")
         }
     }
+
+    /**
+     * Contract: the lap "totals must agree with the records" (FitLap KDoc) and `NaN` altitude
+     * drops only *that* record's altitude (PathToFit KDoc). `minAltitudeM`/`maxAltitudeM` are
+     * `(0 until size).minOfOrNull { elevation(it) }`, and Kotlin's `minOf(Double, Double)`
+     * propagates `NaN`, so a single `NaN` elevation erases the lap's min and max altitude while
+     * every other record still carries one.
+     */
+    @Test
+    fun oneNanElevationDoesNotEraseLapAltitudeRange() {
+        val p =
+            path(
+                doubleArrayOf(45.0, 45.0001, 45.0002),
+                doubleArrayOf(6.0, 6.0, 6.0),
+                doubleArrayOf(0.0, 1000.0, 2000.0),
+                ele = doubleArrayOf(300.0, Double.NaN, 320.0),
+            )
+
+        val lap = decode(p.toFitBytes("ele", start)).lapMesgs.single()
+        assertEquals(300.0, assertNotNull(lap.minAltitude, "lap min altitude"), 0.2)
+        assertEquals(320.0, assertNotNull(lap.maxAltitude, "lap max altitude"), 0.2)
+    }
 }
