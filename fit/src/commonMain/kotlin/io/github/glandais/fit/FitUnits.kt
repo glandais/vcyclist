@@ -1,6 +1,5 @@
 package io.github.glandais.fit
 
-import kotlin.math.roundToInt
 import kotlin.math.roundToLong
 import kotlin.time.Instant
 
@@ -48,8 +47,23 @@ object FitUnits {
      *
      * This one is **not** applied by the Java SDK — `RecordMesg.setPositionLat` documents its
      * parameter as already being in semicircles — so the conversion has to happen here.
+     *
+     * The result **wraps** into the sint32 range `[-2^31, 2^31)` rather than saturating, and never
+     * lands on `0x7FFFFFFF`, which FIT reads as its *invalid* sentinel. 180° is exactly `2^31`
+     * semicircles, one past `Int.MAX_VALUE`; it wraps to `-2^31`, the same meridian as -180°.
+     * `2^31 - 1` itself (about 179.9999999°, a legal 7-decimal GPX longitude) sits exactly halfway
+     * between two valid values and is written as `-2^31` too, one semicircle (< 1 cm) away.
+     * Saturating `roundToInt` used to send that whole band onto the sentinel, and decoders
+     * dropped the position. Latitudes (|lat| ≤ 90°, at most `2^30`) are never affected.
      */
-    fun degreesToSemicircles(degrees: Double): Int = (degrees * SEMICIRCLES_PER_DEGREE).roundToInt()
+    fun degreesToSemicircles(degrees: Double): Int {
+        val raw = (degrees * SEMICIRCLES_PER_DEGREE).roundToLong()
+        val wrapped = ((raw + SEMICIRCLES_HALF_TURN).mod(2 * SEMICIRCLES_HALF_TURN) - SEMICIRCLES_HALF_TURN).toInt()
+        return if (wrapped == Int.MAX_VALUE) Int.MIN_VALUE else wrapped
+    }
+
+    /** `2^31`: semicircles in 180°, the size of the sint32 half-range [degreesToSemicircles] wraps into. */
+    private const val SEMICIRCLES_HALF_TURN: Long = 2147483648L
 
     /** Inverse of [degreesToSemicircles], for decoding and for tests. */
     fun semicirclesToDegrees(semicircles: Int): Double = semicircles / SEMICIRCLES_PER_DEGREE

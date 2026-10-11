@@ -41,11 +41,14 @@ class FitUnitsTest {
     @Test
     fun `degrees convert to semicircles at 2 pow 31 over 180`() {
         assertEquals(0, FitUnits.degreesToSemicircles(0.0))
-        // 180° is exactly 2^31 semicircles, which overflows a signed Int by one — the FIT
-        // profile relies on that wrap, so we assert the documented boundary instead of pretending
-        // it is representable.
         assertEquals(1073741824, FitUnits.degreesToSemicircles(90.0))
         assertEquals(-1073741824, FitUnits.degreesToSemicircles(-90.0))
+        // 180° is exactly 2^31 semicircles, which overflows a signed Int by one — the FIT
+        // profile relies on that wrap: ±180° are the same meridian, -2^31, and never the
+        // 0x7FFFFFFF invalid sentinel a saturating conversion would produce.
+        assertEquals(Int.MIN_VALUE, FitUnits.degreesToSemicircles(180.0))
+        assertEquals(Int.MIN_VALUE, FitUnits.degreesToSemicircles(-180.0))
+        assertEquals(Int.MIN_VALUE, FitUnits.degreesToSemicircles(179.9999999))
     }
 
     @Test
