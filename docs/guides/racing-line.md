@@ -113,9 +113,11 @@ A corner where `R line` is *smaller* than `R road` is one the stage made worse; 
 report is how you find them.
 
 `converged=false` means the solver hit its iteration cap. The line is still corridor-feasible — that
-is enforced at every step — but it is not the optimum. A GPS pause (three or more identical fixes,
-which `analyze` sees on a raw track) does not stop it: the zero-length stations ride with their
-predecessor.
+is enforced at every step — but it is not the optimum. Nothing else stops the solve early: the line
+search measures the energy change from the step itself, so rounding cannot reject a Newton step, and
+a step the corridor clips at every halving is re-solved with the clipped stations held in place. A
+GPS pause (three or more identical fixes, which `analyze` sees on a raw track) is handled too: the
+zero-length stations ride with their predecessor.
 
 The report carries thirteen fields; **the demo reads three** (`size`, `corridorLo`, `corridorHi`) and
 never looks at `converged` or `newtonIterations`, so a non-converged solve is drawn on the map as a
