@@ -16,6 +16,14 @@ object ElevationFunctions {
 
     fun isValidZoomLevel(zoom: Int): Boolean = zoom in 0..15
 
+    /**
+     * Moves a pixel that overflows its tile by less than one tile into the neighbouring tile.
+     *
+     * At the edge of the world (the last tile column or row, or tile 0) there is no neighbour: the
+     * tile index **and** the pixel clamp to the edge pixel, on both axes. Longitude is not wrapped
+     * across the antimeridian, consistently with [toTileCoordinatesFloat], which clamps the tile
+     * index too; the cost is at most one pixel of edge extension next to longitude 180°.
+     */
     fun normalizePixel(
         pixel: Pixel,
         tileSize: Int,
@@ -43,9 +51,24 @@ object ElevationFunctions {
             tileY += 1
         }
 
+        // Past the edge of the world the pixel clamps with its tile: shifting it into a tile that
+        // does not exist and then clamping only the tile index leaves it on the *opposite* edge of
+        // the last tile, a whole tile away, which the bilinear neighbour then blends in.
         val maxTile = (1 shl z) - 1
-        tileX = tileX.coerceIn(0, maxTile)
-        tileY = tileY.coerceIn(0, maxTile)
+        if (tileX < 0) {
+            tileX = 0
+            x = 0
+        } else if (tileX > maxTile) {
+            tileX = maxTile
+            x = tileSize - 1
+        }
+        if (tileY < 0) {
+            tileY = 0
+            y = 0
+        } else if (tileY > maxTile) {
+            tileY = maxTile
+            y = tileSize - 1
+        }
 
         return Pixel(TileCoordinates(tileX, tileY, z), x, y)
     }

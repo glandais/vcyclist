@@ -17,7 +17,10 @@ the open work.
 vcyclist has **no barometric source and no community basemap**. Every corrected altitude is a
 lookup into a public digital elevation model — Terrarium-encoded WebP tiles, by default
 `tiles.mapterhorn.com` at zoom 12 with 512-px tiles, bilinearly interpolated
-(`ElevationCalculator.getInterpolatedElevation`).
+(`ElevationCalculator.getInterpolatedElevation`). A neighbour post that falls in the next tile is
+read from that tile; at the edge of the world — within one pixel of longitude 180° or of the
+southern Web-Mercator limit — there is no next tile, and `ElevationFunctions.normalizePixel` clamps
+it to the edge post. Longitude does not wrap across the antimeridian.
 
 Ground sampling at that configuration is `156543 · cos(lat) / (2¹² · 2)`:
 
