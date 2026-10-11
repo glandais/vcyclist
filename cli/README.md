@@ -227,11 +227,13 @@ Zignoli & Biral's figure — a hard constraint in their optimal-control formulat
 measurement of what a rider can do.
 
 With a constant power target there is little to smooth, so the cost is small (`stelvio.gpx`
-578 → 581 s, `sample.gpx` 19 215 → 19 218 s) and it shows up in two places only: the start of a
-ride, and the re-acceleration out of every corner where `--bike-max-pedal-angle` cut power. That
-second one is worth noting — the cut-off is deliberately *not* rate-limited, so power drops
-instantly at the lean threshold and ramps back gradually, which is the "drop quickly and locally,
-rise gradually" asymmetry the pacing literature describes, arrived at without modelling it.
+594 → 602 s, +1.3 %; `sample.gpx` 19 507 → 19 660 s, +0.8 %) and it shows up in two places only:
+the start of a ride, and the re-acceleration out of every corner where `--bike-max-pedal-angle` cut
+power. That second one is worth noting — the cut-off is deliberately *not* rate-limited, so power
+drops instantly at the lean threshold and ramps back gradually, which is the "drop quickly and
+locally, rise gradually" asymmetry the pacing literature describes, arrived at without modelling it.
+It is also nearly all of the cost: before the limiter booked the power actually delivered, the exit
+jumped straight back to the target and the whole option cost 3 to 4 s on either route.
 
 It becomes load-bearing when a provider reacts to terrain, which is what it is really for.
 
