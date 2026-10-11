@@ -127,6 +127,20 @@ class GpxXmlRepairTest {
         assertTrue(elapsed.inWholeSeconds < 10, "repairVerbose took too long on a large valid file: $elapsed")
     }
 
+    @Test
+    fun `references inside CDATA, comments and processing instructions are literal text`() {
+        val xml =
+            "<gpx><!-- Café & Croissant --><?app a & b?><name><![CDATA[&#55358;&#56600; & x]]></name>" +
+                "<desc>a & b &#55358;&#56600;</desc><desc><![CDATA[unterminated & y</desc></gpx>"
+        val repaired = GpxXmlRepair.repair(xml)
+        // Outside the spans, both repairs still run; inside them, nothing moves.
+        assertEquals(
+            "<gpx><!-- Café & Croissant --><?app a & b?><name><![CDATA[&#55358;&#56600; & x]]></name>" +
+                "<desc>a &amp; b &#129304;</desc><desc><![CDATA[unterminated & y</desc></gpx>",
+            repaired,
+        )
+    }
+
     private fun buildLargeValidGpx(pointCount: Int): String {
         val sb = StringBuilder(pointCount * 80)
         sb.append(

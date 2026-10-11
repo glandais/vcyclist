@@ -39,6 +39,9 @@ data class RepairResult(
 object GpxXmlRepair {
     private val PREDEFINED_ENTITIES = setOf("amp", "lt", "gt", "apos", "quot")
 
+    /** Opening and closing delimiters of the spans [verbatimSpanEnd] copies untouched. */
+    private val VERBATIM_SPANS = listOf("<![CDATA[" to "]]>", "<!--" to "-->", "<?" to "?>")
+
     /** Max characters scanned between `&` and a candidate `;` before giving up on a reference. */
     private const val MAX_REFERENCE_BODY_LENGTH = 20
 
@@ -107,7 +110,9 @@ object GpxXmlRepair {
     /**
      * A GPS export occasionally writes a literal `&` (e.g. `Café & Croissant` in a `<name>`)
      * instead of `&amp;`. Escapes any `&` that does not start a syntactically valid character or
-     * predefined entity reference — leaving `&#233;`, `&amp;`, `&lt;`, etc. untouched.
+     * predefined entity reference — leaving `&#233;`, `&amp;`, `&lt;`, etc. untouched, and
+     * everything inside CDATA sections, comments and processing instructions, where a literal
+     * `&` is legal.
      */
     private fun escapeBareAmpersands(xml: String): Pair<String, Int>? {
         var count = 0
@@ -116,6 +121,12 @@ object GpxXmlRepair {
         val n = xml.length
         while (i < n) {
             val c = xml[i]
+            val verbatimEnd = verbatimSpanEnd(xml, i)
+            if (verbatimEnd != -1) {
+                sb?.append(xml, i, verbatimEnd)
+                i = verbatimEnd
+                continue
+            }
             if (c == '&') {
                 if (findReferenceEnd(xml, i) != -1) {
                     sb?.append(c)
@@ -133,7 +144,8 @@ object GpxXmlRepair {
     }
 
     /**
-     * Scans references one by one
+     * Scans references one by one (outside CDATA sections, comments and processing
+     * instructions, where `&#55357;` is literal text, not a reference)
      * rather than matching pairs directly, so that in `&#65;&#55358;&#56600;` the real pair
      * (positions 2-3) is not missed because a two-at-a-time pattern already consumed the first
      * reference as a (mismatched) partner.
@@ -176,6 +188,11 @@ object GpxXmlRepair {
         var i = 0
         val n = xml.length
         while (i < n) {
+            val verbatimEnd = verbatimSpanEnd(xml, i)
+            if (verbatimEnd != -1) {
+                i = verbatimEnd
+                continue
+            }
             if (xml[i] == '&' && i + 1 < n && xml[i + 1] == '#') {
                 val end = findReferenceEnd(xml, i)
                 if (end != -1) {
@@ -188,6 +205,29 @@ object GpxXmlRepair {
             i++
         }
         return refs
+    }
+
+    /**
+     * Markup whose content is literal text, not parsed for references: a CDATA section, a comment
+     * or a processing instruction. Inside them `&` is legal as is, and `&amp;` would be five
+     * literal characters, so the reference repairs must copy them verbatim — escaping a CDATA
+     * `Café & Croissant` would change the text a strict parser reads back.
+     *
+     * @return the index just past the span starting at `xml[start]`, `xml.length` when it is
+     *   unterminated (the rest of the text is then the span's), or -1 when none starts there.
+     */
+    private fun verbatimSpanEnd(
+        xml: String,
+        start: Int,
+    ): Int {
+        if (xml[start] != '<') return -1
+        for ((open, close) in VERBATIM_SPANS) {
+            if (xml.startsWith(open, start)) {
+                val end = xml.indexOf(close, start + open.length)
+                return if (end == -1) xml.length else end + close.length
+            }
+        }
+        return -1
     }
 
     private fun parseNumericReferenceValue(body: String): Int =
