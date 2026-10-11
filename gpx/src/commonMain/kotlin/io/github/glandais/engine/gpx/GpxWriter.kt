@@ -116,9 +116,13 @@ object GpxWriter {
         // would be valid but noise, and would break a byte comparison with a reference file.
         // `xsi` stays either way — it carries schemaLocation, which is about GPX itself.
         if (writeExtensions) w.setPrefix(PREFIX_GARMIN_TPX, NS_GARMIN_TPX)
-        // `vc` is declared only when something actually uses it, so a file with no widths is
-        // byte-identical to what this writer produced before the namespace existed.
-        val hasRoadWidth = writeExtensions && document.tracks.any { t -> t.points.any { it.roadWidthM != null } }
+        // `vc` is declared only when something actually uses it — a point width or a track-level
+        // default — so a file with no widths carries no namespace it does not need.
+        val hasRoadWidth =
+            writeExtensions &&
+                document.tracks.any { t ->
+                    (t.kind == GpxPathKind.TRACK && t.roadWidthM != null) || t.points.any { it.roadWidthM != null }
+                }
         if (hasRoadWidth) w.setPrefix(PREFIX_VCYCLIST, NS_VCYCLIST)
 
         w.startTag(NS_GPX, "gpx", "")
@@ -188,6 +192,14 @@ object GpxWriter {
         w.startTag(NS_GPX, "trk", "")
         track.name?.let { writeSimpleText(w, "name", it) }
         track.type?.let { writeSimpleText(w, "type", it) }
+        // The track-level default width the parser read from `<trk><extensions>`: without it a
+        // re-saved file loses the width of every point that did not carry its own. The GPX 1.1
+        // sequence puts `extensions` after `type` and before the first `trkseg`.
+        if (writeExtensions && track.roadWidthM != null) {
+            w.startTag(NS_GPX, "extensions", "")
+            writeRoadWidth(w, track.roadWidthM)
+            w.endTag(NS_GPX, "extensions", "")
+        }
         // One <trkseg> per segment, preserving the discontinuities the parser saw. A track built
         // through the single-segment `GpxTrack(points = …)` factory still emits exactly one
         // <trkseg>, as it did before segments were modelled.
