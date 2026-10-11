@@ -118,8 +118,8 @@ internal object OffsetQp {
             val fa2 = f2.copyOf(freeCount)
             if (!BandedLdl.factor(fa0, fa1, fa2)) {
                 // A non-positive pivot means the reduced Hessian is not positive definite, which
-                // cannot happen for this energy — the centring term guarantees it. Stop rather
-                // than continue into nonsense.
+                // cannot happen for this energy — see OffsetEnergy.assemble. Stop rather than
+                // continue into nonsense.
                 break
             }
             for (p in 0 until freeCount) rhs[p] = -g[freeIndex[p]]
