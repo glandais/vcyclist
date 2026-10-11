@@ -1,3 +1,28 @@
+## [6.0.1](https://github.com/glandais/vcyclist/compare/v6.0.0...v6.0.1) (2026-10-11)
+
+
+### Bug Fixes
+
+* **elevation:** clamp the pixel with its tile at the edge of the tile grid ([012024e](https://github.com/glandais/vcyclist/commit/012024e9350cee218afc831d9385dadc089f3396))
+* **engine:** give a duplicated first point the road's heading, not due east ([b1ecef1](https://github.com/glandais/vcyclist/commit/b1ecef1ecfd0fca54f5da97591df13d6d49c3412))
+* **engine:** keep LocalFrame.unwrap inside its documented (-pi, pi] range ([465fa90](https://github.com/glandais/vcyclist/commit/465fa90bea535a9ec78f5edccddadba2dd1f9592))
+* **engine:** keep the racing-line solve going until its residual test or iteration cap ([ab2c1a9](https://github.com/glandais/vcyclist/commit/ab2c1a935f3070855277fd0f927f54abdc3c349f))
+* **engine:** leave pinned zero-length racing-line stations untied ([e14990f](https://github.com/glandais/vcyclist/commit/e14990fc7d332c86a36fd23fecee9db949b5cbab))
+* **engine:** ramp slew-limited power back up after a pedal-strike cut ([1d758c8](https://github.com/glandais/vcyclist/commit/1d758c8113fc8d6831d79bacb69a7094aab3c397))
+* **engine:** tie zero-length racing-line stations so a GPS pause cannot zero the whole line ([1214a11](https://github.com/glandais/vcyclist/commit/1214a11cc769403689cc6bbf422ef243fa9c97d8))
+* **engine:** wrap longitude difference in dominantHeadwindDirection ([3b68e0d](https://github.com/glandais/vcyclist/commit/3b68e0d66dd5ef80b312cd6c6ee453c1837cf434))
+* **engine:** wrap racing-line longitudes back into [-pi, pi] across the antimeridian ([e1cbe0e](https://github.com/glandais/vcyclist/commit/e1cbe0eb2ef9de7b4afa8547f277db17c9244145))
+* **engine:** write NaN, not 0.0, where no curvature window can be fitted ([5185bb3](https://github.com/glandais/vcyclist/commit/5185bb3e92c9f342fc6657490ab2329ec6a3ba7d))
+* **fit:** ignore NaN points when summarising the lap's speed and altitude range ([1dab7e9](https://github.com/glandais/vcyclist/commit/1dab7e937019296de7d2ed00fa476eb5c475faca))
+* **fit:** keep record distance cumulative across a multi-path course ([d42cd3f](https://github.com/glandais/vcyclist/commit/d42cd3fe13c62690d0d3835bba984313259a6206))
+* **fit:** never encode a longitude near 180° as the invalid semicircle sentinel ([1ab40af](https://github.com/glandais/vcyclist/commit/1ab40af7d880569b6292b424e00a101e0a37f12b))
+* **fit:** round the lap end so it never falls before its last record ([b6f3efd](https://github.com/glandais/vcyclist/commit/b6f3efda7fea2bccd7c965a060aa12cdc1f9573a))
+* **gpx:** check GpxDecimal shortenings exactly instead of with Wasm's toDouble ([fec6dd4](https://github.com/glandais/vcyclist/commit/fec6dd4cad167f444447ef7fe294f1a7d2821f4d))
+* **gpx:** compute the bearing from the longitude difference, not absolute longitude ([69dea64](https://github.com/glandais/vcyclist/commit/69dea647a8cd3d9e534c1d8ebf8cdc7396da3a77))
+* **gpx:** keep the track-level road width when writing a GPX document ([d53257c](https://github.com/glandais/vcyclist/commit/d53257c07d7220b0a9930bd28e7dc76d4e87b91c))
+* **gpx:** leave CDATA, comments and PIs untouched when repairing GPX XML ([7a67261](https://github.com/glandais/vcyclist/commit/7a6726159f8c80209b4f8d45ac362dd338584760))
+* **gpx:** write ele before time and numbers as xsd:decimal in GPX output ([7e74bc5](https://github.com/glandais/vcyclist/commit/7e74bc5698c9c563104245464ffe7b6d53cb3975))
+
 # [6.0.0](https://github.com/glandais/vcyclist/compare/v5.1.1...v6.0.0) (2026-10-10)
 
 
