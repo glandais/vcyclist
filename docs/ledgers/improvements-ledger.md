@@ -892,9 +892,11 @@ power *also* penalised in the cost function — so quoting it as a slew bound is
 **modelling bound, not a physiological measurement**: nobody has measured how fast a rider can
 change power.
 
-Measured cost is small — `stelvio.gpx` 578 → 581 s, `sample.gpx` 19 215 → 19 218 s — and that is
-expected: with a *constant* power target there is nothing to smooth except the start of the ride and
-the corner exits. Worst observed |ΔP/Δt| between pedalling points on `sample.gpx` drops from 62 to
+Measured cost is small — `stelvio.gpx` 594 → 602 s (+1.3 %), `sample.gpx` 19 507 → 19 660 s
+(+0.8 %) — and that is expected: with a *constant* power target there is nothing to smooth except the
+start of the ride and the corner exits. The corner exits are nearly all of it: first measured at
+578 → 581 s and 19 215 → 19 218 s, while the exits still jumped straight back to the target (see
+below). Worst observed |ΔP/Δt| between pedalling points on `sample.gpx` drops from 62 to
 48 W/s. It becomes load-bearing only when a provider reacts to terrain, which is R19.
 
 **One emergent property worth keeping.** The pedal-strike cut-off (R10) is applied downstream in

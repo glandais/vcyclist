@@ -108,10 +108,11 @@ class EngineJsApiLedgerTest {
             if (dtS <= 0.0) continue
             val a = getField(path, i, field)
             val b = getField(path, i - 1, field)
-            // Skip any transition touching zero, as the commonTest suite does. Two unrelated things
-            // produce one: the pedal-strike cut-off (R10), deliberately not rate-limited, and the
-            // final point of the track, for which the provider is never called at all — its field
-            // stays zero-initialised, which reads as a 300 W drop that never happened.
+            // Skip any transition touching zero. Two unrelated things produce one: the pedal-strike
+            // cut-off (R10), deliberately not rate-limited, and the final point of the track, for
+            // which the provider is never called at all — its field stays zero-initialised, which
+            // reads as a 300 W drop that never happened. The rise back out of a cut *is* bounded;
+            // `FormalModelSlewPedalCutTest` pins it, since these tracks never cut the pedals.
             if (a == 0.0 || b == 0.0) continue
             worst = maxOf(worst, abs(a - b) / dtS)
         }
