@@ -490,6 +490,9 @@ the *smoothed* curve's own arclength, not the raw path's; and the scale-selectio
 measured from the trace at the *widest* window, since a fixed allowance rejects wide windows first
 and a narrow-window measurement mistakes jitter for signal.
 
+A duplicated first trackpoint takes the first real chord's heading rather than due east, which
+had put a ~25 m corner at the start of a straight road; `FormalModelCurvatureTest` pins it.
+
 ### R24 — Racing line (optimal trajectory through corners) ✅, opt-in
 
 The trajectory half of [`docs/archive/plans/racing-line-design.md`](../archive/plans/racing-line-design.md), shipped behind
