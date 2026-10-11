@@ -34,19 +34,28 @@ internal class OffsetEnergy(
     val h1: DoubleArray,
     val h2: DoubleArray,
     val linear: DoubleArray,
-    /** `½·gᵀ…`-free constant term; needed only so [value] returns a true energy. */
-    private val constant: Double,
 ) {
     val size: Int get() = h0.size
 
-    /** `E(n) = ½·nᵀHn + bᵀn + c`. */
-    fun value(
-        n: DoubleArray,
+    /**
+     * `E(to) − E(from) = gᵀΔ + ½·ΔᵀHΔ` with `Δ = to − from` and [gradient] `= ∇E(from)`.
+     *
+     * Computed from `Δ` directly rather than as a difference of two energies: those are O(1)
+     * sums that nearly cancel, and their rounding noise (~1e-9) exceeds the decrease a Newton step
+     * makes near the optimum. The constant term drops out, which is why the energy does not store
+     * one. [delta] and [scratch] are work arrays of size [size].
+     */
+    fun change(
+        from: DoubleArray,
+        to: DoubleArray,
+        gradient: DoubleArray,
+        delta: DoubleArray,
         scratch: DoubleArray,
     ): Double {
-        BandedLdl.multiply(h0, h1, h2, n, scratch)
-        var acc = constant
-        for (i in n.indices) acc += 0.5 * scratch[i] * n[i] + linear[i] * n[i]
+        for (i in delta.indices) delta[i] = to[i] - from[i]
+        BandedLdl.multiply(h0, h1, h2, delta, scratch)
+        var acc = 0.0
+        for (i in delta.indices) acc += (gradient[i] + 0.5 * scratch[i]) * delta[i]
         return acc
     }
 
@@ -80,7 +89,6 @@ internal class OffsetEnergy(
             val h1 = DoubleArray(n)
             val h2 = DoubleArray(n)
             val linear = DoubleArray(n)
-            var constant = 0.0
 
             val lambdaR = 1.0 / (steeringLengthM * steeringLengthM)
             val lambdaC = 1.0 / (centeringLengthM * centeringLengthM * centeringLengthM * centeringLengthM)
@@ -101,7 +109,6 @@ internal class OffsetEnergy(
                 // that keeps H strictly positive definite — wherever the station has length.
                 h0[i] += 2.0 * weight * lambdaC
                 linear[i] -= 2.0 * weight * lambdaC * center[i]
-                constant += weight * lambdaC * center[i] * center[i]
 
                 // The middle one of three coincident stations (a GPS logger standing still) has no
                 // length at all: zero centring weight, and its own stencil and both neighbours'
@@ -149,10 +156,9 @@ internal class OffsetEnergy(
                         }
                     }
                 }
-                constant += wRho * kappaI * kappaI
             }
 
-            return OffsetEnergy(h0, h1, h2, linear, constant)
+            return OffsetEnergy(h0, h1, h2, linear)
         }
     }
 }
