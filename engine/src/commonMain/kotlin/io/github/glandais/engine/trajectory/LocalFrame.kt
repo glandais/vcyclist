@@ -141,8 +141,16 @@ internal object LocalFrame {
         }
     }
 
-    /** Wrap an angle difference into `(-π, π]` without a loop — exact, and branch-free. */
-    fun unwrap(a: Double): Double = a - 2.0 * PI * round(a / (2.0 * PI))
+    /**
+     * Wrap an angle difference into `(-π, π]` without a loop — exact.
+     *
+     * `round` breaks ties half-to-even, so an odd multiple of π lands on either end of the range
+     * (`unwrap(-π)` and `unwrap(3π)` both come out at `-π`); the one branch folds that end onto `π`.
+     */
+    fun unwrap(a: Double): Double {
+        val r = a - 2.0 * PI * round(a / (2.0 * PI))
+        return if (r <= -PI) r + 2.0 * PI else r
+    }
 
     /**
      * Distance-weighted triangular convolution of [v] against the arclength [s], two-pointer,
