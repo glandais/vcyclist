@@ -1,8 +1,10 @@
 package io.github.glandais.engine.trajectory
 
+import io.github.glandais.elevation.EarthConstants
 import io.github.glandais.engine.path.Path
 import kotlin.math.PI
 import kotlin.math.abs
+import kotlin.math.cos
 import kotlin.test.Test
 import kotlin.test.assertTrue
 
@@ -114,5 +116,43 @@ class FormalModelCurvatureTest {
             val u = LocalFrame.unwrap(a)
             assertTrue(u > -PI && u <= PI, "unwrap($a) = $u is outside (-π, π]")
         }
+    }
+
+    /**
+     * Contract: [RacingLine.compute] returns a [Path], whose longitudes are radians in `[-π, π]`
+     * (the GPX/FIT range every writer and `longitudeDeg` assume). [LocalFrame.project] handles a
+     * path straddling the antimeridian by anchoring `lon0` on the first point and unwrapping every
+     * longitude about it — but [LocalFrame.unproject] is "exact" only modulo 2π: it returns
+     * `lon0 + x / (R·k)` with no re-wrap.
+     *
+     * Counterexample: a straight 200 m road at 16.8°S crossing 180° (Taveuni, Fiji, has real
+     * roads across it). `lon0 = 179.999°`; every station east of the meridian is written back as
+     * `> 180°` (e.g. 180.0009°), i.e. `longitude > π`. This runs in the shipped pipeline whenever
+     * `racingLine.enabled` is set.
+     */
+    @Test
+    fun racingLineAcrossTheAntimeridianKeepsLongitudesInRange() {
+        val n = 101
+        val lat = -16.8 * PI / 180.0
+        val dLon = 2.0 / (EarthConstants.MEAN_RADIUS * cos(lat))
+        val start = PI - 50 * dLon
+        val path = Path(n)
+        for (i in 0 until n) {
+            var lon = start + i * dLon
+            if (lon > PI) lon -= 2 * PI
+            path.setLatitude(i, lat)
+            path.setLongitude(i, lon)
+            path.setElevation(i, 10.0)
+        }
+        path.computeDerivedData()
+        assertTrue(path.totalDistance < 250.0, "fixture should be a 200 m road, got ${path.totalDistance}")
+
+        val out = RacingLine.compute(path)
+        val bad = (0 until n).filter { abs(out.longitude(it)) > PI }
+        assertTrue(
+            bad.isEmpty(),
+            "${bad.size} racing-line longitudes outside [-180°, 180°], e.g. station ${bad.firstOrNull()} " +
+                "at ${bad.firstOrNull()?.let { out.longitudeDeg(it) }}°",
+        )
     }
 }
