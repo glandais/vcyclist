@@ -6,6 +6,7 @@ import io.github.glandais.elevation.MathConstants
 import io.github.glandais.engine.path.Path
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertNotNull
 import kotlin.test.assertTrue
 import kotlin.time.Instant
 
@@ -68,5 +69,37 @@ class FormalModelFitCourseTest {
             "record distances must be monotone across the course, got $distances",
         )
         assertEquals(a.totalDistance + b.totalDistance, distances.last(), 0.02)
+    }
+
+    /**
+     * Contract: [FitUnits.degreesToSemicircles] converts a longitude to FIT semicircles, and
+     * position is "not optional" (PathToFit KDoc). FIT `position_long` is a sint32 whose value
+     * `0x7FFFFFFF` is the *invalid* sentinel; 180 deg and -180 deg are the same meridian and wrap
+     * to `-2^31`.
+     *
+     * Lean (`lon179_9999999_is_sentinel`, `sentinel_band`): at GPX's usual 7-decimal precision,
+     * exactly the longitudes 179.9999999 and 180.0 map to `0x7FFFFFFF` — the first by rounding,
+     * the second through `roundToInt`'s saturation — so the record is read back with *no*
+     * longitude. `-180.0` maps to `-2^31`, valid: the encoding is asymmetric. A course crossing
+     * the antimeridian (Fiji, Chukotka, which `FieldInterpolation` explicitly supports and folds
+     * into `[-π, π]`) reaches it.
+     */
+    @Test
+    fun longitudeNear180IsNotEncodedAsTheInvalidSentinel() {
+        val p =
+            path(
+                doubleArrayOf(-16.8, -16.8, -16.8),
+                doubleArrayOf(179.9999998, 179.9999999, 180.0),
+                doubleArrayOf(0.0, 1000.0, 2000.0),
+            )
+
+        val records = decode(p.toFitBytes("fiji", start)).recordMesgs
+        for ((i, r) in records.withIndex()) {
+            val lon = assertNotNull(r.positionLong, "record $i lost its longitude (lon ${p.longitudeDeg(i)})")
+            val deg = FitUnits.semicirclesToDegrees(lon)
+            // Same meridian whichever side of the seam it is written on.
+            val diff = ((deg - p.longitudeDeg(i)) % 360.0 + 540.0) % 360.0 - 180.0
+            assertEquals(0.0, diff, 1e-6, "record $i longitude")
+        }
     }
 }
