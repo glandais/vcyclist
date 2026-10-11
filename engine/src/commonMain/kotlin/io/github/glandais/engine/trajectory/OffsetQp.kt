@@ -41,7 +41,7 @@ internal class QpResult(
  * statement about the residual and not about the solver's patience: `false` means the iteration
  * cap was reached. The other exits — a non-positive pivot, a direction that is not descent, a
  * failed line search with nothing clipped — are defensive and not expected for this energy.
-
+ *
  * ## Scale invariance
  *
  * Both tolerances are relative, and that is not fussiness. The energy and its gradient scale with
@@ -225,11 +225,21 @@ internal object OffsetQp {
         g: Double,
         epsilon: Double,
     ): Boolean {
-        if (hi - lo <= 2.0 * epsilon) return false
+        if (isFixed(lo, hi, epsilon)) return false
         if (x <= lo + epsilon && g > 0.0) return false
         if (x >= hi - epsilon && g < 0.0) return false
         return true
     }
+
+    /**
+     * A station whose corridor is narrower than the snap width on both sides — a pin — is never
+     * free, whatever the iterate and the gradient. [OffsetEnergy.assemble] needs the same test.
+     */
+    fun isFixed(
+        lo: Double,
+        hi: Double,
+        epsilon: Double,
+    ): Boolean = hi - lo <= 2.0 * epsilon
 
     /**
      * Build the reduced Hessian over the free set, still banded.
