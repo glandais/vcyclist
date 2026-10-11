@@ -12,6 +12,7 @@ import com.garmin.fit.types.File
 import com.garmin.fit.types.Manufacturer
 import com.garmin.fit.types.Sport
 import kotlin.math.roundToInt
+import kotlin.math.roundToLong
 import kotlin.time.Duration
 import kotlin.time.Duration.Companion.milliseconds
 import kotlin.time.Instant
@@ -149,7 +150,15 @@ object FitEncoder {
             FitSport.GENERIC -> Sport.GENERIC
         }
 
-    private fun Double.secondsAsDuration(): Duration = (this * 1000.0).toLong().milliseconds
+    /**
+     * Rounded, not truncated: `totalElapsedTimeS` is `durationMs / 1000.0`, and the round trip
+     * through seconds is inexact — `1001.0 / 1000.0 * 1000.0` is `1000.9999999999999`. Truncating
+     * lost that millisecond, and with a sub-second start instant the lap END fell one whole second
+     * before its last record (whose offset is the truncated `durationMs`) and its `STOP` event.
+     * Rounding recovers `durationMs` exactly for whole milliseconds and never undershoots its
+     * truncation otherwise, so the lap always ends at or after its last record.
+     */
+    private fun Double.secondsAsDuration(): Duration = (this * 1000.0).roundToLong().milliseconds
 
     /** Arbitrary but stable placeholder identifiers. */
     private const val PRODUCT_ID: UShort = 12345u

@@ -72,6 +72,31 @@ class FormalModelFitCourseTest {
     }
 
     /**
+     * Contract: a lap's `timestamp` is its END (FitEncoder KDoc, "a classic FIT trap"), and the lap
+     * totals "must agree with the records" (FitLap KDoc). The lap therefore cannot end before the
+     * last record it summarises, nor before the `TIMER`/`STOP_ALL` event that closes it.
+     *
+     * Lean (`FitArith.lean`, Float model of `secondsAsDuration`): `(1001.0 / 1000.0) * 1000.0`
+     * is `1000.9999999999999`, truncated by `toLong()` to 1000 ms; one millisecond is lost for
+     * 23 602 of the integer durations up to one hour. TLC (`LapEndCoversRecords`): with a start
+     * instant at `.999` s (the JS/WASI façades take `startTimeEpochMs`), the last record sits at
+     * `start + 1001 ms` = a whole second, the lap end at `start + 1000 ms` = one second earlier.
+     */
+    @Test
+    fun lapEndIsNotBeforeTheLastRecord() {
+        val startMs = Instant.fromEpochMilliseconds(start.toEpochMilliseconds() + 999)
+        val p = path(doubleArrayOf(45.0, 45.0001), doubleArrayOf(6.0, 6.0), doubleArrayOf(0.0, 1001.0))
+
+        val messages = decode(p.toFitBytes("lap", startMs))
+        val lastRecord = messages.recordMesgs.last().timestamp!!
+        val stop = messages.eventMesgs.last().timestamp!!
+        val lapEnd = messages.lapMesgs.single().timestamp!!
+
+        assertTrue(lapEnd >= lastRecord, "lap ends at $lapEnd, before its last record at $lastRecord")
+        assertTrue(lapEnd >= stop, "lap ends at $lapEnd, before the STOP_ALL event at $stop")
+    }
+
+    /**
      * Contract: [FitUnits.degreesToSemicircles] converts a longitude to FIT semicircles, and
      * position is "not optional" (PathToFit KDoc). FIT `position_long` is a sint32 whose value
      * `0x7FFFFFFF` is the *invalid* sentinel; 180 deg and -180 deg are the same meridian and wrap
