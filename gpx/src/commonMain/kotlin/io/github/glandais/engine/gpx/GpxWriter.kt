@@ -16,6 +16,9 @@ import kotlin.time.Instant
  *  - heart rate / cadence / ambient temperature → inside `<gpxtpx:TrackPointExtension>`
  *  - power → at the top of `<extensions>`, non-namespaced
  *
+ * Numbers are written as `xsd:decimal`, the GPX 1.1 type of `lat`/`lon`/`ele` — never in
+ * scientific notation, and the same text on every target (see [GpxDecimal]).
+ *
  * Every entry point takes `writeExtensions` (default `true`, i.e. the pre-g23 behaviour to the
  * byte). Pass `false` for a bare GPX — a strict import target, a readable diff, an old GPS unit,
  * or simply a smaller file, since on a 1 Hz track the extensions are most of the bytes.
@@ -153,10 +156,10 @@ object GpxWriter {
         waypoint: GpxWaypoint,
     ) {
         w.startTag(NS_GPX, "wpt", "")
-        w.attribute(null, "lat", null, waypoint.latitudeDeg.toString())
-        w.attribute(null, "lon", null, waypoint.longitudeDeg.toString())
+        w.attribute(null, "lat", null, GpxDecimal.format(waypoint.latitudeDeg))
+        w.attribute(null, "lon", null, GpxDecimal.format(waypoint.longitudeDeg))
 
-        waypoint.elevationM?.let { writeSimpleText(w, "ele", it.toString()) }
+        waypoint.elevationM?.let { writeSimpleText(w, "ele", GpxDecimal.format(it)) }
         waypoint.timeEpochMs?.let { ms ->
             writeSimpleText(w, "time", Instant.fromEpochMilliseconds(ms).toString())
         }
@@ -187,7 +190,7 @@ object GpxWriter {
         track.type?.let { writeSimpleText(w, "type", it) }
         // One <trkseg> per segment, preserving the discontinuities the parser saw. A track built
         // through the single-segment `GpxTrack(points = …)` factory still emits exactly one
-        // <trkseg>, so single-track output is byte-identical to pre-g02.
+        // <trkseg>, as it did before segments were modelled.
         for (segment in track.segments) {
             w.startTag(NS_GPX, "trkseg", "")
             for (p in segment.points) writeTrackPoint(w, p, writeExtensions)
@@ -222,14 +225,16 @@ object GpxWriter {
         localName: String = "trkpt",
     ) {
         w.startTag(NS_GPX, localName, "")
-        w.attribute(null, "lat", null, p.latitudeDeg.toString())
-        w.attribute(null, "lon", null, p.longitudeDeg.toString())
+        w.attribute(null, "lat", null, GpxDecimal.format(p.latitudeDeg))
+        w.attribute(null, "lon", null, GpxDecimal.format(p.longitudeDeg))
 
+        // `ele` before `time`: GPX 1.1 `wptType`, shared by wpt/rtept/trkpt, is an ordered
+        // sequence that starts `ele, time`, and strict parsers reject the other order.
+        p.elevationM?.let { ele ->
+            writeSimpleText(w, "ele", GpxDecimal.format(ele))
+        }
         p.timeEpochMs?.let { ms ->
             writeSimpleText(w, "time", Instant.fromEpochMilliseconds(ms).toString())
-        }
-        p.elevationM?.let { ele ->
-            writeSimpleText(w, "ele", ele.toString())
         }
 
         val hasGarminExt = p.heartRate != null || p.cadence != null || p.temperatureC != null
@@ -237,16 +242,9 @@ object GpxWriter {
         val hasRoadWidth = p.roadWidthM != null
         if (writeExtensions && (hasGarminExt || hasPower || hasRoadWidth)) {
             w.startTag(NS_GPX, "extensions", "")
-            if (hasPower) {
-                // <power> at extensions root, non-namespaced — matches sample.gpx convention.
-                writeSimpleText(w, "power", p.powerW.toString())
-            }
-            if (hasRoadWidth) {
-                // Namespaced, unlike <power>: no standard schema defines a road width, so this is
-                // ours to declare rather than to squat on a bare name. It lowercases to the same
-                // local name the parser accepts, so the round-trip closes.
-                writeNamespaced(w, NS_VCYCLIST, "roadWidth", PREFIX_VCYCLIST, p.roadWidthM.toString())
-            }
+            // <power> at extensions root, non-namespaced — matches sample.gpx convention.
+            p.powerW?.let { writeSimpleText(w, "power", GpxDecimal.format(it)) }
+            p.roadWidthM?.let { writeRoadWidth(w, it) }
             if (hasGarminExt) {
                 w.startTag(NS_GARMIN_TPX, "TrackPointExtension", PREFIX_GARMIN_TPX)
                 p.heartRate?.let {
@@ -256,7 +254,7 @@ object GpxWriter {
                     writeNamespaced(w, NS_GARMIN_TPX, "cad", PREFIX_GARMIN_TPX, it.toString())
                 }
                 p.temperatureC?.let {
-                    writeNamespaced(w, NS_GARMIN_TPX, "atemp", PREFIX_GARMIN_TPX, it.toString())
+                    writeNamespaced(w, NS_GARMIN_TPX, "atemp", PREFIX_GARMIN_TPX, GpxDecimal.format(it))
                 }
                 w.endTag(NS_GARMIN_TPX, "TrackPointExtension", PREFIX_GARMIN_TPX)
             }
@@ -265,6 +263,16 @@ object GpxWriter {
 
         w.endTag(NS_GPX, localName, "")
     }
+
+    /**
+     * `<vc:roadWidth>`. Namespaced, unlike `<power>`: no standard schema defines a road width, so
+     * this is ours to declare rather than to squat on a bare name. It lowercases to the same local
+     * name the parser accepts, so the round-trip closes.
+     */
+    private fun writeRoadWidth(
+        w: XmlWriter,
+        widthM: Double,
+    ) = writeNamespaced(w, NS_VCYCLIST, "roadWidth", PREFIX_VCYCLIST, GpxDecimal.format(widthM))
 
     /** Emit `<localName>text</localName>` in the default GPX namespace. */
     private fun writeSimpleText(
