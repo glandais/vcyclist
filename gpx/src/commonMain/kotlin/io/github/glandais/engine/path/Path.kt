@@ -6,6 +6,7 @@ import io.github.glandais.elevation.Distance
 import io.github.glandais.elevation.LatLon
 import io.github.glandais.elevation.LatLonElevation
 import io.github.glandais.elevation.MathConstants
+import kotlin.math.PI
 import kotlin.math.atan2
 import kotlin.math.cos
 import kotlin.math.max
@@ -282,23 +283,31 @@ class Path(
         boundsRad = BoundsRad.EMPTY
     }
 
-    /** Bearing between two points in radians, using simple cylindrical projection (good enough
-     *  for short segments at non-polar latitudes). Port of `Path.ts#computeBearing`. */
+    /**
+     * Bearing between two points in radians, in a local equirectangular frame anchored on the
+     * segment (good enough for short segments at non-polar latitudes): `dx` is the longitude
+     * *difference*, wrapped into `(−π, π]` so the antimeridian is one step, scaled by the cosine of
+     * the mean latitude; `dy` is the latitude difference. Returns `atan2(-dy, dx)` — eastbound `0`,
+     * northbound `−π/2` — the convention `AeroPowerProvider` and `PathWind` rely on.
+     *
+     * It used to project each point on its own (`x = lon·cos(lat)`), which sheared the frame by
+     * `∂x/∂lat = −lon·sin(lat)`: a due-north ride read −38° instead of −90° at 120°W. The bearing
+     * of a step must not depend on which meridian it is on (`FormalModelBearingTest`).
+     */
     private fun computeBearing(
         from: Int,
         to: Int,
     ): Double {
         val lat1 = latitude(from)
-        val lon1 = longitude(from)
         val lat2 = latitude(to)
-        val lon2 = longitude(to)
-        // Cylindrical projection (x = lon * cos(lat), y = lat)
-        val x1 = lon1 * cos(lat1)
-        val y1 = lat1
-        val x2 = lon2 * cos(lat2)
-        val y2 = lat2
-        val dy = y2 - y1
-        val dx = x2 - x1
+        var dLon = longitude(to) - longitude(from)
+        if (dLon > PI) {
+            dLon -= 2 * PI
+        } else if (dLon <= -PI) {
+            dLon += 2 * PI
+        }
+        val dx = dLon * cos((lat1 + lat2) / 2)
+        val dy = lat2 - lat1
         return atan2(-dy, dx)
     }
 

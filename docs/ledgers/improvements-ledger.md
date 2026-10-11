@@ -438,7 +438,11 @@ the estimator could ship on its own. It did, as `:engine`'s `trajectory` package
    the resampler's spacing rather than on the road.
 3. **`computeBearing` shear.** `x = lon·cos(lat)` with *absolute* longitude gives
    `∂x/∂lat = −lon·sin(lat)` — 4.2° of shear on a due-north segment at 6°E/45°N, growing linearly
-   with longitude.
+   with longitude. The estimator sidestepped it with its own anchored `PlanarFrame`; `path.bearing`
+   itself stayed sheared until `computeBearing` was changed to project the wrapped longitude
+   *difference* at the segment's mean latitude (`FormalModelBearingTest`: a due-north ride read
+   −38° instead of −90° at 120°W). That fix also corrected the wind angle in `AeroPowerProvider`
+   and the windowed fallback of `MaxSpeedComputer`, the two remaining readers of `path.bearing`.
 
 Because `radius` feeds the cornering limit, the R11 friction ellipse, `pBrake` and R10's
 pedal-strike cut-off, one wrong radius is wrong in four places.

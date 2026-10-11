@@ -11,9 +11,9 @@ import kotlin.math.sin
  * lat/lon so the stage under test has to do its own projection.
  *
  * Everything is anchored at 45°N 6°E — deliberately *not* on the prime meridian, because the
- * shear defect in `Path.computeBearing` is proportional to absolute longitude and vanishes at
- * `lon = 0`. A fixture built at Greenwich would silently pass tests that the shipped estimator
- * fails everywhere people actually ride.
+ * shear defect `Path.computeBearing` used to have was proportional to absolute longitude and
+ * vanished at `lon = 0`. A fixture built at Greenwich would silently pass tests that a sheared
+ * estimator fails everywhere people actually ride.
  */
 internal object CurvatureFixtures {
     const val LAT0_DEG = 45.0
