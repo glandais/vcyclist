@@ -901,7 +901,11 @@ the corner exits. Worst observed |ΔP/Δt| between pedalling points on `sample.g
 `MuscularPowerProvider` and is deliberately *not* rate-limited, so power drops instantly at the lean
 threshold and ramps back at 50 W/s on the way out. That is the "drop quickly and locally, rise
 gradually" asymmetry [`04 §4.3`](../research/04-behavioral-modeling.md) describes — reproduced without modelling
-it, from two independent constraints.
+it, from two independent constraints. It holds only because the limiter books the power
+*delivered* (`onDelivered`), not its own answer: until that was fixed it measured the exit against
+the full target it had kept returning through the corner, and power jumped from 0 straight back to
+it in one step — hidden by the measurement above, which skips the zero points
+(`FormalModelSlewPedalCutTest`).
 
 ### R19 — Pacing heuristic ✅ (the reactive half)
 
