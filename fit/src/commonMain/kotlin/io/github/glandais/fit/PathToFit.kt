@@ -21,7 +21,7 @@ import kotlin.time.Instant
  * | `timestamp` | [startTime] + (`TIME(i)` − `TIME(0)`) ms — see *Rebasing* below |
  * | `latitudeDeg` / `longitudeDeg` | `LATITUDE` / `LONGITUDE`, radians → degrees |
  * | `altitudeM` | `ELEVATION` |
- * | `distanceM` | `DISTANCE` |
+ * | `distanceM` | `DISTANCE`, plus the total distance of the paths before it — see [List.toFitCourse] |
  * | `speedMs` | `SPEED` |
  * | `powerW` | `POWER` (`pComputedPower`) — the pipeline's *output* power |
  * | `heartRate` / `cadence` / `temperatureC` | the matching fields, when present |
@@ -81,6 +81,11 @@ fun Path.toFitBytes(
  * straight on from one another, which matches the dominant case: one ride cut into several
  * traces. A non-zero gap is **not** a pause — FIT expresses those with `TIMER`/`PAUSE` events,
  * which this port does not emit — it simply shifts the following path's clock.
+ *
+ * Record distance is carried across paths the same way: `Path.computeDerivedData` restarts
+ * `DISTANCE` at 0 on every path, so each path's distances are offset by the total distance of
+ * the paths before it, keeping [FitRecord.distanceM] cumulative from the course start — the axis
+ * a head unit navigates on. Each lap's `totalDistanceM` stays that path's own distance.
  */
 fun List<Path>.toFitCourse(
     name: String,
@@ -92,10 +97,12 @@ fun List<Path>.toFitCourse(
     require(all { it.size > 0 }) { "Cannot build a FIT course from an empty Path" }
 
     var segmentStart = startTime
+    var segmentDistanceStart = 0.0
     val segments =
         map { path ->
-            val segment = path.toFitSegment(segmentStart)
+            val segment = path.toFitSegment(segmentStart, segmentDistanceStart)
             segmentStart = segment.records.last().timestamp + interPathGap
+            segmentDistanceStart = segment.records.last().distanceM
             segment
         }
     return FitCourse(name = name, startTime = startTime, segments = segments, sport = sport)
@@ -109,7 +116,10 @@ fun List<Path>.toFitBytes(
     interPathGap: Duration = Duration.ZERO,
 ): ByteArray = FitEncoder.encode(toFitCourse(name, startTime, sport, interPathGap))
 
-private fun Path.toFitSegment(startTime: Instant): FitSegment {
+private fun Path.toFitSegment(
+    startTime: Instant,
+    distanceStart: Double,
+): FitSegment {
     val t0 = time(0)
     for (i in 1 until size) {
         require(time(i) >= time(i - 1)) {
@@ -124,7 +134,7 @@ private fun Path.toFitSegment(startTime: Instant): FitSegment {
                 latitudeDeg = latitude(i) * MathConstants.RAD_TO_DEG,
                 longitudeDeg = longitude(i) * MathConstants.RAD_TO_DEG,
                 altitudeM = elevation(i).takeUnless { it.isNaN() },
-                distanceM = distance(i),
+                distanceM = distanceStart + distance(i),
                 speedMs = speed(i).takeUnless { it.isNaN() },
                 powerW = pComputedPower(i).optionalComputed()?.roundToInt(),
                 heartRate = heartRate(i).optionalSensor()?.roundToInt(),
