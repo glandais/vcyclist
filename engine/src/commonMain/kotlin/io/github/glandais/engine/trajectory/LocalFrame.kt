@@ -110,6 +110,10 @@ internal object LocalFrame {
      * Exact, because the forward map is a fixed affine transform — `k = cos(lat0)` is a constant,
      * not a per-point cosine. That is the whole reason the frame is anchored once instead of being
      * re-derived per corner.
+     *
+     * Exact modulo 2π, that is: on a path straddling the antimeridian [project] unwraps every
+     * longitude about the first point, so `lon0 + x/(R·k)` runs past ±π. The longitude is wrapped
+     * back into `(-π, π]` — a no-op anywhere else, since [unwrap] subtracts exactly zero there.
      */
     fun unproject(
         frame: PlanarFrame,
@@ -117,7 +121,7 @@ internal object LocalFrame {
         y: Double,
     ): DoubleArray {
         val lat = frame.lat0 + y / EarthConstants.MEAN_RADIUS
-        val lon = frame.lon0 + x / (EarthConstants.MEAN_RADIUS * frame.k)
+        val lon = unwrap(frame.lon0 + x / (EarthConstants.MEAN_RADIUS * frame.k))
         return doubleArrayOf(lat, lon)
     }
 
