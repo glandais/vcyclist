@@ -19,7 +19,9 @@ package io.github.glandais.engine.trajectory
  * - **`(n − n̄)²`** is a centring prior pulling toward the projection of zero onto the corridor.
  *   It is what makes the failure mode under noise "stay put" rather than "wander", and it is also
  *   what makes the Hessian *strictly* positive definite rather than merely semi-definite — the
- *   first two terms alone have a null space.
+ *   first two terms alone have a null space. Its weight is a station's length, so a station with
+ *   none (the middle of three coincident GPS fixes) is tied to its predecessor instead; see
+ *   [assemble].
  *
  * Weights are arclength, `w_i = Δs_i`, so the energy is an integral over the route rather than a
  * sum over however the resampler happened to place stations.
@@ -83,6 +85,9 @@ internal class OffsetEnergy(
             val lambdaR = 1.0 / (steeringLengthM * steeringLengthM)
             val lambdaC = 1.0 / (centeringLengthM * centeringLengthM * centeringLengthM * centeringLengthM)
 
+            val meanSpacing = if (n > 1) (frame.s[n - 1] - frame.s[0]) / (n - 1) else 0.0
+            val tie = if (meanSpacing > 0.0) lambdaR / meanSpacing else lambdaR
+
             // Local stencil coefficients, reused per station.
             val a = DoubleArray(3)
             val b = DoubleArray(3)
@@ -93,10 +98,25 @@ internal class OffsetEnergy(
                 val weight = 0.5 * (hMinus + hPlus)
 
                 // Centring term: present at every station, including the ends. This is the term
-                // that keeps H strictly positive definite.
+                // that keeps H strictly positive definite — wherever the station has length.
                 h0[i] += 2.0 * weight * lambdaC
                 linear[i] -= 2.0 * weight * lambdaC * center[i]
                 constant += weight * lambdaC * center[i] * center[i]
+
+                // The middle one of three coincident stations (a GPS logger standing still) has no
+                // length at all: zero centring weight, and its own stencil and both neighbours'
+                // are skipped below. Its row of H would be identically zero, the free-set
+                // factorisation would hit a zero pivot, and the whole route would lose its line.
+                // Tie it to its predecessor with the steering cost of a jump over one mean
+                // spacing, `(n_i − n_{i−1})²·L_R⁻²/Δs̄`: the station has no geometry of its own,
+                // so it rides where its predecessor does, the tie costs nothing wherever the
+                // corridor lets it follow, and no route without such a station sees a different
+                // energy.
+                if (weight <= 0.0 && i >= 1) {
+                    h0[i] += 2.0 * tie
+                    h0[i - 1] += 2.0 * tie
+                    h1[i - 1] -= 2.0 * tie
+                }
 
                 if (i < 1 || i + 1 >= n) continue
                 val denom = hPlus * hMinus * (hPlus + hMinus)

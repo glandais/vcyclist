@@ -15,8 +15,9 @@ package io.github.glandais.engine.trajectory
  * measures the residual rather than the solver's patience.
  *
  * Pivoting is skipped because the matrices this is used on are strictly positive definite by
- * construction — the trajectory energy's centring term contributes a positive multiple of the
- * identity — and `LDLᵀ` on a positive-definite matrix is stable without it. [factor] reports a
+ * construction — the trajectory energy's centring term contributes a positive diagonal, and a
+ * zero-length station that gets none is tied to its predecessor (`OffsetEnergy.assemble`) — and
+ * `LDLᵀ` on a positive-definite matrix is stable without it. [factor] reports a
  * non-positive pivot rather than continuing into nonsense, so the assumption is checked rather
  * than assumed.
  */
