@@ -71,6 +71,12 @@ internal object CurvatureEstimator {
      *
      * Heading at `i` comes from the `i−1 → i+1` chord — centred, so it is not biased forward or
      * backward — then unwrapped cumulatively so the result is continuous across ±π.
+     *
+     * Coincident neighbours carry no direction, so such a station holds the previous heading. A
+     * run of them at the very start has no previous heading to hold and takes the *first defined*
+     * one instead — a duplicated first trackpoint, common in device recordings, would otherwise
+     * read as due east and put a step of up to π at `s = 0`, which the regression windows turn
+     * into a ~25 m corner on a straight road. A frame with no defined chord at all reads `0.0`.
      */
     fun computeHeadings(frame: PlanarFrame) {
         val n = frame.size
@@ -82,21 +88,22 @@ internal object CurvatureEstimator {
             val b = if (i < n - 1) i + 1 else n - 1
             val dx = frame.x[b] - frame.x[a]
             val dy = frame.y[b] - frame.y[a]
-            val raw =
-                if (dx == 0.0 && dy == 0.0) {
-                    // Coincident neighbours carry no direction; hold the previous heading.
-                    if (previous.isNaN()) 0.0 else previous
-                } else {
-                    atan2(dy, dx)
-                }
-            theta[i] =
-                if (i == 0 || previous.isNaN()) {
-                    raw
-                } else {
-                    previous + LocalFrame.unwrap(raw - previous)
-                }
+            if (dx == 0.0 && dy == 0.0) {
+                // Coincident neighbours carry no direction; hold the previous heading, or leave it
+                // undefined until the first real chord back-fills it.
+                theta[i] = previous
+                continue
+            }
+            val raw = atan2(dy, dx)
+            if (previous.isNaN()) {
+                theta[i] = raw
+                for (j in 0 until i) theta[j] = raw
+            } else {
+                theta[i] = previous + LocalFrame.unwrap(raw - previous)
+            }
             previous = theta[i]
         }
+        if (previous.isNaN()) theta.fill(0.0)
     }
 
     /**
