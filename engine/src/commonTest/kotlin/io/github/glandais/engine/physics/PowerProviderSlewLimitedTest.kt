@@ -181,8 +181,8 @@ class PowerProviderSlewLimitedTest {
                 if (dtS <= 0.0 || !dtS.isFinite()) continue
                 val delta = abs(out.pCyclistProvidedMuscular(i) - out.pCyclistProvidedMuscular(i - 1))
                 // The pedal-strike cut-off (R10) is applied downstream and is deliberately not
-                // rate-limited, so only compare where both points are pedalling.
-                if (out.pCyclistProvidedMuscular(i) == 0.0 || out.pCyclistProvidedMuscular(i - 1) == 0.0) continue
+                // rate-limited, so a drop to zero is allowed; the rise out of it is not.
+                if (out.pCyclistProvidedMuscular(i) == 0.0) continue
                 assertTrue(
                     delta <= 50.0 * dtS + 1e-6,
                     "power jumped $delta W in $dtS s at $i",

@@ -30,15 +30,18 @@ import kotlin.math.abs
  * `PowerProviderSlewLimited(PowerProviderDurability(...))`.
  *
  * It reports the limited power to its delegate through [CyclistPowerProvider.onDelivered], and
- * forwards any report it receives, so a stateful delegate books what was actually ridden.
+ * forwards any report it receives, so a stateful delegate books what was actually ridden. It also
+ * books that report itself: the next point is measured against the power *delivered*, not against
+ * its own answer — otherwise a cut downstream would be invisible to it.
  *
  * Two behaviours worth knowing:
  * - **Rides start from zero.** The first point has no previous power, so the rider ramps up from
  *   a standstill at [maxSlewWPerS] rather than appearing at full power. That is the honest model
  *   and it resolves within a few points.
  * - **The pedal-strike cut-off is not rate-limited**, because it is applied downstream in
- *   [MuscularPowerProvider]. So power drops to zero the instant the bike leans past clearance and
- *   ramps back up on the way out — which is exactly the "drop quickly and locally, rise gradually"
+ *   [MuscularPowerProvider]. So power drops to zero the instant the bike leans past clearance and,
+ *   because [MuscularPowerProvider] reports that zero through [onDelivered], ramps back up at
+ *   [maxSlewWPerS] on the way out — which is exactly the "drop quickly and locally, rise gradually"
  *   asymmetry the pacing literature describes, arrived at without modelling it.
  *
  * Stateful, like [PowerProviderDurability] and for the same reason: the limit is a function of the
@@ -63,6 +66,9 @@ class PowerProviderSlewLimited(
     var lastPowerW: Double = 0.0
         private set
 
+    /** What [powerAt] returned for [lastIndex], so re-reading a point answers the same. */
+    private var lastLimitedW: Double = 0.0
+
     override fun powerAt(
         course: CoursePhysics,
         path: Path,
@@ -72,8 +78,8 @@ class PowerProviderSlewLimited(
 
         if (pointIndex < lastIndex) reset()
         if (pointIndex == lastIndex) {
-            delegate.onDelivered(pointIndex, lastPowerW)
-            return lastPowerW
+            delegate.onDelivered(pointIndex, lastLimitedW)
+            return lastLimitedW
         }
 
         val elapsedS = path.elapsed(pointIndex)
@@ -91,20 +97,29 @@ class PowerProviderSlewLimited(
         if (elapsedS.isFinite()) lastElapsedS = elapsedS
         lastIndex = pointIndex
         lastPowerW = limited
+        lastLimitedW = limited
         delegate.onDelivered(pointIndex, limited)
         return limited
     }
 
-    /** Forwarded to [delegate]; the slew limit itself stays measured against what it returned. */
+    /**
+     * Books [powerW] as the power delivered at [pointIndex], so the next point ramps from what was
+     * actually ridden — after a pedal-strike cut, from zero — and forwards it to [delegate].
+     * Ignored for the booking when [pointIndex] is not the point just asked about.
+     */
     override fun onDelivered(
         pointIndex: Int,
         powerW: Double,
-    ) = delegate.onDelivered(pointIndex, powerW)
+    ) {
+        if (pointIndex == lastIndex && powerW.isFinite()) lastPowerW = powerW
+        delegate.onDelivered(pointIndex, powerW)
+    }
 
     /** Forget the previous point — call before reusing the instance on another course. */
     fun reset() {
         lastIndex = -1
         lastElapsedS = 0.0
         lastPowerW = 0.0
+        lastLimitedW = 0.0
     }
 }
