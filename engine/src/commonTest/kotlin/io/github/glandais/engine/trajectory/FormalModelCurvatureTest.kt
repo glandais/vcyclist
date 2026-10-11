@@ -98,4 +98,21 @@ class FormalModelCurvatureTest {
             "90° turn at a sparse vertex reported as κ=$vertex (dead straight) instead of NaN or a bend",
         )
     }
+
+    /**
+     * Contract ([LocalFrame.unwrap] KDoc): "Wrap an angle difference into `(-π, π]`".
+     *
+     * Counterexample (Lean model of `kotlin.math.round`, which rounds half to even): for `a = -π`
+     * the quotient is exactly `-0.5`, which rounds to `-0.0`, so `unwrap(-π) = -π`, outside the
+     * half-open range; `3π` gives quotient `1.5 → 2` and also returns `-π`. The consequence in
+     * [CurvatureEstimator.computeHeadings] is that an exact reversal's sign follows the sign of a
+     * zero (`atan2(±0.0, -1) = ±π`) instead of being canonical.
+     */
+    @Test
+    fun unwrapStaysInTheHalfOpenRange() {
+        for (a in doubleArrayOf(-PI, 3 * PI, PI, -3 * PI)) {
+            val u = LocalFrame.unwrap(a)
+            assertTrue(u > -PI && u <= PI, "unwrap($a) = $u is outside (-π, π]")
+        }
+    }
 }
