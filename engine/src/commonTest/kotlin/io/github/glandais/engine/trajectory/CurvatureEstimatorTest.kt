@@ -158,9 +158,10 @@ class CurvatureEstimatorTest {
     /**
      * **Bug 3 — projection shear.**
      *
-     * `Path.computeBearing` projects with `x = lon·cos(lat)` using *absolute* longitude, so
-     * `∂x/∂lat = −lon·sin(lat)`: at 6°E / 45°N a due-north straight is sheared by 4.2°, and the
-     * error grows with longitude. A straight road must read as straight at any longitude.
+     * `Path.computeBearing` used to project with `x = lon·cos(lat)` using *absolute* longitude, so
+     * `∂x/∂lat = −lon·sin(lat)`: at 6°E / 45°N a due-north straight was sheared by 4.2°, and the
+     * error grew with longitude (since fixed, `FormalModelBearingTest`). A straight road must read
+     * as straight at any longitude.
      */
     @Test
     fun `a due-north straight is straight`() {

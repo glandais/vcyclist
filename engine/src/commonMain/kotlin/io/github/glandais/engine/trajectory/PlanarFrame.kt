@@ -5,12 +5,13 @@ package io.github.glandais.engine.trajectory
  *
  * ## Why a frame at all
  *
- * Curvature is a planar notion, and the only planar projection previously in the codebase is the
- * one inlined in `Path.computeBearing`, which uses **absolute** longitude with a per-point cosine
- * (`x = lon·cos(lat)`). That map is sheared: `∂x/∂lat = −lon·sin(lat)`, which at 6°E / 45°N is
- * `−0.074`, i.e. `atan(0.074) = 4.2°` of shear on a due-north segment — and it grows linearly
- * with longitude, so the error is worse the further east you ride. Anything derived from those
- * bearings inherits the shear.
+ * Curvature is a planar notion, and when this frame was written the only planar projection in the
+ * codebase was the one inlined in `Path.computeBearing`, which then used **absolute** longitude
+ * with a per-point cosine (`x = lon·cos(lat)`). That map was sheared: `∂x/∂lat = −lon·sin(lat)`,
+ * which at 6°E / 45°N is `−0.074`, i.e. `atan(0.074) = 4.2°` of shear on a due-north segment —
+ * growing linearly with longitude. `computeBearing` has since been fixed (it now projects the
+ * longitude *difference* at the segment's mean latitude), but a per-segment bearing is still no
+ * frame: it carries no positions, so curvature is measured here, not from `path.bearing`.
  *
  * This frame instead anchors **once**, at the bounds centre, and holds `k = cos(lat0)` constant:
  *
