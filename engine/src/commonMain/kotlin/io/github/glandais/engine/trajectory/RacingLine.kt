@@ -202,6 +202,7 @@ object RacingLine {
                 rho = rho,
                 steeringLengthM = options.steeringLengthM,
                 centeringLengthM = options.centeringLengthM,
+                fixed = BooleanArray(frame.size) { OffsetQp.isFixed(bounds.lo[it], bounds.hi[it], options.boundEpsilonM) },
             )
         // Start from the projection of zero — the rider's own line where that is feasible.
         //

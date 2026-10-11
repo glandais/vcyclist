@@ -243,6 +243,39 @@ class OffsetQpTest {
         )
     }
 
+    /**
+     * A logger that keeps recording at the finish repeats the last fix, and the end pins then land
+     * on zero-length copies. Tying those pinned copies to their free predecessor, as a free
+     * zero-length station is tied, dragged the last straight into a zigzag of up to 2.5 m between
+     * adjacent stations; left untied, it stays within a few centimetres from one station to the
+     * next, as it does without the pause.
+     */
+    @Test
+    fun `a GPS pause at the finish leaves the last straight smooth`() {
+        val options = RacingLineOptions(corridor = CorridorMode.FULL_ROAD)
+        val base = bendPath(30.0, PI / 2)
+        for (copies in listOf(3, 5)) {
+            val src = IntArray(base.size + copies - 1) { minOf(it, base.size - 1) }
+            val path = Path(src.size)
+            for ((j, i) in src.withIndex()) {
+                path.setLatitude(j, base.latitude(i))
+                path.setLongitude(j, base.longitude(i))
+                path.setElevation(j, base.elevation(i))
+            }
+            path.computeDerivedData()
+            val report = analyze(path, options)
+
+            assertInsideCorridor(report)
+            assertTrue(report.converged, "$copies copies: did not converge")
+            // The last 80 stations of the 100-station outbound straight, up to the last real fix.
+            var worst = 0.0
+            for (i in base.size - 80 until base.size) {
+                worst = maxOf(worst, abs(report.lateralOffsetM[i] - report.lateralOffsetM[i - 1]))
+            }
+            assertTrue(worst < 0.25, "$copies copies: adjacent stations 1.5 m apart differ by $worst m")
+        }
+    }
+
     @Test
     fun `results are reproducible`() {
         val path = bendPath(25.0, PI / 3)

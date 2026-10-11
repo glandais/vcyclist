@@ -76,6 +76,9 @@ internal class OffsetEnergy(
          * Stations 0 and `n−1` contribute no stencil: their neighbours do not both exist. They are
          * pinned by the corridor anyway, and the pins come in adjacent pairs precisely so the
          * bandwidth-2 stencil never reaches past them.
+         *
+         * @param fixed stations the corridor pins ([OffsetQp.isFixed]). They never enter the free
+         *   set, so a zero-length one needs no tie — and must not get one, see the tie below.
          */
         fun assemble(
             frame: PlanarFrame,
@@ -83,6 +86,7 @@ internal class OffsetEnergy(
             rho: DoubleArray,
             steeringLengthM: Double,
             centeringLengthM: Double,
+            fixed: BooleanArray,
         ): OffsetEnergy {
             val n = frame.size
             val h0 = DoubleArray(n)
@@ -117,9 +121,15 @@ internal class OffsetEnergy(
                 // Tie it to its predecessor with the steering cost of a jump over one mean
                 // spacing, `(n_i − n_{i−1})²·L_R⁻²/Δs̄`: the station has no geometry of its own,
                 // so it rides where its predecessor does, the tie costs nothing wherever the
-                // corridor lets it follow, and no route without such a station sees a different
-                // energy.
-                if (weight <= 0.0 && i >= 1) {
+                // corridor lets it follow, and no route without such a free station sees a
+                // different energy.
+                //
+                // A *pinned* zero-length station is left alone: it is never free, so its zero row
+                // is never factored, and a tie would drag its free predecessor onto the pin. A
+                // logger that keeps recording at the finish puts the end pins on the copies, and
+                // that pull came out as a zigzag of more than a metre between adjacent stations
+                // along the last straight, where the untied energy gives a smooth line.
+                if (weight <= 0.0 && i >= 1 && !fixed[i]) {
                     h0[i] += 2.0 * tie
                     h0[i - 1] += 2.0 * tie
                     h1[i - 1] -= 2.0 * tie
