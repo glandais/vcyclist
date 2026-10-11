@@ -125,8 +125,10 @@ private fun cornerJson(c: CornerSpan): String =
  * One asymmetry with the JS façade, and it is inherent rather than an oversight: the per-point
  * arrays carry `NaN` where a value was not computed, and JSON has no `NaN` literal, so
  * [jsonNumber] emits `null` for those slots — the convention this ABI already uses everywhere.
- * A host reading `centerlineCurvature` therefore sees `null`, not `NaN`, and must treat the two
- * as the same "not computed". The JS `DoubleArray` keeps the real `NaN`.
+ * A host reading `trajectoryCurvature` at a station no regression window could fit therefore
+ * sees `null`, not `NaN`, and must treat the two as the same "not computed". The JS `DoubleArray`
+ * keeps the real `NaN`. (`centerlineCurvature` is what the solver was given, so it reads `0.0`
+ * there, never `null`.)
  */
 internal fun racingLineReportJson(r: RacingLineReport): String =
     jsonObject(

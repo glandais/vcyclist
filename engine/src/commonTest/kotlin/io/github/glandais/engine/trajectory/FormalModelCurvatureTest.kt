@@ -14,7 +14,7 @@ import kotlin.test.assertTrue
  * `unwrap` and of the heading/regression pipeline) and in TLA+ (the [CornerDetector] span state
  * machine, whose invariants all held).
  *
- * Each test asserts the contracted behaviour, so it fails on the current code.
+ * Each test asserts the contracted behaviour, and each failed on the code before its fix.
  */
 class FormalModelCurvatureTest {
     /** Straight road of [n] points, [spacingM] apart, heading [headingRad] in the 45°N/6°E frame. */
