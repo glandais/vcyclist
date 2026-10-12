@@ -20,6 +20,9 @@ import kotlin.math.floor
  * metres, and blending them would put a step in the profile at every coastline. With no fallback
  * it reads 0 m — the sea-level convention the WASI host's "no tile here" already follows — so `NaN`
  * never reaches a caller, where the smoother would spread it over the whole ride.
+ *
+ * The exception is a raw LiDAR layer ([IgnLidarHdLayer.provider]), whose [fallback] answers `NaN`
+ * on purpose: there no-data must stay no-data, and its callers never smooth.
  */
 class ElevationCalculator(
     private val tileManager: TileManager,

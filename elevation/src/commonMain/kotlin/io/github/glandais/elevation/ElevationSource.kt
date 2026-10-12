@@ -53,32 +53,16 @@ enum class ElevationSource(
         get() =
             when (this) {
                 MAPTERHORN -> ElevationProviderConfig().zoomLevel
-                // 256-px tiles at z15 are ~3.4 m per pixel across France: a road bench resolved
-                // to a couple of samples, in a quarter-megabyte tile. z15 at 512 px would halve the
-                // pixel and quadruple the download — a 100 km ride already costs ~45 MB at this
-                // setting, uncompressed (the WMS does not gzip), and GPS error is metres anyway.
-                IGN_LIDAR_HD -> 15
+                IGN_LIDAR_HD -> IgnLidarHdLayer.MNT.defaultZoomLevel
             }
 
     /** The provider configuration for this source, at [zoomLevel] or the source's default. */
     fun config(zoomLevel: Int?): ElevationProviderConfig =
         when (this) {
             MAPTERHORN -> ElevationProviderConfig(zoomLevel = zoomLevel ?: defaultZoomLevel)
-            IGN_LIDAR_HD ->
-                ElevationProviderConfig(
-                    zoomLevel = zoomLevel ?: defaultZoomLevel,
-                    tileSize = IGN_TILE_SIZE,
-                    tileUrlTemplate = ignWmsTemplate(IGN_LIDAR_HD_MNT_LAYER, IGN_TILE_SIZE),
-                    encoding = TileEncoding.BIL32,
-                    // Half the Géoplateforme's published 40/s: the other half is for whatever
-                    // else shares the IP — the demo's own relief layer, a second run.
-                    maxRequestsPerSecond = 20,
-                    attribution =
-                        Attribution(
-                            text = "© IGN — LiDAR HD MNT, Licence Ouverte Etalab 2.0",
-                            url = "https://geoservices.ign.fr/lidarhd",
-                        ),
-                )
+            // One spelling of the IGN request, rate and attribution: the raw MNT layer is the same
+            // raster, and this source only adds the Mapterhorn fallback on top of it.
+            IGN_LIDAR_HD -> IgnLidarHdLayer.MNT.config(zoomLevel ?: defaultZoomLevel)
         }
 
     /** [config] at the source's default zoom. A separate overload because Java has no defaults. */
@@ -95,25 +79,6 @@ enum class ElevationSource(
         fun byId(id: String): ElevationSource =
             entries.firstOrNull { it.id == id }
                 ?: throw IllegalArgumentException("Unknown DEM source '$id' — expected one of ${ids.joinToString()}")
-
-        private const val IGN_TILE_SIZE = 256
-        private const val IGN_WMS_URL = "https://data.geopf.fr/wms-r/wms"
-        private const val IGN_LIDAR_HD_MNT_LAYER = "IGNF_LIDAR-HD_MNT_ELEVATION.ELEVATIONGRIDCOVERAGE.WGS84G"
-
-        /**
-         * A GetMap request covering one XYZ tile, with `{bbox}` left for [TileManager] to fill.
-         *
-         * EPSG:4326 rather than EPSG:3857: the service accepts the latter but resamples it one row
-         * out of two, which doubles the vertical gradient on every other row (measured in
-         * `leaflet-relief`, the same service). Rows then run linearly in latitude instead of in
-         * Mercator y, a shift below 0.005 px inside a z15 tile.
-         */
-        private fun ignWmsTemplate(
-            layer: String,
-            tileSize: Int,
-        ): String =
-            "$IGN_WMS_URL?SERVICE=WMS&VERSION=1.3.0&REQUEST=GetMap&LAYERS=$layer&STYLES=normal" +
-                "&CRS=EPSG:4326&BBOX={bbox}&WIDTH=$tileSize&HEIGHT=$tileSize&FORMAT=image%2Fx-bil%3Bbits%3D32"
     }
 }
 

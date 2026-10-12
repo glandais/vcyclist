@@ -339,6 +339,10 @@ and the whole point is then asked of the **Mapterhorn fallback** instead — nev
 three IGN samples around it, which would put a step in the profile at every coastline. A ride
 crossing into Italy is therefore IGN up to the border and Mapterhorn beyond it, not 0 m. Without a
 fallback (a custom `ElevationProvider`, or WASI — see the ABI guide), a no-data point reads 0 m.
+The one exception is `IgnLidarHdLayer.provider` (raw MNT / MNS / MNH layers for the bridge-deck
+detector; no door can name them): there a no-data point reads `NaN`, never 0 m nor Mapterhorn,
+and `withFallback` refuses such a provider.
+Sample those with `setElevations`, since a smoother would spread the `NaN`.
 
 **Measured** on `demo/public/gpx/sample.gpx` (130 km in Savoie, `--fix-elevation`, defaults
 otherwise), each point against its nearest neighbour in the other run:

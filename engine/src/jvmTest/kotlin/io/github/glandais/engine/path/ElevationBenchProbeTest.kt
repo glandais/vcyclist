@@ -2,6 +2,7 @@ package io.github.glandais.engine.path
 
 import io.github.glandais.elevation.ElevationProviderConfig
 import io.github.glandais.elevation.ElevationSource
+import io.github.glandais.elevation.IgnLidarHdLayer
 import io.github.glandais.elevation.MathConstants
 import io.github.glandais.elevation.RawTile
 import io.github.glandais.elevation.TileEncoding
@@ -43,16 +44,22 @@ import kotlin.test.assertTrue
  * estimated roadway of the analysis, frozen by `analysis/export_truth.py` into
  * `analysis/truth/` (one CSV per route) — LiDAR MNS median on detected decks, portal-to-portal line in
  * tunnels, Strava shifted onto the MNT frame on balcony spans (where the MNT reads the cliff), LiDAR
- * MNT elsewhere, all NGF-IGN69 — so the bench never calls Overpass or the MNS.
+ * MNT elsewhere, all NGF-IGN69 — so the E1 bench never calls Overpass or the MNS.
  *
- * Two tests:
+ * Four tests:
  * - [truth_files_parse_and_hold_their_guards] runs on every `jvmTest`: it only reads the frozen
  *   files, checks their sizes (so a broken reader fails loudly instead of measuring nothing) and
  *   the spec's guards (Saint-Nazaire at 63.7 m and a 5.9 % slope P95, Grands Goulets 600 → 681 m).
- * - [bench] is live HTTP and gated on `INTEGRATION=1`. Tiles are cached on disk under
- *   `build/dem-cache` at the repository root (or `$VCYCLIST_DEM_CACHE`; same layout as the CLI's
- *   `--cache`, so `~/.vcyclist/cache` works too). A cold run fetches ≈ 190 IGN tiles (≈ 48 MB) and
- *   ≈ 20 Mapterhorn tiles (≈ 2 MB), about 210 tiles / 51 MB in all; a warm one fetches nothing.
+ * - [deck_detector_reproduces_python_on_its_own_samples] runs on every `jvmTest` too: the E2
+ *   [DeckDetector] on fetch.py's own MNT/MNS samples (frozen in `truth/`) must find exactly the
+ *   bridges, rejections and canopy groups of `analysis/results.json`.
+ * - [bench] (E1) and [deckDetector] (E2: the detector on vcyclist's own IGN LiDAR HD samples, MNH
+ *   at z13/z14/z15, two-phase fetching, tile cost) are live HTTP and gated on `INTEGRATION=1`.
+ *   Tiles are cached on disk under `build/dem-cache` at the repository root (or
+ *   `$VCYCLIST_DEM_CACHE`; same layout as the CLI's `--cache`, so `~/.vcyclist/cache` works too).
+ *   A cold E1 run fetches ≈ 190 IGN tiles (≈ 48 MB) and ≈ 20 Mapterhorn tiles (≈ 2 MB); E2 adds
+ *   the MNS at z15 and the MNH at z13/z14/z15, 512 BIL tiles (≈ 134 MB). A warm run fetches
+ *   nothing.
  *
  *     INTEGRATION=1 ./gradlew :engine:jvmTest --tests '*ElevationBenchProbeTest*' --rerun-tasks -i
  *
@@ -564,6 +571,803 @@ class ElevationBenchProbeTest {
         }
     }
 
+    // ── E2: the deck detector ──────────────────────────────────────────────────────────────────
+
+    /** A minimal JSON reader for `analysis/results.json` (no JSON library on this classpath). */
+    private class Json(
+        private val s: String,
+    ) {
+        private var i = 0
+
+        fun parse(): Any? {
+            ws()
+            return when (s[i]) {
+                '{' -> {
+                    i++
+                    val m = LinkedHashMap<String, Any?>()
+                    ws()
+                    if (s[i] == '}') {
+                        i++
+                    } else {
+                        while (true) {
+                            ws()
+                            val k = parse() as String
+                            ws()
+                            i++ // ':'
+                            m[k] = parse()
+                            ws()
+                            if (s[i++] == '}') break
+                        }
+                    }
+                    m
+                }
+                '[' -> {
+                    i++
+                    val l = ArrayList<Any?>()
+                    ws()
+                    if (s[i] == ']') {
+                        i++
+                    } else {
+                        while (true) {
+                            l += parse()
+                            ws()
+                            if (s[i++] == ']') break
+                        }
+                    }
+                    l
+                }
+                '"' -> {
+                    val sb = StringBuilder()
+                    i++
+                    while (s[i] != '"') {
+                        if (s[i] == '\\') {
+                            i++
+                            when (s[i]) {
+                                'u' -> {
+                                    sb.append(s.substring(i + 1, i + 5).toInt(16).toChar())
+                                    i += 4
+                                }
+                                'n' -> sb.append('\n')
+                                't' -> sb.append('\t')
+                                else -> sb.append(s[i])
+                            }
+                        } else {
+                            sb.append(s[i])
+                        }
+                        i++
+                    }
+                    i++
+                    sb.toString()
+                }
+                't' -> {
+                    i += 4
+                    true
+                }
+                'f' -> {
+                    i += 5
+                    false
+                }
+                'n' -> {
+                    i += 4
+                    null
+                }
+                else -> {
+                    val st = i
+                    while (i < s.length && s[i] in "+-0123456789.eEInfinityNa") i++
+                    s.substring(st, i).toDouble()
+                }
+            }
+        }
+
+        private fun ws() {
+            while (i < s.length && s[i].isWhitespace()) i++
+        }
+    }
+
+    /** One span of Python's `analyse()`: an accepted bridge or one of its `others`. */
+    private class PySpan(
+        val i0: Int,
+        val i1: Int,
+        val canyon: Double,
+        val slope95: Double,
+        val rough: Double,
+        val underLow: Boolean,
+        val accepted: Boolean,
+    )
+
+    private class PyRoute(
+        val spans: List<PySpan>,
+        val roughGroups: Int,
+        val roughLengthM: Double,
+    )
+
+    @Suppress("UNCHECKED_CAST")
+    private fun readPython(): Map<String, PyRoute> {
+        val root = Json(File(dataDir, "analysis/results.json").readText()).parse() as Map<String, Map<String, Any?>>
+        return ROUTES.keys.associateWith { route ->
+            val r = root.getValue(route)
+
+            fun spans(
+                key: String,
+                accepted: Boolean,
+            ) = (r.getValue(key) as List<Map<String, Any?>>).map {
+                PySpan(
+                    i0 = (it.getValue("i0") as Double).toInt(),
+                    i1 = (it.getValue("i1") as Double).toInt(),
+                    canyon = it.getValue("canyon") as Double,
+                    slope95 = it.getValue("slope95") as Double,
+                    rough = it.getValue("rough") as Double,
+                    underLow = it.getValue("under_low") as Boolean,
+                    accepted = accepted,
+                )
+            }
+            val rough = r.getValue("rough") as Map<String, Any?>
+            PyRoute(
+                spans = spans("bridges", true) + spans("others", false),
+                roughGroups = (rough.getValue("n") as Double).toInt(),
+                roughLengthM = rough.getValue("length") as Double,
+            )
+        }
+    }
+
+    /** Python's rejection, re-derived from its record with the same decision as `analyze.py`:74. */
+    private fun PySpan.reason(): String =
+        when {
+            accepted -> "accepted"
+            !underLow -> "NO_CANYON"
+            i1 - i0 <= 5 -> "SHORT_ROUGH"
+            else -> "STEEP"
+        }
+
+    /** Distinct tile URLs per (layer label, route), and disk/network counts per label. */
+    private class TileLedger {
+        val urls = java.util.concurrent.ConcurrentHashMap<String, MutableSet<String>>()
+        val hits = java.util.concurrent.ConcurrentHashMap<String, Int>()
+        val misses = java.util.concurrent.ConcurrentHashMap<String, Int>()
+    }
+
+    private val ledger = TileLedger()
+
+    @Volatile private var ledgerKey = ""
+
+    /** [cachedFetcher], recording every URL under the current [ledgerKey]. */
+    private fun countingFetcher(config: ElevationProviderConfig): suspend (String) -> RawTile {
+        val inner = cachedFetcher(config)
+        return { url ->
+            ledger.urls
+                .computeIfAbsent(ledgerKey) {
+                    java.util.concurrent.ConcurrentHashMap
+                        .newKeySet()
+                }.add(url)
+            inner(url)
+        }
+    }
+
+    /**
+     * Samples [stations] with a fresh provider of [layer] at [zoom] (bilinear, `NaN` kept), sequentially
+     * after every other layer so IGN's pacing budget is never shared.
+     */
+    private fun sampleLayer(
+        route: String,
+        label: String,
+        stations: List<io.github.glandais.elevation.LatLon>,
+        provider: io.github.glandais.elevation.ElevationProvider,
+    ): DoubleArray {
+        ledgerKey = "$label|$route"
+        val h0 = tileHits.get()
+        val m0 = tileMisses.get()
+        val z = runBlocking { provider.setElevations(stations) }.map { it.elevation }.toDoubleArray()
+        ledger.hits.merge(label, tileHits.get() - h0, Int::plus)
+        ledger.misses.merge(label, tileMisses.get() - m0, Int::plus)
+        return z
+    }
+
+    private fun windowed(
+        z: DoubleArray,
+        windows: List<IntRange>,
+    ): DoubleArray {
+        val out = DoubleArray(z.size) { Double.NaN }
+        windows.forEach { w -> w.forEach { out[it] = z[it] } }
+        return out
+    }
+
+    /**
+     * [stations] moved half a pixel west and north at [zoom] (256 px). `ElevationCalculator`
+     * interpolates with pixel *corners* on the grid (`toPixelFloat` has no `− 0.5`), whereas a WMS
+     * GetMap pixel, and fetch.py's sampler, sit at pixel *centres*: sampling the shifted point with
+     * the corner convention reads what a centre-convention sampler reads at the station.
+     */
+    private fun halfPixelShift(
+        stations: List<io.github.glandais.elevation.LatLon>,
+        zoom: Int,
+    ): List<io.github.glandais.elevation.LatLon> {
+        val world = (1 shl zoom) * 256.0
+        return stations.map { p ->
+            val lat = p.latitude * MathConstants.DEG_TO_RAD
+            val x = (p.longitude + 180.0) / 360.0 * world - 0.5
+            val y = (1.0 - kotlin.math.ln(kotlin.math.tan(lat) + 1.0 / cos(lat)) / Math.PI) / 2.0 * world - 0.5
+            io.github.glandais.elevation.LatLon(
+                kotlin.math.atan(kotlin.math.sinh(Math.PI * (1.0 - 2.0 * y / world))) / MathConstants.DEG_TO_RAD,
+                x / world * 360.0 - 180.0,
+            )
+        }
+    }
+
+    private class Variant(
+        val id: String,
+        val label: String,
+    )
+
+    /** fetch.py's MNS sample at each station (`truth/<route>_mns.csv`, written by export_truth.py). */
+    private fun readMns(route: String): DoubleArray {
+        val lines = File(dataDir, "analysis/truth/${route}_mns.csv").readLines()
+        val declared = Regex("""\bn=(\d+)""").find(lines.first())!!.groupValues[1].toInt()
+        val values = lines.filter { it.isNotBlank() && !it.startsWith("#") && it != "mns" }.map { it.toDouble() }
+        assertEquals(declared, values.size, "${route}_mns.csv: row count against its own header")
+        return values.toDoubleArray()
+    }
+
+    /**
+     * The port, on the analysis's own input: `analyze.py` ran its bridge detector on fetch.py's MNT
+     * (the truth's `mnt` column) and MNS (`_mns.csv`), both frozen at the centimetre. On those
+     * arrays [DeckDetector] must find exactly Python's 21 bridges, its 9 `others` with the same
+     * verdict, and its canopy groups — the parity check that no live sampling can give, since
+     * vcyclist's XYZ tiles are not fetch.py's grid. Runs on every `jvmTest`, no network.
+     */
+    @Test
+    fun deck_detector_reproduces_python_on_its_own_samples() {
+        assertNotNull(dataDir, "docs/deck-strava-data not found")
+        val python = readPython()
+        assertEquals(21, python.values.sumOf { r -> r.spans.count { it.accepted } }, "results.json bridges")
+        assertEquals(9, python.values.sumOf { r -> r.spans.count { !it.accepted } }, "results.json others")
+        for ((route, rows) in ROUTES) {
+            val truth = readTruth(route)
+            val mns = readMns(route)
+            assertEquals(rows, mns.size, "${route}_mns.csv rows")
+            val d = DeckDetector.detect(DeckProfile.fromSurface(mns, truth.mnt), DeckDetectorOptions.DEFAULT)
+            val py = python.getValue(route)
+            assertEquals(py.spans.filter { it.accepted }.map { it.i0..it.i1 }, d.accepted.map { it.first..it.last }, "$route accepted")
+            val measured = d.rejected.filter { it.rejection != DeckRejection.ROUGH }
+            assertEquals(
+                py.spans.filter { !it.accepted }.map {
+                    "${it.i0}..${it.i1} ${it.reason()}".let { k ->
+                        BOUNDED_ABUTMENT["$route $k"] ?: k
+                    }
+                },
+                measured.map { "${it.first}..${it.last} ${it.rejection}" },
+                "$route others",
+            )
+            val rough = d.rejected.filter { it.rejection == DeckRejection.ROUGH }
+            assertEquals(py.roughGroups, rough.size, "$route ROUGH groups")
+            assertEquals(py.roughLengthM, rough.sumOf { (it.last - it.first + 1) * STEP_M }, 1e-9, "$route ROUGH length")
+            for (sp in py.spans) {
+                if ("$route ${sp.i0}..${sp.i1} ${sp.reason()}" in BOUNDED_ABUTMENT) continue
+                val m = (d.accepted + measured).single { it.first == sp.i0 && it.last == sp.i1 }.metrics!!
+                // Centimetre inputs against Python's float64 ones: metrics agree to a few centimetres.
+                if (sp.slope95 < 99.0) assertEquals(sp.slope95, m.slopeP95 * 100, 0.05, "$route ${sp.i0} slope P95 %")
+                assertEquals(sp.rough, m.roughnessM, 0.05, "$route ${sp.i0} roughness")
+                assertEquals(sp.canyon, m.canyonM, 0.05, "$route ${sp.i0} canyon")
+            }
+        }
+    }
+
+    @Test
+    fun deckDetector() {
+        if (!enabled || dataDir == null) {
+            println("[decks] set INTEGRATION=1 (and run from the repository) to measure the E2 deck detector")
+            return
+        }
+        val structures = readStructures()
+        assertEquals(STRUCTURE_COUNTS, structures.groupingBy { it.kind }.eachCount())
+        val python = readPython()
+        assertEquals(21, python.values.sumOf { r -> r.spans.count { it.accepted } }, "results.json bridges")
+        assertEquals(9, python.values.sumOf { r -> r.spans.count { !it.accepted } }, "results.json others")
+        val opts = DeckDetectorOptions.DEFAULT
+        println("[decks] tile cache: ${cacheDir.absolutePath}")
+        println("[decks] options: ${opts.toString().substringAfter('(').dropLast(1)}")
+
+        val layers: List<Pair<String, () -> io.github.glandais.elevation.ElevationProvider>> =
+            listOf(
+                "MNT z15" to { IgnLidarHdLayer.MNT.provider(15) { countingFetcher(it) } },
+                "MNS z15" to { IgnLidarHdLayer.MNS.provider(15) { countingFetcher(it) } },
+                "MNH z15" to { IgnLidarHdLayer.MNH.provider(15) { countingFetcher(it) } },
+                "MNH z14" to { IgnLidarHdLayer.MNH.provider(14) { countingFetcher(it) } },
+                "MNH z13" to { IgnLidarHdLayer.MNH.provider(13) { countingFetcher(it) } },
+                "DEM ign-lidar-hd" to { ElevationSource.IGN_LIDAR_HD.provider(null) { countingFetcher(it) } },
+                "DEM mapterhorn" to { ElevationSource.MAPTERHORN.provider(null) { countingFetcher(it) } },
+            )
+        val variants =
+            listOf(
+                Variant("py", "python's own samples"),
+                Variant("a", "MNS-MNT z15 (parity)"),
+                Variant("a½", "idem, pixel centres"),
+                Variant("b", "MNH z15"),
+                Variant("c", "MNH z14"),
+                Variant("d", "MNH z13"),
+                Variant("e14", "2-phase MNH z14"),
+                Variant("e13", "2-phase MNH z13"),
+                Variant("f-ign", "MNS - DEM ign"),
+                Variant("f-mth", "MNS - DEM mapterhorn"),
+                Variant("f-mthc", "canyon on mapterhorn"),
+            )
+        // variant -> route -> detection
+        val results = variants.associate { it.id to LinkedHashMap<String, DeckDetection>() }
+        val profiles = HashMap<String, DeckProfile>()
+        val twoPhaseSame = LinkedHashMap<String, Boolean>()
+        val windowStations = LinkedHashMap<String, Int>()
+        val wallMs = LinkedHashMap<String, Double>()
+
+        for ((route, rows) in ROUTES) {
+            val truth = readTruth(route)
+            assertEquals(rows, truth.size)
+            val stations =
+                (0 until truth.size).map {
+                    io.github.glandais.elevation
+                        .LatLon(truth.lat[it], truth.lon[it])
+                }
+            // A fresh provider per layer and route: seven 100-tile caches at once do not fit the test heap.
+            val z = layers.associate { (label, p) -> label to sampleLayer(route, label, stations, p()) }
+            val mnt = z.getValue("MNT z15")
+            val mns = z.getValue("MNS z15")
+            val parity = DeckProfile.fromSurface(mns, mnt)
+            run {
+                val mnh15 = z.getValue("MNH z15")
+                val diff = (0 until truth.size).map { abs(mnh15[it] - parity.mnhM[it]) }.filter { !it.isNaN() }
+                println(
+                    "[decks] %s: MNH layer z15 against MNS − MNT z15: max |Δ| %.3f m, %d stations differ by > 0.1 m; NaN MNT %d, MNS %d, MNH %d"
+                        .fmt(
+                            route,
+                            diff.maxOrNull() ?: Double.NaN,
+                            diff.count { it > 0.1 },
+                            mnt.count { it.isNaN() },
+                            mns.count { it.isNaN() },
+                            mnh15.count { it.isNaN() },
+                        ),
+                )
+            }
+            profiles[route] = parity
+            val byVariant = LinkedHashMap<String, DeckProfile>()
+            byVariant["py"] = DeckProfile.fromSurface(readMns(route), truth.mnt)
+            byVariant["a"] = parity
+            run {
+                val shifted = halfPixelShift(stations, 15)
+                val mntC = sampleLayer(route, "MNT z15 (centres)", shifted, IgnLidarHdLayer.MNT.provider(15) { countingFetcher(it) })
+                val mnsC = sampleLayer(route, "MNS z15 (centres)", shifted, IgnLidarHdLayer.MNS.provider(15) { countingFetcher(it) })
+                byVariant["a½"] = DeckProfile.fromSurface(mnsC, mntC)
+            }
+            byVariant["b"] = DeckProfile(z.getValue("MNH z15"), mns, mnt)
+            byVariant["c"] = DeckProfile(z.getValue("MNH z14"), mns, mnt)
+            byVariant["d"] = DeckProfile(z.getValue("MNH z13"), mns, mnt)
+            for ((id, zoom) in listOf("e14" to 14, "e13" to 13)) {
+                val mnh = z.getValue("MNH z$zoom")
+                val windows = DeckDetector.surfaceWindows(mnh, opts)
+                val inside = windows.sumOf { it.last - it.first + 1 }
+                windowStations["$id|$route"] = inside
+                val windowProvider = IgnLidarHdLayer.MNS.provider(15) { countingFetcher(it) }
+                val windowIdx = windows.flatMap { it.toList() }
+                val sampled = sampleLayer(route, "MNS z15 in z$zoom windows", windowIdx.map { stations[it] }, windowProvider)
+                val mnsW = DoubleArray(truth.size) { Double.NaN }
+                windowIdx.forEachIndexed { j, k -> mnsW[k] = sampled[j] }
+                byVariant[id] = DeckProfile(mnh, mnsW, windowed(mnt, windows))
+            }
+            byVariant["f-ign"] = DeckProfile.fromSurface(mns, z.getValue("DEM ign-lidar-hd"))
+            byVariant["f-mth"] = DeckProfile.fromSurface(mns, z.getValue("DEM mapterhorn"))
+            // MNH from the LiDAR MNT, canyon test on Mapterhorn's: isolates what the canyon alone loses.
+            byVariant["f-mthc"] = DeckProfile(parity.mnhM, mns, z.getValue("DEM mapterhorn"))
+            for ((id, p) in byVariant) results.getValue(id)[route] = DeckDetector.detect(p, opts)
+            twoPhaseSame["e14|$route"] = results.getValue("e14")[route].toString() == results.getValue("c")[route].toString()
+            twoPhaseSame["e13|$route"] = results.getValue("e13")[route].toString() == results.getValue("d")[route].toString()
+            val t0 = System.nanoTime()
+            repeat(5) { DeckDetector.detect(parity, opts) }
+            wallMs[route] = (System.nanoTime() - t0) / 5e6
+            // (e) must equal the full-MNS run on the same MNH; printed below, asserted here.
+        }
+
+        val bridges = structures.filter { it.kind == "bridge" }
+        val missed = structures.filter { it.kind == "missed" }
+        val elsewhere = structures.filter { it.kind == "tunnel" || it.kind == "balcony" }
+
+        fun overlaps(
+            c: DeckCandidate,
+            st: Structure,
+        ) = c.first <= st.i1 && c.last >= st.i0
+
+        /** Stations of [c] on [st]. */
+        fun shared(
+            c: DeckCandidate,
+            st: Structure,
+        ) = maxOf(0, minOf(c.last, st.i1) - maxOf(c.first, st.i0) + 1)
+
+        /**
+         * A missed OSM bridge counts as found only when the accepted span lies mostly on it: an
+         * over-extended detection that brushes it (z13: 145 stations for D 70's 10) does not.
+         */
+        fun mostlyOn(
+            c: DeckCandidate,
+            st: Structure,
+        ) = 2 * shared(c, st) >= c.last - c.first + 1
+
+        /** A candidate explains a structure when one of its tall stations lies on it, not a shared abutment. */
+        fun attributable(
+            c: DeckCandidate,
+            st: Structure,
+            p: DeckProfile,
+        ) = (maxOf(c.first, st.i0)..minOf(c.last, st.i1)).any { p.mnhM[it] > opts.tallMnhM }
+
+        // ── Detections of the parity variant, route by route ──────────────────────────────────
+        val a = results.getValue("a")
+        for (route in ROUTES.keys) {
+            val d = a.getValue(route)
+            val p = profiles.getValue(route)
+            val spans = structures.filter { it.route == route }
+            println()
+            println("[decks] ═══ $route — variant (a) MNS−MNT z15, detector %.1f ms".fmt(wallMs.getValue(route)))
+            println(
+                "[decks] %-13s | %5s | %6s | %6s | %6s | %6s | %6s | %-11s | %s".fmt(
+                    "km",
+                    "L m",
+                    "MNHmax",
+                    "rough",
+                    "P95 %",
+                    "canyon",
+                    "drop",
+                    "verdict",
+                    "structure (truth)",
+                ),
+            )
+            for (c in (d.accepted + d.rejected.filter { it.rejection != DeckRejection.ROUGH }).sortedBy { it.first }) {
+                val m = c.metrics!!
+                val mnhMax = (c.first..c.last).maxOf { k -> p.mnhM[k].takeUnless { it.isNaN() } ?: Double.NEGATIVE_INFINITY }
+                val st = spans.filter { attributable(c, it, p) }.joinToString("; ") { "${it.kind} ${it.label}" }.ifEmpty { "—" }
+                println(
+                    "[decks] %6.2f–%6.2f | %5.0f | %6.1f | %6.2f | %6.1f | %6.1f | %6.1f | %-11s | %s".fmt(
+                        c.startM / 1000,
+                        c.endM / 1000,
+                        m.lengthM,
+                        mnhMax,
+                        m.roughnessM,
+                        m.slopeP95 * 100,
+                        m.canyonM,
+                        m.mntDropM,
+                        c.rejection?.name ?: "DECK",
+                        st,
+                    ),
+                )
+            }
+            val rough = d.rejected.filter { it.rejection == DeckRejection.ROUGH }
+            val py = python.getValue(route)
+            println(
+                "[decks] ROUGH groups: %d / %.0f m (python %d / %.0f m); tall runs < 3 stations: %d".fmt(
+                    rough.size,
+                    rough.sumOf { (it.last - it.first + 1) * opts.stepM },
+                    py.roughGroups,
+                    py.roughLengthM,
+                    d.tallRunsTooShort,
+                ),
+            )
+        }
+
+        // ── Per bridge: endpoints and metrics against Python, verdict per variant ─────────────
+        println()
+        println("[decks] bridges (truth = analyze.py): Δ in m of variant (a) against python i0/i1; metrics (a) / python")
+        println(
+            "[decks] %-5s %-28s | %13s | %5s %5s | %6s %6s | %5s %5s | %5s %5s | %s".fmt(
+                "route",
+                "name",
+                "km",
+                "Δfrst",
+                "Δlast",
+                "P95 %",
+                "py",
+                "rough",
+                "py",
+                "canyn",
+                "py",
+                variants.joinToString(" ") { "%-6s".fmt(it.id) },
+            ),
+        )
+        for (st in bridges) {
+            val pySpan = python.getValue(st.route).spans.single { it.accepted && it.i0 == st.i0 }
+            val mine =
+                a.getValue(st.route).let { it.accepted + it.rejected }.filter { overlaps(it, st) }.maxByOrNull {
+                    minOf(it.last, st.i1) -
+                        maxOf(it.first, st.i0)
+                }
+            val m = mine?.metrics
+            val verdicts =
+                variants.joinToString(" ") { v ->
+                    val d = results.getValue(v.id).getValue(st.route)
+                    val hit = d.accepted.any { overlaps(it, st) }
+                    val why = d.rejected.filter { overlaps(it, st) }.joinToString("/") { it.rejection!!.name.take(6) }
+                    "%-6s".fmt(if (hit) "ok" else why.ifEmpty { "none" })
+                }
+            println(
+                "[decks] %-5s %-28s | %6.2f–%6.2f | %5s %5s | %6.2f %6.2f | %5.2f %5.2f | %5.1f %5.1f | %s".fmt(
+                    st.route,
+                    st.label,
+                    st.s0 / 1000,
+                    st.s1 / 1000,
+                    mine?.let { "%+.0f".fmt((it.first - st.i0) * opts.stepM) } ?: "-",
+                    mine?.let { "%+.0f".fmt((it.last - st.i1) * opts.stepM) } ?: "-",
+                    (m?.slopeP95 ?: Double.NaN) * 100,
+                    if (pySpan.slope95 >= 99.0) Double.NaN else pySpan.slope95,
+                    m?.roughnessM ?: Double.NaN,
+                    pySpan.rough,
+                    m?.canyonM ?: Double.NaN,
+                    pySpan.canyon,
+                    verdicts,
+                ),
+            )
+        }
+
+        // ── Missed OSM bridges: why ───────────────────────────────────────────────────────────
+        println()
+        println("[decks] the 15 OSM bridges python missed — variant (a)")
+        for (st in missed) {
+            val d = a.getValue(st.route)
+            val p = profiles.getValue(st.route)
+            val hit = d.accepted.any { mostlyOn(it, st) }
+            val why = d.rejected.filter { attributable(it, st, p) }.joinToString("/") { it.rejection!!.name }
+            val mnhMax = (st.i0..st.i1).maxOf { p.mnhM[it] }
+            var longestTall = 0
+            var run = 0
+            for (k in st.i0..st.i1) {
+                run = if (p.mnhM[k] > opts.tallMnhM) run + 1 else 0
+                longestTall = maxOf(longestTall, run)
+            }
+            println(
+                "[decks] %-5s %-28s | %6.2f–%6.2f | MNH max %5.1f (python %s), longest tall run %2d | %s".fmt(
+                    st.route,
+                    st.label,
+                    st.s0 / 1000,
+                    st.s1 / 1000,
+                    mnhMax,
+                    st.flag.removePrefix("mnh="),
+                    longestTall,
+                    if (hit) "FOUND" else why.ifEmpty { "no tall run" },
+                ),
+            )
+        }
+
+        // ── Summary per variant ──────────────────────────────────────────────────────────────
+        println()
+        println(
+            "[decks] summary per variant: recall on 21 bridges (t1/t2/t3/t4, any overlap), on 15 missed (span mostly on it), " +
+                "false positives (no overlap), accepted span / deck-mask stations outside every bridge and missed span, rejections",
+        )
+        println(
+            "[decks] %-22s | %-15s | %6s | %3s | %-11s | %-26s | %-16s | %s".fmt(
+                "variant",
+                "bridges",
+                "missed",
+                "FP",
+                "out st/deck",
+                "NO_CANYON/STEEP/SHORT/NODATA",
+                "ROUGH n / km",
+                "parity vs python",
+            ),
+        )
+        val fpByVariant = LinkedHashMap<String, List<Pair<String, DeckCandidate>>>()
+        for (v in variants) {
+            val r = results.getValue(v.id)
+            val perRoute =
+                ROUTES.keys.joinToString("/") { route ->
+                    bridges.filter { it.route == route }.count { st -> r.getValue(route).accepted.any { overlaps(it, st) } }.toString()
+                }
+            val found = bridges.count { st -> r.getValue(st.route).accepted.any { overlaps(it, st) } }
+            val foundMissed = missed.count { st -> r.getValue(st.route).accepted.any { mostlyOn(it, st) } }
+            var outSpan = 0
+            var outDeck = 0
+            for (route in ROUTES.keys) {
+                val onTruth = BooleanArray(ROUTES.getValue(route))
+                (bridges + missed).filter { it.route == route }.forEach { st -> for (k in st.i0..st.i1) onTruth[k] = true }
+                for (c in r.getValue(route).accepted) {
+                    outSpan += (c.first..c.last).count { !onTruth[it] }
+                    outDeck += c.deckRanges.sumOf { d -> d.count { !onTruth[it] } }
+                }
+            }
+            val fps =
+                ROUTES.keys.flatMap { route ->
+                    r.getValue(route).accepted.filter { c -> (bridges + missed).none { it.route == route && overlaps(c, it) } }.map {
+                        route to
+                            it
+                    }
+                }
+            fpByVariant[v.id] = fps
+            val all = r.values.flatMap { it.rejected }
+
+            fun count(x: DeckRejection) = all.count { it.rejection == x }
+            val rough = all.filter { it.rejection == DeckRejection.ROUGH }
+            // Parity: python's accepted spans matched one-to-one, endpoint deltas, verdict flips.
+            var maxDelta = 0
+            var flips = 0
+            for (route in ROUTES.keys) {
+                val d = r.getValue(route)
+                for (sp in python.getValue(route).spans) {
+                    val mine =
+                        (d.accepted + d.rejected).filter {
+                            it.first <= sp.i1 &&
+                                it.last >= sp.i0 &&
+                                it.rejection != DeckRejection.ROUGH
+                        }
+                    val accepted = d.accepted.any { it.first <= sp.i1 && it.last >= sp.i0 }
+                    if (accepted != sp.accepted) flips++
+                    mine.singleOrNull()?.let { maxDelta = maxOf(maxDelta, abs(it.first - sp.i0), abs(it.last - sp.i1)) }
+                }
+                flips += d.accepted.count { c -> python.getValue(route).spans.none { c.first <= it.i1 && c.last >= it.i0 } }
+            }
+            val pyAccepted = python.values.sumOf { p -> p.spans.count { it.accepted } }
+            val sameSet = flips == 0 && r.values.sumOf { it.accepted.size } == pyAccepted
+            println(
+                "[decks] %-22s | %2d/21 %-9s | %2d/15  | %3d | %4d / %4d | %3d / %3d / %3d / %3d       | %3d / %5.2f     | same set %s, max |Δ| %d st, flips %d"
+                    .fmt(
+                        "(${v.id}) ${v.label}",
+                        found,
+                        "($perRoute)",
+                        foundMissed,
+                        fps.size,
+                        outSpan,
+                        outDeck,
+                        count(DeckRejection.NO_CANYON),
+                        count(DeckRejection.STEEP),
+                        count(DeckRejection.SHORT_ROUGH),
+                        count(DeckRejection.NO_DATA),
+                        rough.size,
+                        rough.sumOf { (it.last - it.first + 1) * opts.stepM } / 1000,
+                        if (sameSet) "yes" else "no",
+                        maxDelta,
+                        flips,
+                    ),
+            )
+        }
+        val pyOthers =
+            python.values
+                .flatMap { it.spans.filter { s -> !s.accepted } }
+                .groupingBy { it.reason() }
+                .eachCount()
+        println(
+            "[decks] %-22s | 21/21 (3/16/1/1) |  0/15  |   0 |             | %3d / %3d / %3d / %3d       | %3d / %5.2f     |".fmt(
+                "python (results.json)",
+                pyOthers["NO_CANYON"] ?: 0,
+                pyOthers["STEEP"] ?: 0,
+                pyOthers["SHORT_ROUGH"] ?: 0,
+                0,
+                python.values.sumOf { it.roughGroups },
+                python.values.sumOf { it.roughLengthM } / 1000,
+            ),
+        )
+        for ((id, fps) in fpByVariant) {
+            for ((route, c) in fps) {
+                val inStructure = elsewhere.filter { it.route == route && overlaps(c, it) }.joinToString { "${it.kind} ${it.label}" }
+                println(
+                    "[decks]   FP (%s) %s km %.2f–%.2f, L %.0f m, P95 %.1f %%, rough %.2f, canyon %.1f%s".fmt(
+                        id,
+                        route,
+                        c.startM / 1000,
+                        c.endM / 1000,
+                        c.metrics!!.lengthM,
+                        c.metrics!!.slopeP95 * 100,
+                        c.metrics!!.roughnessM,
+                        c.metrics!!.canyonM,
+                        if (inStructure.isEmpty()) "" else " — inside $inStructure",
+                    ),
+                )
+            }
+        }
+
+        // ── Deck mask against the truth's B / b ──────────────────────────────────────────────
+        println()
+        for (id in listOf("py", "a")) {
+            var agree = 0
+            var total = 0
+            for (route in ROUTES.keys) {
+                val truth = readTruth(route)
+                val deck = BooleanArray(truth.size)
+                results
+                    .getValue(id)
+                    .getValue(route)
+                    .accepted
+                    .forEach { c -> c.deckRanges.forEach { r -> r.forEach { deck[it] = true } } }
+                for (st in bridges.filter { it.route == route }) {
+                    for (k in st.i0..st.i1) {
+                        total++
+                        if (deck[k] == (truth.kind[k] == 'B')) agree++
+                    }
+                }
+            }
+            println(
+                "[decks] deck mask (%s) vs truth kind B/b on the 21 bridge spans: %d / %d stations agree (%.1f %%)".fmt(
+                    id,
+                    agree,
+                    total,
+                    100.0 * agree / total,
+                ),
+            )
+        }
+
+        // ── Two-phase ────────────────────────────────────────────────────────────────────────
+        println()
+        println("[decks] two-phase (MNS fetched in surfaceWindows(MNH) only): windows stations / route stations, same as full MNS")
+        for ((key, same) in twoPhaseSame) {
+            val (id, route) = key.split('|')
+            println(
+                "[decks]   (%s) %s: %d / %d stations, detection identical to the full-MNS run: %s".fmt(
+                    id,
+                    route,
+                    windowStations.getValue(key),
+                    ROUTES.getValue(route),
+                    same,
+                ),
+            )
+        }
+
+        // ── Tile cost ────────────────────────────────────────────────────────────────────────
+        println()
+        println("[decks] tile cost: distinct tiles per route (BIL 256² × 4 B = 0.262 MB each; Mapterhorn WebP sized on disk)")
+        val labels =
+            ledger.urls.keys
+                .map { it.substringBefore('|') }
+                .distinct()
+        println(
+            "[decks] %-26s | %s | %6s | %7s | %5s | %7s".fmt(
+                "layer",
+                ROUTES.keys.joinToString(" | ") {
+                    "%5s".fmt(it)
+                },
+                "total",
+                "MB",
+                "disk",
+                "fetched",
+            ),
+        )
+        for (label in labels) {
+            val per = ROUTES.keys.map { route -> ledger.urls["$label|$route"]?.size ?: 0 }
+            val all = ROUTES.keys.flatMap { route -> ledger.urls["$label|$route"].orEmpty() }.toSet()
+            val mb =
+                all.sumOf { url ->
+                    val enc = if ("geopf" in url) TileEncoding.BIL32 else TileEncoding.TERRARIUM
+                    File(cacheDir, cachePath(url, enc)).length()
+                } / 1e6
+            println(
+                "[decks] %-26s | %s | %6d | %7.1f | %5d | %7d".fmt(
+                    label,
+                    per.joinToString(" | ") { "%5d".fmt(it) },
+                    all.size,
+                    mb,
+                    ledger.hits[label] ?: 0,
+                    ledger.misses[label] ?: 0,
+                ),
+            )
+        }
+        println(
+            "[decks] tiles: %d from disk, %d fetched (%.1f MB) in this test".fmt(
+                tileHits.get(),
+                tileMisses.get(),
+                bytesFetched.get() / 1e6,
+            ),
+        )
+        println(
+            "[decks] not judged: the spec's acceptance criterion (zero detections on forest and urban witnesses) needs negative witness routes, which the bench does not have yet (E1, « à ajouter »)",
+        )
+
+        // Hard checks. Recall 21/21 is pinned on Python's own samples, offline, by
+        // deck_detector_reproduces_python_on_its_own_samples — and re-checked here as (py). On
+        // vcyclist's own z15 samples (a) it is a measurement, not a contract: the XYZ grid is not
+        // fetch.py's, and narrow decks fall between its pixels.
+        val pyFound =
+            bridges.count { st ->
+                results
+                    .getValue("py")
+                    .getValue(st.route)
+                    .accepted
+                    .any { overlaps(it, st) }
+            }
+        assertEquals(21, pyFound, "variant (py) recall on the 21 python bridges")
+        assertEquals(0, fpByVariant.getValue("py").size, "variant (py) false positives")
+        assertEquals(0, fpByVariant.getValue("a").size, "variant (a) false positives")
+        twoPhaseSame.forEach { (key, same) -> assertTrue(same, "two-phase $key differs from the full-MNS run") }
+    }
+
     private companion object {
         const val STEP_M = 5.0
         const val MATCH_MAX_M = 30.0
@@ -571,6 +1375,14 @@ class ElevationBenchProbeTest {
 
         /** Truth rows per route — the size self-check of the CSV reader. */
         val ROUTES = linkedMapOf("test1" to 2006, "test2" to 4911, "test3" to 2028, "test4" to 22251)
+
+        /**
+         * The one span where [DeckDetector] knowingly parts from analyze.py on its own samples: Combe
+         * Laval (`test4` km 68.5, a cliff road, not a bridge), whose `MNH > 1` extension runs 29
+         * stations past its tall core. `maxAbutmentM` (100 m) ends it at the core, which turns
+         * Python's `STEEP` into `NO_CANYON`. Still rejected; no accepted span moves.
+         */
+        val BOUNDED_ABUTMENT = mapOf("test4 13703..13745 STEEP" to "13703..13716 NO_CANYON")
 
         /** structures.csv rows per kind — the size self-check of its reader. */
         val STRUCTURE_COUNTS = mapOf("bridge" to 21, "tunnel" to 4, "balcony" to 6, "missed" to 15)

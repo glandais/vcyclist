@@ -9,18 +9,28 @@ package io.github.glandais.elevation
  * target).
  *
  * Where the tiles have no data, a provider built [withFallback] asks another one; without, the
- * point reads 0 m. See [ElevationCalculator].
+ * point reads 0 m. See [ElevationCalculator]. The one exception is a raw-layer provider built by
+ * [IgnLidarHdLayer.provider], which answers `NaN` there.
  */
 class ElevationProvider private constructor(
     val config: ElevationProviderConfig,
     private val fetcher: suspend (String) -> RawTile,
     /** The provider no-data points are asked of, or `null`. */
     val fallback: ElevationProvider?,
+    /** With no [fallback]: answer `NaN` on no-data instead of 0 m. Raw IGN layers only. */
+    private val keepNoData: Boolean,
 ) {
     constructor(
         config: ElevationProviderConfig = ElevationProviderConfig(),
         fetcher: suspend (String) -> RawTile = defaultTileFetcher(config),
-    ) : this(config, fetcher, null)
+    ) : this(config, fetcher, null, false)
+
+    /** A provider whose no-data points read `NaN`: see [IgnLidarHdLayer.provider], its only caller. */
+    internal constructor(
+        config: ElevationProviderConfig,
+        fetcher: suspend (String) -> RawTile,
+        keepNoData: Boolean,
+    ) : this(config, fetcher, null, keepNoData)
 
     init {
         require(config.zoomLevel in 0..15) {
@@ -42,7 +52,11 @@ class ElevationProvider private constructor(
         ElevationCalculator(
             tileManager,
             config.tileSize,
-            fallback?.let { f -> { coords, interpolation -> f.getElevation(coords.latitude, coords.longitude, interpolation) } },
+            when {
+                fallback != null -> { coords, interpolation -> fallback.getElevation(coords.latitude, coords.longitude, interpolation) }
+                keepNoData -> { _, _ -> Double.NaN }
+                else -> null
+            },
         )
     private val batchCalculator = BatchCalculator(calculator)
 
@@ -51,8 +65,15 @@ class ElevationProvider private constructor(
      *
      * A new provider with an empty cache, not a mutation: a provider is shared across coroutines,
      * and growing a fallback under a running batch would change answers half-way through it.
+     *
+     * @throws IllegalArgumentException on a raw-layer provider ([IgnLidarHdLayer.provider]): its
+     *   no-data must stay `NaN`, and a fallback under an MNS would invent a 0 m MNH at every coverage
+     *   border.
      */
-    fun withFallback(other: ElevationProvider): ElevationProvider = ElevationProvider(config, fetcher, other)
+    fun withFallback(other: ElevationProvider): ElevationProvider {
+        require(!keepNoData) { "a raw IGN LiDAR HD layer takes no fallback: its no-data must stay NaN" }
+        return ElevationProvider(config, fetcher, other, false)
+    }
 
     val attribution: Attribution get() = config.attribution
 

@@ -221,13 +221,17 @@ tasks.named<Test>("jvmTest") {
             rootProject.file("tools/wasi/host.py"),
         ).withPropertyName("sourceTextUnderTest")
         .withPathSensitivity(PathSensitivity.RELATIVE)
-    // ElevationBenchProbeTest (task elevation-bridge-decks, E1) reads the routes and the frozen
-    // truth under docs/deck-strava-data: a filtered directory walk, not a file list, so a new route
-    // or truth file cannot fall outside the inputs — while the analysis scripts' gitignored caches
-    // (BIL tiles, npz, osm/) and regenerated figures, which the test never reads, stay out.
+    // ElevationBenchProbeTest (task elevation-bridge-decks, E1/E2) reads the routes, the frozen
+    // truth and the Python detector's results.json (the ungated parity test replays it) under
+    // docs/deck-strava-data: a filtered directory walk, not a file list, so a new route or truth
+    // file cannot fall outside the inputs — while the analysis scripts' gitignored caches (BIL
+    // tiles, npz, osm/) and regenerated figures, which the test never reads, stay out.
     inputs
-        .files(fileTree(rootProject.file("docs/deck-strava-data")) { include("*.gpx", "analysis/truth/**") })
-        .withPropertyName("elevationBench")
+        .files(
+            fileTree(rootProject.file("docs/deck-strava-data")) {
+                include("*.gpx", "analysis/truth/**", "analysis/*.json")
+            },
+        ).withPropertyName("elevationBench")
         .withPathSensitivity(PathSensitivity.RELATIVE)
 }
 

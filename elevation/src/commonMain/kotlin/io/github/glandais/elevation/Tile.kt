@@ -7,7 +7,8 @@ import kotlin.math.round
  *
  * RGB `(0, 0, 0)` — Terrarium's floor, −32768 m — reads as **no data**, `NaN`: it is the code
  * [decodeBil32Tile] writes where IGN has nothing, and no real terrain is within 20 km of it.
- * [ElevationCalculator] turns `NaN` into a fallback lookup or 0 m; it never reaches a caller.
+ * [ElevationCalculator] turns `NaN` into a fallback lookup or 0 m; it never reaches a caller, except
+ * through a raw-layer provider built by [IgnLidarHdLayer.provider], which keeps it.
  *
  * Concrete and platform-agnostic: it reads bytes directly from [rgba] rather than delegating
  * pixel access to a per-platform hook, so the decoding logic exists once.

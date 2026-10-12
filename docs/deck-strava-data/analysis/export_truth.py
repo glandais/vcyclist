@@ -1,8 +1,10 @@
 """Stage 4: freeze the estimated roadway as the truth of the E1 bench (ElevationBenchProbeTest).
 
 Reads <name>.npz (lat/lon, from fetch.py) and <name>_out.npz (road/mnt/sc, from analyze.py) plus
-results.json; writes truth/<name>.csv (one row per 5 m station) and truth/structures.csv (bridge,
-tunnel, balcony and missed-bridge spans). Altitudes are NGF-IGN69, the MNT frame. Strava is not in
+results.json; writes truth/<name>.csv (one row per 5 m station), truth/<name>_mns.csv (fetch.py's
+MNS sample at each station: with the `mnt` column it is the exact input of analyze.py's bridge
+detector, which DeckDetector's parity test replays) and truth/structures.csv (bridge, tunnel,
+balcony and missed-bridge spans). Altitudes are NGF-IGN69, the MNT frame. Strava is not in
 the file: GPX ele - strava_offset_m (in the header) reproduces it.
 
 On balcony spans the MNT at the track point reads the cliff or the gorge, which is the very error
@@ -65,6 +67,12 @@ def main():
             f.write('s,lat,lon,truth,mnt,kind\n')
             for i in range(n):
                 f.write(f'{s[i]:.0f},{lat[i]:.6f},{lon[i]:.6f},{road[i]:.2f},{mnt[i]:.2f},{k[i]}\n')
+        with open(os.path.join(OUT, name + '_mns.csv'), 'w', newline='\n') as f:
+            f.write(f'# route={name} step_m={STEP:g} n={n} datum=NGF-IGN69 source=fetch.py IGN LiDAR HD MNS, bilinear,'
+                    ' 0.008 deg tiles of 256 px\n')
+            f.write('mns\n')
+            for v in z['mns']:
+                f.write(f'{v:.2f}\n')
 
         def row(kind, a, b, nm, flag):
             srows.append(f'{name},{kind},{a},{b},{s[a]:.0f},{s[b]:.0f},{lat[a]:.6f},{lon[a]:.6f},{lat[b]:.6f},{lon[b]:.6f},'

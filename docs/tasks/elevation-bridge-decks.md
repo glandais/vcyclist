@@ -329,6 +329,170 @@ Points à trancher par la mesure E1 : seuils de rugosité et de pente, et tolér
 culées. Le taux de faux positifs sur les témoins forestiers est le critère d'acceptation, avant le
 gain sur les ponts.
 
+#### Mesures (E2)
+
+Livré : `IgnLidarHdLayer` (`:elevation`, couches brutes MNT / MNS / MNH du même WMS, sans id de
+catalogue ni repli : le hors-données reste `NaN`) et `DeckDetector` + `DeckDetectorOptions`
+(`:gpx`, `commonMain`, port d'`analyze.py`, seuils dans `DeckDetectorOptions.DEFAULT`). Aucun
+changement de pipeline, de porte ni de `PointField`. `ElevationProvider.withFallback` refuse un
+fournisseur de couche brute : « pas de repli » est un contrat, plus une convention.
+
+Écarts voulus avec Python, tous sans effet sur ses 21 ponts (KDoc de `DeckDetector`) :
+
+- **culée bornée** : l'extension le long de `MNH > 1` s'arrête à `maxAbutmentM` = 100 m par côté,
+  au-delà le candidat retombe sur son cœur haut (champ, haie, remblai : la route n'y est pas un
+  tablier). Mesuré sur les 21 ponts de Python : 7 stations (35 m) au plus. Seul effet sur ses
+  échantillons : Combe Laval (km 68,5 de `test4`, route en falaise) s'étendait de 29 stations ; il
+  passe de `STEEP` à `NO_CANYON`, toujours rejeté (`BOUNDED_ABUTMENT` dans le test de parité) ;
+- **trous de données** : un îlot `NaN` d'au plus 2 stations (demi-fenêtre de la médiane) est
+  enjambé par l'extension, et un trou `NaN` ou bas d'au plus 2 stations est refermé dans le masque
+  de tablier là où la médiane est finie. Avec `fromSurface`, un seul pixel MNS sans donnée rend le
+  MNH `NaN` ; avant, il arrêtait l'extension au fond du lit (`NO_CANYON`) ou trouait le tablier
+  jusqu'au MNT de la rivière. Un `NaN` plus large qui arrête l'extension donne `NO_DATA`, et des
+  suites hautes que seule une rugosité `NaN` (MNS sans donnée) fait échouer aussi.
+
+Limites gardées de Python, pour E3 (tests `known limit` de `DeckDetectorTest`) :
+
+- les suites lisses fusionnent à moins de 300 m *avant* les tests de canyon et de pente : un toit
+  lisse sans canyon à moins de 300 m d'un pont entre dans son masque de tablier, et deux ponts aussi
+  proches font un seul candidat. Un test de canyon par suite casserait Saint-Nazaire et Mauves,
+  qui portent chacun 51 stations de `MNH ≤ 1` (MNS troué au-dessus de l'eau), en tout point
+  semblables à une route au sol ;
+- des arbres collés au tablier font une seule suite haute avec lui. Couper les stations rugueuses
+  aux bouts d'une suite, ou y arrêter l'extension, perd deux ponts de Python (`test2` 285..309 et
+  4858..4881) : leurs culées lisent 0,86 m et 1,07 m de rugosité, autant qu'une lisière.
+
+Banc : deux tests ajoutés à `ElevationBenchProbeTest`.
+
+- `deck_detector_reproduces_python_on_its_own_samples`, **non conditionné** : le détecteur sur les
+  échantillons mêmes de `fetch.py` (colonne `mnt` de la vérité, et `truth/<route>_mns.csv` que
+  `export_truth.py` écrit désormais, au centimètre) doit retrouver exactement `results.json`.
+- `deckDetector`, `INTEGRATION=1` : MNT, MNS et MNH échantillonnés par vcyclist aux stations de la
+  vérité (`setElevations`, bilinéaire, `NaN` conservé), une couche après l'autre (cadence IGN),
+  tuiles dans `build/dem-cache`. Variantes : (py) échantillons Python ; (a) MNS − MNT z15 ;
+  (a½) idem au centre des pixels ; (b, c, d) couche MNH z15 / z14 / z13 ; (e14, e13) deux phases,
+  MNS et MNT lus dans les seules `surfaceWindows(MNH z14 / z13)` ; (f) MNS z15 − MNT de la source
+  du pipeline (`ign-lidar-hd`, `mapterhorn`) ; (f-c) MNH = MNS − MNT LiDAR, mais canyon lu sur le
+  MNT `mapterhorn`, pour isoler le canyon.
+
+```bash
+INTEGRATION=1 ./gradlew :engine:jvmTest --tests '*ElevationBenchProbeTest*' --rerun-tasks -i
+```
+
+Premier passage à froid : 512 tuiles BIL de plus que E1 (MNS z15 189, MNH z15 189, z14 93, z13 41,
+≈ 134 MB) ; passage suivant : 0. Détecteur : 1,4 / 1,1 / 0,2 / 1,9 ms par itinéraire.
+
+**Le port est exact, à un écart voulu près.** Sur les échantillons de Python : les 21 ponts avec les mêmes `i0`/`i1`, les
+9 `others` avec le même verdict (8 `NO_CANYON`, km 68,5 de `test4` en `STEEP` chez Python et en
+`NO_CANYON` ici, culée bornée — le seul écart, voulu), les 75 groupes de
+canopée (17,86 km) à l'identique, pente P95, rugosité et canyon à 0,03 près (entrées arrondies au
+cm), masque de tablier conforme aux types B/b de la vérité sur 1 609 / 1 609 stations.
+
+**Par variante** (rappel sur les 21 ponts, par itinéraire `test1/2/3/4`, au moindre recouvrement ;
+manqué OSM retrouvé seulement si la détection est au moins pour moitié sur lui ; FP = détection
+qui ne touche aucun pont ni pont OSM manqué ; « hors vérité » = stations des détections, puis du
+masque de tablier, hors de tout pont et de tout pont manqué — ce que le seul compte de FP ne voit
+pas)
+
+| Variante | Ponts | Manqués OSM | FP | Hors vérité (span / tablier) | NO_CANYON / STEEP / SHORT_ROUGH / NO_DATA | ROUGH (n / km) |
+|---|---|---|---|---|---|---|
+| (py) échantillons Python | 21 (3/16/1/1) | 0 / 15 | 0 | 0 / 0 | 9 / 0 / 0 / 0 | 75 / 17,86 |
+| (a) MNS − MNT z15 | 16 (2/13/1/0) | 0 / 15 | 0 | 8 / 8 | 13 / 1 / 0 / 0 | 83 / 25,18 |
+| (a½) idem, centre des pixels | 14 (2/11/1/0) | 0 / 15 | 0 | 5 / 5 | 11 / 3 / 0 / 0 | 66 / 21,80 |
+| (b) MNH z15 | 16 (2/13/1/0) | 0 / 15 | 0 | 8 / 8 | 13 / 1 / 0 / 0 | 83 / 25,18 |
+| (c) MNH z14 | 13 (2/9/1/1) | 0 / 15 | 0 | 19 / 19 | 53 / 6 / 0 / 0 | 101 / 42,18 |
+| (d) MNH z13 | 9 (1/8/0/0) | 0 / 15 | **2** | **866 / 729** | 88 / 4 / 0 / 0 | 94 / 46,41 |
+| (e14) deux phases, MNH z14 | = (c) | = (c) | = (c) | = (c) | = (c) | = (c) |
+| (e13) deux phases, MNH z13 | = (d) | = (d) | = (d) | = (d) | = (d) | = (d) |
+| (f) MNS − MNT `ign-lidar-hd` | 16 (2/13/1/0) | 0 / 15 | 0 | 8 / 8 | 13 / 1 / 0 / 0 | 83 / 25,18 |
+| (f) MNS − MNT `mapterhorn` | 14 (2/11/1/0) | 0 / 15 | 0 | 42 / 42 | 28 / 3 / 0 / 0 | 76 / 30,13 |
+| (f-c) MNH LiDAR, canyon `mapterhorn` | 10 (2/7/1/0) | 0 / 15 | 0 | 4 / 4 | 19 / 1 / 0 / 0 | 83 / 25,18 |
+
+Python (`results.json`) : 8 / 1 / 0 / 0 ; l'écart de (py) est Combe Laval, culée bornée. Les deux
+FP de (d), `test4` km 9,09–9,53 (440 m, P95 7,1 %) et km 62,60–64,59 (1 990 m, P95 8,9 %), sont
+des routes de montagne lissées par le MNH z13. Avant la culée bornée, des détections z13 aussi
+étirées (725 m sur D 70, 845 m sur Willy-Brandt) touchaient un pont manqué ou réel et comptaient
+comme retrouvées : la colonne « hors vérité » est la mesure qui tient.
+
+**Détections de (a)**, tous candidats mesurés (les groupes `ROUGH` ne le sont jamais) :
+
+| Itinéraire | km | L (m) | MNH max | Rugosité | P95 % | Canyon | Verdict | Ouvrage (vérité) |
+|---|---|---|---|---|---|---|---|---|
+| test1 | 0,33–0,35 | 30 | 10,3 | 0,32 | — | 9,8 | NO_CANYON | — |
+| test1 | 1,32–4,67 | 3 355 | 65,8 | 0,00 | 6,1 | 65,8 | tablier | Pont de Saint-Nazaire (début +290 m) |
+| test1 | 5,89–5,97 | 80 | 5,2 | 0,06 | 0,7 | 5,2 | tablier | way 27013264 |
+| test1 | 9,22–9,26 | 45 | 14,6 | 0,22 | 64,7 | 14,5 | NO_CANYON | — (voisin de Pont Tournant, une station commune) |
+| test2 | 1,42–1,55 | 130 | 8,3 | 0,20 | 6,9 | 8,0 | tablier | way 362043805 |
+| test2 | 3,94–4,00 | 65 | 11,5 | 0,69 | 27,9 | 11,2 | NO_CANYON | — |
+| test2 | 6,93–7,23 … 24,29–24,41 | 125–335 | 8,0–11,5 | 0,00–0,47 | 0,9–7,3 | 7,8–11,5 | tablier | 12 ponts nantais, bouts à ±5 m |
+| test2 | 14,57–14,59 | 25 | 5,6 | 0,05 | — | 5,5 | NO_CANYON | Busway Ligne 4 (manqué OSM) |
+| test2 | 20,96–21,39 | 435 | 17,3 | 0,27 | 52,6 | 16,4 | STEEP | Pont Haudaudine (fin +240 m) |
+| test3 | 0,43–1,27 | 845 | 9,2 | 0,04 | 2,8 | 9,0 | tablier | Pont de Mauves |
+| test4 | 13,80–13,91 | 110 | 8,3 | 0,62 | 53,3 | 7,6 | NO_CANYON | Grands Goulets (tunnel) |
+| test4 | 68,52–68,63 | 110 | 32,4 | 1,06 | 107,1 | 33,5 | NO_CANYON | Combe Laval (tunnel, balcon) |
+| test4 | 7 autres, 25–60 m | | 6,1–17,2 | 0,17–0,79 | | 5,2–15,8 | NO_CANYON | — |
+
+Les cinq ponts que (a) perd : Pont écluse sud aval (`test1`, 35 m) et Pont de la Rotonde (`test2`,
+55 m), où le MNS z15 ne voit pas le tablier (MNH ≤ 2,9 m, puis 6,1 m sur une seule station) ;
+Bellevue (`ROUGH` : la piste longe le bord du tablier, le MNS alterne plus fort qu'au pas de
+Python) ; Échevis (`ROUGH`, 3 stations hautes) ; Haudaudine, fusionné à moins de 300 m avec un bloc
+lisse de MNH 12 m au-delà de la culée, donc `STEEP` (P95 52,6 %). Rugosité de Pirmil 0,47 m contre
+0,00 chez Python, verdict inchangé. Masque de tablier de (a) : 1 464 / 1 609 stations conformes
+(91,0 %). Aucun des 15 ponts OSM manqués par Python n'est retrouvé en z15 : 13 n'ont pas de suite
+haute de 3 stations (Prise-d'Eau MNH 8,4 m, D518 km 33 11,1 m, D70 6,7 m, toujours sur 2 stations
+au plus ; Pont Tournant n'a aucune station haute, MNH 1,8 m), Pont basculant est `ROUGH`, Busway
+`NO_CANYON`. Un rejet n'est imputé à un ouvrage que si l'une de ses stations hautes est dessus : le
+`NO_CANYON` du km 9,22 ne touche Pont Tournant que par sa culée.
+
+**Coût en tuiles** (distinctes, 256² float32 = 0,262 MB chacune)
+
+| Couche | test1 | test2 | test3 | test4 | Total | MB |
+|---|---|---|---|---|---|---|
+| MNT z15 (= `ign-lidar-hd`) | 15 | 24 | 18 | 132 | 189 | 49,5 |
+| MNS z15, partout | 15 | 24 | 18 | 132 | 189 | 49,5 |
+| MNS z15, fenêtres de MNH z14 | 9 | 20 | 13 | 98 | 140 | 36,7 |
+| MNS z15, fenêtres de MNH z13 | 13 | 22 | 13 | 120 | 168 | 44,0 |
+| MNH z15 | 15 | 24 | 18 | 132 | 189 | 49,5 |
+| MNH z14 | 6 | 11 | 10 | 66 | 93 | 24,4 |
+| MNH z13 | 3 | 4 | 5 | 29 | 41 | 10,7 |
+
+Les fenêtres couvrent 43 / 43 / 63 / 43 % des stations en z14 (59 / 61 / 64 / 70 % en z13).
+
+**Constats**
+
+- **Le port est juste ; l'écart vient de l'échantillonnage.** Sur les entrées de Python, parité
+  exacte hors culée bornée (21/21, mêmes canopées, un seul verdict de rejet changé). Sur la grille
+  XYZ z15 de vcyclist, 16/21, aucun faux positif et 8 stations détectées hors de toute vérité : les
+  ponts perdus sont étroits ou longés par le bord (Pont écluse, Rotonde,
+  Bellevue, Échevis), plus une fusion à 300 m (Haudaudine). Corriger la convention de pixel
+  (`ElevationCalculator` interpole entre coins de pixels, le WMS et `fetch.py` entre centres, soit
+  ≈ 1,6 m d'écart) ne rattrape rien : 14/21. Les seuils calés sur la grille de Python (pixel de
+  3,47 × 2,37 m) sont au bord pour ces cinq ouvrages ; les retoucher sans témoins négatifs serait
+  du surapprentissage.
+- **La couche MNH n'apporte rien en z15** : elle vaut MNS − MNT à 1 cm près sur toutes les stations
+  des quatre itinéraires, et (b) est identique à (a). Le pipeline lit déjà le MNT : E3 n'a besoin
+  que du **MNS z15** (189 tuiles, 49,5 MB sur les 4 itinéraires, autant que le MNT).
+- **Le schéma en deux phases ne paie pas.** En z14 il coûte 93 tuiles de MNH + 140 de MNS = 233
+  tuiles, plus que le seul MNS z15 (189), pour 13/21 : il gagne Échevis mais perd Willy-Brandt,
+  Pirmil, Aristide Briand et way 410671587 (`STEEP`) ; en z13, 41 + 168 = 209 tuiles pour 9/21,
+  deux faux positifs et 866 stations détectées hors vérité. Le MNS lu dans les seules fenêtres
+  donne bien le même résultat que le MNS complet (vérifié sur les 8 couples), mais les fenêtres
+  couvrent 43 à 70 % du parcours : la canopée de `test4` les remplit. **Zoom pour E3 : MNS z15
+  partout, pas de couche MNH.**
+- **Le MNT du pipeline compte, deux fois.** Avec `ign-lidar-hd`, résultat identique à (a) (même
+  raster). Avec `mapterhorn` (z12) pour le MNH *et* le canyon, 14/21 : way 410671587 perd son
+  canyon (`NO_CANYON`), mais Pirmil passe `STEEP`, une perte du MNH (extension et pente), pas du
+  canyon. Le canyon seul sur `mapterhorn` (f-c, MNH LiDAR) fait pire, 10/21 (Senghor, Willy-Brandt,
+  les deux Audibert, way 1287936957, way 410671587 en `NO_CANYON`) : les deux erreurs se compensent en
+  partie. E3 doit donc lire **le MNH (MNS − MNT) et le canyon sur le MNT LiDAR z15**, même quand le
+  DEM du pipeline est `mapterhorn` — ou ne s'activer qu'avec `ign-lidar-hd`.
+- **Pas de faux positif en z15 et z14** (a, a½, b, c, f), y compris sur les deux tunnels de `test4`
+  (Grands Goulets et Combe Laval, écartés par `NO_CANYON` : le relief au-dessus d'un tunnel n'a pas
+  de MNT plus bas que ses bouts) ; **deux en z13** (d, e13). Le compte de FP ne suffit pas : il ne
+  voit pas une détection étirée qui touche un pont, d'où la colonne « hors vérité ». Le critère d'acceptation de la spec (zéro détection sur des témoins forestiers et urbains)
+  reste **non jugé** : le banc n'a pas encore de témoin négatif dédié (E1, « à ajouter ») ; la
+  canopée rejetée passe de 17,9 km (Python) à 25,2 km en z15, sans fuite en tablier.
+
 ### E3 — Remplacement par le profil du tablier
 
 Sur chaque ouvrage accepté : MNS filtré par médiane glissante sur 25 m, trous < 300 m comblés
