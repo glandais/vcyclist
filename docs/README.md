@@ -45,6 +45,7 @@ Module-level guides live next to their module: [`cli/README.md`](../cli/README.m
 | Document | Goal |
 |---|---|
 | [`tasks/surface-alignment.md`](tasks/surface-alignment.md) | Make façade alignment build-enforced instead of review-enforced, and close the 23 confirmed gaps between the six doors. **S0–S9 and S11 delivered; S10 (code generation) deliberately not started — the reasoning is in the step.** |
+| [`tasks/elevation-bridge-decks.md`](tasks/elevation-bridge-decks.md) | Give bridges their deck back on IGN LiDAR HD ground: detect structures on the MNH, replace the terrain-model canyon with the MNS deck profile, then revisit smoothing and the D+ preset. **Analysis only, nothing delivered.** |
 
 Completed specs move to `archive/tasks/`.
 
