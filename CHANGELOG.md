@@ -1,3 +1,10 @@
+# [6.1.0](https://github.com/glandais/vcyclist/compare/v6.0.1...v6.1.0) (2026-10-12)
+
+
+### Features
+
+* **elevation:** add IGN LiDAR HD as a DEM source, with a Mapterhorn fallback ([cf0798e](https://github.com/glandais/vcyclist/commit/cf0798ea270669e858a0b146999c78502b5e49fb))
+
 ## [6.0.1](https://github.com/glandais/vcyclist/compare/v6.0.0...v6.0.1) (2026-10-11)
 
 
