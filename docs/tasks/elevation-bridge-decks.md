@@ -186,15 +186,137 @@ itinéraires dans le vrai pipeline. La base est faite des quatre itinéraires de
   bâtiments, une route en déblai), Cheviré, et Thouaré (cas à treillis, MNS surestimé).
 
 La vérité est la **chaussée estimée** de l'analyse : MNS médiane 25 m sur les tabliers détectés,
-interpolation linéaire entre portails dans les tunnels, MNT ailleurs. Les emprises des ouvrages
-(km de début et de fin, portails des tunnels) sont figées dans le test à partir de
-`analysis/results.json`, pour que le banc ne dépende pas d'Overpass. Garde-fous : Saint-Nazaire,
+interpolation linéaire entre portails dans les tunnels, Strava recalé sur le MNT sur les tronçons
+en balcon, MNT ailleurs. Les emprises des ouvrages (km de début et de fin, portails des tunnels)
+sont figées dans le test à partir de `analysis/results.json`, pour que le banc ne dépende pas
+d'Overpass. Garde-fous : Saint-Nazaire,
 point haut 63,7 m NGF-IGN69 et pente max 5,9 % (cohérente avec `incline=6%`) ; Grands Goulets,
 600 → 681 m entre portails.
 
 Métriques par cas : erreur max et RMSE sur le tablier, rapport D+ / D+ vrai (preset courant et
 seuil 0), durée simulée, nombre de points dont la pente dépasse 15 %. Colonnes : `mapterhorn`,
 `ign-lidar-hd`, puis chaque variante des étapes suivantes.
+
+#### Mesures de référence (E1)
+
+Banc : `ElevationBenchProbeTest` (`engine/src/jvmTest/.../path/`). La vérité est figée par
+`analysis/export_truth.py` dans `analysis/truth/` : un CSV par itinéraire au pas de 5 m, plus
+`structures.csv` (21 ponts, 4 tunnels, 6 tronçons en balcon, 15 ponts OSM non détectés dont la
+vérité reste au MNT). Sur les balcons, la vérité est Strava recalé sur le MNT (GPX − `strava_offset_m`,
+type `S`) : le MNT au point de la trace y lit la falaise ou la gorge, c'est-à-dire l'erreur même
+qu'on mesure, alors que Strava y reste juste (`analysis/rapport.md`). Un second test, non
+conditionné, relit ces fichiers à chaque `jvmTest` et vérifie leurs tailles et les garde-fous
+(Saint-Nazaire 63,68 m et P95 de pente 5,9 %, calculée comme `analyze.py` : fenêtre de 20 m sur le
+tablier ; Grands Goulets 599,75 → 680,46 m).
+
+```bash
+INTEGRATION=1 ./gradlew :engine:jvmTest --tests '*ElevationBenchProbeTest*' --rerun-tasks -i
+```
+
+Tuiles en cache disque dans `build/dem-cache` (ou `$VCYCLIST_DEM_CACHE`, même disposition que
+`--cache` de la CLI). Premier passage : 209 tuiles téléchargées (51,3 MB : ≈ 190 IGN, ≈ 20
+Mapterhorn) ; passage suivant : 0.
+
+Méthode. Chaque point du profil dense (étapes 1 à 4 du pipeline, pas de 1 à 2 m) est apparié à la
+station de vérité la plus proche par un curseur monotone (rejet au-delà de 30 m : aucun rejet sur
+les quatre itinéraires). `src` est `sourceElevation` (ce que lit `ElevationGain`), `ele` le profil
+lissé à 150 m (ce que roule la physique). Erreur = vcyclist − vérité ; « max » est l'écart signé le
+plus grand en valeur absolue. **Aucun décalage n'est soustrait**, ni à `ign-lidar-hd` ni à
+`mapterhorn` : en France les deux servent du LiDAR HD en NGF-IGN69 (A13). La colonne « Méd. ouvert »
+(médiane de l'écart en terrain ouvert, hors toute emprise) n'est qu'un diagnostic de biais local.
+« D+ rep. » est le D+ rapporté par un `EnhanceOptions.DEFAULT` complet ; « D+ 1 Hz » le même run
+avec `simplifyPath` désactivé, ce qui isole `PathSimplifier` ; « D+ dem » et « D+ raw » sont
+calculés sur `src` rééchantillonné à 5 m, comme la vérité, avec le preset `dem` et le seuil 0.
+Pentes : nombre de stations à 5 m où la pente sur 50 m dépasse 15 %.
+
+**Par itinéraire**
+
+| Itinéraire | Source | Méd. ouvert (m) | D+ rep. | /vrai | D+ 1 Hz | /vrai | D+ dem | /vrai | D+ raw | /vrai | Durée | RMS terrain ouvert (m) | > 15 % src | > 15 % ele |
+|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|
+| test1 (vrai : 72 / 123 m, 4) | mapterhorn | +0,03 | 47 | 0,66 | 62 | 0,86 | 62 | 0,86 | 117 | 0,95 | 0:17:34 | 0,29 | 19 | 0 |
+| | ign-lidar-hd | −0,01 | 12 | 0,17 | 58 | 0,81 | 59 | 0,82 | 137 | 1,11 | 0:17:35 | 0,24 | 30 | 0 |
+| test2 (vrai : 89 / 178 m, 0) | mapterhorn | +0,03 | 71 | 0,80 | 133 | 1,49 | 133 | 1,49 | 227 | 1,27 | 0:44:05 | 0,63 | 24 | 0 |
+| | ign-lidar-hd | +0,00 | 85 | 0,96 | 135 | 1,52 | 138 | 1,56 | 220 | 1,23 | 0:44:06 | 0,29 | 48 | 0 |
+| test3 (vrai : 18 / 216 m, 0) | mapterhorn | −1,53 | 7 | 0,39 | 20 | 1,13 | 20 | 1,13 | 65 | 0,30 | 0:17:08 | 1,68 | 0 | 0 |
+| | ign-lidar-hd | −0,18 | 12 | 0,65 | 26 | 1,43 | 29 | 1,61 | 92 | 0,43 | 0:17:10 | 0,59 | 0 | 0 |
+| test4 (vrai : 2 414 / 2 626 m, 2) | mapterhorn | −0,25 | 2 708 | 1,12 | 2 899 | 1,20 | 2 909 | 1,21 | 3 322 | 1,26 | 3:46:55 | 2,63 | 483 | 238 |
+| | ign-lidar-hd | +0,01 | 2 722 | 1,13 | 2 866 | 1,19 | 2 870 | 1,19 | 3 136 | 1,19 | 3:46:39 | 0,46 | 398 | 243 |
+
+Entre parenthèses : D+ vrai au preset `dem` / au seuil 0, et stations > 15 % de la vérité. Le MNT
+LiDAR seul (colonne `mnt` du CSV) donne au preset `dem` 68 / 144 / 26 / 2 917 m et 26 / 76 / 0 /
+388 stations > 15 %.
+
+**Par ouvrage** (m ; `src` max / RMS, puis `ele` max / RMS)
+
+| Ouvrage | km | L (m) | Vrai max | mapterhorn src | mapterhorn ele | ign-lidar-hd src | ign-lidar-hd ele |
+|---|---|---|---|---|---|---|---|
+| test1 Pont de Saint-Nazaire (D 213) | 1,03–4,67 | 3 645 | 63,7 | −65,7 / 36,0 | −65,7 / 35,9 | −65,8 / 36,0 | −65,7 / 35,9 |
+| test1 way 27013264 | 5,89–5,97 | 85 | 6,9 | −5,3 / 4,1 | −2,3 / 2,2 | −5,2 / 4,2 | −2,4 / 2,3 |
+| test1 Pont écluse sud aval | 9,95–9,98 | 35 | 5,0 | −5,7 / 3,8 | −1,2 / 0,9 | −6,0 / 4,1 | −1,3 / 1,0 |
+| test2 Pont de Bellevue | 0,63–1,01 | 390 | 13,8 | −10,3 / 8,2 | −9,4 / 7,4 | −10,5 / 8,5 | −9,8 / 7,7 |
+| test2 way 362043805 | 1,43–1,55 | 125 | 9,6 | −7,3 / 5,9 | −4,6 / 3,9 | −7,3 / 5,9 | −4,5 / 3,8 |
+| test2 Pont Léopold-Sédar-Senghor | 6,94–7,23 | 295 | 12,1 | −10,6 / 9,0 | −10,5 / 8,3 | −10,5 / 8,9 | −10,4 / 8,1 |
+| test2 Pont Éric Tabarly | 8,42–8,62 | 210 | 11,4 | −9,9 / 8,8 | −8,8 / 7,3 | −9,8 / 8,7 | −8,8 / 7,2 |
+| test2 Pont Willy-Brandt | 9,31–9,51 | 205 | 12,1 | −10,6 / 9,4 | −9,7 / 8,1 | −10,5 / 9,2 | −9,4 / 7,8 |
+| test2 Pont Georges Clemenceau | 10,73–11,06 | 335 | 13,0 | −11,5 / 10,4 | −11,4 / 9,4 | −11,5 / 10,4 | −11,4 / 9,3 |
+| test2 Pont de Pirmil | 12,07–12,30 | 240 | 12,8 | −11,5 / 10,3 | −11,0 / 8,9 | −11,4 / 10,1 | −10,9 / 8,8 |
+| test2 Pont Aristide Briand | 14,03–14,26 | 235 | 12,9 | −11,4 / 9,6 | −10,0 / 8,3 | −11,3 / 9,6 | −9,9 / 8,1 |
+| test2 Pont Général Audibert | 15,23–15,38 | 155 | 11,6 | −10,1 / 8,5 | −8,3 / 6,9 | −10,2 / 8,6 | −8,2 / 6,8 |
+| test2 way 30807706 | 16,91–17,16 | 255 | 10,8 | −9,2 / 8,7 | −8,7 / 7,4 | −9,0 / 8,3 | −8,4 / 7,0 |
+| test2 Pont des Trois Continents | 18,33–18,62 | 290 | 13,3 | −10,9 / 8,7 | −10,5 / 8,2 | −10,9 / 8,8 | −10,5 / 8,2 |
+| test2 way 1287936957 | 19,90–20,05 | 155 | 11,4 | −8,9 / 7,2 | −7,4 / 6,0 | −9,0 / 7,2 | −7,3 / 5,9 |
+| test2 Pont Haudaudine | 20,95–21,15 | 200 | 12,5 | −10,2 / 8,5 | −9,2 / 7,4 | −10,1 / 8,4 | −9,2 / 7,3 |
+| test2 Pont Général Audibert (2ᵉ) | 22,16–22,31 | 150 | 9,3 | −7,8 / 6,8 | −6,1 / 5,1 | −7,9 / 6,9 | −6,0 / 5,0 |
+| test2 Pont de la Rotonde | 23,57–23,62 | 55 | 14,2 | −5,9 / 4,4 | −4,4 / 4,1 | −6,1 / 4,8 | −4,2 / 3,9 |
+| test2 way 410671587 | 24,29–24,41 | 120 | 12,9 | −6,9 / 5,9 | −5,7 / 5,1 | −7,7 / 6,1 | −5,0 / 4,5 |
+| test3 Pont de Mauves-sur-Loire | 0,43–1,26 | 840 | 13,6 | −9,1 / 6,4 | −9,0 / 6,1 | −9,0 / 6,4 | −8,9 / 5,9 |
+| test4 Pont d'Échevis | 7,66–7,68 | 25 | 311,0 | −5,9 / 5,0 | +0,4 / 0,2 | −6,3 / 4,3 | +0,7 / 0,4 |
+| test4 tunnel des Petits Goulets | 5,11–5,58 | 475 | 325,8 | +66,2 / 26,8 | +32,3 / 21,8 | +68,0 / 21,5 | +21,8 / 13,3 |
+| test4 **tunnel des Grands Goulets** | 13,60–15,36 | 1 765 | 680,5 | +214,5 / 135,4 | +201,6 / 133,4 | +220,2 / 136,0 | +205,5 / 133,8 |
+| test4 tunnel des Moines | 65,74–65,95 | 210 | 1 000,0 | +51,9 / 36,2 | +33,5 / 27,0 | +61,3 / 40,8 | +38,0 / 30,9 |
+| test4 galeries de Combe Laval | 68,15–68,64 | 490 | 910,3 | +27,9 / 10,7 | +9,1 / 5,1 | +38,9 / 12,3 | +14,5 / 7,4 |
+| test4 balcon km 68,64 (Combe Laval) | 68,64–68,68 | 40 | 908,6 | +7,6 / 5,0 | +4,2 / 4,0 | +11,7 / 6,2 | +11,7 / 9,8 |
+| test4 balcon km 67,98 (Combe Laval) | 67,98–68,14 | 165 | 908,5 | −5,7 / 4,2 | −3,7 / 3,4 | −0,9 / 0,5 | +1,0 / 0,5 |
+| test4 balcon km 66,05 | 66,05–66,19 | 140 | 984,4 | −10,8 / 8,2 | −7,2 / 6,8 | −6,7 / 2,7 | −1,9 / 1,6 |
+| test4 balcon km 7,54 (Bourne) | 7,54–7,58 | 45 | 316,8 | −2,3 / 1,6 | −3,8 / 3,3 | −4,2 / 4,0 | −4,4 / 4,0 |
+| test4 balcon km 92,99 | 92,99–93,01 | 25 | 881,4 | −6,0 / 5,6 | −6,0 / 5,8 | −0,8 / 0,6 | −1,9 / 1,8 |
+| test4 balcon km 67,08 | 67,08–67,14 | 65 | 968,6 | −4,1 / 2,9 | −2,7 / 1,4 | +2,9 / 2,8 | +2,6 / 2,3 |
+
+Les 15 ponts OSM non détectés (vérité = MNT, donc sans valeur pour juger un tablier) restent
+imprimés par le test ; leurs écarts max vont de −6,6 à +10,5 m.
+
+**Constats**
+
+- **Les deux sources voient les mêmes canyons.** Sur les 21 ponts, `mapterhorn` et
+  `ign-lidar-hd` diffèrent d'au plus 0,8 m sur l'écart max (way 410671587 ; Mauves : 0,1 m) :
+  Mapterhorn sert déjà du LiDAR en France (voir E6). Les sources ne divergent qu'en terrain ouvert
+  — montagne (RMS 2,63 m contre 0,46 m sur `test4`) et `test3`, où les pixels de 13 m de
+  Mapterhorn portent un biais local (médiane −1,53 m, RMS 1,68 m contre −0,18 / 0,59 m) — et dans
+  les balcons.
+- **Saint-Nazaire** : vcyclist passe 65,7 m sous le tablier au point haut, RMS 36 m sur 3,6 km ; le
+  lissage à 150 m n'y change rien (−65,7 m). **Ponts nantais** : 5,9 à 11,5 m sous le tablier avant
+  lissage, encore 4,2 à 11,4 m après — le noyau de 150 m n'efface pas un canyon de 200–300 m.
+- **Grands Goulets** : jusqu'à +220 m au-dessus de la chaussée (RMS 136 m), +205 m encore après
+  lissage — pire que Strava (+190 m), comme l'annonçait l'*Input 5*. Les trois tunnels « bien
+  traités » par Strava coûtent à vcyclist +28 à +68 m.
+- **Balcons** (vérité Strava) : jusqu'à +11,7 m (`ign-lidar-hd`, km 68,64 à Combe Laval, intact
+  après lissage) et −10,8 m (`mapterhorn`, km 66,05). Le cas spectaculaire de l'*Input 5* (+76 m
+  à Combe Laval) tombe dans l'emprise des galeries, donc dans la ligne entre portails, pas dans
+  ces six tronçons, où MNT et Strava ne s'écartent que de 3,2 à 8,8 m (`dmax`).
+- **D+ gonflé là où il y a du relief, masqué en plaine par `PathSimplifier`.** `test4` : ×1,12–1,13
+  en D+ rapporté, ×1,19–1,21 sur le profil dense. `test2` : ×1,49–1,56 sur le profil dense (les
+  canyons sous les ponts) et encore ×1,49–1,52 au D+ 1 Hz, mais ×0,80–0,96 une fois
+  `PathSimplifier` passé ; sur `test1` (`ign-lidar-hd`), la simplification seule fait passer le D+
+  de 58 m (1 Hz) à 12 m, pour 72 m vrais. La simulation et le rééchantillonnage à 1 Hz ne bougent
+  presque rien (D+ 1 Hz ≈ D+ dem). Le D+ rapporté ne suffit donc pas à juger E3 : comparer aussi
+  la colonne « D+ dem ».
+- **Pentes > 15 %** : 398–483 stations sur `test4` avant lissage, 238–243 après, contre 2 pour la
+  vérité ; en plaine, 19 à 48 stations avant lissage et aucune après.
+- **Limites** : D+ au seuil 0 peu fiable sur `test3` : le MNT lui-même gigote de 0,5 à 1,5 m d'une
+  station à l'autre hors ouvrage (210 m des 216 m bruts sur le terrain `T`, 225 m pour le MNT
+  seul) ; seul le preset `dem` y est comparable. Aux bords des balcons, la vérité saute du MNT à
+  Strava d'au plus `dmax`. Échevis reste douteux (voir `analysis/rapport.md` : 25 m, tablier et
+  interpolation indiscernables) ; aucun témoin négatif ni Cheviré / Thouaré dans ce banc.
 
 ### E2 — Détecteur d'ouvrage sur le MNH
 

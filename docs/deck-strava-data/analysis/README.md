@@ -13,4 +13,5 @@ Overpass, bbox requests only):
 python3 -I fetch.py     # resample GPX at 5 m, sample MNT/MNS — tiles cached in cache/
 python3 -I analyze.py   # bridges, tunnels, estimated roadway, figures, results.json
 python3 -I report.py    # rapport_tables.md
+python3 -I export_truth.py  # truth/*.csv: frozen roadway + structure spans for ElevationBenchProbeTest
 ```
