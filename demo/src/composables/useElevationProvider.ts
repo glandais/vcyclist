@@ -1,16 +1,28 @@
+import { computed, ref } from 'vue';
 import {
+    elevationAttribution,
     newElevationProvider,
     type ElevationProvider,
-    type ElevationProviderConfigDto,
 } from '@glandais/vcyclist-elevation';
+import type { DemSource } from '~/types';
 
-// One provider for the whole app: it owns an LRU tile cache, so recreating it on every mount
-// (or on every tab switch) would refetch DEM tiles the user already paid for.
-let provider: ElevationProvider | null = null;
+// One provider per source for the whole app: each owns an LRU tile cache, so recreating it on
+// every mount, tab switch or source toggle would refetch DEM tiles the user already paid for.
+const providers = new Map<DemSource, ElevationProvider>();
 
-export function useElevationProvider(config: ElevationProviderConfigDto | null = null) {
-    if (provider === null) {
-        provider = newElevationProvider(config);
-    }
-    return provider;
+// Shared by the map and the profile, so a point and a path never read two different DEMs.
+const source = ref<DemSource>('mapterhorn');
+
+export function useElevationProvider() {
+    const provider = computed(() => {
+        let p = providers.get(source.value);
+        if (!p) {
+            p = newElevationProvider({ source: source.value });
+            providers.set(source.value, p);
+        }
+        return p;
+    });
+    // The source's own credit: IGN's licence requires it to be displayed, like Mapterhorn's.
+    const attribution = computed(() => elevationAttribution(provider.value));
+    return { source, provider, attribution };
 }

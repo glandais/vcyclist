@@ -113,6 +113,7 @@ Légende : ✅ atteignable · ⚠️ partiel (la note dit en quoi) · ❌ absent
 | R27 D+/D− à seuil (`elevationGainPreset`, `elevationGainThresholdM`, `elevationGainEnabled`) | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
 | R28 fenêtre de lissage d'altitude (`elevationSmoothWindowM`) | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
 | R30 zoom du MNT pour le pipeline (`--dem-zoom`, `demZoom`, `vcSetElevationConfig`) | ✅ | ✅ | ✅ | ✅ | ⚠️ [^demzoom] | ❌ [^demzoom] |
+| Source du MNT, IGN LiDAR HD (`ElevationSource` : `--dem-source`, `demSource`, `source`) | ✅ | ✅ | ✅ | ⚠️ [^demsource] | ✅ [^demsource] | ✅ [^demsource] |
 
 [^prec]: **Refermé en S8, avec un changement de comportement du CLI.** Les trois portes résolvaient
     le préréglage elles-mêmes et ne s'accordaient pas : l'explicite gagnait au CLI, le préréglage
@@ -182,6 +183,17 @@ Légende : ✅ atteignable · ⚠️ partiel (la note dit en quoi) · ❌ absent
     ré-exportation n'est pas une traversée** : le paquet expose `zoomLevel` depuis
     toujours pour l'explorateur d'altitude, mais rien dans l'UI d'analyse GPX ne le règle. R30 est
     mesuré et rejeté (zoom 12 = résolution native), donc la case reste ❌ sans être une dette.
+
+[^demsource]: Le MNT lui-même, pas son zoom. Un catalogue `ElevationSource` dans `:elevation`
+    (`mapterhorn`, `ign-lidar-hd`) que chaque porte nomme par son id ; la source IGN retombe sur
+    Mapterhorn là où elle n'a pas de donnée. **WASI ⚠️** : l'hôte sert les tuiles et `fetch_tile` ne
+    porte que `z/x/y`, donc la source se fixe une fois par `vcSetElevationConfig` (`source`,
+    `tileFormat: "bil32"`, `urlTemplate` rendu par `vcTileGeometryJson`), la clé `demSource` par
+    appel est *vérifiée* contre elle et non appliquée, et il n'y a **pas de repli** — un échantillon
+    IGN `-9999` y lit 0 m. Java : `ElevationProviderJvm.newElevationProvider(ElevationSource)`,
+    puis `EnhancerJvm.enhanceCourseDefaultAsync(path, provider)`. Démo : la source sous « Fix
+    Elevation » dans l'onglet d'enrichissement, et un sélecteur dans l'explorateur d'altitude,
+    attribution affichée (`elevationAttribution`).
 
 [^bridge]: **Refermé en S5.** `ElevationProvider` a trois membres `suspend` et seuls deux avaient
     des ponts `Blocking`/`Async` ; celui qui manquait était justement le seul à cinq paramètres par
@@ -301,6 +313,7 @@ Sans porte CLI, avec la raison :
 | `wPrimeBalanceCriticalPower` | `wPrimeBalance.criticalPowerW` | ❌ | ✅ | ✅ |
 | `wPrimeBalanceEnabled` | `wPrimeBalance.enabled` | ❌ | ✅ | ✅ |
 | `wPrimeBalanceWPrime` | `wPrimeBalance.wPrimeJ` | ❌ | ✅ | ✅ |
+| `demSource` | *(préréglage, aucun champ)* | ✅ | ✅ | ✅ |
 | `demZoom` | *(préréglage, aucun champ)* | ✅ | ✅ | ✅ |
 
 Sans porte CLI, avec la raison :

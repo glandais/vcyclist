@@ -55,6 +55,8 @@ const migrateConfig = (data: SerializableConfig): SerializableConfig => {
                 ...DEFAULT_CONFIG.enhance.wPrimeBalance,
                 ...(data.enhance.wPrimeBalance ?? {}),
             },
+            // Saved before the DEM source was a choice: keep the source it implicitly used.
+            demSource: data.enhance.demSource ?? DEFAULT_CONFIG.enhance.demSource,
             curvature: { ...DEFAULT_CONFIG.enhance.curvature, ...(data.enhance.curvature ?? {}) },
             racingLine: {
                 ...DEFAULT_CONFIG.enhance.racingLine,

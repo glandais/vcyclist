@@ -24,6 +24,12 @@ external interface CoordinatesElevationDto {
     val elevation: Double
 }
 
+/** JS shape of [Attribution]. */
+external interface AttributionDto {
+    val text: String
+    val url: String?
+}
+
 /** JS shape of [SmoothingOptions]. */
 external interface SmoothingOptionsDto {
     val enabled: Boolean
@@ -52,6 +58,12 @@ external interface ElevationProviderConfigDto {
     val cacheSize: Int?
     val tileUrlTemplate: String?
     val tileSize: Int?
+
+    /**
+     * An [ElevationSource] id, `"mapterhorn"` (the default) or `"ign-lidar-hd"`: the base the
+     * other fields override, its default zoom and its fallback included.
+     */
+    val source: String?
 }
 
 private fun coordsEle(
@@ -74,16 +86,25 @@ private fun coordsEle(
 @JsExport
 fun newElevationProvider(configDto: ElevationProviderConfigDto?): ElevationProvider {
     configDto?.requireOnlyKeys("ElevationProviderConfigDto", CONFIG_KEYS)
-    val defaults = ElevationProviderConfig()
+    val source = configDto?.source?.let { ElevationSource.byId(it) } ?: ElevationSource.DEFAULT
+    val base = source.config(configDto?.zoomLevel)
     val cfg =
-        ElevationProviderConfig(
-            zoomLevel = configDto?.zoomLevel ?: defaults.zoomLevel,
-            cacheSize = configDto?.cacheSize ?: defaults.cacheSize,
-            tileUrlTemplate = configDto?.tileUrlTemplate ?: defaults.tileUrlTemplate,
-            tileSize = configDto?.tileSize ?: defaults.tileSize,
-            attribution = defaults.attribution,
+        base.copy(
+            cacheSize = configDto?.cacheSize ?: base.cacheSize,
+            tileUrlTemplate = configDto?.tileUrlTemplate ?: base.tileUrlTemplate,
+            tileSize = configDto?.tileSize ?: base.tileSize,
         )
-    return ElevationProvider(cfg)
+    val primary = ElevationProvider(cfg)
+    return source.fallback?.let { primary.withFallback(it.provider()) } ?: primary
+}
+
+/** The attribution the provider's source requires to be displayed, `{ text, url }`. */
+@JsExport
+fun elevationAttribution(provider: ElevationProvider): AttributionDto {
+    val o = js("({})")
+    o.text = provider.attribution.text
+    o.url = provider.attribution.url
+    return o.unsafeCast<AttributionDto>()
 }
 
 @JsExport
@@ -131,7 +152,7 @@ private fun SmoothingOptionsDto.toKotlin() = SmoothingOptions(windowSize = windo
 
 private fun FilterOptionsDto.toKotlin() = FilterOptions(tolerance = tolerance, zExaggeration = zExaggeration, enabled = enabled)
 
-private val CONFIG_KEYS = setOf("zoomLevel", "cacheSize", "tileUrlTemplate", "tileSize")
+private val CONFIG_KEYS = setOf("zoomLevel", "cacheSize", "tileUrlTemplate", "tileSize", "source")
 
 private val ALONG_KEYS = setOf("step", "minDistance", "interpolation", "smoothingOptions", "filterOptions")
 

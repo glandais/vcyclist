@@ -130,7 +130,8 @@ The options object (`EnhanceOptionsDto`) is entirely optional, field by field:
 | `racingLineEnabled` / `racingLineCorridor` / `racingLineRoadWidthM` | `false` / `"lane"` / 6 m | optimal line through corners |
 | `elevationGainEnabled` / `elevationGainPreset` / `elevationGainThresholdM` | `true` / `"dem"` / preset's | how the reported climbing is measured — `"raw"`, `"barometric"`, `"dem"`, `"gps"` |
 | `elevationSmoothWindowM` | 150 m | elevation-smoother half-width; decides both the reported climbing and the gradients ridden |
-| `demZoom` | 12 | Web-Mercator zoom for the DEM lookup, only used with `fixElevation` |
+| `demZoom` | the source's (12, or 15 for IGN) | Web-Mercator zoom for the DEM lookup, only used with `fixElevation` |
+| `demSource` | `"mapterhorn"` | DEM `fixElevation` reads: `"mapterhorn"` or `"ign-lidar-hd"` (France, Mapterhorn elsewhere) |
 
 Three of those defaults — no DEM fetch, no 1 Hz resample, no simplify — are the **JavaScript
 façade's**, not the engine's. Ask for them explicitly if you want the full pipeline.
@@ -320,6 +321,12 @@ const along = await getElevationsAlong(
 `newElevationProvider(null)` uses the defaults: zoom 12, a 100-tile LRU cache, and mapterhorn
 Terrarium tiles at `https://tiles.mapterhorn.com/{z}/{x}/{y}.webp`. The provider is an opaque
 handle — pass it back in, do not reach into it. Reuse one across calls: the tile cache lives on it.
+
+`newElevationProvider({ source: 'ign-lidar-hd' })` reads IGN's LiDAR HD terrain model instead —
+France only, ~3.4 m per pixel, Mapterhorn wherever IGN has no data. The other keys override the
+source's defaults. Its tiles come from IGN's WMS, which sends CORS headers, so it works in a
+browser as is. `elevationAttribution(provider)` returns the `{ text, url }` the source requires
+you to display.
 
 See [`elevation/README.md`](../../elevation/README.md) for attribution and coverage.
 

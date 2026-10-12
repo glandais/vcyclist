@@ -137,6 +137,7 @@ export function useGPXDemo(config: Ref<Config>): UseGPXDemoReturn {
         const e = config.value.enhance;
         return {
             fixElevation: e.fixElevation,
+            demSource: e.demSource,
             computeMaxSpeeds: e.computeMaxSpeeds,
             virtualizeTrack: e.virtualizeTrack,
             computeOnePointPerSecond: e.computeOnePointPerSecond,

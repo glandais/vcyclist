@@ -56,6 +56,19 @@ fun newElevationProvider(): ElevationProvider = ElevationProvider()
 fun newElevationProvider(config: ElevationProviderConfig): ElevationProvider = ElevationProvider(config)
 
 /**
+ * The provider for a catalogued [source] — its fallback chained behind it — at the source's own
+ * zoom. `newElevationProvider(ElevationSource.IGN_LIDAR_HD)` is IGN LiDAR HD over France with
+ * Mapterhorn wherever IGN has no data.
+ */
+fun newElevationProvider(source: ElevationSource): ElevationProvider = source.provider()
+
+/** Same, at [zoomLevel] for the source itself; the fallback keeps its own default zoom. */
+fun newElevationProvider(
+    source: ElevationSource,
+    zoomLevel: Int,
+): ElevationProvider = source.provider(zoomLevel)
+
+/**
  * A provider whose tiles come from **your** code — the injection point for a disk cache, an
  * object store, or tiles bundled with the application (task g32).
  *
@@ -111,6 +124,8 @@ fun elevationProviderConfig(
     tileUrlTemplate: String = "https://tiles.mapterhorn.com/{z}/{x}/{y}.webp",
     tileSize: Int = 512,
     attribution: Attribution = ElevationProviderConfig().attribution,
+    encoding: TileEncoding = ElevationProviderConfig().encoding,
+    maxRequestsPerSecond: Int = ElevationProviderConfig().maxRequestsPerSecond,
 ): ElevationProviderConfig =
     ElevationProviderConfig(
         zoomLevel = zoomLevel,
@@ -118,6 +133,8 @@ fun elevationProviderConfig(
         tileUrlTemplate = tileUrlTemplate,
         tileSize = tileSize,
         attribution = attribution,
+        encoding = encoding,
+        maxRequestsPerSecond = maxRequestsPerSecond,
     )
 
 /** `new Attribution(text)` does not compile from Java: `url` is a Kotlin default. */

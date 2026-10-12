@@ -90,8 +90,11 @@ object HostTileSource {
      * An explicit setting rather than sniffing the payload: a WebP file happens to be smaller
      * than a decoded tile *today*, but deciding by length would silently misread the day it is
      * not, and a misread tile is wrong elevations rather than an error.
+     *
+     * `BIL32` is IGN's WMS answer as downloaded: `tileSize²` little-endian float32 metres, exactly
+     * the decoded size, which is one more reason the format cannot be guessed from the length.
      */
-    enum class TileFormat { RGBA, WEBP }
+    enum class TileFormat { RGBA, WEBP, BIL32 }
 
     /** How the host answers `fetch_tile`. Set through the ABI's `vcSetElevationConfig`. */
     var tileFormat: TileFormat = TileFormat.RGBA
@@ -184,6 +187,9 @@ private suspend fun fetchFromHost(tc: TileCoordinates): RawTile {
     }
     if (written == 0) return seaLevelTile(size)
     if (webp) return decodeTileBytes(payload, "host://${tc.z}/${tc.x}/${tc.y}")
+    if (HostTileSource.tileFormat == HostTileSource.TileFormat.BIL32) {
+        return decodeBil32Tile(payload, size, "host://${tc.z}/${tc.x}/${tc.y}")
+    }
     check(written == cap) {
         "host fetch_tile(${tc.z}/${tc.x}/${tc.y}) returned $written, expected $cap decoded bytes or 0 " +
             "(set tileFormat to \"webp\" if the host means to send the compressed file)"

@@ -18,6 +18,8 @@ const {
     statusKind,
     smoothing,
     filter,
+    demSource,
+    attribution,
     stats,
     setMode,
     addPoint,
@@ -112,6 +114,8 @@ defineExpose({ resizeAll });
         <ElevationControls
             v-model:smoothing="smoothing"
             v-model:filter="filter"
+            v-model:dem-source="demSource"
+            :attribution="attribution"
             :mode="mode"
             :relief="relief"
             :has-path="hasPath"

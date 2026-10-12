@@ -26,6 +26,8 @@ vcyclist enhance route.gpx --gpx out.gpx --csv out.csv --start-time 2026-08-01T0
 | `--no-extensions` | write a bare GPX: no `<extensions>`, so no power, heart rate, cadence or temperature |
 | `--gpx-power-source <input\|computed\|computed-or-input>` | which power the written GPX carries (default `input`) |
 | `--[no-]fix-elevation` | DEM elevation correction (off by default; downloads the missing tiles) |
+| `--dem-source <mapterhorn\|ign-lidar-hd>` | DEM `--fix-elevation` reads (default `mapterhorn`; see below) |
+| `--dem-zoom <0-15>` | DEM zoom (default: the source's own — 12 for Mapterhorn, 15 for IGN) |
 | `--cache <folder>` | where DEM and map tiles persist between runs (default `~/.vcyclist/cache`) |
 | `--[no-]virtualize` | physics simulation (on) |
 | `--[no-]simplify`, `--simplify-tolerance <m>` | Douglas-Peucker (on, 10 m) |
@@ -42,6 +44,13 @@ Tiles land under `--cache` (`{host}/{z}/{x}/{y}.webp`, same layout as the map ti
 never expire, so only the first run over an area touches the network. If a tile cannot be
 fetched, the file **fails** — exit code 70, with the cause on stderr — rather than writing
 plausible-looking output whose elevations were never corrected (task g34).
+
+`--dem-source ign-lidar-hd` reads IGN's LiDAR HD terrain model instead: France only, ~3.4 m per
+pixel, falling back to Mapterhorn wherever IGN has no data (abroad, at sea). Its WMS tiles land
+under `--cache` as `data.geopf.fr/wms-r/wms/{sha256 of the query}.bil` — the tile is in the query
+string, so the path alone would not tell two apart. A cold 130 km ride is ~130 tiles and ~33 MB,
+paced under IGN's rate limit; the second run is offline. What it is worth, and the bridges a
+terrain model does not have: [`docs/guides/elevation.md`](../docs/guides/elevation.md#choosing-the-dem-source-ign-lidar-hd).
 
 ### `export` — derived outputs, no physics
 

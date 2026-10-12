@@ -1,6 +1,8 @@
 package io.github.glandais.cli
 
 import io.github.glandais.elevation.ElevationProviderConfig
+import io.github.glandais.elevation.ElevationSource
+import io.github.glandais.elevation.TileEncoding
 import kotlinx.coroutines.runBlocking
 import java.awt.Color
 import java.awt.image.BufferedImage
@@ -12,6 +14,7 @@ import kotlin.test.AfterTest
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFailsWith
+import kotlin.test.assertNotEquals
 import kotlin.test.assertTrue
 
 /**
@@ -117,6 +120,48 @@ class DiskCachedElevationTest {
             elevation { url -> error("Tile fetch failed for $url: HTTP 503") }
         }
         assertEquals(emptyList(), cachedFiles())
+    }
+
+    /** IGN's answer: [metres] at every pixel as little-endian float32, or `-9999` for no data. */
+    private fun bilTile(
+        tileSize: Int,
+        metres: Float,
+    ): ByteArray {
+        val bits = metres.toRawBits()
+        return ByteArray(tileSize * tileSize * 4) { i -> (bits shr (8 * (i % 4))).toByte() }
+    }
+
+    @Test
+    fun `two WMS tiles differing only by their query get two cache files`() {
+        val url = "https://data.geopf.fr/wms-r/wms?BBOX=1,2,3,4&WIDTH=256"
+        val a = cachePathFor(url, TileEncoding.BIL32)
+        val b = cachePathFor(url.replace("BBOX=1", "BBOX=0"), TileEncoding.BIL32)
+        assertNotEquals(a, b)
+        assertTrue(a.startsWith("data.geopf.fr/wms-r/wms/") && a.endsWith(".bil"), a)
+        assertEquals("dem.example.invalid/12/1/2.png", cachePathFor("https://dem.example.invalid/12/1/2.png"))
+    }
+
+    @Test
+    fun `an IGN tile is decoded as BIL, cached, and its no-data points go to the cached fallback`() {
+        val fetch: suspend (String) -> ByteArray = { url ->
+            if ("geopf" in url) bilTile(256, if ("BBOX=4" in url) 1234.5f else -9999f) else goodTileAt(512)
+        }
+        val provider = diskCachedElevationProvider(cacheDir, ElevationSource.IGN_LIDAR_HD, null, fetch)
+        // 45.5 N lies in a tile whose bbox starts with "4…"; -10 S does not, and falls back.
+        assertEquals(1234.5, runBlocking { provider.getElevation(45.5, 6.0) }, 0.01)
+        assertEquals(ELEVATION_M, runBlocking { provider.getElevation(-10.0, 6.0) }, 1.0)
+        val files = cachedFiles().map { it.relativeTo(cacheDir).path }
+        assertEquals(2, files.count { it.endsWith(".bil") }, files.toString())
+        assertEquals(1, files.count { it.startsWith("tiles.mapterhorn.com/") }, files.toString())
+    }
+
+    private fun goodTileAt(size: Int): ByteArray {
+        val image = BufferedImage(size, size, BufferedImage.TYPE_INT_RGB)
+        val g = image.createGraphics()
+        g.color = Color(128, ELEVATION_M.toInt(), 0)
+        g.fillRect(0, 0, size, size)
+        g.dispose()
+        return ByteArrayOutputStream().also { ImageIO.write(image, "png", it) }.toByteArray()
     }
 
     private companion object {

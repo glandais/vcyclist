@@ -263,6 +263,7 @@ for a tile by `zoom/x/y` and the host answers, in one of two formats — set wit
 |---|---|---|
 | `"rgba"` (default) | decoded pixels, exactly `expectedBytes` of them | an image library |
 | `"webp"` | **the file as downloaded**, and returns its length | an HTTP client, nothing else |
+| `"bil32"` (default for `ign-lidar-hd`) | IGN's WMS body as downloaded: `tileSize²` little-endian float32 metres, exactly `expectedBytes` | an HTTP client, nothing else |
 
 `"webp"` exists because the module carries its own lossless-WebP decoder (pure Kotlin, checked
 byte for byte against the JVM's on a real tile). In that mode a host is one `GET` — no Pillow, no
@@ -279,8 +280,24 @@ the module decodes the file into in `"webp"` mode.
 ```json
 // vcTileGeometryJson
 {"tileSize": 512, "bytesPerPixel": 4, "expectedBytes": 1048576,
- "layout": "RGBA", "encoding": "terrarium", "zoomLevel": 12, "tileFormat": "rgba"}
+ "layout": "RGBA", "encoding": "terrarium", "zoomLevel": 12, "tileFormat": "rgba",
+ "source": "mapterhorn", "urlTemplate": "https://tiles.mapterhorn.com/{z}/{x}/{y}.webp"}
 ```
+
+`source` and `urlTemplate` say **what to download**: the configured `ElevationSource` and where it
+publishes, at the configured tile size. An XYZ template takes `{z}`, `{x}`, `{y}`; IGN's WMS takes
+`{bbox}`, the tile's `south,west,north,east` in degrees (WMS 1.3.0 puts latitude first for
+EPSG:4326):
+
+```text
+north(y) = degrees(atan(sinh(π − 2π·y / 2^z)))
+west     = x / 2^z · 360 − 180          east = (x + 1) / 2^z · 360 − 180
+bbox     = north(y + 1), west, north(y), east
+```
+
+`tools/wasi/host.py`'s `ign_lidar_hd_tile_source` is that, in twenty lines. IGN limits a client to
+40 requests a second and answers 429 past it; the module asks for one tile at a time over WASI, so
+a host only has to avoid fanning out on its own.
 
 - `expectedBytes` is the `cap` the guest passes, so a host can also just trust `cap`. In
   `"webp"` mode it is the size of the buffer **offered**, not of the answer: write the file and
@@ -295,8 +312,15 @@ the module decodes the file into in `"webp"` mode.
 Tile requests arrive **one at a time**, in the middle of a `vcEnhance` call. That is also why the
 re-entrancy rule of §4 matters here: do not call back into the module from `fetch_tile`.
 
-`vcSetElevationConfig` takes `{"zoomLevel": 12, "tileSize": 512, "cacheSize": 100,
-"tileFormat": "rgba"}`, any subset.
+`vcSetElevationConfig` takes `{"source": "mapterhorn", "zoomLevel": 12, "tileSize": 512,
+"cacheSize": 100, "tileFormat": "rgba"}`, any subset. `source` (`"mapterhorn"` or
+`"ign-lidar-hd"`) supplies the defaults of the other keys: `ign-lidar-hd` alone means zoom 15,
+256-px tiles and `"bil32"`.
+
+**No fallback on this door.** Elsewhere, where IGN has no data — abroad, at sea — the point is asked
+of Mapterhorn instead. Here `fetch_tile` carries `z/x/y` and nothing else, so the guest cannot ask
+for a second source: a `-9999` sample reads 0 m. A host that wants better sees the `-9999`s before
+the module does and can fill them in.
 It is validated on the spot — a tile size that is not a power of two, or a zoom outside 0..15, is
 `-3` right there rather than three calls later — and it is sticky for the instance.
 
@@ -372,6 +396,10 @@ Up to five optional sub-objects; each is the matching JS DTO, field for field.
   `vcSetElevationConfig` last set in place. It exists here because the two wire doors accept the
   same keys or neither does; a host wanting one call at a different zoom should not have to mutate
   the sticky config and put it back. Measured as worth nothing above 12 (ledger R30).
+- `options.demSource` is **checked, not applied**: it must name the source `vcSetElevationConfig`
+  configured, or the call fails with `-3`. The host fetches the tiles, so the guest switching
+  sources per call would decode one source's bytes as another's. It is accepted because the two
+  wire doors take the same keys.
 
 **Changed in task 43.** `critical-power`, `wPrime`, `pacing`, `maxSlewWPerS`, `roadCondition` and
 the three `wPrimeBalance*` keys are new — every one of them additive, so an existing payload keeps

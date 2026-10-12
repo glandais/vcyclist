@@ -68,9 +68,16 @@ private suspend fun decodeWebpNode(buffer: dynamic): dynamic {
     return resultPromise.await()
 }
 
+/** A non-2xx as a [TileFetchException], `Retry-After` included when CORS lets us read it. */
+private fun Response.requireOk(url: String) {
+    if (ok) return
+    val retryAfter = headers.get("Retry-After")?.trim()?.toLongOrNull()
+    throw TileFetchException(url, status.toInt(), retryAfter)
+}
+
 actual suspend fun fetchTileBytes(url: String): ByteArray {
     val res: Response = if (isNode) fetchUrlNode(url).await() else fetchUrlBrowser(url).await()
-    check(res.ok) { "Tile fetch failed for $url: HTTP ${res.status}" }
+    res.requireOk(url)
     val ab: dynamic = responseArrayBuffer(res).await()
     // A Kotlin/JS ByteArray IS an Int8Array at runtime, so this view is the ByteArray itself.
     return js("new Int8Array(ab)").unsafeCast<ByteArray>()
@@ -85,7 +92,7 @@ actual suspend fun fetchAndDecodeTile(url: String): RawTile = if (isNode) decode
 
 private suspend fun decodeBrowser(url: String): RawTile {
     val res: Response = fetchUrlBrowser(url).await()
-    check(res.ok) { "Tile fetch failed for $url: HTTP ${res.status}" }
+    res.requireOk(url)
     // Straight to the Blob: no ByteArray round-trip when we own both halves.
     return decodeBlob(res.blob().await(), url)
 }
@@ -120,7 +127,7 @@ private suspend fun decodeBlob(
 
 private suspend fun decodeNode(url: String): RawTile {
     val res: Response = fetchUrlNode(url).await()
-    check(res.ok) { "Tile fetch failed for $url: HTTP ${res.status}" }
+    res.requireOk(url)
     val ab: dynamic = responseArrayBuffer(res).await()
     return rawTileFromJsquash(decodeWebpNode(ab))
 }

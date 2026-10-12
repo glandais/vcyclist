@@ -62,6 +62,7 @@ private val ENHANCE_KEYS =
         "elevationGainThresholdM",
         "elevationSmoothWindowM",
         "demZoom",
+        "demSource",
     )
 
 /**
@@ -133,6 +134,12 @@ internal fun JsonObj?.demZoomOrNull(): Int? {
     val raw = double("demZoom", Double.NaN)
     return if (raw.isNaN()) null else raw.toInt()
 }
+
+/**
+ * The `demSource` this call names, or `null`. Not applied on this door, only checked against the
+ * source the host serves — see `elevationConfigFor`.
+ */
+internal fun JsonObj?.demSourceOrNull(): String? = this?.string("demSource", "")?.takeIf { it.isNotEmpty() }
 
 /** Corridor mode by name. Unknown values are an error here, like every other unknown WASI input. */
 private fun JsonObj.corridor(

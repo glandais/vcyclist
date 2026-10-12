@@ -21,7 +21,7 @@ export function useElevationMap(
     points: Ref<CoordinatesDto[]>,
     onPointClick: (latitude: number, longitude: number) => void
 ) {
-    const provider = useElevationProvider();
+    const { provider } = useElevationProvider();
 
     const mapInstance = shallowRef<L.Map | null>(null);
     const reliefLayer = shallowRef<L.GridLayer | null>(null);
@@ -91,7 +91,7 @@ export function useElevationMap(
         pointMarker.value = marker;
 
         try {
-            const elevation = await getElevation(provider, lat, lng, true);
+            const elevation = await getElevation(provider.value, lat, lng, true);
             marker.setPopupContent(
                 `<strong>Elevation: ${formatElevation(elevation)}</strong><br>${formatCoordinates(lat, lng)}`
             );
@@ -129,7 +129,7 @@ export function useElevationMap(
                 const marker = markerAt(p.latitude, p.longitude, PATH_COLOR)
                     .addTo(layer)
                     .bindPopup(`Point ${i + 1}: getting elevation…`);
-                void getElevation(provider, p.latitude, p.longitude, true)
+                void getElevation(provider.value, p.latitude, p.longitude, true)
                     .then(elevation =>
                         marker.setPopupContent(
                             `<strong>Point ${i + 1}</strong><br>Elevation: ${formatElevation(elevation)}<br>${formatCoordinates(p.latitude, p.longitude)}`

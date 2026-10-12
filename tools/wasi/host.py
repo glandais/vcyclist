@@ -382,6 +382,45 @@ def raw_webp_tile_source(url_template: str = "https://tiles.mapterhorn.com/{z}/{
     return fetch
 
 
+def ign_lidar_hd_tile_source(url_template: str | None = None,
+                             user_agent: str = "vcyclist-wasi-harness/1.0") -> TileSource:
+    """IGN LiDAR HD, the whole host side: one WMS GetMap per tile, the float32 body as it came.
+
+    Requires `vcSetElevationConfig({"source": "ign-lidar-hd"})`, which also selects the `bil32`
+    tile format; pass `tile_geometry()["urlTemplate"]` as [url_template] so the tile size in the
+    request is the module's. The `{bbox}` is the tile's `south,west,north,east` in degrees — WMS
+    1.3.0 puts latitude first for EPSG:4326 — computed here because the host fetches the tiles.
+
+    No fallback: where IGN has no data it answers -9999, which the module reads as 0 m. A host
+    that wants Mapterhorn there has to fill those samples in itself.
+    """
+    import math
+    import urllib.request
+
+    if url_template is None:
+        raise ValueError("pass tile_geometry()['urlTemplate'] after configuring the ign-lidar-hd source")
+    cache: dict = {}
+
+    def north(y: int, tiles: int) -> float:
+        return math.degrees(math.atan(math.sinh(math.pi - 2 * math.pi * y / tiles)))
+
+    def fetch(zoom: int, x: int, y: int, expected_bytes: int):
+        key = (zoom, x, y)
+        if key not in cache:
+            tiles = 2 ** zoom
+            bbox = f"{north(y + 1, tiles)},{x / tiles * 360 - 180},{north(y, tiles)},{(x + 1) / tiles * 360 - 180}"
+            request = urllib.request.Request(url_template.replace("{bbox}", bbox),
+                                             headers={"User-Agent": user_agent})
+            try:
+                with urllib.request.urlopen(request, timeout=30) as response:
+                    cache[key] = response.read()
+            except Exception:                       # noqa: BLE001 — the host decides what absent means
+                cache[key] = None
+        return cache[key]
+
+    return fetch
+
+
 def http_tile_source(url_template: str = "https://tiles.mapterhorn.com/{z}/{x}/{y}.webp",
                      user_agent: str = "vcyclist-wasi-harness/1.0") -> TileSource:
     """A real tile source in the original `rgba` mode: download, decode, hand back pixels.

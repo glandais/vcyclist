@@ -33,6 +33,18 @@ fun decodeTileBytesBlocking(
 
 fun fetchAndDecodeTileBlocking(url: String): RawTile = runBlocking { fetchAndDecodeTile(url) }
 
+/**
+ * [decodeBil32Tile] under a name Java can find next to its siblings — the decoder a custom
+ * fetcher calls for an IGN tile, where [decodeTileBytesBlocking] is the one for Terrarium images.
+ * Not suspending: BIL needs no image library, so there is nothing to wait for.
+ */
+@JvmOverloads
+fun decodeBil32TileBytes(
+    bytes: ByteArray,
+    tileSize: Int,
+    sourceUrl: String = "",
+): RawTile = decodeBil32Tile(bytes, tileSize, sourceUrl)
+
 @JvmOverloads
 fun fetchTileBytesAsync(
     url: String,

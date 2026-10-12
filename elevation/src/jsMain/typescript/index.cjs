@@ -8,6 +8,7 @@ const ns = root.io?.github?.glandais?.elevation ?? root;
 
 module.exports = {
     newElevationProvider: ns.newElevationProvider,
+    elevationAttribution: ns.elevationAttribution,
     getElevation: ns.getElevation,
     getElevationsAlong: ns.getElevationsAlong,
 };

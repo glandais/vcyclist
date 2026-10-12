@@ -4,7 +4,9 @@ package io.github.glandais.engine.wasi
 
 import io.github.glandais.elevation.ElevationProvider
 import io.github.glandais.elevation.ElevationProviderConfig
+import io.github.glandais.elevation.ElevationSource
 import io.github.glandais.elevation.HostTileSource
+import io.github.glandais.elevation.TileEncoding
 import io.github.glandais.elevation.hostTileFetcher
 import io.github.glandais.engine.Course
 import io.github.glandais.engine.CoursePhysics
@@ -493,7 +495,7 @@ fun vcEnhance(
             runSynchronously {
                 Enhancer.enhanceCourseDefault(
                     path,
-                    elevationProvider = elevationProviderFor(options, json.demZoomOrNull()),
+                    elevationProvider = elevationProviderFor(options, json.demZoomOrNull(), json.demSourceOrNull()),
                     options = options,
                 )
             },
@@ -538,7 +540,11 @@ fun vcEnhanceWithCourse(
             )
         WasiAbi.register(
             runSynchronously {
-                Enhancer.enhanceCourse(course, options, elevationProviderFor(options, optionsJson.demZoomOrNull()))
+                Enhancer.enhanceCourse(
+                    course,
+                    options,
+                    elevationProviderFor(options, optionsJson.demZoomOrNull(), optionsJson.demSourceOrNull()),
+                )
             },
         )
     }
@@ -557,7 +563,9 @@ fun vcEnhanceWithCourse(
 private fun elevationProviderFor(
     options: EnhanceOptions,
     demZoom: Int? = null,
-): ElevationProvider? = if (options.fixElevation) ElevationProvider(elevationConfigFor(demZoom), fetcher = hostTileFetcher()) else null
+    demSource: String? = null,
+): ElevationProvider? =
+    if (options.fixElevation) ElevationProvider(elevationConfigFor(demZoom, demSource), fetcher = hostTileFetcher()) else null
 
 /**
  * [elevationConfig], with `demZoom` overriding its zoom for one call.
@@ -566,9 +574,26 @@ private fun elevationProviderFor(
  * the reader tolerates `demZoom` — `vcWriteGpxTracks` accepted `trackName` and dropped it for four
  * tasks under exactly that kind of green test. The override is per-call on purpose: it must not
  * mutate the sticky config a host set with [vcSetElevationConfig].
+ *
+ * `demSource` is **checked, not applied**. On this door the tiles are the host's: `fetch_tile`
+ * carries `z/x/y` and nothing else, so the guest cannot ask for a different source than the one
+ * the host serves. Overriding it per call would decode Mapterhorn bytes as IGN floats. The key is
+ * accepted because the two wire doors accept the same keys, and a call naming the source the
+ * host does not serve is an error rather than a silently different DEM.
  */
-internal fun elevationConfigFor(demZoom: Int?): ElevationProviderConfig =
-    if (demZoom == null) elevationConfig else elevationConfig.copy(zoomLevel = demZoom)
+internal fun elevationConfigFor(
+    demZoom: Int?,
+    demSource: String? = null,
+): ElevationProviderConfig {
+    if (demSource != null) {
+        val asked = ElevationSource.byId(demSource)
+        require(asked == elevationSource) {
+            "demSource '${asked.id}' is not the source the host serves ('${elevationSource.id}') — on WASI the " +
+                "host fetches the tiles, so the source is set once with vcSetElevationConfig"
+        }
+    }
+    return if (demZoom == null) elevationConfig else elevationConfig.copy(zoomLevel = demZoom)
+}
 
 // ── Elevation, served by the host ────────────────────────────────────────────────────────────
 
@@ -582,14 +607,25 @@ internal fun elevationConfigFor(demZoom: Int?): ElevationProviderConfig =
 private var elevationConfig: ElevationProviderConfig =
     ElevationProviderConfig(tileUrlTemplate = HostTileSource.URL_TEMPLATE)
 
+/** The DEM the host serves, as last declared through [vcSetElevationConfig]'s `source`. */
+private var elevationSource: ElevationSource = ElevationSource.DEFAULT
+
 /**
- * Configure DEM tiles: `{"zoomLevel":12,"tileSize":512,"cacheSize":100,"tileFormat":"rgba"}`,
+ * Configure DEM tiles:
+ * `{"source":"mapterhorn","zoomLevel":12,"tileSize":512,"cacheSize":100,"tileFormat":"rgba"}`,
  * any subset, `0` for the defaults. Returns [WasiAbi.VERSION] on success, or a negative code.
  *
- * `tileFormat` says what the host writes in `fetch_tile`. `"rgba"` (the default) is decoded
- * pixels, the original contract. `"webp"` means the **bytes as downloaded**: since task w11 the
- * module carries its own lossless-WebP decoder, so a host in that mode needs an HTTP client and
- * nothing else — no image library. Anything else is [WasiAbi.ERR_INVALID_ARGUMENT].
+ * `source` is the [ElevationSource] the host will serve, `"mapterhorn"` by default. It supplies
+ * the defaults of the other keys — `"ign-lidar-hd"` means zoom 15, 256-px tiles and `bil32` — and
+ * [vcTileGeometryJson] hands its real URL template back so the host knows what to download. There
+ * is no fallback on this door: `fetch_tile` cannot say which source it wants, so where IGN has no
+ * data the point reads 0 m, unless the host fills the gap itself (it sees the `-9999`s first).
+ *
+ * `tileFormat` says what the host writes in `fetch_tile`. `"rgba"` is decoded Terrarium pixels,
+ * the original contract. `"webp"` means the **bytes as downloaded**: since task w11 the module
+ * carries its own lossless-WebP decoder, so a host in that mode needs an HTTP client and nothing
+ * else — no image library. `"bil32"` is IGN's WMS answer as downloaded, little-endian float32
+ * metres. Anything else is [WasiAbi.ERR_INVALID_ARGUMENT].
  *
  * Sticky, and read at the next `fixElevation`. Separate from the enhance options on purpose:
  * those mirror the JS `EnhanceOptionsDto` field for field, and hanging a tile configuration off
@@ -602,16 +638,19 @@ private var elevationConfig: ElevationProviderConfig =
 fun vcSetElevationConfig(jsonLen: Int): Int =
     guarded {
         val json = readOptions(jsonLen)
-        json?.requireOnly(setOf("zoomLevel", "tileSize", "cacheSize", "tileFormat"))
+        json?.requireOnly(setOf("source", "zoomLevel", "tileSize", "cacheSize", "tileFormat"))
+        val source = ElevationSource.byId(json?.string("source", ElevationSource.DEFAULT.id) ?: ElevationSource.DEFAULT.id)
+        val defaults = source.config()
+        val defaultFormat = if (defaults.encoding == TileEncoding.BIL32) "bil32" else "rgba"
         val format =
-            when (val requested = json?.string("tileFormat", "rgba") ?: "rgba") {
+            when (val requested = json?.string("tileFormat", defaultFormat) ?: defaultFormat) {
                 "rgba" -> HostTileSource.TileFormat.RGBA
                 "webp" -> HostTileSource.TileFormat.WEBP
+                "bil32" -> HostTileSource.TileFormat.BIL32
                 else -> throw IllegalArgumentException(
-                    "unknown tileFormat '$requested' — expected rgba (decoded pixels) or webp (the file as downloaded)",
+                    "unknown tileFormat '$requested' — expected rgba (decoded pixels), webp or bil32 (the file as downloaded)",
                 )
             }
-        val defaults = ElevationProviderConfig()
         val config =
             ElevationProviderConfig(
                 zoomLevel = (json?.double("zoomLevel", defaults.zoomLevel.toDouble()) ?: defaults.zoomLevel.toDouble()).toInt(),
@@ -624,6 +663,7 @@ fun vcSetElevationConfig(jsonLen: Int): Int =
         // later from inside `vcEnhance`.
         ElevationProvider(config, fetcher = hostTileFetcher())
         elevationConfig = config
+        elevationSource = source
         HostTileSource.tileSize = config.tileSize
         HostTileSource.tileFormat = format
         WasiAbi.VERSION
@@ -634,8 +674,13 @@ fun vcSetElevationConfig(jsonLen: Int): Int =
  *
  * ```json
  * {"tileSize":512,"bytesPerPixel":4,"expectedBytes":1048576,"layout":"RGBA",
- *  "encoding":"terrarium","zoomLevel":12,"tileFormat":"rgba"}
+ *  "encoding":"terrarium","zoomLevel":12,"tileFormat":"rgba","source":"mapterhorn",
+ *  "urlTemplate":"https://tiles.mapterhorn.com/{z}/{x}/{y}.webp"}
  * ```
+ *
+ * `urlTemplate` is where the configured `source` publishes its tiles, at the configured tile size:
+ * `{z}/{x}/{y}` for an XYZ server, `{bbox}` for IGN's WMS — the tile's `south,west,north,east` in
+ * degrees, computed by the host (formula in `docs/guides/wasm-wasi-abi.md`).
  *
  * `expectedBytes` also arrives as the `cap` argument of every `fetch_tile` call, so a host can
  * simply trust `cap`; this export exists so it can allocate once, up front, and check that it and
@@ -657,6 +702,8 @@ fun vcTileGeometryJson(): Int =
                 "encoding" to jsonString("terrarium"),
                 "zoomLevel" to elevationConfig.zoomLevel.toString(),
                 "tileFormat" to jsonString(HostTileSource.tileFormat.name.lowercase()),
+                "source" to jsonString(elevationSource.id),
+                "urlTemplate" to jsonString(elevationSource.config(elevationConfig.zoomLevel).tileUrlTemplate),
             ),
         )
     }

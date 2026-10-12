@@ -4,13 +4,24 @@ package io.github.glandais.elevation
  * Public façade for elevation lookups. Wires [TileManager], [ElevationCalculator] and
  * [BatchCalculator] together from a [ElevationProviderConfig].
  *
- * The [fetcher] is injectable for tests; production code uses [fetchAndDecodeTile] by default
- * (HTTP + image decode for the active target).
+ * The [fetcher] is injectable for tests and custom transports; by default it is
+ * [defaultTileFetcher] for the configuration's [TileEncoding] (HTTP + decode for the active
+ * target).
+ *
+ * Where the tiles have no data, a provider built [withFallback] asks another one; without, the
+ * point reads 0 m. See [ElevationCalculator].
  */
-class ElevationProvider(
-    val config: ElevationProviderConfig = ElevationProviderConfig(),
-    fetcher: suspend (String) -> RawTile = ::fetchAndDecodeTile,
+class ElevationProvider private constructor(
+    val config: ElevationProviderConfig,
+    private val fetcher: suspend (String) -> RawTile,
+    /** The provider no-data points are asked of, or `null`. */
+    val fallback: ElevationProvider?,
 ) {
+    constructor(
+        config: ElevationProviderConfig = ElevationProviderConfig(),
+        fetcher: suspend (String) -> RawTile = defaultTileFetcher(config),
+    ) : this(config, fetcher, null)
+
     init {
         require(config.zoomLevel in 0..15) {
             "Invalid zoom level: ${config.zoomLevel}. Must be an integer between 0 and 15"
@@ -21,11 +32,27 @@ class ElevationProvider(
         require(config.tileSize > 0 && (config.tileSize and (config.tileSize - 1)) == 0) {
             "Invalid tile size: ${config.tileSize}. Must be a positive power of 2"
         }
+        require(config.maxRequestsPerSecond >= 0) {
+            "Invalid maxRequestsPerSecond: ${config.maxRequestsPerSecond}. Must be 0 (no limit) or positive"
+        }
     }
 
     private val tileManager = TileManager(config.tileUrlTemplate, config.cacheSize, fetcher)
-    private val calculator = ElevationCalculator(tileManager, config.tileSize)
+    private val calculator =
+        ElevationCalculator(
+            tileManager,
+            config.tileSize,
+            fallback?.let { f -> { coords, interpolation -> f.getElevation(coords.latitude, coords.longitude, interpolation) } },
+        )
     private val batchCalculator = BatchCalculator(calculator)
+
+    /**
+     * This provider, with [other] answering wherever its own tiles have no data.
+     *
+     * A new provider with an empty cache, not a mutation: a provider is shared across coroutines,
+     * and growing a fallback under a running batch would change answers half-way through it.
+     */
+    fun withFallback(other: ElevationProvider): ElevationProvider = ElevationProvider(config, fetcher, other)
 
     val attribution: Attribution get() = config.attribution
 
@@ -57,6 +84,23 @@ class ElevationProvider(
             smoothingOptions,
             filterOptions,
         )
+}
+
+/**
+ * The fetcher an [ElevationProvider] uses when given none: [fetchAndDecodeTile] for Terrarium
+ * images, [fetchTileBytes] then [decodeBil32Tile] for BIL — the latter through
+ * [pacedTileBytesFetcher], at the configuration's [ElevationProviderConfig.maxRequestsPerSecond].
+ *
+ * Terrarium keeps its one-hop path unless the configuration asks for pacing: Mapterhorn has never
+ * rate-limited this library, and pacing would cost it the shortcut `fetchAndDecodeTile` exists for.
+ */
+fun defaultTileFetcher(config: ElevationProviderConfig): suspend (String) -> RawTile {
+    if (config.encoding == TileEncoding.TERRARIUM && config.maxRequestsPerSecond == 0) return ::fetchAndDecodeTile
+    val bytes = pacedTileBytesFetcher(config.maxRequestsPerSecond)
+    return when (config.encoding) {
+        TileEncoding.TERRARIUM -> { url -> decodeTileBytes(bytes(url), url) }
+        TileEncoding.BIL32 -> { url -> decodeBil32Tile(bytes(url), config.tileSize, url) }
+    }
 }
 
 /**

@@ -21,7 +21,8 @@ from pathlib import Path
 import fixtures
 from host import (ERR_INVALID_ARGUMENT, ERR_UNKNOWN_HANDLE, ROUTES_ONLY,
                   SEGMENTS, TRACKS_AND_ROUTES, TRACKS_ONLY, VcyclistHost,
-                  WasiCallFailed, http_tile_source, raw_webp_tile_source)
+                  WasiCallFailed, http_tile_source, ign_lidar_hd_tile_source,
+                  raw_webp_tile_source)
 
 WASM = fixtures.REPO_ROOT / "engine/build/wasm/vcyclist-engine.wasm"
 
@@ -509,6 +510,30 @@ class ElevationTest(HostTestCase):
             self.host.set_elevation_config({"tileFormat": "png"})
         self.assertIn("png", raised.exception.message)
 
+    def test_the_source_sets_the_defaults_and_tells_the_host_where_to_fetch(self):
+        geometry = self.host.tile_geometry()
+        self.assertEqual("mapterhorn", geometry["source"], "the default is unchanged")
+        self.assertEqual("https://tiles.mapterhorn.com/{z}/{x}/{y}.webp", geometry["urlTemplate"])
+
+        self.host.set_elevation_config({"source": "ign-lidar-hd"})
+        geometry = self.host.tile_geometry()
+        self.assertEqual("ign-lidar-hd", geometry["source"])
+        self.assertEqual("bil32", geometry["tileFormat"])
+        self.assertEqual(256, geometry["tileSize"])
+        self.assertEqual(15, geometry["zoomLevel"])
+        self.assertIn("{bbox}", geometry["urlTemplate"])
+        self.assertIn("WIDTH=256", geometry["urlTemplate"])
+
+        with self.assertRaises(WasiCallFailed) as raised:
+            self.host.set_elevation_config({"source": "ign"})
+        self.assertIn("ign-lidar-hd", raised.exception.message)
+
+    def test_a_call_cannot_name_a_source_the_host_does_not_serve(self):
+        handle = self.host.parse_gpx(fixtures.gpx_fixture("SAMPLE_GPX"))
+        with self.assertRaises(WasiCallFailed) as raised:
+            self.host.enhance(handle, {"fixElevation": True, "demSource": "ign-lidar-hd"})
+        self.assertIn("vcSetElevationConfig", raised.exception.message)
+
     def test_an_impossible_configuration_is_refused_immediately(self):
         with self.assertRaises(WasiCallFailed):
             self.host.set_elevation_config({"tileSize": 300})       # not a power of two
@@ -536,6 +561,33 @@ class ElevationTest(HostTestCase):
             self.assertTrue(all(2000 < v < 3000 for v in after), (min(after), max(after)))
             self.assertNotEqual(before[: len(after)], after[: len(before)])
 
+
+    def test_ign_lidar_hd_tiles_fix_the_elevation(self):
+        """The `bil32` path end to end: a Savoie trace, IGN's WMS, the module's own decoder."""
+        if not integration_enabled():
+            self.skipTest("set INTEGRATION=1 to download DEM tiles")
+
+        options = {"fixElevation": True, "virtualizeTrack": False, "computeMaxSpeeds": False}
+        gpx = (fixtures.REPO_ROOT / "demo/public/gpx/sample.gpx").read_bytes()
+        profiles = {}
+        for source in ("mapterhorn", "ign-lidar-hd"):
+            with VcyclistHost(str(WASM)) as probe:
+                probe.set_elevation_config({"source": source})
+                template = probe.tile_geometry()["urlTemplate"]
+            tiles = ign_lidar_hd_tile_source(template) if source == "ign-lidar-hd" else raw_webp_tile_source()
+            with VcyclistHost(str(WASM), tile_source=tiles) as host:
+                host.set_elevation_config({"source": source} if source != "mapterhorn" else {"tileFormat": "webp"})
+                handle = host.parse_gpx(gpx)
+                enhanced = host.enhance(handle, options)
+                profiles[source] = host.field_values(enhanced, host.field_index("elevation"))
+                self.assertGreater(host.tiles_served, 0, f"{source}: no tile was fetched")
+
+        ign, mapterhorn = profiles["ign-lidar-hd"], profiles["mapterhorn"]
+        self.assertTrue(all(200 < v < 3000 for v in ign), (min(ign), max(ign)))
+        # Two surveys of the same valley: close, and not the same file.
+        mean_gap = sum(abs(a - b) for a, b in zip(ign, mapterhorn)) / len(ign)
+        self.assertLess(mean_gap, 15.0)
+        self.assertNotEqual(ign, mapterhorn)
 
     def test_raw_webp_tiles_give_the_same_profile_as_decoded_ones(self):
         """The point of task w11, end to end: a host with no image library gets the same answer.

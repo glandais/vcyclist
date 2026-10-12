@@ -56,8 +56,8 @@ object TsFacade {
                 bundle = "vcyclist-elevation.js",
                 outputDirectory = File(root, "elevation/src/jsMain/typescript"),
                 handles = setOf("ElevationProvider"),
-                expectedDtoCount = 6,
-                expectedFunctionCount = 3,
+                expectedDtoCount = 7,
+                expectedFunctionCount = 4,
             ),
         )
 

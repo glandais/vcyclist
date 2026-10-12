@@ -1,5 +1,5 @@
 import type { PointFieldProp } from '@glandais/vcyclist-engine';
-import type { BikeDto, CyclistDto } from '@glandais/vcyclist-engine';
+import type { BikeDto, CyclistDto, ElevationSource } from '@glandais/vcyclist-engine';
 
 export interface DemoFieldDefinition {
     prop: PointFieldProp;
@@ -55,8 +55,29 @@ export interface PowerParams {
 /** The rate applied when {@link PowerParams.slew} is on. */
 export const SLEW_W_PER_S = 50;
 
+/**
+ * An `ElevationSource` id, the DEM `fixElevation` and the elevation explorer read. The union is
+ * generated from the Kotlin catalogue, so a new source reaches this type without an edit here.
+ */
+export type DemSource = ElevationSource;
+
+export const DEM_SOURCES: { value: DemSource; label: string; description: string }[] = [
+    {
+        value: 'mapterhorn',
+        label: 'Mapterhorn',
+        description: 'Worldwide terrain tiles, ~13.5 m per pixel at 45°N.',
+    },
+    {
+        value: 'ign-lidar-hd',
+        label: 'IGN LiDAR HD',
+        description:
+            'France only, ~3.4 m per pixel from a 1 m LiDAR terrain model. Falls back to Mapterhorn abroad and at sea. No bridges: a viaduct reads the valley floor.',
+    },
+];
+
 export interface DemoEnhanceOptions {
     fixElevation: boolean;
+    demSource: DemSource;
     computeMaxSpeeds: boolean;
     virtualizeTrack: boolean;
     computeOnePointPerSecond: boolean;
@@ -202,6 +223,8 @@ export const DEFAULT_CONFIG: Config = {
     wind: { windSpeed: 0, windDirection: 0 },
     enhance: {
         fixElevation: true,
+        // ElevationSource.DEFAULT, not a demo-local guess.
+        demSource: 'mapterhorn',
         computeMaxSpeeds: true,
         virtualizeTrack: true,
         computeOnePointPerSecond: true,

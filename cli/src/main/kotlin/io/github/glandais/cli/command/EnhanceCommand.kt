@@ -7,7 +7,7 @@ import io.github.glandais.cli.mixin.CyclistMixin
 import io.github.glandais.cli.mixin.FilesMixin
 import io.github.glandais.cli.mixin.WindMixin
 import io.github.glandais.elevation.ElevationProvider
-import io.github.glandais.elevation.ElevationProviderConfig
+import io.github.glandais.elevation.ElevationSource
 import io.github.glandais.engine.Course
 import io.github.glandais.engine.CoursePhysics
 import io.github.glandais.engine.EngineConstants
@@ -149,19 +149,33 @@ class EnhanceCommand : Callable<Int> {
      * it must stay testable without the network.
      */
     internal var elevationProviderFactory: () -> ElevationProvider = {
-        diskCachedElevationProvider(files.cache, ElevationProviderConfig(zoomLevel = demZoom))
+        diskCachedElevationProvider(files.cache, demSource(), demZoom)
     }
+
+    @field:CommandLine.Option(
+        names = ["--dem-source"],
+        description = [
+            "DEM used by --fix-elevation: mapterhorn (worldwide, ~13.5 m per pixel at 45N) or",
+            "ign-lidar-hd (IGN LiDAR HD terrain model, France only, ~3.4 m per pixel; falls",
+            "back to mapterhorn wherever IGN has no data) (default: \${DEFAULT-VALUE}).",
+        ],
+    )
+    var demSource: String = ElevationSource.DEFAULT.id
+
+    /** [demSource], resolved. Unknown ids fail here, before any tile is fetched. */
+    internal fun demSource(): ElevationSource = ElevationSource.byId(demSource)
 
     @field:CommandLine.Option(
         names = ["--dem-zoom"],
         description = [
-            "Web-Mercator zoom for the DEM lookup, 0-15 (default: \${DEFAULT-VALUE}).",
-            "At the default the tiles are ~19 m per pixel at the equator and ~13.5 m at 45N.",
-            "Deeper zooms only carry real detail where the source has a high-resolution model;",
-            "elsewhere they resample, which adds ripple a gain accumulator reads as ascent.",
+            "Web-Mercator zoom for the DEM lookup, 0-15 (default: the source's own, 12 for",
+            "mapterhorn and 15 for ign-lidar-hd). At 12 Mapterhorn's tiles are ~19 m per pixel",
+            "at the equator and ~13.5 m at 45N. Deeper zooms only carry real detail where the",
+            "source has a high-resolution model; elsewhere they resample, which adds ripple a",
+            "gain accumulator reads as ascent.",
         ],
     )
-    var demZoom: Int = ElevationProviderConfig().zoomLevel
+    var demZoom: Int? = null
 
     @field:CommandLine.Option(
         names = ["--elevation-smooth-window"],
@@ -323,6 +337,13 @@ class EnhanceCommand : Callable<Int> {
                     return ExitCodes.USAGE
                 }
             }
+
+        // Resolved up front even without --fix-elevation: a misspelled source is a usage error,
+        // not something to discover on the day the flag is added.
+        runCatching { demSource() }.onFailure { e ->
+            spec.commandLine().err.println(e.message)
+            return ExitCodes.USAGE
+        }
 
         // A preset that silently beats an explicit flag is unconventional on a command line, so
         // say so rather than leaving the user to wonder why --cyclist-max-angle did nothing.

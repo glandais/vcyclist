@@ -41,8 +41,15 @@ private fun httpGetBytes(url: String): ByteArray {
                 .build(),
             HttpResponse.BodyHandlers.ofByteArray(),
         )
-    check(response.statusCode() in 200..299) {
-        "Tile fetch failed for $url: HTTP ${response.statusCode()}"
+    if (response.statusCode() !in 200..299) {
+        val retryAfter =
+            response
+                .headers()
+                .firstValue("Retry-After")
+                .orElse(null)
+                ?.trim()
+                ?.toLongOrNull()
+        throw TileFetchException(url, response.statusCode(), retryAfter)
     }
     return response.body()
 }

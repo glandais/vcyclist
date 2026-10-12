@@ -385,6 +385,14 @@ object OptionCatalog {
                                 "(ledger R30) and exposed anyway, because the sweep that showed it could not be run from " +
                                 "any door without it.",
                         ),
+                        WireOnly(
+                            "demSource",
+                            ALL_WIRE,
+                            "Not a field of EnhanceOptions either: an ElevationSource id, resolved where the provider is " +
+                                "built, like demZoom. CLI flag --dem-source. On WASI the host serves the tiles and " +
+                                "fetch_tile cannot name a source, so the key is checked against vcSetElevationConfig's " +
+                                "`source` rather than applied, and IGN's no-data has no Mapterhorn fallback there.",
+                        ),
                     ),
             ),
             OptionGroup(

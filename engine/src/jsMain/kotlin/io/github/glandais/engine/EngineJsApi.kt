@@ -6,7 +6,8 @@
 package io.github.glandais.engine
 
 import io.github.glandais.elevation.ElevationProvider
-import io.github.glandais.elevation.ElevationProviderConfig
+import io.github.glandais.elevation.ElevationSource
+import io.github.glandais.elevation.provider
 import io.github.glandais.engine.climb.Climb
 import io.github.glandais.engine.climb.ClimbDetector
 import io.github.glandais.engine.climb.ClimbOptions
@@ -187,6 +188,13 @@ external interface EnhanceOptionsDto {
      * where the provider is built rather than in `toEnhanceOptions`.
      */
     val demZoom: Int?
+
+    /**
+     * The DEM [fixElevation] reads, by `ElevationSource` id: `"mapterhorn"` (the default) or
+     * `"ign-lidar-hd"` (France only, falling back to Mapterhorn where IGN has no data). Read
+     * where the provider is built, like [demZoom]; [demZoom] then defaults to the source's own.
+     */
+    val demSource: String?
 }
 
 /**
@@ -627,11 +635,12 @@ internal fun EnhanceOptionsDto?.toEnhanceOptions(): EnhanceOptions {
     )
 }
 
-/** The DEM provider the façade auto-instantiates, honouring `demZoom` when the caller set one. */
-private fun elevationProviderFor(options: EnhanceOptionsDto?): ElevationProvider {
-    val zoom = options?.demZoom ?: return ElevationProvider()
-    return ElevationProvider(ElevationProviderConfig(zoomLevel = zoom))
-}
+/**
+ * The DEM provider the façade auto-instantiates: `demSource`'s, fallback included, at `demZoom` or
+ * the source's own zoom.
+ */
+private fun elevationProviderFor(options: EnhanceOptionsDto?): ElevationProvider =
+    ElevationSource.byId(options?.demSource ?: ElevationSource.DEFAULT.id).provider(options?.demZoom)
 
 /** Corridor mode by name, defaulting to the engine's own default rather than restating it. */
 private fun parseCorridor(name: String?): CorridorMode = if (name == null) RacingLineOptions.DEFAULT.corridor else CorridorMode.byId(name)
@@ -789,6 +798,7 @@ private val ENHANCE_OPTIONS_KEYS =
         "elevationGainEnabled",
         "elevationSmoothWindowM",
         "demZoom",
+        "demSource",
     )
 
 /**
@@ -823,7 +833,7 @@ private fun Any.requireOnlyKeys(
  * (see [CyclistDto], [BikeDto], [WindDto], [PowerProviderDto] KDoc for specifics).
  *
  * Like [enhance], when `options.fixElevation == true` a default [ElevationProvider] is
- * auto-instantiated (Terrarium tiles via HTTP).
+ * auto-instantiated (`demSource`'s tiles via HTTP).
  */
 @JsExport
 fun enhanceWithCourse(

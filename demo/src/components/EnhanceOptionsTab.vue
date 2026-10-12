@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import type { CorridorMode, DemoEnhanceOptions } from '~/types';
+import { DEM_SOURCES, type CorridorMode, type DemoEnhanceOptions, type DemSource } from '~/types';
 import SliderInput from './SliderInput.vue';
 
 const props = defineProps<{
@@ -134,6 +134,19 @@ const updateWPrimeField = <K extends keyof DemoEnhanceOptions['wPrimeBalance']>(
                         >
                     </span>
                 </label>
+
+                <div v-if="modelValue.fixElevation" class="pl-4">
+                    <label class="block text-gray-700 text-sm font-medium mb-2">
+                        Elevation source:
+                    </label>
+                    <URadioGroup
+                        name="demSource"
+                        variant="card"
+                        :items="DEM_SOURCES"
+                        :modelValue="modelValue.demSource"
+                        @update:modelValue="updateField('demSource', $event as DemSource)"
+                    />
+                </div>
 
                 <label
                     class="flex items-start gap-3 p-4 bg-gray-50 border-2 border-gray-200 rounded-lg cursor-pointer hover:bg-gray-100 hover:border-blue-500 transition-all"

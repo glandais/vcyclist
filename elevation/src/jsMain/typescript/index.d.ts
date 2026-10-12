@@ -12,6 +12,11 @@
 declare const ElevationProviderBrand: unique symbol;
 export type ElevationProvider = { readonly [ElevationProviderBrand]: 'ElevationProvider' };
 
+/** The spellings every door parses, derived from the `ElevationSource` catalogue in `commonMain`. */
+export type ElevationSource =
+    | 'mapterhorn'
+    | 'ign-lidar-hd';
+
 /**
  * JS-side input shape `{ latitude, longitude }`.
  */
@@ -27,6 +32,14 @@ export interface CoordinatesElevationDto {
     readonly latitude: number;
     readonly longitude: number;
     readonly elevation: number;
+}
+
+/**
+ * JS shape of `Attribution`.
+ */
+export interface AttributionDto {
+    readonly text: string;
+    readonly url?: string | null;
 }
 
 /**
@@ -65,9 +78,19 @@ export interface ElevationProviderConfigDto {
     readonly cacheSize?: number | null;
     readonly tileUrlTemplate?: string | null;
     readonly tileSize?: number | null;
+    /**
+     * An `ElevationSource` id, `"mapterhorn"` (the default) or `"ign-lidar-hd"`: the base the
+     * other fields override, its default zoom and its fallback included.
+     */
+    readonly source?: ElevationSource | null;
 }
 
 export declare function newElevationProvider(configDto: ElevationProviderConfigDto | null): ElevationProvider;
+
+/**
+ * The attribution the provider's source requires to be displayed, `{ text, url }`.
+ */
+export declare function elevationAttribution(provider: ElevationProvider): AttributionDto;
 
 export declare function getElevation(provider: ElevationProvider, latitude: number, longitude: number, interpolation: boolean): Promise<number>;
 

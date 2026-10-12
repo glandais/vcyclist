@@ -286,6 +286,20 @@ class WasiOptionsTest {
     }
 
     @Test
+    fun `demSource is checked against the source the host serves, never swapped in`() {
+        assertEquals(null, json("""{}""").demSourceOrNull())
+        assertEquals("ign-lidar-hd", json("""{"demSource":"ign-lidar-hd"}""").demSourceOrNull())
+
+        // The host serves Mapterhorn until vcSetElevationConfig says otherwise: naming it is fine,
+        // and changes nothing about the config the export builds.
+        assertEquals(elevationConfigFor(null), elevationConfigFor(null, "mapterhorn"))
+        // Naming another one would decode the host's bytes as the wrong encoding: refused.
+        val other = assertFailsWith<IllegalArgumentException> { elevationConfigFor(null, "ign-lidar-hd") }
+        assertTrue("vcSetElevationConfig" in other.message!!, other.message!!)
+        assertFailsWith<IllegalArgumentException> { elevationConfigFor(null, "ign") }
+    }
+
+    @Test
     fun `an unknown elevation gain preset names the ones that exist`() {
         val thrown =
             assertFailsWith<IllegalArgumentException> {

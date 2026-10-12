@@ -1,7 +1,28 @@
 # `:elevation`
 
-Fetches elevation data from Terrarium-encoded WebP tiles, with elevation profiling along a
-path, distance-based smoothing, and Douglas-Peucker 3D simplification.
+Fetches elevation data from Terrarium-encoded WebP tiles or IGN's LiDAR HD WMS, with elevation
+profiling along a path, distance-based smoothing, and Douglas-Peucker 3D simplification.
+
+## Sources
+
+`ElevationSource` is the catalogue of DEMs the project knows; each builds a provider with its
+fallback chained behind it:
+
+```kotlin
+val world = ElevationSource.MAPTERHORN.provider()          // the default, worldwide
+val france = ElevationSource.IGN_LIDAR_HD.provider()       // IGN LiDAR HD, Mapterhorn abroad
+val ele = france.getElevation(45.77248, 2.96406)           // Puy de Dôme, 1462.6 m
+```
+
+| Source | Encoding | Coverage | Attribution |
+|---|---|---|---|
+| `MAPTERHORN` | Terrarium WebP, decoded per target | worldwide | [mapterhorn.com/attribution](https://mapterhorn.com/attribution/) |
+| `IGN_LIDAR_HD` | BIL float32, decoded in pure Kotlin (`decodeBil32Tile`) | metropolitan France, Corsica | © IGN, Licence Ouverte Etalab 2.0 |
+
+`provider.attribution` (`elevationAttribution(provider)` in JS) is the text a UI must show. Where
+IGN has no data the point is asked of the fallback; where a provider has none, it reads 0 m.
+[`docs/guides/elevation.md`](../docs/guides/elevation.md#choosing-the-dem-source-ign-lidar-hd) has
+the measurements, the rate limit and why there is no surface model.
 
 ## Targets
 
@@ -45,6 +66,13 @@ val provider =
 
 `decodeTileBytes` suspends because the browser decodes through `createImageBitmap`, which is
 asynchronous — not for symmetry with the fetch half.
+
+That is the Terrarium decoder. A transport for a BIL source (`config.encoding == BIL32`, i.e. IGN)
+decodes with `decodeBil32Tile(bytes, config.tileSize, url)` instead, and should go through
+`pacedTileBytesFetcher(config.maxRequestsPerSecond)` for the network half: IGN answers HTTP 429
+past 40 requests a second. To keep the fallback, build the provider with
+`source.provider(zoom) { config -> myFetcherFor(config) }` — each tier gets its own config, hence its
+own encoding.
 
 ### From Java
 
@@ -156,6 +184,9 @@ outliers.
 
 **Cost**: ~6 WebP tiles × ~30–50 kB ≈ 200 kB per full run. `java.net.http.HttpClient` does not use
 the JDK's HTTP cache, so every run pays the round trip.
+
+`IgnLidarHdIntegrationTest` does the same against IGN's WMS: the Puy de Dôme summit, agreement
+with Mapterhorn on open ground, and the fallback answering for Turin. ~12 BIL tiles, ~3 MB.
 
 **Why it does not run in CI**: it depends on a third-party service, the
 [attribution terms](https://mapterhorn.com/attribution/) discourage heavy automated use, and

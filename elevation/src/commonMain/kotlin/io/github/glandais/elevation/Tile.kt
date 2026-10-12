@@ -5,6 +5,10 @@ import kotlin.math.round
 /**
  * In-memory tile : RGBA pixel buffer with lazy per-pixel Terrarium decoding and a memoization cache.
  *
+ * RGB `(0, 0, 0)` — Terrarium's floor, −32768 m — reads as **no data**, `NaN`: it is the code
+ * [decodeBil32Tile] writes where IGN has nothing, and no real terrain is within 20 km of it.
+ * [ElevationCalculator] turns `NaN` into a fallback lookup or 0 m; it never reaches a caller.
+ *
  * Concrete and platform-agnostic: it reads bytes directly from [rgba] rather than delegating
  * pixel access to a per-platform hook, so the decoding logic exists once.
  */
@@ -36,7 +40,7 @@ class Tile(
         val r = rgba[byteOffset].toInt() and 0xFF
         val g = rgba[byteOffset + 1].toInt() and 0xFF
         val b = rgba[byteOffset + 2].toInt() and 0xFF
-        val elevation = decodeTerrariumElevation(r, g, b)
+        val elevation = if (r == 0 && g == 0 && b == 0) Double.NaN else decodeTerrariumElevation(r, g, b)
         cache[idx] = elevation
         decodeCount++
         return elevation

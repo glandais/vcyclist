@@ -12,5 +12,6 @@ const root = bundle.default ?? bundle;
 const ns = root.io?.github?.glandais?.elevation ?? root;
 
 export const newElevationProvider = ns.newElevationProvider;
+export const elevationAttribution = ns.elevationAttribution;
 export const getElevation = ns.getElevation;
 export const getElevationsAlong = ns.getElevationsAlong;

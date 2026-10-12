@@ -52,7 +52,8 @@ Path input = GpxToPathJvm.firstTrackAsPath(GpxParserJvm.parse(xml));
 Path enhanced = EnhancerJvm.enhanceCourseDefaultBlocking(input);
 String out = GpxWriterJvm.write(enhanced);
 
-// Or with elevation correction, off the calling thread:
+// Or with elevation correction, off the calling thread
+// (newElevationProvider(ElevationSource.IGN_LIDAR_HD) for IGN LiDAR HD over France):
 ElevationProvider provider = ElevationProviderJvm.newElevationProvider();
 CompletableFuture<Path> future = EnhancerJvm.enhanceCourseDefaultAsync(input, provider);
 ```

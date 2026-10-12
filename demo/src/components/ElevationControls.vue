@@ -4,12 +4,16 @@ import SliderInput from '~/components/SliderInput.vue';
 import { gpxSamples } from '~/config/gpxSamples';
 import type { ExplorerMode } from '~/composables/useElevationExplorer';
 import type { ReliefMode } from '~/composables/useElevationMap';
+import { DEM_SOURCES, type DemSource } from '~/types';
 
 defineProps<{
     mode: ExplorerMode;
     relief: ReliefMode;
     hasPath: boolean;
+    attribution: { text: string; url?: string | null };
 }>();
+
+const demSource = defineModel<DemSource>('demSource', { required: true });
 
 const smoothing = defineModel<{ enabled: boolean; windowSize: number }>('smoothing', {
     required: true,
@@ -99,6 +103,15 @@ const onFileChange = (event: Event) => {
                     {{ option }}
                 </UButton>
             </div>
+
+            <h3 class="font-semibold text-gray-700 mt-4 mb-2">Elevation source</h3>
+            <USelect v-model="demSource" :items="DEM_SOURCES" label-key="label" value-key="value" />
+            <p class="mt-1 text-xs text-gray-500">
+                <a v-if="attribution.url" :href="attribution.url" target="_blank" rel="noopener">{{
+                    attribution.text
+                }}</a>
+                <span v-else>{{ attribution.text }}</span>
+            </p>
 
             <h3 class="font-semibold text-gray-700 mt-4 mb-2">GPX</h3>
             <div class="flex flex-col gap-2">

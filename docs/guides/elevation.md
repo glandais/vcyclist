@@ -313,4 +313,59 @@ exist — so above the source's native posting a deeper zoom is resampling. Ledg
 
 Reach it with `--dem-zoom` on the CLI, `demZoom` on the JS enhance options, or
 `vcSetElevationConfig` over WASI. Note that the CLI's `--zoom` is a *different* option:
-`ExportCommand`'s map zoom.
+`ExportCommand`'s map zoom. Without it, the zoom is the **source's** own: 12 for Mapterhorn, 15 for
+IGN LiDAR HD.
+
+## Choosing the DEM source: IGN LiDAR HD
+
+`ElevationSource` is the catalogue every door names by id — `--dem-source`, `demSource` on the JS
+enhance options, `source` on the elevation package's `newElevationProvider` and on WASI's
+`vcSetElevationConfig`:
+
+| id | Model | Coverage | Default sampling | Tile |
+|---|---|---|---|---|
+| `mapterhorn` (default) | fused global DEM, Terrarium WebP | worldwide | z12 × 512 px, ~13.5 m at 45°N | ~65 kB |
+| `ign-lidar-hd` | IGN LiDAR HD **terrain** model (MNT), 1 m grid, ~10 cm vertical | metropolitan France, Corsica | z15 × 256 px, ~3.4 m at 45°N | 256 kB |
+
+The IGN source is the same service `leaflet-relief` renders: the Géoplateforme raster WMS
+(`data.geopf.fr/wms-r/wms`, layer `IGNF_LIDAR-HD_MNT_ELEVATION.ELEVATIONGRIDCOVERAGE.WGS84G`),
+asked for `image/x-bil;bits=32` — raw little-endian float32 metres. Each XYZ tile becomes one
+`GetMap` whose `BBOX` is the tile's footprint in EPSG:4326 (`{bbox}` in the URL template). The
+module decodes the floats itself (`decodeBil32Tile`, pure Kotlin, every target) and re-encodes them
+as Terrarium, so `RawTile` — the contract of every custom fetcher — did not change.
+
+**No data.** Abroad, at sea and in survey gaps IGN answers `-9999`. Those samples read as *no data*,
+and the whole point is then asked of the **Mapterhorn fallback** instead — never blended with the
+three IGN samples around it, which would put a step in the profile at every coastline. A ride
+crossing into Italy is therefore IGN up to the border and Mapterhorn beyond it, not 0 m. Without a
+fallback (a custom `ElevationProvider`, or WASI — see the ABI guide), a no-data point reads 0 m.
+
+**Measured** on `demo/public/gpx/sample.gpx` (130 km in Savoie, `--fix-elevation`, defaults
+otherwise), each point against its nearest neighbour in the other run:
+
+| | Mapterhorn | IGN LiDAR HD |
+|---|---|---|
+| Reported climbing (`dem` preset) | 2903 m | 2897 m |
+| Simulated duration | 19 566 s | 19 600 s |
+| Tiles fetched, cold | 18 (2.3 MB) | 132 (33 MB) |
+| \|Δ elevation\| mean / p95 / max | — | 2.0 m / 4.6 m / 26.6 m |
+
+So on this ride the two agree to within the 150 m smoother's reach, and IGN costs fifteen times the
+download. Mapterhorn already fuses national models where they exist, which is why. Where IGN earns
+its keep is the tail: the 26.6 m point is a road cut into a slope that a 13.5 m post averages with
+the hillside. Pick it for a route on narrow benches and in gorges, not for a valley ride.
+
+**No bridges.** A terrain model is the ground with everything standing on it removed — trees,
+buildings, and *viaducts*. A road over a deep valley samples the valley floor, and a 50 m dip is not
+something the 150 m kernel hides. The surface model (MNS) would keep the bridge, and the tree
+canopy along every forest road with it, so it is deliberately not offered.
+
+**Rate limit.** The Géoplateforme answers HTTP 429 past 40 requests a second per IP, and
+`BatchCalculator` fetches ten tiles at once — a cold run failed on its 51st tile before pacing
+existed. `ElevationProviderConfig.maxRequestsPerSecond` (20 for IGN) paces the default fetcher and
+the CLI's disk cache, and a 429 or 503 is retried after the server's `Retry-After` (1, 2, 4… s when
+it is not readable, as in a browser). See `pacedTileBytesFetcher`.
+
+```bash
+INTEGRATION=1 ./gradlew :elevation:jvmTest --tests '*IgnLidarHdIntegrationTest*' --rerun-tasks
+```

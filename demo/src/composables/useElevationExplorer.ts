@@ -26,7 +26,7 @@ export interface ElevationStats {
 }
 
 export function useElevationExplorer() {
-    const provider = useElevationProvider();
+    const { provider, source: demSource, attribution } = useElevationProvider();
 
     const mode = ref<ExplorerMode>('path');
     const points = ref<CoordinatesDto[]>([]);
@@ -55,7 +55,7 @@ export function useElevationExplorer() {
         setStatus('Computing elevation profile…', 'loading');
 
         try {
-            const result = await getElevationsAlong(provider, points.value, {
+            const result = await getElevationsAlong(provider.value, points.value, {
                 step: PROFILE_STEP_M,
                 interpolation: true,
                 smoothingOptions: smoothing.enabled ? { ...smoothing } : undefined,
@@ -78,7 +78,7 @@ export function useElevationExplorer() {
     const debouncedUpdate = debounce(() => void updateProfile(), DEBOUNCE_MS);
 
     // Checkbox toggles are a single deliberate click — recompute at once, like the old demo.
-    watch([() => smoothing.enabled, () => filter.enabled], () => void updateProfile());
+    watch([() => smoothing.enabled, () => filter.enabled, demSource], () => void updateProfile());
     // The numeric controls are dragged, so they go through the debounce.
     watch([() => smoothing.windowSize, () => filter.tolerance, () => filter.zExaggeration], () =>
         debouncedUpdate()
@@ -184,6 +184,8 @@ export function useElevationExplorer() {
         statusKind,
         smoothing,
         filter,
+        demSource,
+        attribution,
         stats,
         setMode,
         addPoint,

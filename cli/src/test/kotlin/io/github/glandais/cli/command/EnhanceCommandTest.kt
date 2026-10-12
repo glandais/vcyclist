@@ -5,6 +5,7 @@ import io.github.glandais.cli.ExitCodes
 import io.github.glandais.cli.RootCommand
 import io.github.glandais.elevation.ElevationProvider
 import io.github.glandais.elevation.ElevationProviderConfig
+import io.github.glandais.elevation.ElevationSource
 import io.github.glandais.elevation.RawTile
 import io.github.glandais.engine.EngineConstants
 import io.github.glandais.engine.gpx.GpxParser
@@ -237,7 +238,11 @@ class EnhanceCommandTest {
             ElevationStep.DEFAULT_SMOOTH_WINDOW_M,
             parsed().pipelineOptions().elevationSmoothWindowM,
         )
-        assertEquals(ElevationProviderConfig().zoomLevel, parsed().demZoom)
+        // No zoom means the source's own, so a source change does not drag Mapterhorn's along.
+        assertEquals(null, parsed().demZoom)
+        assertEquals(ElevationSource.DEFAULT, parsed().demSource())
+        assertEquals(ElevationSource.IGN_LIDAR_HD, parsed("--dem-source", "ign-lidar-hd").demSource())
+        assertFailsWith<IllegalArgumentException> { parsed("--dem-source", "ign").demSource() }
 
         assertEquals(
             ElevationGainPreset.GPS,

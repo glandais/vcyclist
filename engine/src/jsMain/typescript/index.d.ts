@@ -25,6 +25,11 @@ export type ElevationGainPreset =
     | 'dem'
     | 'gps';
 
+/** The spellings every door parses, derived from the `ElevationSource` catalogue in `commonMain`. */
+export type ElevationSource =
+    | 'mapterhorn'
+    | 'ign-lidar-hd';
+
 /** The spellings every door parses, derived from the `RoadCondition` catalogue in `commonMain`. */
 export type RoadCondition =
     | 'dry'
@@ -207,6 +212,12 @@ export interface EnhanceOptionsDto {
      * where the provider is built rather than in `toEnhanceOptions`.
      */
     readonly demZoom?: number | null;
+    /**
+     * The DEM `fixElevation` reads, by `ElevationSource` id: `"mapterhorn"` (the default) or
+     * `"ign-lidar-hd"` (France only, falling back to Mapterhorn where IGN has no data). Read
+     * where the provider is built, like `demZoom`; `demZoom` then defaults to the source's own.
+     */
+    readonly demSource?: ElevationSource | null;
 }
 
 /**
@@ -552,7 +563,7 @@ export declare function enhance(path: Path, options: EnhanceOptionsDto | null): 
  * (see `CyclistDto`, `BikeDto`, `WindDto`, `PowerProviderDto` KDoc for specifics).
  *
  * Like `enhance`, when `options.fixElevation == true` a default `ElevationProvider` is
- * auto-instantiated (Terrarium tiles via HTTP).
+ * auto-instantiated (`demSource`'s tiles via HTTP).
  */
 export declare function enhanceWithCourse(path: Path, cyclist: CyclistDto | null, bike: BikeDto | null, wind: WindDto | null, power: PowerProviderDto | null, options: EnhanceOptionsDto | null): Promise<Path>;
 
