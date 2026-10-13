@@ -37,6 +37,7 @@ class TunnelProfile(
  * @property riseGrade steepest climb over `steepWindowM` just inside the entry, a fraction
  * @property fallGrade steepest fall over `steepWindowM` just inside the exit, a fraction (negative)
  * @property straightness straight-line distance between the portals over `lengthM`
+ * @property stepM grid spacing of the profile the span was found on, metres: station `k` is at `k × stepM`
  */
 data class TunnelSpan(
     val first: Int,
@@ -80,6 +81,11 @@ data class TunnelSpan(
  *      `maxBelowChordM` under it;
  *    - **both sides are impossible for a road**: within `sideSearchM` inside the entry the terrain
  *      climbs at least `minSideGrade` over `steepWindowM`, and falls as steeply inside the exit;
+ *    - **a mountain face at each portal, not a gully wall**: within `faceReachM` inside each portal
+ *      the terrain is already `minHeightM` above the line. A terrain model drops bridges, so a stream
+ *      crossed on a bridge reads as a notch; without this, a road over a spur with a bridged stream
+ *      at each foot passes every other test and its real climb is flattened (`sample.gpx`, D 109 at
+ *      Héry-sur-Ugine, mirrored: 70 m of real hill);
  *    - it is one tunnel, not two: no exit-like portal followed by an entry-like one inside it with
  *      the terrain between them less than `minValleyHeightM` above the line (open road between two
  *      tunnels).
@@ -90,9 +96,22 @@ data class TunnelSpan(
  * its portals is no tunnel. The detector **does not see** a cut-and-cover tunnel under flat ground
  * (Tuileries: 3.7–5.6 m of bump, below `minHeightM`), tunnels shorter than `minLengthM`, nor a chain
  * of rock tunnels closer together than `steepWindowM` (Petits Goulets on IGN): the error left there
- * is small or local, and the precision is worth it.
+ * is small or local, and the precision is worth it. Nor, out of sample, a tunnel under a low rounded
+ * hill whose flank falls less than `minSideGrade` (the Dordogne greenway of the held-out series,
+ * about −20 to −24 % over 50 m).
+ *
+ * **What it may flatten that is real**: the signature says a road cannot climb `minSideGrade` over
+ * 50 m on both sides of a bump, which holds for paved roads only. A gravel, MTB or hiking track over
+ * a real knoll that steep is taken for a tunnel and its climb leaves the D+ and the ride time. The
+ * nearest case measured is `sports-tracker.gpx` km 2,19–2,43 (Ariège, a 25 m knoll on a trail): it
+ * fails only on the exit fall, −26.5 % against −30 %. A portal whose road side reads exactly 0 m
+ * within `steepWindowM` is refused: a provider without a no-data fallback reads a hole as 0 m, and a
+ * covered island between two holes would otherwise pass for a mountain.
  */
 object TunnelDetector {
+    /** A terrain reading this close to 0 m is taken for a no-data hole, never for a portal. */
+    private const val NO_DATA_ZERO_M = 1e-6
+
     /** The tunnels of [profile], sorted, never overlapping. */
     fun detect(
         profile: TunnelProfile,
@@ -100,8 +119,9 @@ object TunnelDetector {
     ): List<TunnelSpan> {
         val z = profile.terrainM
         if (z.size < 2) return emptyList()
-        val entries = portals(z, options, entry = true)
-        val exits = portals(z, options, entry = false)
+        val stations = Stations(options)
+        val entries = portals(z, options, entry = true, stations)
+        val exits = portals(z, options, entry = false, stations)
         val out = ArrayList<TunnelSpan>()
         var next = -1
         for (a in entries) {
@@ -110,7 +130,7 @@ object TunnelDetector {
             for (b in exits) {
                 if (b <= a) continue
                 if ((b - a) * options.stepM > options.maxLengthM + 1e-9) break
-                val span = judge(profile, a, b, entries, exits, options) ?: continue
+                val span = judge(profile, a, b, entries, exits, options, stations) ?: continue
                 if (best == null || span.heightM > best.heightM + 1e-9) best = span
             }
             if (best != null) {
@@ -119,6 +139,16 @@ object TunnelDetector {
             }
         }
         return out
+    }
+
+    /** The option windows in stations, computed once per [detect]. */
+    internal class Stations(
+        options: TunnelDetectorOptions,
+    ) {
+        val foot: Int = options.footWindowStations
+        val steep: Int = options.steepWindowStations
+        val side: Int = options.sideSearchStations
+        val face: Int = options.faceReachStations
     }
 
     /** Grade from station [i] to station [j] (`j > i`), `NaN` outside the profile. */
@@ -137,10 +167,11 @@ object TunnelDetector {
         z: DoubleArray,
         options: TunnelDetectorOptions,
         entry: Boolean,
+        stations: Stations = Stations(options),
     ): List<Int> {
         val n = z.size
-        val m = options.footWindowStations
-        val w = options.steepWindowStations
+        val m = stations.foot
+        val w = stations.steep
         val step = options.stepM
         val score = DoubleArray(n) { Double.NEGATIVE_INFINITY }
         for (k in 0 until n) {
@@ -170,8 +201,9 @@ object TunnelDetector {
         entries: List<Int>,
         exits: List<Int>,
         options: TunnelDetectorOptions,
+        stations: Stations,
     ): TunnelSpan? {
-        val w = options.steepWindowStations
+        val w = stations.steep
         val z = profile.terrainM
         val n = z.size
         val step = options.stepM
@@ -184,6 +216,12 @@ object TunnelDetector {
             )
         val straightness = chord / length
         if (!(straightness >= options.minStraightness)) return null
+        // A road side reading exactly 0 m is a no-data hole read as sea level by a provider without a
+        // fallback (a WASI host's -9999): a covered island between two holes is not a mountain. The
+        // whole outer window is checked, since the portal itself may sit on the interpolated edge.
+        val w0 = stations.steep
+        for (k in maxOf(0, a - w0)..a) if (abs(z[k]) < NO_DATA_ZERO_M) return null
+        for (k in b..minOf(z.size - 1, b + w0)) if (abs(z[k]) < NO_DATA_ZERO_M) return null
         val c = (z[b] - z[a]) / length
         if (!(abs(c) <= options.maxChordGrade)) return null
         var height = Double.NEGATIVE_INFINITY
@@ -193,8 +231,16 @@ object TunnelDetector {
             if (h > height) height = h
         }
         if (height < options.minHeightM) return null
+        // A mountain face at each portal, not the far wall of a gully the terrain model reads under a
+        // bridge: the bump is already minHeightM above the line within faceReachM of each portal.
+        val f = stations.face
+        var nearEntry = Double.NEGATIVE_INFINITY
+        for (k in a..minOf(b, a + f)) nearEntry = maxOf(nearEntry, z[k] - (z[a] + c * (k - a) * step))
+        var nearExit = Double.NEGATIVE_INFINITY
+        for (k in maxOf(a, b - f)..b) nearExit = maxOf(nearExit, z[k] - (z[a] + c * (k - a) * step))
+        if (nearEntry < options.minHeightM || nearExit < options.minHeightM) return null
         // Both sides impossible for a road: a climb just inside the entry, a fall just inside the exit.
-        val s = options.sideSearchStations
+        val s = stations.side
         var rise = Double.NEGATIVE_INFINITY
         for (k in maxOf(0, a - w / 2)..minOf(a + s, n - 1)) {
             val g = grade(z, k, k + w, step)

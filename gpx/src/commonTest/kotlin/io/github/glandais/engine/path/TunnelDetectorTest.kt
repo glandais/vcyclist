@@ -212,9 +212,71 @@ class TunnelDetectorTest {
         assertEquals(emptyList(), detect(z))
     }
 
+    /**
+     * `sample.gpx` km 18.50–19.95 on Mapterhorn z12, every 5 m: the D 109 at Héry-sur-Ugine climbing a
+     * real hill, a 14 m gully at km 18.80 where the road crosses a stream on a bridge the terrain model
+     * drops. Mirrored, the hill has a bridged stream at each foot — a common shape anywhere.
+     */
+    private val d109: DoubleArray =
+        """
+            922.6 922.8 922.9 923.0 923.3 923.8 924.3 924.8 925.0 925.1 925.2 925.9 926.4 926.8 927.1
+            927.0 926.9 927.1 927.2 927.7 927.9 928.0 928.2 928.3 928.4 928.8 929.1 929.5 929.9 930.3
+            930.7 931.0 931.4 931.6 932.1 933.0 932.7 932.4 932.2 932.0 932.3 933.2 933.5 933.4 933.7
+            934.7 935.2 935.9 936.7 937.5 937.7 937.9 938.1 938.6 938.9 939.2 938.7 938.0 937.2 934.1
+            930.3 926.9 925.0 927.3 931.5 935.4 938.8 940.5 940.9 941.3 941.2 941.4 941.6 941.5 941.5
+            941.4 941.0 940.4 940.7 941.1 941.2 941.1 941.5 942.5 942.6 942.4 942.7 943.1 943.6 943.7
+            943.7 943.8 944.2 944.8 945.1 945.5 945.7 945.8 946.3 946.6 947.1 947.6 948.1 948.3 949.0
+            949.3 948.6 947.3 945.1 944.1 944.8 946.9 950.1 951.8 953.2 954.3 954.7 954.9 955.2 955.7
+            956.2 956.5 956.8 957.1 957.7 958.4 959.1 959.4 959.8 960.2 960.8 961.3 961.8 962.5 963.0
+            963.3 963.7 964.4 964.9 965.7 966.8 967.2 967.5 968.1 968.7 969.3 969.8 970.1 970.1 970.5
+            971.3 971.8 972.0 972.1 972.8 973.3 973.5 974.0 974.6 975.0 975.0 975.4 976.1 976.9 977.0
+            977.3 977.7 978.1 978.4 978.7 979.2 980.0 980.6 980.7 981.1 981.9 982.5 982.7 983.1 983.7
+            984.1 984.4 984.7 985.0 985.2 985.4 985.6 985.8 986.3 986.3 986.4 986.8 987.4 987.9 987.9
+            988.0 987.9 987.6 987.6 987.8 987.3 987.6 988.1 987.7 987.3 987.0 987.2 987.4 987.6 987.8
+            987.7 987.6 987.6 987.8 988.0 988.2 988.4 988.5 988.5 988.6 988.7 989.0 989.3 989.6 989.8
+            990.1 990.2 990.3 990.7 991.0 991.3 991.7 992.0 992.3 992.3 992.5 992.9 993.5 993.3 992.9
+            993.5 994.0 994.0 994.4 995.4 995.7 995.2 995.8 996.5 996.6 996.4 996.3 996.3 997.4 998.5
+            999.2 999.7 999.7 999.0 999.5 1000.6 1000.6 1000.7 1000.3 1000.0 1000.3 1000.5 1000.1 999.9
+            999.3 999.3 999.3 999.4 999.4 999.3 999.2 999.2 999.9 999.7 999.3 999.1 998.9 998.9 999.3
+            999.4 999.5 1000.2 1000.8 1000.6 1000.4 1001.1
+        """.trim()
+            .split(Regex("\\s+"))
+            .map { it.toDouble() }
+            .toDoubleArray()
+
+    @Test
+    fun a_real_hill_between_two_bridged_gullies_is_no_tunnel() {
+        val z = d109 + d109.reversedArray().copyOfRange(1, d109.size)
+        assertEquals(emptyList(), detect(z), "the hill keeps its 70 m climb")
+        // Without the face criterion (it reaches over the whole span) the gully walls pass for portals.
+        val noFace = TunnelDetectorOptions(faceReachM = 3_000.0)
+        val route = straight(z.size)
+        val span = TunnelDetector.detect(TunnelProfile(z, route.first, route.second), noFace).single()
+        assertTrue(span.heightM > 60.0 && span.lengthM > 2_000.0, "what the face criterion refuses: $span")
+    }
+
+    @Test
+    fun a_covered_island_between_two_holes_read_as_zero_is_no_tunnel() {
+        // A provider without a no-data fallback (a WASI host) reads a hole as 0 m.
+        // Station 99 is the interpolated edge of the hole: the portal lands there, not on the hole.
+        fun island(hole: Double) =
+            DoubleArray(300) {
+                if (it in 100..200) {
+                    300.0
+                } else if (it == 99 || it == 201) {
+                    hole + 1.5
+                } else {
+                    hole
+                }
+            }
+        assertEquals(emptyList(), detect(island(0.0)))
+        assertEquals(1, detect(island(1.0)).size, "the same shape on real ground is a tunnel")
+    }
+
     @Test
     fun windows_must_be_whole_stations() {
         assertFailsWith<IllegalArgumentException> { TunnelDetectorOptions(footWindowM = 22.0) }
+        assertFailsWith<IllegalArgumentException> { TunnelDetectorOptions(faceReachM = 0.0) }
         assertFailsWith<IllegalArgumentException> { TunnelDetectorOptions(minStraightness = 1.5) }
         assertFailsWith<IllegalArgumentException> { TunnelProfile(DoubleArray(3), DoubleArray(2), DoubleArray(3)) }
     }

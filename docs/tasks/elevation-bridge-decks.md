@@ -1930,6 +1930,652 @@ repli pour les ponts sans MNS — Mapterhorn hors France, ou WASI (voir *Notes*)
 l'interpolation linéaire perd le bombé, mais l'étude Loire mesure D+ ×0,83 contre ×2,01 pour le MNT
 brut sur les petits ponts.
 
+#### Témoins tunnels (E4, avant tout détecteur)
+
+> *Note du 2026-10-13, après coup.* Cette section est l'état **au gel** (18 h 06 – 20 h 02) et n'est
+> pas réécrite : le détecteur existe depuis (*Mesures (E4)*) et le juge a été lancé une fois (*Jugement
+> tunnels*). Le « pas lancé » et le « aucun détecteur n'existe encore » ci-dessous sont historiques.
+
+**Pourquoi.** Un correcteur de tunnel lit le seul MNT, donc il tourne sur **toute** source — Mapterhorn
+dans le monde entier compris. Un faux « tunnel » aplatit une vraie montée : sur une route réelle en
+lacets, en balcon, sur une rampe urbaine, une crête de barrage ou un col, la précision compte plus que
+le rappel. Le banc n'a aujourd'hui que les quatre tunnels de `test4` (Petits Goulets, Grands Goulets,
+tunnel des Moines, Combe Laval) et aucun négatif raide. Cette étape construit les témoins — **aucun
+détecteur n'existe encore, aucun n'est lancé**.
+
+**Forme.** Mêmes outils qu'en E2 bis : `controls.py` (OSM seul, routage Dijkstra, stations à 5 m),
+mais une série à part, `python3 -I controls.py --tunnels`, écrite dans `controls/tunnels/<id>.gpx` et
+`analysis/truth/tunnels/` (`index.csv`, `spans.csv`, `<id>.csv`), pour que les lecteurs du banc des
+ponts ne changent pas. Sortes de station : `G` sol, `O` ouvrage au-dessus, `L` pont ou viaduc le long
+(≤ 20 m), `N` **tunnel propre** du site positif (la vérité y est la droite entre les portails, comme
+`N` dans `truth/test4.csv` : MNT à la station juste hors du tunnel de chaque côté, lu au moment de la
+mesure), `X` autre ouvrage du site (pont, tunnel d'un négatif, galerie paravalanche, passage
+inférieur), `x` sa marge de 35 m (exclues). Rôles : `tunnel-tuning` (réglage), `tunnel-negative`
+(négatifs de réglage), `tunnel-holdout` et `tunnel-holdout-negative` (série tenue à l'écart).
+
+**Règle de la série tenue à l'écart (écrite le 2026-10-13 à 18 h 06, avant toute requête OSM, toute
+tuile et toute valeur d'altitude pour ces sites ; le jeu de réglage n'est pas encore construit non
+plus).**
+
+1. *Ouvrage.* Un tunnel routier OSM `tunnel=yes` (jamais `building_passage`, `culvert`,
+   `avalanche_protector`), sur une voie des classes `primary` … `residential`, `unclassified` ou
+   `cycleway` (jamais `motorway` ni `trunk`), sans `bicycle=no` ni `access=no|private`. Sa longueur
+   est celle de la chaîne des voies tunnel qui se touchent par un bout, entre 50 et 2 500 m.
+2. *Strates.* Huit cellules, ci-dessous : court (50–200 m) en gorge ×2, moyen (200–700 m) sous un col,
+   moyen courbe, long (700–2 500 m), urbain foré sous du relief, urbain en tranchée couverte (un tunnel
+   que le MNT peut **ne pas** montrer en bosse : la ville est plate au-dessus), voie verte en ancien
+   tunnel ferroviaire. Une cellule sans candidat qui passe les contrôles reste vide.
+3. *Régions.* Aucun département déjà lu par le banc ou par le jeu de réglage, à l'une ou l'autre
+   extrémité. **Exclus** : 12,
+   13, 14, 17, 21, 26, 29, 30, 31, 33, 37, 38, 40, 41, 44, 45, 49, 51, 59, 67, 69, 71, 72, 75, 76, 77,
+   84, 89, 92, 93 (ponts, `sample.gpx` en 73) et 04, 05, 15, 48, 73, 83 (réservés au jeu de réglage de
+   cette étape, qui ne peut en sortir). **Un seul site par département sur les deux listes tenues à
+   l'écart**, négatifs compris (leçon de `n14` / `p17`) ; un candidat dont le département est déjà
+   pris par un site gelé avant lui est sauté, et c'est écrit.
+4. *Itinéraire.* Construit par `controls.py` : le tunnel et ≈ 400 m de route de chaque côté, sur la
+   même `ref` ou le même nom quand c'est possible ; pas de demi-tour, pas de retour sur soi ; **≥ 150 m
+   de sol** (aucun pont, tunnel, `layer`, passage inférieur : ni `N`, ni `X`, ni `x`) au-delà de chaque
+   groupe de spans `N` comptés (≥ 20 m), des deux côtés, **et entre deux groupes**. Deux tunnels à
+   moins de 150 m l'un de l'autre forment un seul groupe ; le sol qui les sépare est `G`, jugé comme
+   sol. Un négatif en lacets (cellule *lacets*) est dispensé des deux contrôles de demi-tour, qui
+   sont sa raison d'être, et de rien d'autre.
+5. *Couverture.* LiDAR HD vérifiée **sans lire d'altitude** : la fraction de `NaN` du MNT IGN z15 aux
+   stations (pixel le plus proche, grille de `fetch.py`), lue une fois au gel, ≤ 1 %. Mapterhorn n'est
+   pas lu avant le juge. Aucune autre valeur n'est regardée.
+6. *Ordre.* Les candidats sont pris dans l'ordre de la liste, cellule par cellule ; un candidat est
+   remplacé par le suivant de sa cellule seulement si une règle (1, 3, 4) ou la couverture (5) échoue,
+   et la raison est écrite ici. **Jamais** à cause d'une altitude ou d'un détecteur. La reconnaissance
+   OSM (existence, noms, `ref`, géométrie, longueurs) sert à coder les points de passage des négatifs ;
+   elle ne choisit rien. Les sélections « le plus long / le plus courbe tunnel qui … » sont faites par
+   `controls.py`, jamais à la main.
+7. *Jugement.* Ces sites ne sont mesurés que par un test dont le nom contient `TunnelJudge`, gardé
+   par `INTEGRATION=1` **et** `TUNNEL_JUDGE=1` ; tout autre test qui échantillonne les témoins tunnels
+   retire ces lignes de l'index **avant** toute lecture de tuile (assertion sur leur nombre). Le juge
+   lit **les deux sources** (MNT IGN LiDAR HD z15 et Mapterhorn z12). Un échec y est **rapporté,
+   jamais réglé** ; un réglage qui suivrait un jugement rend la série inutilisable.
+8. *Trace.* Cette règle et la liste gelée doivent être committées **seules**, avant tout réglage d'un
+   détecteur de tunnel et avant tout passage du juge (consigne tirée d'E2 quinquies ; la présente
+   session ne committe pas : à faire par l'utilisateur).
+
+Candidats tunnels, dans l'ordre (département ; sélection faite par `controls.py`) :
+
+| cellule | 1ᵉʳ choix | remplaçants, dans l'ordre |
+|---|---|---|
+| T1 court, gorge (Alpes) | Gorges du Cians (06) : le plus long tunnel sur `ref=D 28` entre Touët-sur-Var et Beuil | Gorges de Daluis (06), `ref=D 2202` |
+| T2 court, gorge (Pyrénées) | Gorges de Luz (65) : le plus long tunnel sur `ref=D 921` entre Pierrefitte-Nestalas et Luz-Saint-Sauveur | Défilé de Pierre-Lys (11), `ref=D 117` |
+| T3 moyen, sous un col | Col de Bussang (88 / 68) : le plus long tunnel sur `ref=N 66` près du col | le plus long tunnel 200–700 m des Pyrénées-Orientales (66) |
+| T4 moyen, courbe | le tunnel de 100–700 m au plus faible rapport corde / longueur des Pyrénées-Orientales (66) | même règle : Alpes-Maritimes (06), Haute-Corse (2B) |
+| T5 long | le plus long tunnel de 700–2 500 m de l'Ain (01) | même règle : Haute-Savoie (74), Doubs (25) |
+| T6 urbain, foré sous du relief | le plus long tunnel de 150–2 500 m de la commune d'Angoulême (16) | Saint-Étienne (42), Besançon (25) |
+| T7 urbain, tranchée couverte | le plus long tunnel de 150–2 500 m de la commune de Montpellier (34) | Metz (57), Nancy (54) |
+| T8 voie verte, ancien tunnel ferroviaire | le plus long tunnel `highway=cycleway` de 100–2 500 m de l'Ardèche (07) | même règle : Haute-Loire (43), Dordogne (24) |
+
+Négatifs tenus à l'écart, dans l'ordre (une vraie route, entièrement au sol hors `X`, dont le relief
+ressemble à un tunnel pour un test de pente) :
+
+| cellule | 1ᵉʳ choix | remplaçants |
+|---|---|---|
+| H1 lacets | Col d'Aubisque (64), `ref=D 918`, les lacets sous Gourette côté Eaux-Bonnes | Col de Marie-Blanque (64), `ref=D 294` |
+| H2 balcon sous falaise | Gorges de l'Aveyron (82), `ref=D 115` entre Saint-Antonin-Noble-Val et Cazals | Gorges de Galamus (11), si 11 est libre |
+| H3 rampe urbaine raide | Laon (02), la route de la ville basse à la ville haute (rampe d'Ardon) | Boulogne-sur-Mer (62), de la ville basse à la haute ville |
+| H4 crête de barrage | Barrage de Vouglans (39), la route sur la crête | Barrage de Pannecière (58) |
+| H5 route en déblai | la plus longue voie des classes taguée `cutting=yes` (≥ 100 m) du Lot (46) | même règle : Corrèze (19) |
+| H6 col, vraie bosse | Col de Bavella (2A), `ref=D 268` de part et d'autre du col | Col de Vizzavona (2B), si 2B est libre |
+
+**Amendement 1 (2026-10-13, 19 h 36), avant toute lecture d'altitude sur ces sites.** La première
+construction (`controls.py --tunnels`, OSM du jour) n'a gardé que 3 tunnels sur 8 cellules : la
+plupart des candidats échouent à la règle 1 (pas de tunnel des classes dans OSM, ou `bicycle=no`) ou à
+la règle 4 (un pont ou un passage inférieur à moins de 150 m d'un portail). Faute de quoi juger, des
+candidats sont **ajoutés à la fin** des cellules vides, par la même règle (sélection par
+`controls.py`, départements libres, aucun département des négatifs tenus à l'écart), et jamais en
+amont d'un candidat existant :
+
+| cellule | candidats ajoutés, dans l'ordre |
+|---|---|
+| T3 moyen | le plus long tunnel de 200–700 m : Haute-Savoie (74), Ain (01), Ariège (09), Puy-de-Dôme (63) |
+| T4 moyen courbe | le plus courbe de 100–700 m : Ardèche (07), Ariège (09), Puy-de-Dôme (63) |
+| T5 long | le plus long de 700–2 500 m : Ariège (09), Puy-de-Dôme (63), Haute-Corse (2B) |
+| T6 urbain foré | le plus long de 150–2 500 m de la commune : Le Puy-en-Velay (43), Clermont-Ferrand (63), Annecy (74) |
+| T7 urbain, tranchée couverte | le plus long de 150–2 500 m de la commune : Rennes (35), Amiens (80), Limoges (87), Poitiers (86) |
+| T8 voie verte | le plus long tunnel `highway=cycleway` de 100–2 500 m : Tarn (81), Haute-Vienne (87), Creuse (23) |
+
+*Note datée (2026-10-13, 21 h 30, revue d'E4).* La ligne T8 ci-dessus figurait dans le texte de 19 h 36
+(instantané `spec-amend1-193617.md`), puis avait été retirée sans note ; elle est rétablie telle
+qu'écrite. Elle était **en erreur** : à 19 h 35 (`full.log`), T8 était déjà tenu par
+`th08-voie-verte-24` (Dordogne), la cellule n'était donc pas vide ; ces candidats n'ont jamais été
+essayés, et le Tarn a été pris ensuite par T9 (`th09-tunnel-81`). La sélection n'en change pas.
+
+**Amendement 2 (2026-10-13, 20 h 02), toujours avant toute lecture d'altitude.** Après l'amendement 1,
+4 tunnels seulement (T1, T2, T3, T8). Une cellule de complément **T9**, sans strate : dans l'ordre
+Hérault (34), Ardèche (07), Haute-Corse (2B), Haute-Loire (43), Lot (46), Corrèze (19), Tarn (81),
+Hautes-Pyrénées (65), le plus long tunnel des classes de 50–2 500 m du département ; chaque
+département qui passe donne un site (règle 3 tenue), jusqu'à 4 sites de plus, puis la liste
+s'arrête. Les cellules vides restent vides.
+
+**Précisions de construction, sans changement de choix** (toutes avant la première valeur d'altitude
+lue sur un site tenu à l'écart ; seule la fraction de `NaN` de la règle 5 a été lue, à la fin) :
+
+- *Règle 3, jeu de réglage.* La phrase « 04, 05, 15, 48, 73, 83, réservés au jeu de réglage, qui ne
+  peut en sortir » se lit : le jeu de réglage reste **dans la liste exclue**. Il occupe 04, 05, 15,
+  26, 38, 69, 73, 75, 84 (aucun site en 48 ni 83 : les tunnels du Tarn sur la D 907B font ≤ 30 m,
+  ceux de la Corniche sublime sont des sentiers).
+- *Règle 4, approche.* Le contrôle « l'extrémité ne revient pas vers l'autre bout » hérité des ponts
+  (marge 0,5 × longueur du tablier) rejetait toute route qui tourne de plus de ≈ 60° en 400 m ; la
+  série tunnels le prend à 0 (`back=0.0`), pour tous ses sites. Les « 150 m de sol » sont vérifiés
+  aux deux bouts de l'approche **et** sur les 150 premiers mètres hors du portail (`approach`), puis
+  sur l'itinéraire écrit (`tunnel_ground_checks`) ; un site de réglage, `tt08`, en est dispensé
+  (`x_near_ok` : un tunnel entre deux galeries paravalanches, qui restent `X`).
+- *Règle 6, ordre.* Codé dans `controls.py` : chaque ligne des tableaux est une *cellule* de
+  `TUNNEL_SITES` dont les candidats sont essayés dans l'ordre ; le premier qui se construit et passe
+  les contrôles est gardé, un candidat dont le département est déjà tenu est sauté. Le journal de la
+  construction imprime chaque échec et chaque saut.
+- *Points de passage des négatifs* : centres et points codés après reconnaissance OSM (noms, `ref`,
+  géométrie) ; `hn02` (centre à 794 m de la D 115) et `hn03` (point de la gare à 127 m d'un nœud de
+  rue) ont été recodés ainsi, sans changer de site.
+
+**Échecs et remplacements (OSM du 2026-10-13).**
+
+| cellule | candidat | échec |
+|---|---|---|
+| T2 | Gorges de Luz, D 921 (65) | règle 1 : aucun tunnel routier dans OSM (seulement des galeries hydrauliques `tunnel=flooded`) |
+| T3 | Col de Bussang, N 66 (88 / 68) | règle 1 : le « Tunnel de Bussang » est ferroviaire ; la N 66 passe le col à ciel ouvert |
+| T3 | 200–700 m des Pyrénées-Orientales (66) ; Ain (01) | règle 1 : aucun tunnel des classes dans la plage |
+| T3 | 200–700 m de Haute-Savoie (74) : route de Sommand, 325 m (voie 137554710) | règle 4 : pas d'approche de 400 m propre aux deux bouts |
+| T4 | le plus courbe des Pyrénées-Orientales (66), 118 m (1195520320) ; Haute-Corse, tunnel de l'Isolella, 181 m (27118814) ; Ardèche, route des Gorges, 135 m (174971324) | règle 4 (Isolella : un pont à 268 m du portail) |
+| T4 | Alpes-Maritimes (06), Ariège (09) | sautés (règle 3 : 06 tenu par T1, 09 par T3) ; Puy-de-Dôme (63) : règle 1 |
+| T5 | Ain (01), Haute-Savoie (74), Doubs (25), Puy-de-Dôme (63), Haute-Corse (2B) | règle 1 : aucun tunnel des classes de 700–2 500 m (autoroutes, LHC, `bicycle=no`) ; Ariège (09) sauté |
+| T6 | Angoulême (tunnel de la Gâtine, `bicycle=no`), Besançon, Clermont-Ferrand, Annecy | règle 1 |
+| T6 | Saint-Étienne, allée du Général-Rullière, 169 m ; Le Puy-en-Velay, voie verte du Velay, 1 259 m (124759294) | règle 4 |
+| T7 | Montpellier, galerie de la Comédie, 389 m (1315709014) | règle 4 : un passage inférieur à 90 m du portail |
+| T7 | Metz, Nancy, Rennes, Amiens, Limoges, Poitiers | règle 1 : aucun tunnel des classes de 150–2 500 m dans la commune |
+| T8 | Ardèche (07) | règle 1 : les tunnels de la Dolce Via sont `highway=path`, pas `cycleway` |
+| T8 | Haute-Loire (43), voie verte du Velay | règle 4 |
+| T9 | Hérault (Comédie, règle 4) ; Haute-Loire, Lot (D 662, 262 m), Corrèze (D 1089, 384 m), Hautes-Pyrénées (D 920, 116 m) | règle 4 ; la liste s'épuise avec **3** sites gardés (07, 2B, 81) au lieu de 4 |
+| H3 | Laon (02) | règle 5 : MNT IGN `NaN` sur 381 / 381 stations |
+| H4 | Vouglans (39) : codé sans sélecteur, l'itinéraire prend des voies `service` | règle 4 : demi-tour de 127° |
+| H4 | Pannecière (58), D 303 | règle 5 : MNT `NaN` sur 131 / 131 stations (et la crête y est taguée `bridge`, donc `X`) |
+| H5 | Lot (46) : chemin du Pech Saint-Cirq, 145 m (1037791655) ; Corrèze (19) | règle 4 ; Corrèze : aucune voie `cutting=yes` des classes ≥ 100 m |
+
+Cellules vides : **T4** (moyen courbe), **T5** (long), **T6** (urbain foré), **T7** (urbain en tranchée
+couverte), **H4** (crête de barrage), **H5** (déblai). Les formes T7 et H4 ne sont donc couvertes que
+par le jeu de réglage (`tt04`, `tn10`, `tn11`) ; T5 et T6 par `tt02`, `tt03` et, en partie, `th09-tunnel-81`
+(940 m).
+
+**Liste gelée (2026-10-13, OSM du jour ; seule la fraction de `NaN` du MNT lue : 0 % partout).** Rôles
+`tunnel-holdout` et `tunnel-holdout-negative` dans `truth/tunnels/index.csv`, mesurés **seulement**
+par `tunnelHoldoutTunnelJudge`.
+
+| id | cellule | ouvrage (dépt.) | voie(s) OSM du tunnel | km | span `N` |
+|---|---|---|---|---|---|
+| th01-cians | T1 | Tunnel des Traverses, D 28, gorges du Cians (06) | 173944928 | 1,28 | 440 m |
+| th02-pierre-lys | T2 | Défilé de la Pierre-Lys, D 117 (11) | 40885827 | 0,90 | 95 m |
+| th03-tunnel-09 | T3 | D 3, Ariège (09) | 25024680 | 1,00 | 215 m |
+| th08-voie-verte-24 | T8 | Voie verte, tunnel éclairé, Dordogne (24) | 668765879, 668765888 | 1,50 | 470 m |
+| th09-tunnel-07 | T9 | Rue des Défilés, Ardèche (07) | 239917000 | 1,38 | 370 m (+ un pont `X` de 40 m) |
+| th09-tunnel-2b | T9 | D 344, Haute-Corse (2B) | 26842205 | 1,37 | 380 m |
+| th09-tunnel-81 | T9 | Tunnel de Pech Mergou, Tarn (81) | 81148851 | 1,78 | 940 m |
+
+| id | cellule | lieu (dépt.) | km | `X` (exclus) |
+|---|---|---|---|---|
+| hn01-aubisque | H1 lacets | D 918 sous Gourette (64) | 2,37 | deux ponts (25, 15 m) |
+| hn02-aveyron | H2 balcon | D 115, gorges de l'Aveyron (82) | 2,38 | passage inférieur 10 m |
+| hn03-boulogne | H3 rampe | Boulogne-sur-Mer, ville basse → haute ville par la porte des Dunes (62) | 0,69 | passage inférieur 15 m, porte 10 m |
+| hn06-bavella | H6 col | D 268 de part et d'autre du col de Bavella (2A) | 2,98 | pont 5 m |
+
+Soit **7 tunnels** (2 910 m de `N`, 582 stations) et **4 négatifs** — en dessous des 8–10 et 5 visés ; la série n'est
+pas complétée au-delà de l'amendement 2.
+
+**Jeu de réglage** (`tunnel-tuning`, choisi à la main, comme `p01..p08` ; avec les quatre tunnels de
+`test4`) :
+
+| id | ouvrage | voie(s) OSM | span `N` | note |
+|---|---|---|---|---|
+| tt01-galibier | Tunnel du Galibier, D 902 (73 / 05) | 27415944 | 365 m | sous le col ; `bicycle=no` (admis en réglage) ; lacets à l'approche |
+| tt02-croix-rousse | Tube bus / piétons / vélos de la Croix-Rousse, Lyon (69) | 250224690, 1453890251 | 1 770 m | urbain, foré sous la colline |
+| tt03-lioran | Tunnel du Lioran, N 122 (15) | 4902725 | 1 500 m | long, sous le col |
+| tt04-tuileries | Tunnel des Tuileries (ancienne voie Georges-Pompidou), Paris (75) | 4294224 | 855 m | **tranchée couverte, sol plat au-dessus** |
+| tt05-rousset | Tunnel du col de Rousset, D 518 (26) | 56415172 | 700 m | sous le col |
+| tt06-nesque | Gorges de la Nesque, D 942 (84) | 135975453, 127459865 | 50 + 105 m | deux tunnels courts, un seul groupe |
+| tt07-petit-frou | Tunnel du Petit Frou, D 520C (38 / 73) | 59663343 | 225 m | balcon, gorge |
+| tt08-arly-cliets | Tunnel des Cliets, D 1212 (73) | 922716048 | 240 m | entre deux galeries paravalanches (`X`) |
+
+**Négatifs de réglage** (`tunnel-negative`, 13) : `tn01` Alpe d'Huez D 211 (lacets) ; `tn02` lacets de
+Montvernier ; `tn03` col du Galibier, D 902 **au-dessus** de `tt01` ; `tn04` sommet du Ventoux, D 974 ;
+`tn05` Montmartre, rue Lepic ; `tn06` Lyon, montée de la Boucle ; `tn07` Lyon, quais et montée
+Bonafous vers la Croix-Rousse ; `tn08` gorges de la Bourne, D 531 (balcon ; trois tunnels et deux
+galeries `X`) ; `tn09` Verdon, route des Crêtes, D 23 (balcon au-dessus du vide) ; `tn10` barrage de
+Roselend (la route du barrage, crête taguée `bridge`, 645 m `X` : seules les approches jugent) ;
+`tn11` barrage de Serre-Ponçon ; `tn12` gorges de l'Arly sous les galeries (galerie `X`, 165 m) ;
+`tn13` la plus longue voie `cutting=yes` autour de Grenoble (Grande Rue, 335 m). Les galeries
+paravalanches sont `X` (structure `gallery`) : sous une galerie le LiDAR peut lire le toit ou le
+versant, le banc ne juge que le sol autour.
+
+**Mesure de référence, sans détecteur** (`tunnelControls`, `INTEGRATION=1`, réglage et négatifs de
+réglage seulement ; 74 tuiles téléchargées). « MNT au-dessus de la droite » : écart max du MNT à la
+droite entre portails sur le span `N` ; « raides » : stations `G` à plus de 15 % sur 100 m.
+
+| site | IGN MNT z15 | Mapterhorn z12 |
+|---|---|---|
+| tt01 Galibier | +85,3 m ; 0 raide | +86,5 m ; 0 |
+| tt02 Croix-Rousse | +81,5 m ; 1 | +79,2 m ; 1 |
+| tt03 Lioran | +214,8 m ; 4 (max 25 %) | +208,9 m ; 3 |
+| tt04 Tuileries | **+5,6 m** ; 0 | **+3,7 m** ; 0 |
+| tt05 Rousset | +186,4 m ; 0 | +182,7 m ; 0 |
+| tt06 Nesque | +5,2 m (50 m, portails à +23,8 %) et +40,3 m ; 9 (max 38 %) | +6,8 et +29,8 m ; 9 |
+| tt07 Petit Frou | +125,0 m ; 3 (max 45 %) | +117,7 m ; 4 (max 57 %) |
+| tt08 Cliets | +83,9 m ; 0 | +77,3 m ; 0 |
+| négatifs `tn01`..`tn13` | 0 raide sauf `tn08` Bourne **15** (max 43,6 %) et `tn12` 2 ; max 4,1 à 15,0 % ailleurs | `tn08` **29** (max 37 %), `tn13` 9, 0 ailleurs |
+
+Lecture : la tranchée couverte ne fait presque pas de bosse (3,7 à 5,6 m sur 855 m) — le signal
+« pentes impossibles des deux côtés » ne la verra pas, et ce n'est pas grave (l'erreur est petite) ;
+la route en balcon de la Bourne lit la falaise comme un tunnel, plus fort sur Mapterhorn (29 stations
+raides) que sur l'IGN (15) : c'est le négatif qui jugera la précision. Les lacets, le Ventoux, les
+rampes urbaines et les crêtes de barrage restent sous 15 % sur 100 m à la lecture au point.
+
+**Branchement.** `TunnelBenchProbeTest` (`engine/src/jvmTest`), indépendant du banc des ponts (il
+recopie le cache disque de `ElevationBenchProbeTest`, même répertoire) :
+`tunnel_controls_parse_and_hold_their_guards` (sans réseau, chaque `jvmTest`) — en-têtes, nombre de
+colonnes, `ROLES` (8 / 13 / 7 / 4, auto-contrôle de taille du lecteur), `GUARDS` par site (stations,
+`O`, `L`, `X+x`, spans `N`, stations `N`), runs de `spans.csv` contre les CSV, GPX rééchantillonné
+contre la vérité, 150 m de sol autour de chaque groupe `N`, aucun `N` sur un négatif, et les quatre
+tunnels de `test4` dans `structures.csv` ; `tunnelControls` (`INTEGRATION=1`) retire les lignes
+tenues à l'écart **avant** toute tuile (assertion sur leur nombre) ; `tunnelHoldoutTunnelJudge`
+(`INTEGRATION=1` **et** `TUNNEL_JUDGE=1`) seul lecteur de la série, **pas lancé** — il n'imprime
+aujourd'hui que la mesure de référence, et le lancer avant le gel du détecteur consommerait la série.
+Les entrées Gradle de `jvmTest` couvrent déjà `controls/**` et `analysis/truth/**` (vérifié : une
+modification de `controls/tunnels/th01-cians.gpx` relance la tâche). `controls.py` sans `--tunnels`
+réécrit la série des ponts **à l'octet près**.
+
+#### Mesures (E4)
+
+**Livré.** `TunnelDetector` et `TunnelDetectorOptions` (`:gpx`, `commonMain`, purs : tableaux en
+entrée, spans en sortie) ; `TunnelStep` (`:engine`, `internal`) en **étape 3c** du pipeline : après
+3b (les tabliers), avant `smoothElevation`, donc `sourceElevation` et le D+ rapporté perdent la
+montée fictive. **Activation** : dès que `fixElevation` est vrai, **sur toute source** (IGN à tout
+zoom, Mapterhorn, fournisseur fait main, WASI) — l'étape ne lit que le MNT, elle n'a pas besoin de
+modèle de surface ; jamais sur l'altitude propre d'un GPX (baromètre). Aucune option de porte,
+aucun champ d'`EnhanceOptions`, aucun `PointField` (E7). Un surchargement `internal` de
+`Enhancer.enhanceCourse(…, tunnels)` sert au seul banc. Les seuils vivent dans
+`TunnelDetectorOptions.DEFAULT`, aucun littéral ailleurs.
+
+**Placement argumenté.** Après 3b : 3b a déjà lu le MNT aux mêmes stations (`alongTrackStations`,
+5 m ; l'écriture d'un tablier ne bouge aucune coordonnée, `computeDerivedData` est en haversine 2D),
+3c **réutilise** ces échantillons (`BridgeDeckResult.terrain`) au lieu de relire les tuiles ; sans
+modèle de surface il lit lui-même, en ordre inverse comme 3b (cache chaud). Après 3b aussi parce
+qu'un tablier détecté doit primer : 3c **n'écrit jamais** dans une plage écrite par 3b, et un
+portail tombé dans un tablier est épinglé au tablier (un tunnel qui débouche sur un pont). Un tunnel
+dont un tablier tient **entièrement entre les portails** est abandonné (`TunnelResult.dropped`,
+ajouté après le juge) : ce sont les piles d'un pont que le MNT a gardées, et écrire la droite autour
+du tablier laisserait une marche verticale à chacun de ses bords. Avant le lissage, pour que le D+ lu sur
+`sourceElevation` soit juste.
+
+**Correction.** La droite entre les portails, épinglée au **MNT lu à la station du portail** — pas à
+l'altitude du chemin à cet endroit : l'étape 2 a lu le MNT tous les ≤ 30 m, et l'interpolation y
+mêle le front de taille au pied (sur le monde synthétique des tests, +0,7 m ; sur le banc, Grands
+Goulets passe de +4,0 / 2,8 m à **+0,9 / 0,5 m** max / RMS, Moines de +17,8 / 13,2 à −0,6 / 0,3 m
+avec ce seul changement). Pour la même raison, les points à moins de 30 m (le pas de l'étape 1,
+`PRE_FIX_SPACING_M`) hors de chaque portail reprennent le MNT interpolé sur la grille de 5 m.
+Tout autre point garde son altitude au bit près (asserté sur le banc : `TunnelResult.written`).
+
+**Ce que le MNT montre d'un tunnel** (mesures sur le jeu de réglage, `tunnelControls`, puis profils
+complets — exploration en Python sur les mêmes échantillons, portage Kotlin vérifié **à l'identique
+sur 115 profils × source** : spans égaux station pour station) :
+
+- une bosse de 27 à 216 m (IGN) au-dessus de la droite entre portails ; 3,7–5,6 m seulement sur la
+  tranchée couverte des Tuileries ;
+- aux portails, un **front de taille** : la pente sur 50 m juste à l'intérieur monte de +34 à
+  +177 % à l'entrée et descend de −34 à −249 % à la sortie ; à l'extérieur, la route : ≤ 20 % sur
+  20 et sur 50 m ;
+- la droite entre portails est une pente de route : −9,6 à +4,6 % ;
+- le tracé entre portails est **droit** : corde / longueur 0,90 (Combe Laval) à 1,00 ;
+- un tunnel long n'est pas une bosse simple : le Lioran a un replat à mi-montée, les Grands Goulets
+  une **terrasse** à 700 m (80 m au-dessus de la droite) entre deux crêtes ; la Croix-Rousse un
+  plateau d'un kilomètre ; la descente au-dessus de la Croix-Rousse tient −15 à −20 % sur 20 m.
+
+Et des négatifs : à la lecture au point, les lacets, le Ventoux, les rampes urbaines et les crêtes
+de barrage restent ≤ 15 % sur 100 m (tableau de référence ci-dessus) ; la Bourne lit la falaise et
+la gorge en **pointes** d'une à trois stations (+20 à +25 m, −19 m) ; la crête de Roselend (`X`) lit
+n'importe quoi (±40 m tous les 15 m), comme celle que traverse `sample.gpx` au km 70,6–71,1.
+
+**Ce qui a échoué en route**, et a fixé la forme du détecteur :
+
+1. *Enveloppe à pente bornée* (plus grande fonction ≤ MNT de pente ≤ 12 %, excès = MNT − enveloppe) :
+   coupe la Croix-Rousse en deux (le plateau rejoint l'enveloppe), et un creux (crête de Roselend)
+   contamine 985 m de sol `G` (excès 108 m).
+2. *Première sortie valide après l'entrée* : tronque les tunnels longs de 60 à 190 m (Galibier,
+   Lioran, Croix-Rousse) — un pied de pente intérieur passe pour un portail. D'où : un portail exige
+   la route **sur 20 et sur 50 m** à l'extérieur, et, parmi les sorties valides d'une entrée, on garde
+   celle dont la bosse est **la plus haute** (toute la montagne, pas une épaule).
+3. *La plus haute bosse* seule fusionne : sur la Bourne, un tunnel `X` et 650 m de route en descente
+   jusqu'au creux suivant (`G` déplacé de 25 m). D'où : les pentes ≥ 30 % doivent être **au portail**
+   (dans les 50 m), la bosse ne descend jamais à plus de 3 m sous la droite, et une **vallée
+   intérieure** (une sortie puis une entrée) à moins de 15 m au-dessus de la droite fait deux tunnels
+   — pas la terrasse des Grands Goulets.
+4. *Lacets* : avec des seuils relâchés (30 % → 20 %), Mapterhorn trouve des « tunnels » de 2,4 et
+   2,9 km sur la route pyrénéenne `strava.gpx` ; leur corde / longueur vaut 0,67 et 0,43. D'où le
+   critère de **rectitude** ≥ 0,8, qui ne coûte aucun tunnel du réglage.
+
+**Le détecteur** (`TunnelDetector`, sur le MNT aux stations de 5 m) :
+
+1. *Portails* : une entrée a la route derrière elle (|pente| ≤ 20 % sur 20 m **et** sur 50 m) et un
+   front devant (≥ 25 % sur 20 m) ; une sortie, l'inverse ; parmi les portails d'une même sorte à
+   moins de 20 m, le plus net (plus grand changement de pente).
+2. *Candidat* : chaque entrée `a` avec chaque sortie `b` à 50–3 000 m ; tunnel si la corde / longueur
+   ≥ 0,8, la droite a une pente ≤ 12 %, le MNT monte d'au moins 15 m au-dessus d'elle et ne descend
+   jamais de plus de 3 m sous elle, **les deux côtés sont impossibles** (≥ 30 % sur 50 m dans les
+   50 m après l'entrée, ≤ −30 % dans les 50 m avant la sortie), et aucune vallée intérieure à moins de
+   15 m au-dessus de la droite. *Ajoutés après le juge* (*Revue d'E4*) : le MNT est déjà à 15 m
+   au-dessus de la droite **à moins de 100 m de chaque portail** (`faceReachM`, un front de montagne,
+   pas la paroi d'un ravin sous un pont), et une station lue à 0 m exactement côté route d'un portail
+   (sur 50 m : un trou lu comme le niveau de la mer) rejette.
+3. Par entrée, la sortie à la bosse la plus haute ; puis l'entrée suivante après cette sortie.
+   Jamais de recouvrement. Un `NaN` lu par la décision rejette.
+
+**Sensibilité** — balayage du **prototype Python** (`py/sweep.py` du bloc-notes de la session), avant
+l'épinglage de la droite aux stations des portails et la relecture des 30 m que `TunnelStep` ajoute ;
+sa sortie n'a pas été archivée. Sa colonne `test4` n'est donc **pas** le banc Kotlin (qui donne
+8,27 / 4,45 m après 3c) : elle compare les seuils entre eux, pas au livré. Le critère de front
+(ajouté après le juge, *Revue d'E4*) n'y figure pas (un seuil à la fois, autres au défaut ; « tunnels » = groupes `N` de réglage dont la
+bosse > 20 m est ramenée sous le quart, sur 14 groupes × source ; « sol » = stations `G` des 13
+négatifs déplacées > 0,5 m ; « parcours » = détections sur `test1..3`, `sample`, `strava`,
+`stelvio`, deux sources ; `test4` = RMS `N` IGN /
+Mapterhorn, sur les stations de la vérité) :
+
+| Seuil | Valeurs → tunnels / sol / parcours / `test4` |
+|---|---|
+| défaut | 12 / 13 / 0 / 8,9 – 5,3 m |
+| `minSideGrade` 0,20 · 0,25 · **0,30** · 0,40 | 12/47/1 · 12/47/0 · **12/13/0** · 12/0/0 (même `test4`) |
+| `minPortalGrade` 0,15 · 0,20 · **0,25** · 0,35 | 12/13/0 ×3 · 11/13/0 |
+| `maxRoadGrade` 0,12 · 0,15 · **0,20** · 0,25 | 11/13/1 (10,8 – 6,8 ; 2 `T` de `test4` déplacées) · 12/13/0 (8,9 – 7,0) · **12/13/0** · 13/117/0 |
+| `minHeightM` 8 · 10 · **15** · 25 | 12/13/0 ×3 · 12/0/0 |
+| `maxChordGrade` 0,08 · 0,10 · **0,12** · 0,15 · 0,20 | 12/13/0 (14,1 – 11,8) · 12/13/0 · **12/13/0** · 12/13/1 · 12/13/1 |
+| `maxBelowChordM` 1 · **3** · 6 | 12/13/0 (9,2 – 9,2) · **12/13/0** · 12/13/0 (8,9 – 4,9) |
+| `minValleyHeightM` 5 · **15** · 30 | identiques |
+| `minLengthM` 30 · **50** · 100 | 12/13/4 (piles de Saint-Nazaire, 40–45 m) · **12/13/0** · 12/0/0 |
+| `steepWindowM` 30 · **50** · 100 | 12/47/0 (7,4 – 4,9) · **12/13/0** · 13/104/0 |
+
+Le défaut n'est pas toujours au milieu d'un plateau : `maxChordGrade` 0,15 laisse passer la crête de
+Roselend de `sample.gpx` (+13,6 %, un MNT sans valeur) ; `maxRoadGrade` 0,25 et `steepWindowM` 100
+font entrer 100+ stations de la Bourne ; `minSideGrade` 0,40 ferait aussi bien sur ce jeu, mais
+laisserait 4 points de marge à la Croix-Rousse sur Mapterhorn (+44 %) — 0,30 garde la marge côté
+tunnels, la précision étant déjà tenue par les autres critères.
+
+**Jeu de réglage** (`tunnelControls`, `INTEGRATION=1`, Kotlin ; erreur max |MNT − droite| sur le
+groupe `N`, avant → après ; asserté : `TUNING_FOUND`, `GROUND_MOVED`) :
+
+| site | IGN MNT z15 | Mapterhorn z12 |
+|---|---|---|
+| tt01 Galibier | 85,3 → **3,8** m (rms 3,1) | 86,5 → **1,8** (1,0) |
+| tt02 Croix-Rousse | 81,5 → **2,5** (2,4) | 79,2 → **5,0** (3,2) |
+| tt03 Lioran | 214,8 → **2,5** (1,4) | 208,9 → **3,5** (3,3) |
+| tt04 Tuileries (tranchée couverte) | 5,6 → 5,6, non vu | 3,7 → 3,7, non vu |
+| tt05 Rousset | 186,4 → **3,5** (2,0) | 182,7 → **5,1** (2,6) |
+| tt06 Nesque, 1ᵉʳ tunnel (50 m) | 5,2 → 25,2 (voir ci-dessous) | 6,8 → 11,6 |
+| tt06 Nesque, 2ᵉ (105 m) | 40,3 → **0,1** (0,0) | 29,8 → 9,8 (6,6) |
+| tt07 Petit Frou | 125,0 → **2,1** (1,2) | 117,7 → **7,2** (4,2) |
+| tt08 Cliets | 83,9 → **3,0** (1,6) | 77,3 → 77,3, non vu |
+
+Le « 25,2 m » de Nesque n'est pas une erreur du détecteur : le span OSM de 45 m est au milieu d'une
+tranchée rocheuse de ≈ 95 m (le MNT est à +20 % dès 200 m, avant les 35 m de marge `x`), et la
+« vérité » de ce groupe est une droite tirée entre deux stations **sur la tranchée** (742,8 →
+755,9 m) quand la route passe à 733 → 727 m ; le détecteur prend la tranchée entière (215–310 m) et
+pose 733 → 727. Cliets sur Mapterhorn : la galerie paravalanche aval lit 10 m sous la route, aucune
+sortie n'a la route derrière elle.
+
+**Négatifs** : aucune station `G` déplacée sur les 13 négatifs à l'IGN ; sur Mapterhorn, **13** à la
+Bourne (2 345–2 415 m, max 16,8 m), une pointe de 17 m sur 70 m (pentes +39 / −42 %) que l'IGN ne
+voit pas : la correction rapproche Mapterhorn de l'IGN (écart RMS 16,9 → 9,9 m). Les tunnels `X` de
+la Bourne (1 525–1 680 m, 2 585–2 640 m) sont trouvés sur les deux sources, et ce sont de vrais
+tunnels. Aucun tunnel sur les 16 négatifs ponts d'E2 bis (forêts, platanes, déblais, rues, péage,
+levée), ni sur les parcours `test1..3`, `sample.gpx`, `strava`, `movescount`, `sports-tracker`
+(Ariège), `stelvio`, `amazfit`, `garmin` (Helsinki, Mapterhorn seul).
+
+**Ponts sans tablier (constat).** Sur les ponts positifs `p06` (Normandie) et `p07` (Millau), le MNT
+garde **pylônes et piles** (Normandie : +140 m sur 300 m de chaque côté ; Millau : une pile de 80 m sur
+50 m), et le détecteur les prend pour des tunnels. Avec `ign-lidar-hd` z15 le tablier est détecté (E3)
+et protégé (sur `p06`, les deux « tunnels » de pylônes tiennent dans le tablier de 1,22–3,35 km :
+rien n'est écrit) ; sur Mapterhorn, la bosse est aplatie au fond du canyon : le tablier manque
+toujours, mais les montées fictives de 140 m disparaissent. Le cas inverse — un tablier détecté
+strictement **entre** deux « portails » — abandonne désormais le tunnel (voir *Placement*). Les piles de Saint-Nazaire (40–45 m de large) sont
+sous `minLengthM`.
+
+**Banc E1, `test4`** (`bench`, colonnes `ign -tun` = l'`ign-lidar-hd` d'E3, `map -tun` = le
+`mapterhorn` d'E3 ; `src` = `sourceElevation`, `ele` = profil lissé 150 m) :
+
+| `test4` | IGN, sans → avec 3c | Mapterhorn, sans → avec 3c |
+|---|---|---|
+| Stations `N`, `src` rms / max | 106,58 / +220,26 → **8,27 / +67,85** m | 106,39 / +218,23 → **4,45 / +26,08** m |
+| Stations `N`, `ele` rms / max | 104,30 / +206,37 → 4,97 / +19,72 m | 104,37 / +205,26 → 3,39 / +9,31 m |
+| Toutes stations, `src` rms | 17,29 → **1,37** m | 17,27 → **0,97** m |
+| Balcons `S`, `src` rms / max | 2,19 / +6,05 → 2,07 / −4,36 m | 4,72 / −16,91 → 4,72 / −16,91 m |
+| D+ `dem` (grille 5 m) / vrai (2 414 m) | 2 872 / 1,19 → **2 546 / 1,05** | 2 858 / 1,18 → **2 479 / 1,03** |
+| D+ rapporté / vrai | 2 732 / 1,13 → **2 460 / 1,02** | 2 738 / 1,13 → **2 425 / 1,00** |
+| D+ brut / vrai brut | 3 100 / 1,18 → 2 718 / 1,04 | 3 136 / 1,19 → 2 703 / 1,03 |
+| Points > 15 %, `src` / `ele` | 402 / 236 → **96 / 0** | 395 / 238 → **38 / 0** |
+| Durée simulée | 3:46:39 → 3:42:22 | 3:46:28 → 3:41:56 |
+
+Par tunnel (`src` max / rms, m) :
+
+| tunnel | IGN avant → après | Mapterhorn avant → après |
+|---|---|---|
+| Petits Goulets (475 m) | +67,9 / 20,4 → **+67,9 / 20,4** (non vu) | +55,1 / 20,8 → −10,9 / 2,1 (2 spans) |
+| Grands Goulets (1 765 m) | +220,3 / 136,4 → **+0,9 / 0,5** | +218,2 / 136,2 → **+3,8 / 3,1** |
+| Tunnel des Moines (210 m) | +61,4 / 40,7 → **−0,6 / 0,3** | +59,1 / 39,7 → +5,4 / 3,8 |
+| Combe Laval (490 m) | +43,2 / 15,7 → −6,4 / 2,5 (2 spans) | +36,5 / 14,6 → +26,1 / 8,5 (1 span) |
+
+Cible de la *Validation* : Grands Goulets à ≤ 5 m de la droite entre portails, **tenue** sur les
+deux sources (0,9 et 3,8 m), sans D+ fictif ; aucune route en lacets prise pour un tunnel (Alpe
+d'Huez, Montvernier, Galibier, Ventoux, `sample.gpx`, Ariège, Stelvio). Les Petits Goulets restent
+le cas manqué à l'IGN : une suite de tunnels rocheux de 50–80 m séparés par des ouvertures où le
+MNT lit la gorge 10 à 19 m **sous** la route ; aucune paire de portails n'y a 50 m de route derrière
+elle. Les colonnes `ign -decks` (MNS détaché) et `ign-lidar-hd` sont identiques au bit près sur
+`sourceElevation` hors tabliers (asserté) ; sur `test1..3`, aucun tunnel, toutes les colonnes d'E3
+inchangées (18 régions, mêmes cibles manquées).
+
+**Smoke CLI** (`enhance docs/deck-strava-data/test4.gpx --fix-elevation --cache build/dem-cache`) :
+
+| `--dem-source` | Durée | D+ / D+ `dem` rapportés | `<ele>` dans les Grands Goulets |
+|---|---|---|---|
+| `ign-lidar-hd` | 13 342 s | 2 460 / 2 270 m | 608,8 → 680,1 m (vérité 600 → 681 ; 816 m avant) |
+| `mapterhorn` | 13 316 s | 2 425 / 2 235 m | 612,6 → 680,8 m |
+
+**`sample.gpx`** (`tunnelRides`, `EnhanceOptions.DEFAULT`, 3c sans → avec) : **aucun tunnel** sur
+les deux sources, sortie identique au bit près (altitude et temps de chaque point, asserté) — D+
+rapporté 4 554,6 m (IGN, tabliers compris) et 4 545,1 m (Mapterhorn), durée 19 617 et 19 597 s,
+inchangés. Ce parcours alpin de 130 km ne passe sous aucun tunnel, et ses lacets, sa crête de
+barrage (Roselend, km 70,6–71,1) et ses cols n'en ont pas la signature. Même chose sur les six
+autres parcours de la démo. **Mais la marge n'est pas confortable** (revue d'E4, portage Python,
+Mapterhorn) : outre Roselend (corde +13,6 % contre 12 %), la D 109 à Héry-sur-Ugine (km 18,82–20,74)
+est une vraie colline de 72 m que, avant le critère de front, **seul** le flanc de sortie (−15 % contre
+−30 %) refusait — un ravin de 14 m sous un pont au pied tient lieu d'entrée ; `strava.gpx` km
+4,93–5,95 (23 m) ne tombait que sur la montée (19 %) ; `sports-tracker.gpx` km 2,19–2,43, une butte
+de 25 m sur un sentier ariégeois, ne tombe **que** sur le flanc de sortie (−26,5 %, 3,5 points de
+marge) et le critère de front ne la protège pas (fronts 25 / 22 m). Les trois sont épinglés dans
+`tunnelRides` (`NEAR_MISSES` : trouvés avec le seuil relâché, refusés au défaut, et — D 109, `strava`
+— refusés aussi par le seul critère de front).
+
+**Repli canyon sans MNS : mesuré, différé.** Le détecteur retourné (MNT → −MNT, `minHeightM` 5 m)
+sur les ponts de réglage, MNS retenu : **0 des 21 ponts Strava** ; sur `p01..p08`, Millau (493 /
+498 stations `D`) et une partie de Normandie (41 et 94 / 449), rien d'autre. Une berge de Loire fait
+5 à 10 m : jamais 30 % sur 50 m, et le canyon d'un petit pont n'a pas de « front ». Côté précision,
+aucune station `G` déplacée sur les négatifs, mais deux creux de 15–20 m sur 50–100 m dans les
+parcours (`sample.gpx` km 23,15, `strava.gpx` km 5,92 : des ravines, sans vérité pour trancher) et
+la crête de Roselend (`sample.gpx` km 70,4–71,2). Un repli utile demanderait un autre détecteur (bords bas, fenêtre courte) et
+ses propres négatifs ; non codé.
+
+**Limites.** Non vus : tranchée couverte sous un sol plat (erreur ≤ 6 m), tunnels de moins de 50 m,
+tunnels courbes ou hélicoïdaux (rectitude < 0,8), suites de tunnels courts entrecoupés de vues sur
+la gorge ; **hors échantillon** (juge) : un tunnel sous une colline basse et arrondie dont un flanc
+descend moins de 30 % sur 50 m (`th08`, voie verte de Dordogne, sortie ≈ −20 à −24 %), et un tunnel
+court en gorge dont un portail tombe sur la paroi (`th02`, Pierre-Lys, ≈ 10 m laissés). Un portail
+au fond d'un canyon de pont non détecté (Mapterhorn) y épingle la droite.
+
+Aplatis à tort, possibles : **une vraie butte à ≥ 30 % des deux côtés** — impossible pour une route
+revêtue, pas pour un chemin, un sentier VTT ou une rue très raide, que le moteur accepte aussi ; la
+montée sort alors du D+ et de la durée simulée, sans option de porte pour couper l'étape (E7). Le cas
+mesuré le plus proche : `sports-tracker.gpx` km 2,19 (ci-dessus). La précision n'est **mesurée que
+sur des MNT dérivés du LiDAR** (IGN, et Mapterhorn z12 en France et en Finlande, voir A13/A14) :
+**aucun site du banc ne lit la base mondiale GLO-30** de Mapterhorn (30 m, un modèle de surface). Un
+sondage de la revue sur la route des gorges du Dadès (Maroc, 35,7 km, aucun tunnel dans OSM) y trouve
+3 « tunnels » (km 16,53, 18,07, 19,97 ; 94, 22 et 53 m de bosse), probablement des parois de gorge
+qu'aplatir améliore, sans vérité pour trancher ; forêt plate (Biélorussie), défrichements
+amazoniens (Rondônia) : 0 ; rues de Russian Hill (San Francisco) : 0. Le critère de front ne change
+pas ces trois détections. Les régions GLO-30 sont donc **non mesurées** ; à peser en E7 avant de
+livrer sans interrupteur.
+
+Sous WASI, où un `-9999` IGN lit 0 m sans repli, un îlot de couverture entre deux trous pouvait
+passer pour une montagne : une station à 0 m exactement dans les 50 m côté route d'un portail
+rejette désormais le candidat, y compris quand le portail tombe sur le bord interpolé du trou (test
+`a_covered_island_between_two_holes_read_as_zero_is_no_tunnel`) ; un trou lu à une autre valeur
+reste une limite (`wasm-wasi-abi.md`).
+
+**Tests.** `TunnelDetectorTest` (`:gpx`, 16 : les 14 d'origine, plus la colline de la D 109 entre
+deux ravins pontés (profil Mapterhorn réel, miroir) et l'îlot entre deux trous à 0 m, ajoutés après
+le juge — tunnel sous une montagne, terrasse des Grands Goulets,
+deux tunnels séparés de route, lacets à rampe de 18 %, vrai col à 12 %, bosse urbaine à 25 %, pointes
+de balcon de 1 à 3 stations laissées, pointe de 5 stations remise sur la route, gorge entrevue entre
+deux tunnels, corde trop raide, `known limit` tranchée couverte et tunnel courbe, `NaN`, options) ;
+`TunnelStepTest` (`:engine`, 7 : droite entre portails et marges, échantillons de 3b réutilisés,
+canyon de pont sans tunnel, tuile illisible → `FETCH_FAILED`, défaut hors lecture qui lève, portail
+sur un tablier épinglé au tablier, tablier entre les portails → tunnel abandonné) ; `EnhancerTunnelTest` (4 : la montagne quitte `sourceElevation` et le D+, porte publique =
+surchargement, sans correction DEM rien n'est lu, parcours sans tunnel identique au bit près,
+tabliers compris) ; `TunnelBenchProbeTest.tunnelControls` (épingle `TUNING_FOUND`, `GROUND_MOVED`) et
+`tunnelRides` (`RIDE_TUNNELS = 0`, identité au bit près, `NEAR_MISSES`) ; `ElevationBenchProbeTest.bench` (colonnes
+`map -tun`, `ign -tun`, 3c ne bouge rien hors de `written`).
+
+**Série tenue à l'écart : jugée une fois, après le build (voir *Jugement tunnels* ci-dessous).**
+`tunnelHoldoutTunnelJudge` imprime aussi le verdict du détecteur. Ordre prévu (règle 8) : committer **d'abord, seuls**, la
+règle, la liste gelée et les témoins (`controls.py --tunnels`, `truth/tunnels/`, `controls/tunnels/`,
+cette section *Témoins tunnels* jusqu'au *Branchement*), puis E4 (détecteur, étape, mesures) ; geler
+ce commit, puis lancer le juge **une fois** et en rapporter le résultat ici sans retoucher un seuil.
+Le réglage de cette session a eu lieu après l'écriture de la règle (18 h 06) et le gel de la liste,
+sans aucune lecture d'altitude sur les sites tenus à l'écart (le banc les retire de l'index avant
+toute tuile, asserté ; l'exploration Python n'a lu que les sites de réglage et les parcours).
+
+#### Jugement tunnels (E4, une seule fois, après le build)
+
+**Lancé une fois**, le 2026-10-13 à 20 h 56, après la fin du build E4 et sans retouche ensuite :
+`TUNNEL_JUDGE=1 INTEGRATION=1 ./gradlew :engine:jvmTest --tests '*TunnelJudge*' --rerun-tasks -i`
+(50 tuiles lues sur le réseau : **aucune tuile tenue à l'écart n'était dans le cache du banc
+Kotlin**, `build/dem-cache`. Les tuiles IGN MNT z15 de ces sites avaient en revanche été téléchargées
+au gel par `coverage.py` via le cache propre de `fetch.py`, pour le seul compte des `NaN` de la règle
+5 — aucune valeur n'y a été examinée ; ce même cache a servi à la lecture post-jugement de la voie
+verte.)
+
+**Ce que vaut « BUILD SUCCESSFUL ».** Le juge n'avait **aucun critère de réussite ou d'échec** fixé
+avant son lancement : la règle 7 parle d'« échec » sans le définir, et le test n'asserte que
+l'intégrité des données (nombre de lignes). Un build vert dit que la série a été lue intacte, rien
+sur le détecteur ; le *Verdict* ci-dessous est une **lecture faite après coup**, pas un test contre
+un seuil gelé. La prochaine série tenue à l'écart écrira ses critères d'acceptation dans sa règle
+**avant** d'être construite (par exemple : 0 station `G` déplacée sur les négatifs, rappel ≥ N/M).
+
+**Écart à la règle 8** : rien n'était committé — ni les témoins ni E4 — car cette session ne committe
+pas ; le gel est tracé par les empreintes SHA-256 prises juste avant le juge (préfixes) :
+`TunnelDetector.kt` `cfc0ac90…`, `TunnelDetectorOptions.kt` `781bd8e1…`, `TunnelStep.kt`
+`c4c0e58e…`, `TunnelBenchProbeTest.kt` `a1700b4b…`, `truth/tunnels/index.csv` `4f243240…`,
+`spans.csv` `6c86e170…`. Aucun seuil n'a été touché après le juge **sur sa foi**. La KDoc de
+`TunnelBenchProbeTest` a été retouchée juste après (« it has not been run » → « it ran once »,
+commentaire seul, `6b143d35…`). **Manifeste complet** :
+`docs/deck-strava-data/analysis/tunnel-judge.sha256` (`sha256sum -c`), SHA-256 entiers de tout ce que
+le juge lit — `controls.py`, les 34 fichiers de `truth/tunnels/`, les 32 GPX de `controls/tunnels/` —
+et des sources du détecteur et de l'étape (`TunnelDetector*.kt`, `TunnelStep.kt`, `BridgeDeckStep.kt`,
+`Enhancer.kt`) telles qu'au juge ; seule `TunnelBenchProbeTest.kt` y figure dans sa version d'après
+la retouche de KDoc (`6b143d35…`), la version jugée étant `a1700b4b…`. Les fichiers de données y sont
+vérifiés identiques à ce jour ; les sources du détecteur, de l'étape et du banc ont changé **après**
+(*Revue d'E4*), et une copie des versions jugées est dans le bloc-notes de la session
+(`judged/judged-sources.tgz`).
+
+Lecture : *portails* = début / fin du span détecté contre la station juste hors du span OSM (la
+vérité de `N`) ; *max* = |MNT − droite vraie| max sur `N` avant → après ; *RMS* après. Longueur = span
+`N` de la liste gelée (stations × 5 m), département entre parenthèses.
+
+| site | cellule | IGN : portails, max, RMS | Mapterhorn : portails, max, RMS |
+|---|---|---|---|
+| `th01-cians` (06, 440 m) | T1 gorge | trouvé, 0 / 0 m ; 94,3 → 0,0 ; 0,0 | trouvé, 0 / 0 m ; 88,8 → 0,0 ; 0,0 |
+| `th02-pierre-lys` (11, 95 m) | T2 gorge | trouvé, −10 / 0 m ; 28,3 → 10,1 ; 6,1 | trouvé, −10 / +5 m ; 22,8 → 10,1 ; 6,7 |
+| `th03-tunnel-09` (09, 215 m) | T3 moyen | trouvé, +15 / −10 m ; 56,1 → 0,8 ; 0,5 | trouvé, +10 / −5 m ; 48,6 → 1,7 ; 0,9 |
+| `th08-voie-verte-24` (24, 470 m) | T8 voie verte | **manqué** ; 39,1 → 39,1 ; 28,3 | **manqué** ; 34,5 → 34,5 ; 23,9 |
+| `th09-tunnel-07` (07, 370 m) | T9 | trouvé, 0 / −10 m ; 35,0 → 0,5 ; 0,2 | trouvé, −10 / −5 m ; 28,2 → 3,9 ; 2,0 |
+| `th09-tunnel-2b` (2B, 380 m) | T9 | trouvé, 0 / 0 m ; 75,0 → 0,0 ; 0,0 | trouvé, 0 / +5 m ; 61,0 → 1,5 ; 0,9 |
+| `th09-tunnel-81` (81, 940 m) | T9 | trouvé, 0 / +5 m ; 142,8 → 2,4 ; 1,4 | trouvé, −5 / 0 m ; 137,0 → 2,0 ; 1,2 |
+| `hn01-aubisque` (64) | H1 lacets | 0 tunnel, 0 `G` bougée | 0 tunnel, 0 `G` bougée |
+| `hn02-aveyron` (82) | H2 balcon | 0 tunnel, 0 `G` bougée | 0 tunnel, 0 `G` bougée |
+| `hn03-boulogne` (62) | H3 rampe urbaine | 0 tunnel, 0 `G` bougée | 0 tunnel, 0 `G` bougée |
+| `hn06-bavella` (2A) | H6 col | 0 tunnel, 0 `G` bougée | 0 tunnel, 0 `G` bougée |
+
+(Portails en mètres, signe + = vers l'aval de la trace, grille de 5 m ; 0 = le portail détecté est la
+station même de la vérité.)
+
+- **Rappel** : 6 tunnels sur 7 sur chaque source (réglage : 7/8 IGN, 5/8 Mapterhorn). Aucun portail à
+  plus de 15 m de la vérité ; erreur max après correction ≤ 2,4 m (IGN) et ≤ 3,9 m (Mapterhorn) sur
+  les cinq tunnels francs.
+- **Pierre-Lys** : trouvé, mais 10,1 m résiduels sur les deux sources. Le span OSM fait 95 m ; le
+  détecteur épingle son entrée 10 m plus tôt, sur la paroi de la gorge, et la droite part de là — même
+  famille que les tunnels courts en gorge du réglage (Petits Goulets).
+- **Voie verte de Dordogne (manqué, deux sources)** : ancien tunnel ferroviaire droit (rectitude
+  1,00), colline basse et arrondie (39 m au-dessus de la droite sur 470 m), sol plat de part et
+  d'autre. Lecture post-jugement du MNT IGN (bilinéaire, `fetch.py`, sans détecteur) : la face
+  d'entrée est franche (+56 % sur 20 m), mais la sortie descend en pente douce et irrégulière (≈ −20
+  à −24 % sur 50 m, au plus −53 % sur 20 m juste au portail) ; cause **probable** : le critère « les
+  deux flancs ≥ 30 % sur 50 m à moins de 50 m du portail » échoue côté sortie. Non vérifié dans le
+  détecteur ; **non réglé**.
+- **Négatifs** : **aucun faux tunnel** sur les quatre négatifs tenus à l'écart (lacets d'Aubisque,
+  balcon de l'Aveyron, rampe de Boulogne, col de Bavella), sur les deux sources, et aucune station
+  `G` déplacée sur aucun des 11 sites (positifs compris). Cellules vides de la liste gelée (rien à
+  juger) : T4 courbe, T5 long, T6 et T7 urbains, H4 crête de barrage, H5 déblai — la précision n'est
+  donc pas jugée hors échantillon sur une crête de barrage ni sur un déblai, ni le rappel sur un
+  tunnel courbe ou en tranchée couverte (limites déjà écrites).
+
+**Verdict** (lecture après coup, voir plus haut). Précision tenue hors échantillon (0 faux tunnel, 0 sol déplacé) ; rappel 6/7 sur les
+deux sources, le manqué étant un tunnel sous une colline basse aux flancs doux, en deçà des seuils
+de flanc. La série est désormais **dépensée** : tout réglage ultérieur (par exemple pour la voie
+verte) demande une nouvelle série tenue à l'écart.
+
+#### Revue d'E4 (après le juge, 2026-10-13 soir)
+
+Une revue du code livré, **sans lecture de la série tenue à l'écart** (dépensée), a changé le
+détecteur et l'étape. Ces changements n'ont **pas** été jugés hors échantillon : le résultat ci-dessus
+vaut pour la version du manifeste, pas pour le code actuel.
+
+- **Critère de front** (`faceReachM` = 100 m, `TunnelDetectorOptions`). Un MNT n'a pas les ponts : un
+  ruisseau franchi sur un pont y est un ravin, dont la remontée passait pour le front d'un portail
+  (la pente du portail est lue entre les bouts de la fenêtre, la recherche du flanc ≥ 30 % commence
+  25 m avant le portail, et rien n'exigeait que la bosse monte vite près du portail). Sur
+  `sample.gpx`, D 109 à Héry-sur-Ugine (Mapterhorn) : un ravin de 14 m au km 18,82 fait une entrée
+  valide ; la vraie colline de 72 m qui suit (corde −0,2 %, rectitude 0,89) n'était refusée que par le
+  flanc de sortie. Le même demi-profil en miroir — un ravin ponté à chaque pied, forme courante — était
+  pris pour un tunnel (320–2 580 m, 70 m aplatis). Désormais le MNT doit être déjà à `minHeightM` au-
+  dessus de la droite à moins de 100 m de **chaque** portail. **Mesuré** (portage Python, sur les 77
+  profils × 2 sources du bloc-notes : réglage, négatifs, 16 négatifs ponts, positifs ponts, `test1..4`,
+  parcours de la démo) : **aucun span ne change** de 75 à 150 m ; à 20 m, le premier tunnel de la
+  Nesque (Mapterhorn, bosse 16 m) et une pointe de la Bourne tombent ; à 30 m, la Croix-Rousse et des
+  tunnels de `test4`. Banc Kotlin relancé : `TUNING_FOUND`, `GROUND_MOVED`, `test4` et les parcours
+  **identiques** à la sortie près. Le miroir de la D 109 est un test (`TunnelDetectorTest`), les trois
+  quasi-détections des parcours sont épinglées (`NEAR_MISSES`). Le critère ne protège pas la butte du
+  sentier ariégeois (fronts 25 / 22 m) ; une hauteur de front plus grande la refuserait, mais coûte des
+  tunnels de réglage dès 20 m — **rejeté**.
+- **Trou lu à 0 m** : une station à 0 m exactement dans les 50 m côté route d'un portail rejette le
+  candidat (un trou lu comme le niveau de la mer par un fournisseur sans repli, WASI). Aucun effet sur
+  le banc.
+- **Tablier entre les portails** : le tunnel est abandonné (`TunnelResult.dropped`) au lieu d'écrire
+  la droite autour du tablier ; un portail sur un tablier reste épinglé. Aucun effet sur le banc.
+- **Une seule constante pour le pas de l'étape 1** : `Enhancer.PRE_FIX_SPACING_M` (`internal`),
+  lue par `TunnelStep` (`refreshM` sans défaut) et par les deux bancs ; `BridgeDeckStep.write` lit
+  `DeckReplacement.writtenRange`, la même plage que 3c protège.
+
+**Ordre des commits recommandé** (règle 8 tenue autant que possible) : (1) les témoins seuls —
+`controls.py`, `analysis/README.md`, `truth/tunnels/`, `controls/tunnels/`, la section *Témoins
+tunnels* ; (2) E4 **tel que jugé** — les sources du manifeste (restaurées depuis
+`judged-sources.tgz`), vérifiées par `sha256sum -c` ; (3) la revue d'E4 — ce qui précède. Une
+prochaine série tenue à l'écart inclura une route sur un éperon avec un ruisseau ponté à chaque pied,
+une crête de barrage, un déblai, et au moins un site GLO-30 seul.
+
+**Ce que E7 doit décider pour les tunnels** : une option de désactivation (défaut : activé, sur toute
+source) et, si oui, les six surfaces — à peser contre les deux risques de précision non bornés :
+les buttes réelles ≥ 30 % des chemins et sentiers, et les régions GLO-30, non mesurées (*Limites*) ;
+signaler `FETCH_FAILED` comme pour 3b ; peut-être exposer les spans (`TunnelResult.spans`,
+`dropped`) à la démo.
+
 ### E5 — Lissage et D+ adaptés au LiDAR (après E3, jamais avant)
 
 Une fois les tabliers en place, mesurer sur le banc E1 et sur `sample.gpx`/`stelvio.gpx` :

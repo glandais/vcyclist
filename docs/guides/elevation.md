@@ -412,9 +412,44 @@ It costs one MNS tile per terrain tile (≈ 35 MB more on a cold 130 km ride) an
 a tile it cannot read leaves the terrain profile as it was — for every deck of the route, and
 without telling you, so the same command can give either profile depending on the network. Not at
 another zoom (the detector was calibrated at 15), not with Mapterhorn, and not on WASI, whose host
-serves one layer. The measurements, and what is left (tunnels, the smoother and the D+ preset,
-reporting a failed read), are in
-[`docs/tasks/elevation-bridge-decks.md`](../tasks/elevation-bridge-decks.md), E1–E3.
+serves one layer. The measurements, and what is left (the smoother and the D+ preset, reporting a
+failed read), are in [`docs/tasks/elevation-bridge-decks.md`](../tasks/elevation-bridge-decks.md),
+E1–E3.
+
+**Tunnels — on every source.** No LiDAR sees into a tunnel: every terrain model, IGN's and
+Mapterhorn's alike, is the mountain above it. Read at the point, the Grands Goulets tunnel (Vercors,
+1.75 km) climbs 220 m over the ridge and back, and the 111 km route around it reports 2 732 m of
+D+ for 2 414 true. The enhancer's tunnel step (pipeline step 3c, right after the deck step and
+before the smoother) looks for the shape no road has: a bump at least 15 m above the line between two
+*portals*, where the terrain leaves a road-like grade (≤ 20 % over 20 and 50 m) for a cut face, climbs
+and falls at 30 % or more over 50 m on both sides, the portal line itself a road grade (≤ 12 %) and the
+route between them straight (chord ≥ 0.8 × length), and the terrain already 15 m above that line
+within 100 m of each portal (a mountain face, not the far wall of a stream gully whose bridge the
+terrain model dropped); the road through is then that line. It needs no surface model, so it runs
+with Mapterhorn, with `ign-lidar-hd` at any zoom and on WASI.
+
+It was tuned for **precision**: a false tunnel flattens a real climb, anywhere in the world. On the
+calibration set (13 negatives — Alpe d'Huez, Montvernier, Galibier, Ventoux, Montmartre, Lyon,
+balconies, dams, galleries, a cutting — 16 bridge negatives and ten whole rides, `sample.gpx`
+included) it moves no ground station on IGN and 13 on Mapterhorn, all in one 70 m cliff spike over
+the Gorges de la Bourne, which it moves *towards* IGN's reading. It finds 7 of the 8 tuning tunnels
+on IGN (5 on Mapterhorn), and three of the four Vercors ones on IGN (all four on Mapterhorn): Grands
+Goulets ends 0.9 m (IGN) and 3.8 m (Mapterhorn) from its portal line instead of 220 m, and the
+route's D+ (`dem`, 5 m grid) goes from 1.19 to 1.05 of the truth (1.18 to 1.03 on Mapterhorn). It does **not** see a cut-and-cover tunnel
+under flat ground (a 4–6 m bump, a small error), a tunnel shorter than 50 m, a curved or spiral
+one, nor a chain of short rock tunnels separated by glimpses of the gorge (Petits Goulets on IGN:
++68 m left). `sample.gpx` goes through none and comes out bit for bit unchanged, though not by a
+wide margin: a real 72 m hill on the D 109 and a 25 m trail knoll on `sports-tracker.gpx` each fail
+one criterion only (both pinned in `TunnelBenchProbeTest`). Judged once on a held-out series (7
+tunnels, 4 steep negatives, never tuned on): no false tunnel and no ground moved on either source, 6
+of 7 tunnels found; missed, a former rail tunnel under a low rounded hill whose flank falls less
+than 30 % over 50 m. The face criterion and two step guards came after that judgement.
+
+Two limits matter more than the misses. A **real** knoll that climbs and falls 30 % over 50 m — not
+a paved road, but a gravel, MTB or hiking track — is flattened, and there is no option to turn the
+step off yet. And precision has only been measured on LiDAR-derived terrain (IGN, and Mapterhorn in
+France and Finland): Mapterhorn's worldwide GLO-30 base (30 m, a surface model) is **unmeasured**; a
+probe on the Dadès gorge road in Morocco found three "tunnels" there. Details in E4 of the task.
 
 **Rate limit.** The Géoplateforme answers HTTP 429 past 40 requests a second per IP, and
 `BatchCalculator` fetches ten tiles at once — a cold run failed on its 51st tile before pacing

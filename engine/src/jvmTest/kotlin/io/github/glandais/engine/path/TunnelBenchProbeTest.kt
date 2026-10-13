@@ -489,11 +489,42 @@ class TunnelBenchProbeTest {
                 val provider = make()
                 val dense =
                     runBlocking {
-                        var p = PointPerDistance.compute(input, minDistanceM = -1.0, maxDistanceM = 30.0)
+                        var p = PointPerDistance.compute(input, minDistanceM = -1.0, maxDistanceM = Enhancer.PRE_FIX_SPACING_M)
                         p = ElevationStep.fixElevation(p, provider)
                         PointPerDistance.compute(p, minDistanceM = 1.0, maxDistanceM = 2.0)
                     }
-                val step = runBlocking { TunnelStep.apply(dense, provider) }
+                val step = runBlocking { TunnelStep.apply(dense, provider, refreshM = Enhancer.PRE_FIX_SPACING_M) }
+                for (miss in NEAR_MISSES.filter { it.ride == name && it.source == source }) {
+                    val stations = alongTrackStations(dense, STEP_M)
+                    val mnt = runBlocking { provider.setElevations(stations).map { it.elevation }.toDoubleArray() }
+                    val profile =
+                        TunnelProfile(mnt, stations.map { it.latitude }.toDoubleArray(), stations.map { it.longitude }.toDoubleArray())
+
+                    fun near(spans: List<TunnelSpan>) =
+                        spans.any {
+                            abs(it.startM - miss.startM) <= NEAR_MISS_TOLERANCE_M &&
+                                abs(it.endM - miss.endM) <= NEAR_MISS_TOLERANCE_M
+                        }
+                    val relaxed = TunnelDetector.detect(profile, miss.relaxed)
+                    println(
+                        "$tag   near miss %s: %s".fmt(
+                            miss.what,
+                            relaxed.joinToString {
+                                "%.0f–%.0f m h %.0f fall %.1f %%".fmt(
+                                    it.startM,
+                                    it.endM,
+                                    it.heightM,
+                                    100 * it.fallGrade,
+                                )
+                            },
+                        ),
+                    )
+                    assertTrue(near(relaxed), "$name $source: the near miss ${miss.what} is no longer found with ${miss.relaxed}")
+                    assertTrue(!near(TunnelDetector.detect(profile)), "$name $source: ${miss.what} is taken for a tunnel")
+                    miss.guard?.let { guard ->
+                        assertTrue(!near(TunnelDetector.detect(profile, guard)), "$name $source: ${miss.what} passes $guard")
+                    }
+                }
                 val off = runBlocking { Enhancer.enhanceCourse(Enhancer.getDefaultCourse(input), EnhanceOptions.DEFAULT, provider, false) }
                 val on = runBlocking { Enhancer.enhanceCourse(Enhancer.getDefaultCourse(input), EnhanceOptions.DEFAULT, provider, true) }
                 println(
@@ -540,6 +571,12 @@ class TunnelBenchProbeTest {
      * `INTEGRATION=1` **and** `TUNNEL_JUDGE=1`. Printed, asserted only for data integrity; a failure
      * here is reported in the task doc, never tuned. It prints the baseline and the frozen
      * [TunnelDetector]'s verdict on every held-out site — **running it spends the series**.
+     *
+     * It has **no pass/fail threshold**: its assertions check the data (row counts), so a green run
+     * says the series was read intact, nothing about the detector; the verdict is a reading of what it
+     * printed. The series was spent on 2026-10-13 against the detector of `tunnel-judge.sha256`; the
+     * face criterion and the no-data guard came after it, so a run now judges nothing. The next
+     * held-out series writes its acceptance criteria into its rule before it is built.
      *
      *     INTEGRATION=1 TUNNEL_JUDGE=1 ./gradlew :engine:jvmTest --tests '*TunnelJudge*' --rerun-tasks -i
      */
@@ -696,6 +733,60 @@ class TunnelBenchProbeTest {
 
         /** E4: tunnels [tunnelRides] finds on the demo rides (none of them goes through one). */
         const val RIDE_TUNNELS = 0
+
+        /**
+         * A real bump on a demo ride that one threshold alone keeps from being flattened: [relaxed]
+         * (the defaults with that threshold loosened) must find it, the defaults must not, and
+         * [guard] (when set: the threshold loosened *with* the review's face criterion on) must not
+         * either. A threshold change that tips one over fails here before it ships.
+         */
+        class NearMiss(
+            val ride: String,
+            val source: String,
+            val startM: Double,
+            val endM: Double,
+            val what: String,
+            val relaxed: TunnelDetectorOptions,
+            val guard: TunnelDetectorOptions? = null,
+        )
+
+        const val NEAR_MISS_TOLERANCE_M = 15.0
+
+        /** Measured with the Python port of the detector in the E4 review; see *Mesures (E4)*. */
+        val NEAR_MISSES: List<NearMiss> =
+            listOf(
+                // A 25 m knoll on an Ariège trail: −26.5 % on its exit, 3.5 points from −30 %; its faces
+                // stand 25 / 22 m within 100 m, so the face criterion does not guard it.
+                NearMiss(
+                    "sports-tracker",
+                    "mapterhorn",
+                    2_190.0,
+                    2_430.0,
+                    "trail knoll km 2.19",
+                    TunnelDetectorOptions(minSideGrade = 0.26),
+                ),
+                // D 109 at Héry-sur-Ugine: a 72 m real hill, a 14 m bridged gully at its foot. Before the
+                // face criterion only its exit fall (−15 %) refused it; its faces stand 11 m within 100 m.
+                NearMiss(
+                    "sample",
+                    "mapterhorn",
+                    18_820.0,
+                    20_735.0,
+                    "D 109 hill km 18.82",
+                    TunnelDetectorOptions(minSideGrade = 0.14, faceReachM = 3_000.0),
+                    guard = TunnelDetectorOptions(minSideGrade = 0.14),
+                ),
+                // A 23 m bump fails only its rise (19 %) without the face criterion; its entry face is 5 m.
+                NearMiss(
+                    "strava",
+                    "mapterhorn",
+                    4_925.0,
+                    5_945.0,
+                    "bump km 4.93",
+                    TunnelDetectorOptions(minSideGrade = 0.18, faceReachM = 3_000.0),
+                    guard = TunnelDetectorOptions(minSideGrade = 0.18),
+                ),
+            )
 
         /** E4: ground (`G`) stations the correction moves by more than 0.5 m, per site and source. */
         val GROUND_MOVED: Map<String, Int> = mapOf("tn08-bourne mapterhorn z12" to 13)

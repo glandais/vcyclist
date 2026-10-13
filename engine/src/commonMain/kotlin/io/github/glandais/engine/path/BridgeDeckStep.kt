@@ -193,11 +193,11 @@ internal object BridgeDeckStep {
         val out = path.copy()
         for (r in replacements) {
             val z = r.withEnds(elevationAt(path, r.first * stepM), elevationAt(path, r.last * stepM))
-            val lo = if (r.pinnedStart) r.first * stepM else Double.NEGATIVE_INFINITY
-            val hi = if (r.pinnedEnd) r.last * stepM else Double.POSITIVE_INFINITY
+            // The same range step 3c protects: one definition for both.
+            val range = r.writtenRange(stepM)
             for (i in 0 until path.size) {
                 val d = path.distance(i)
-                if (d < lo || d > hi) continue
+                if (d !in range) continue
                 val t = (d / stepM - r.first).coerceIn(0.0, (z.size - 1).toDouble())
                 val k = minOf(floor(t).toInt(), z.size - 2).coerceAtLeast(0)
                 val w = t - k

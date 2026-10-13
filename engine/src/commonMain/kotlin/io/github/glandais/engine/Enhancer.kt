@@ -63,8 +63,11 @@ import kotlin.math.abs
  * Stateless ; safe for concurrent calls.
  */
 object Enhancer {
-    /** Step 1's spacing: the widest gap between two points step 2 reads the terrain at. */
-    private const val PRE_FIX_SPACING_M = 30.0
+    /**
+     * Step 1's spacing: the widest gap between two points step 2 reads the terrain at. Step 3c's
+     * `refreshM` and the benches that replay the pipeline read it here.
+     */
+    internal const val PRE_FIX_SPACING_M = 30.0
 
     /** Build a [CoursePhysics] from [path] using all default-physics providers (ISA rho, no wind). */
     fun getDefaultCourse(path: Path): CoursePhysics =

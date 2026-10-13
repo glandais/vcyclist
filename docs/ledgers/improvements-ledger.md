@@ -81,6 +81,7 @@ deliberately skipped. The matrix lives in
 | R29 | DEM road-snapping corridor (Strava's basemap idea) | **None (measured)** | High | ❌ |
 | R30 | DEM zoom above 12 | Negligible (measured) | Very low | ❌ (door shipped) |
 | R31 | **Bridge decks from the LiDAR HD surface model** | **High (measured: Saint-Nazaire 65.8 → 0.5 m)** | Medium | ✅ (`ign-lidar-hd` z15, automatic; no door option) |
+| R32 | **Tunnels from the terrain model alone** (canyon fallback measured, deferred) | **High (measured: Grands Goulets +220 → +0.9 m)** | Medium | ✅ (every DEM source, automatic; no door option) |
 
 Recommended order if acted on: ~~R15 → R12 → R9 → R17 → R10 → R18 → R16 → R11 → R19 → R23 → R24~~ —
 **all shipped**. Left: **R14** (posture CdA) and **R20** (RPE / Hazard Score), both deferred on
@@ -1262,6 +1263,52 @@ valley depending on the network and the cache. Surfacing it is E7's.
 
 Full tables, the profile variants that were compared and the held-out run in
 [`../tasks/elevation-bridge-decks.md`](../tasks/elevation-bridge-decks.md), *Mesures (E3)*.
+
+### R32 — Tunnels from the terrain model alone ✅ (every source, automatic)
+
+No LiDAR sees into a tunnel, so every terrain model — IGN's, Mapterhorn's — carries the mountain
+above it, and a route read at the point climbs over it: +220 m at the Grands Goulets (Vercors), 402
+points steeper than 15 % on the 111 km route, D+ at 1.19× the truth. `TunnelDetector` (`:gpx`) finds
+the bump no road can ride — two *portals* where a road-like grade meets a cut face, a climb and a
+fall of at least 30 % over 50 m just inside them, the terrain 15 m or more above the portal line and
+never 3 m below it, that line a road grade (≤ 12 %), the route between them straight (chord ≥ 0.8 ×
+length), the terrain 15 m above the line within 100 m of each portal, no open-road valley inside —
+and `TunnelStep` (`:engine`, pipeline step 3c) lays the line
+between the terrain at the portals. It needs no surface model, so it runs on every source, WASI
+included; no door option (E7).
+
+**Measured** (`ElevationBenchProbeTest.bench`, step 3c off → on; `TunnelBenchProbeTest`):
+
+| | IGN LiDAR HD z15 | Mapterhorn z12 |
+|---|---|---|
+| `test4` tunnel stations `N`, src RMS / max | 106.6 / +220.3 → 8.3 / +67.9 m | 106.4 / +218.2 → 4.5 / +26.1 m |
+| `test4` all stations, src RMS | 17.29 → 1.37 m | 17.27 → 0.97 m |
+| `test4` D+ `dem` (5 m grid) / reported, against truth | 1.19 / 1.13 → 1.05 / 1.02 | 1.18 / 1.13 → 1.03 / 1.00 |
+| `test4` points > 15 % (src / smoothed) | 402 / 236 → 96 / 0 | 395 / 238 → 38 / 0 |
+| Grands Goulets, src max / RMS | +220.3 / 136.4 → +0.9 / 0.5 m | +218.2 / 136.2 → +3.8 / 3.1 m |
+| Tuning tunnels within ¼ of their bump | 7 of 8 sites | 5 of 8 (Nesque 29.8 → 9.8 m) |
+| Ground stations moved on 13 tunnel negatives | 0 | 13 (one cliff spike, Bourne) |
+| Tunnels on 16 bridge negatives and 10 rides | 0 | 0 |
+
+`sample.gpx` (130 km, Savoie) and the demo's other rides go through no tunnel and come out bit for bit
+unchanged. **Not seen**: cut-and-cover under flat ground (Tuileries, a 4–6 m bump), tunnels under
+50 m, curved or spiral ones, and chains of rock tunnels with glimpses of the gorge between (Petits
+Goulets on IGN, +68 m left). The **canyon fallback** — the same detector turned over, for bridges
+without a surface model — was measured and deferred: it finds 2 of 29 bridges (Millau, part of
+Normandie), because a river bank is 5–10 m high and never 30 % over 50 m.
+
+**Held-out**: judged once on 2026-10-13 (no pass/fail threshold had been set; the reading came
+after): 6 of 7 tunnels found on IGN and on Mapterhorn, no false tunnel and no `G` station moved on
+the 4 held-out negatives (Aubisque, Aveyron, Boulogne, Bavella). Missed: the Dordogne greenway, a
+straight rail tunnel under a low rounded hill whose exit flank falls about −20 to −24 % over 50 m;
+Pierre-Lys keeps 10 m, a portal on the gorge wall. The series is spent. A post-judge review then
+added the face criterion (a bridged stream gully at a hill's foot passed for a portal: the D 109 of
+`sample.gpx`, mirrored), a no-data guard (a hole read as 0 m) and a guard that drops a "tunnel" with
+a deck between its portals — none of them judged out of sample, none moving a bench figure.
+**Unbounded risks**, for E7: a real ≥ 30 % knoll on a track is flattened (`sports-tracker.gpx` km
+2.19 fails one criterion only), and Mapterhorn's GLO-30 regions are unmeasured. Full tables in
+[`../tasks/elevation-bridge-decks.md`](../tasks/elevation-bridge-decks.md), *Mesures (E4)*,
+*Jugement tunnels* and *Revue d'E4*.
 
 ## G. Cross-cutting notes
 

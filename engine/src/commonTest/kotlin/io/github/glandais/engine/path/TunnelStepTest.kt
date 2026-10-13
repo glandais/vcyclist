@@ -2,6 +2,7 @@ package io.github.glandais.engine.path
 
 import io.github.glandais.elevation.ElevationProvider
 import io.github.glandais.elevation.IgnLidarHdLayer
+import io.github.glandais.engine.Enhancer
 import kotlinx.coroutines.test.runTest
 import kotlin.math.PI
 import kotlin.math.abs
@@ -40,15 +41,19 @@ internal object TunnelWorld {
 }
 
 class TunnelStepTest {
+    private companion object {
+        const val REFRESH_M = Enhancer.PRE_FIX_SPACING_M
+    }
+
     @Test
     fun the_mountain_over_the_road_becomes_the_line_between_its_portals() =
         runTest {
             val input = TunnelWorld.path()
-            val result = TunnelStep.apply(input, TunnelWorld.terrain())
+            val result = TunnelStep.apply(input, TunnelWorld.terrain(), refreshM = REFRESH_M)
             assertEquals(TunnelStatus.APPLIED, result.status)
             val t = result.spans.single()
             assertTrue(abs(t.startM - TunnelWorld.START_M) <= 10.0 && abs(t.endM - TunnelWorld.END_M) <= 10.0, "portals $t")
-            val margin = 30.0
+            val margin = REFRESH_M
             assertEquals(listOf((t.startM - margin)..(t.endM + margin)), result.written)
             for (i in 0 until input.size) {
                 val d = input.distance(i)
@@ -66,15 +71,43 @@ class TunnelStepTest {
         }
 
     @Test
-    fun a_deck_of_step_3b_is_never_written_over() =
+    fun a_portal_on_a_deck_is_pinned_to_the_deck_and_the_deck_never_written_over() =
         runTest {
+            // A tunnel opening onto a bridge: the deck of step 3b holds the entry portal.
+            val input = TunnelWorld.path()
+            for (i in 0 until input.size) if (input.distance(i) in 950.0..1_050.0) input.setElevation(i, 12.0)
+            input.computeDerivedData()
+            val deck = 950.0..1_050.0
+            val result = TunnelStep.apply(input, TunnelWorld.terrain(), protected = listOf(deck), refreshM = REFRESH_M)
+            assertEquals(TunnelStatus.APPLIED, result.status)
+            assertEquals(emptyList(), result.dropped)
+            val t = result.spans.single()
+            assertTrue(t.startM in deck, "entry on the deck: $t")
+            for (i in 0 until input.size) {
+                val d = input.distance(i)
+                if (d in deck) {
+                    assertEquals(input.elevation(i).toRawBits(), result.path.elevation(i).toRawBits(), "deck at $d m")
+                } else if (d > deck.endInclusive && d <= t.endM) {
+                    // The line from the deck (12 m) to the exit (10 m): no step at the deck edge.
+                    val line = 12.0 + (TunnelWorld.GROUND_M - 12.0) * (d - t.startM) / (t.endM - t.startM)
+                    assertEquals(line, result.path.elevation(i), 1.0, "inside at $d m")
+                }
+            }
+        }
+
+    @Test
+    fun a_deck_wholly_between_the_portals_drops_the_tunnel() =
+        runTest {
+            // The terrain model kept a bridge's pylons and the detector took them for a mountain; the
+            // deck of step 3b lies between the "portals". Writing the line around the deck would leave
+            // a vertical step at each of its edges: the tunnel is dropped, the path comes back as it was.
             val input = TunnelWorld.path()
             val deck = 1_150.0..1_250.0
-            val result = TunnelStep.apply(input, TunnelWorld.terrain(), protected = listOf(deck))
-            assertEquals(TunnelStatus.APPLIED, result.status)
-            for (i in 0 until input.size) {
-                if (input.distance(i) in deck) assertEquals(input.elevation(i).toRawBits(), result.path.elevation(i).toRawBits())
-            }
+            val result = TunnelStep.apply(input, TunnelWorld.terrain(), protected = listOf(deck), refreshM = REFRESH_M)
+            assertEquals(TunnelStatus.NO_TUNNEL, result.status)
+            assertEquals(1, result.dropped.size)
+            assertEquals(emptyList(), result.spans)
+            assertSame(input, result.path)
         }
 
     @Test
@@ -88,14 +121,14 @@ class TunnelStepTest {
                     .setElevations(stations)
                     .map { it.elevation }
                     .toDoubleArray()
-            val read = TunnelStep.apply(input, TunnelWorld.terrain())
-            val reused = TunnelStep.apply(input, TunnelWorld.terrain(), samples = samples)
+            val read = TunnelStep.apply(input, TunnelWorld.terrain(), refreshM = REFRESH_M)
+            val reused = TunnelStep.apply(input, TunnelWorld.terrain(), samples = samples, refreshM = REFRESH_M)
             assertEquals(read.spans, reused.spans)
             for (i in 0 until input.size) {
                 assertEquals(read.path.elevation(i).toRawBits(), reused.path.elevation(i).toRawBits())
             }
             assertFailsWith<IllegalArgumentException> {
-                TunnelStep.apply(input, TunnelWorld.terrain(), samples = samples.copyOf(samples.size - 1))
+                TunnelStep.apply(input, TunnelWorld.terrain(), samples = samples.copyOf(samples.size - 1), refreshM = REFRESH_M)
             }
         }
 
@@ -104,7 +137,7 @@ class TunnelStepTest {
         runTest {
             // DeckWorld's own terrain: banks and a river 10 m below them, a dip, never a bump.
             val input = DeckWorld.path()
-            val result = TunnelStep.apply(input, DeckWorld.terrain())
+            val result = TunnelStep.apply(input, DeckWorld.terrain(), refreshM = REFRESH_M)
             assertEquals(TunnelStatus.NO_TUNNEL, result.status)
             assertSame(input, result.path)
         }
@@ -114,7 +147,7 @@ class TunnelStepTest {
         runTest {
             val input = TunnelWorld.path()
             val broken = ElevationProvider(IgnLidarHdLayer.MNT.config(15)) { error("HTTP 429") }
-            val result = TunnelStep.apply(input, broken)
+            val result = TunnelStep.apply(input, broken, refreshM = REFRESH_M)
             assertEquals(TunnelStatus.FETCH_FAILED, result.status)
             assertSame(input, result.path)
         }
@@ -131,6 +164,7 @@ class TunnelStepTest {
                 stations.map { it.latitude }.drop(1),
                 stations.map { it.longitude },
                 TunnelDetectorOptions.DEFAULT,
+                refreshM = REFRESH_M,
             )
         }
     }

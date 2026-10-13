@@ -197,6 +197,8 @@ Légende : ✅ atteignable · ⚠️ partiel (la note dit en quoi) · ❌ absent
     E3) : `ign-lidar-hd` au zoom 15 porte le MNS comme `surfaceModel`, et le pipeline y remplace
     chaque tablier détecté — sur toutes les portes sauf WASI, dont l'hôte ne sert qu'une couche
     (ligne propre : E7 ; l'écart est écrit dans `wasm-wasi-abi.md`, § `vcSetElevationConfig`).
+    **Tunnels** (E4) : sur toutes les portes, WASI comprise, et toute source — l'étape ne lit que
+    le MNT ; aucune clé, aucune option (E7 décidera).
 
 [^bridge]: **Refermé en S5.** `ElevationProvider` a trois membres `suspend` et seuls deux avaient
     des ponts `Blocking`/`Async` ; celui qui manquait était justement le seul à cinq paramètres par

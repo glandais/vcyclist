@@ -343,7 +343,10 @@ class ElevationBenchProbeTest {
     // ── The bench ───────────────────────────────────────────────────────────────────────────────
 
     private class Run(
-        /** The column: `mapterhorn`, `ign -decks` (E1's `ign-lidar-hd`) or `ign-lidar-hd` (E3). */
+        /**
+         * The column: `map -tun` (E1/E3's `mapterhorn`), `mapterhorn` (E4), `ign -decks` (E4 with the
+         * surface model detached), `ign -tun` (E3's `ign-lidar-hd`) or `ign-lidar-hd` (E4).
+         */
         val label: String,
         val dense: Path,
         /** D+ reported by a full `EnhanceOptions.DEFAULT` run. */
@@ -361,6 +364,9 @@ class ElevationBenchProbeTest {
         val deckStatus: BridgeDeckStatus?,
         val replacements: List<DeckReplacement>,
         val dropped: Int,
+        /** Step 3c's status, `null` in a column that runs without it. */
+        val tunnelStatus: TunnelStatus? = null,
+        val tunnels: List<TunnelSpan> = emptyList(),
     ) {
         /** Whether the deck step's write-back range covers distance [d]. */
         fun replaced(d: Double): Boolean =
@@ -438,11 +444,16 @@ class ElevationBenchProbeTest {
         // E1's columns, then E3's: `ign -decks` is E1's `ign-lidar-hd`, the surface model detached.
         // Built afresh for each run: three providers' 100-tile caches at once exhaust the test heap
         // on test4, and the tiles come from disk anyway.
-        val providers: Map<String, () -> io.github.glandais.elevation.ElevationProvider> =
+        // E4: each column also says whether step 3c (tunnels) runs, as the pipeline now does on every
+        // source; `map -tun` and `ign -tun` are the E3 columns.
+        val mapterhorn = { ElevationSource.MAPTERHORN.provider(null) { cfg -> cachedFetcher(cfg) } }
+        val providers: Map<String, Pair<() -> io.github.glandais.elevation.ElevationProvider, Boolean>> =
             linkedMapOf(
-                "mapterhorn" to { ElevationSource.MAPTERHORN.provider(null) { cfg -> cachedFetcher(cfg) } },
-                "ign -decks" to { ign().withSurfaceModel(null) },
-                "ign-lidar-hd" to ign,
+                "map -tun" to (mapterhorn to false),
+                "mapterhorn" to (mapterhorn to true),
+                "ign -decks" to ({ ign().withSurfaceModel(null) } to true),
+                "ign -tun" to (ign to false),
+                "ign-lidar-hd" to (ign to true),
             )
         var regions = 0
         val replacedBridges = ArrayList<String>()
@@ -460,12 +471,14 @@ class ElevationBenchProbeTest {
             val input = GpxParser.parse(File(dataDir, "$route.gpx").readText()).firstTrackAsPath()
 
             val runs =
-                providers.map { (label, newProvider) ->
+                providers.map { (label, column) ->
+                    val (newProvider, withTunnels) = column
                     val provider = newProvider()
                     var deck: BridgeDeckResult? = null
+                    var tunnel: TunnelResult? = null
                     val dense =
                         runBlocking {
-                            var p = PointPerDistance.compute(input, minDistanceM = -1.0, maxDistanceM = 30.0)
+                            var p = PointPerDistance.compute(input, minDistanceM = -1.0, maxDistanceM = Enhancer.PRE_FIX_SPACING_M)
                             p = ElevationStep.fixElevation(p, provider)
                             p = PointPerDistance.compute(p, minDistanceM = 1.0, maxDistanceM = 2.0)
                             // Step 3b, as Enhancer runs it.
@@ -489,11 +502,37 @@ class ElevationBenchProbeTest {
                                 deck = result
                                 p = result.path
                             }
+                            // Step 3c, as Enhancer runs it: 3b's terrain samples when it read them.
+                            if (withTunnels) {
+                                val before = p
+                                val result =
+                                    TunnelStep.apply(
+                                        p,
+                                        provider,
+                                        TunnelDetectorOptions.DEFAULT,
+                                        samples = deck?.terrain,
+                                        protected = deck?.replacements?.map { it.writtenRange(STEP_M) } ?: emptyList(),
+                                        refreshM = Enhancer.PRE_FIX_SPACING_M,
+                                    )
+                                // It moves nothing outside its tunnels and their refresh margins, bit for bit.
+                                for (i in 0 until before.size) {
+                                    val d = before.distance(i)
+                                    if (result.written.none { d in it }) {
+                                        assertEquals(
+                                            before.elevation(i).toRawBits(),
+                                            result.path.elevation(i).toRawBits(),
+                                            "$route: point $i moved by the tunnel step",
+                                        )
+                                    }
+                                }
+                                tunnel = result
+                                p = result.path
+                            }
                             ElevationStep.smoothElevation(p, EnhanceOptions.DEFAULT.elevationSmoothWindowM)
                         }
-                    val full = runBlocking { Enhancer.enhanceCourseDefault(input, provider, EnhanceOptions.DEFAULT) }
+                    val full = runBlocking { enhance(input, provider, EnhanceOptions.DEFAULT, withTunnels) }
                     val noSimplify = EnhanceOptions.DEFAULT.copy(simplifyPath = SimplifyPathOptions(enabled = false))
-                    val oneHzGain = runBlocking { Enhancer.enhanceCourseDefault(input, provider, noSimplify) }.reportedElevationGain
+                    val oneHzGain = runBlocking { enhance(input, provider, noSimplify, withTunnels) }.reportedElevationGain
                     val matcher = Matcher(truth)
                     val match =
                         DoubleArray(dense.size) { i ->
@@ -518,9 +557,12 @@ class ElevationBenchProbeTest {
                         deckStatus = deck?.status,
                         replacements = deck?.replacements ?: emptyList(),
                         dropped = deck?.dropped?.size ?: 0,
+                        tunnelStatus = tunnel?.status,
+                        tunnels = tunnel?.spans ?: emptyList(),
                     )
                 }
             report(route, truth, spans, onStructure, runs)
+            runs.forEach { reportTunnels(route, truth, spans, it) }
             val withDecks = runs.single { it.label == "ign-lidar-hd" }
             val without = runs.single { it.label == "ign -decks" }
             reportDecks(route, truth, structures, withDecks)
@@ -633,6 +675,60 @@ class ElevationBenchProbeTest {
         assertEquals(listOf(2), bellevueRegions, "Pont de Bellevue: its two parts joined into one region")
         for ((name, ok) in targets) if (name !in TARGETS_MISSED) assertTrue(ok, "Validation target missed: $name")
         assertEquals(TARGETS_MISSED, targets.filter { !it.second }.map { it.first }.toSet(), "targets missed (reported in the task doc)")
+    }
+
+    /** The full pipeline, as `Enhancer.enhanceCourseDefault`, step 3c on or off ([tunnels]). */
+    private suspend fun enhance(
+        input: Path,
+        provider: io.github.glandais.elevation.ElevationProvider,
+        options: EnhanceOptions,
+        tunnels: Boolean,
+    ): Path = Enhancer.enhanceCourse(Enhancer.getDefaultCourse(input), options, provider, tunnels)
+
+    /** E4's block: each tunnel step 3c wrote, and the truth structure it lies on. */
+    private fun reportTunnels(
+        route: String,
+        truth: Truth,
+        structures: List<Structure>,
+        r: Run,
+    ) {
+        if (r.tunnelStatus == null) return
+        println("[bench] E4 tunnel step, %-12s %s, %d tunnel(s)".fmt(r.label, r.tunnelStatus, r.tunnels.size))
+        for (t in r.tunnels) {
+            val on =
+                (0 until r.dense.size)
+                    .filter {
+                        val d = r.dense.distance(it)
+                        d >= t.startM && d <= t.endM && !r.match[it].isNaN()
+                    }.map { r.match[it].roundToInt() }
+            val kinds =
+                on
+                    .groupingBy { truth.kind[it] }
+                    .eachCount()
+                    .toSortedMap()
+                    .entries
+                    .joinToString("") { "${it.key}${it.value}" }
+            val st =
+                structures
+                    .filter { s -> on.any { it in s.i0..s.i1 } }
+                    .joinToString("; ") { "${it.kind} ${it.label}" }
+                    .ifEmpty { "—" }
+            println(
+                "[bench]   km %6.2f–%6.2f, L %5.0f m, height %6.1f m, chord %+5.1f %%, sides %+4.0f / %+4.0f %%, straight %.2f, truth %s | %s"
+                    .fmt(
+                        t.startM / 1000,
+                        t.endM / 1000,
+                        t.lengthM,
+                        t.heightM,
+                        100 * t.chordGrade,
+                        100 * t.riseGrade,
+                        100 * t.fallGrade,
+                        t.straightness,
+                        kinds,
+                        st,
+                    ),
+            )
+        }
     }
 
     /** D+ at the `dem` preset of [r]'s `sourceElevation`, resampled on the 5 m grid like the truth. */
@@ -779,7 +875,13 @@ class ElevationBenchProbeTest {
         // E3: the deck truth (`B`: MNS median on a detected deck) and, apart, the stations under a
         // deck hole whose truth is the MNT (`b`: Mauves, Saint-Nazaire), which judge nothing.
         // Every station last, the whole route against its truth.
-        for ((kind, label) in listOf('B' to "deck B", 'b' to "hole b (not judged)", '*' to "all stations")) {
+        for ((kind, label) in listOf(
+            'B' to "deck B",
+            'b' to "hole b (not judged)",
+            'N' to "tunnel N",
+            'S' to "balcony S",
+            '*' to "all stations",
+        )) {
             if (kind != '*' && truth.kind.none { it == kind }) continue
             val scope: (Int) -> Boolean = { kind == '*' || truth.kind[it] == kind }
             println(
@@ -3094,7 +3196,7 @@ class ElevationBenchProbeTest {
         val ign = ElevationSource.IGN_LIDAR_HD.provider(null) { cfg -> cachedFetcher(cfg) }
         val (pre, deck) =
             runBlocking {
-                var p = PointPerDistance.compute(input, minDistanceM = -1.0, maxDistanceM = 30.0)
+                var p = PointPerDistance.compute(input, minDistanceM = -1.0, maxDistanceM = Enhancer.PRE_FIX_SPACING_M)
                 p = ElevationStep.fixElevation(p, ign)
                 p = PointPerDistance.compute(p, minDistanceM = 1.0, maxDistanceM = 2.0)
                 p to BridgeDeckStep.apply(p, ign, ign.surfaceModel!!)

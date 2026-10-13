@@ -328,7 +328,11 @@ It is validated on the spot — a tile size that is not a power of two, or a zoo
 reads IGN's surface model (MNS) and rides each bridge deck it detects instead of the valley under
 it. `fetch_tile` names no layer (decision 2026-10-13), so here the viaducts stay on the terrain
 model and the same route reads differently on bridges; see `docs/tasks/elevation-bridge-decks.md`,
-E7.
+E7. **Tunnels**, by contrast, are flattened here as on every door: the tunnel step (E4) reads the
+terrain model only. One caveat of this door's missing fallback: a stretch of IGN coverage between two
+`-9999` stretches read as 0 m looks like a mountain over a tunnel. The detector refuses a portal
+whose road side reads exactly 0 m within 50 m, which covers this door's substitute tile; a host that
+fills a hole with any other value is not covered.
 
 Default tile URLs, attribution and coverage of the reference DEM are in
 [`elevation/README.md`](../../elevation/README.md#live-http-integration-tests). The host is what talks to that service, so

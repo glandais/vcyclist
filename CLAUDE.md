@@ -62,6 +62,13 @@ cd demo && npm run dev                   # browser demo, hot reload (rebuilds th
      accepted deck by its LiDAR profile; skipped on WASI (one-layer host). A tile read that fails
      leaves the path as it was (`FETCH_FAILED`, not reported to the user until E7); a defect in
      detection or building throws
+   - **3c.** `TunnelStep` — only after `fixElevation`, on **any** source (no surface model, so
+     Mapterhorn and WASI too): `TunnelDetector` finds the terrain bumps a road cannot climb (steep
+     on both sides, a mountain face at each portal, straight, road-grade chord) and lays the line
+     between the portals; reuses 3b's terrain samples, never writes over a deck, and drops a
+     "tunnel" with a deck between its portals (bridge pylons). Tuned for precision: a false tunnel
+     flattens a real climb — a real ≥ 30 % knoll on a track still is, and GLO-30 regions are
+     unmeasured. Same failure rule as 3b
 4. `smoothElevation` (150 m kernel, always) — keeps the pre-smoothing profile in
    `sourceElevation`
 5. `PathCurvature` (writes `trajectoryCurvature`) **or** `RacingLine.compute` when

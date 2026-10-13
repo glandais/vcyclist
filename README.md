@@ -24,6 +24,7 @@ module.
             │  ├─ fixElevation (Terrarium tiles)*     │
             │  ├─ PointPerDistance(1, 2)              │
             │  ├─ bridgeDecks (ign-lidar-hd z15)*     │
+            │  ├─ tunnels (any DEM source)*           │
             │  ├─ smoothElevation (150 m kernel)      │
             │  ├─ PathCurvature (turn radius)         │
             │  │   or RacingLine (optimal line)*      │
@@ -39,7 +40,7 @@ module.
                         │ GpxWriter    │────▶ output.gpx
                         └──────────────┘
             (*) optional — needs an ElevationProvider (bridgeDecks:
-                one carrying a surface model)
+                one carrying a surface model; tunnels: any)
 ```
 
 ## What it can do

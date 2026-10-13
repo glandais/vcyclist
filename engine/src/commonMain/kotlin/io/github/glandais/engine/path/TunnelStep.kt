@@ -22,6 +22,8 @@ internal enum class TunnelStatus {
  *
  * @property path the input instance itself unless [status] is [TunnelStatus.APPLIED]
  * @property spans the tunnels written back, station indices on the step's grid
+ * @property dropped tunnels the detector found but the step refused: a deck of step 3b lies wholly
+ *   between their portals, so the "mountain" is the pylons or piles of a bridge the terrain model kept
  * @property written the distance ranges whose points the step may have rewritten: each tunnel and its
  *   two refresh margins (see [TunnelStep]); every point outside them keeps its elevation bit for bit
  */
@@ -30,6 +32,7 @@ internal class TunnelResult(
     val status: TunnelStatus,
     val spans: List<TunnelSpan>,
     val written: List<ClosedFloatingPointRange<Double>> = emptyList(),
+    val dropped: List<TunnelSpan> = emptyList(),
 )
 
 /**
@@ -48,7 +51,11 @@ internal class TunnelResult(
  *    within `refreshM` outside each portal get the terrain interpolated on the station grid, so no
  *    trace of the face survives just outside the tunnel. Points inside a [protected] range (a deck
  *    step 3b wrote) are never written, and a portal there is pinned to the path's own elevation,
- *    the deck. Every other point is left bit for bit; derived data is recomputed.
+ *    the deck (a tunnel opening onto a bridge). A tunnel with a deck **wholly between its portals**
+ *    is dropped instead ([TunnelResult.dropped]): the terrain model kept the bridge's pylons and the
+ *    detector took them for a mountain (Normandie, Millau); writing its line around the deck would
+ *    leave a vertical step at each deck edge. Every other point is left bit for bit; derived data is
+ *    recomputed.
  *
  * It runs on **any** terrain model, IGN LiDAR HD, Mapterhorn or a WASI host's tiles: it needs no
  * surface model. **A tile read never fails the ride**: when [terrain] throws, the input path comes
@@ -61,7 +68,8 @@ internal object TunnelStep {
      * @param samples the terrain at the stations of [path], when step 3b already read it
      * @param protected distance ranges the step must not write (decks of step 3b)
      * @param refreshM the margin outside each portal re-read from the station terrain: the widest
-     *   spacing step 2 sampled the terrain at
+     *   spacing step 2 sampled the terrain at, `Enhancer.PRE_FIX_SPACING_M` — no default, so a
+     *   caller replaying the pipeline cannot drift from step 1
      */
     suspend fun apply(
         path: Path,
@@ -69,7 +77,7 @@ internal object TunnelStep {
         options: TunnelDetectorOptions = TunnelDetectorOptions.DEFAULT,
         samples: DoubleArray? = null,
         protected: List<ClosedFloatingPointRange<Double>> = emptyList(),
-        refreshM: Double = 30.0,
+        refreshM: Double,
     ): TunnelResult {
         if (path.size < 2) return TunnelResult(path, TunnelStatus.NO_TUNNEL, emptyList())
         val stations = alongTrackStations(path, options.stepM)
@@ -106,12 +114,20 @@ internal object TunnelStep {
         lon: List<Double>,
         options: TunnelDetectorOptions,
         protected: List<ClosedFloatingPointRange<Double>> = emptyList(),
-        refreshM: Double = 30.0,
+        refreshM: Double,
     ): TunnelResult {
-        val spans = TunnelDetector.detect(TunnelProfile(mnt, lat.toDoubleArray(), lon.toDoubleArray()), options)
-        if (spans.isEmpty()) return TunnelResult(path, TunnelStatus.NO_TUNNEL, emptyList())
+        val found = TunnelDetector.detect(TunnelProfile(mnt, lat.toDoubleArray(), lon.toDoubleArray()), options)
+        val (spans, dropped) =
+            found.partition { t -> protected.none { r -> r.start > t.startM && r.endInclusive < t.endM } }
+        if (spans.isEmpty()) return TunnelResult(path, TunnelStatus.NO_TUNNEL, emptyList(), dropped = dropped)
         val written = spans.map { (it.startM - refreshM)..(it.endM + refreshM) }
-        return TunnelResult(write(path, spans, mnt, options.stepM, protected, refreshM), TunnelStatus.APPLIED, spans, written)
+        return TunnelResult(
+            write(path, spans, mnt, options.stepM, protected, refreshM),
+            TunnelStatus.APPLIED,
+            spans,
+            written,
+            dropped,
+        )
     }
 
     /** Step 3: a copy of [path] with each tunnel of [spans] on the line between its portals. */
@@ -121,7 +137,7 @@ internal object TunnelStep {
         mnt: DoubleArray,
         stepM: Double,
         protected: List<ClosedFloatingPointRange<Double>> = emptyList(),
-        refreshM: Double = 30.0,
+        refreshM: Double,
     ): Path {
         fun isProtected(d: Double) = protected.any { d in it }
 

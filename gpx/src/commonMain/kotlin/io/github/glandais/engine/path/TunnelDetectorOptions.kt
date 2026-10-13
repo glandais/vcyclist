@@ -43,6 +43,11 @@ data class TunnelDetectorOptions(
      * portal the terrain climbs (entry) and falls (exit) at least this over [steepWindowM]. Tunnels
      * found: 34–177 % up, 34–249 % down. At 20–25 %, Bourne loses 47 ground stations and Mapterhorn
      * finds a "tunnel" on a Pyrenean ride; at 40 % no negative moves and the same tunnels are found.
+     *
+     * "Impossible for a road" holds for **paved** roads only: a trail over a real knoll this steep is
+     * flattened (`sports-tracker.gpx` km 2,19 fails only on its exit fall, −26.5 %, pinned in
+     * `TunnelBenchProbeTest.tunnelRides`). Out of sample, the held-out Dordogne greenway — a tunnel
+     * under a low rounded hill, exit flank about −20 to −24 % over 50 m — is missed because of it.
      */
     val minSideGrade: Double = 0.30,
     /** How far inside a portal [minSideGrade] is looked for, metres. */
@@ -53,8 +58,19 @@ data class TunnelDetectorOptions(
      * terrain reading) gets through; at 8 % Moines (−9.6 %) is lost.
      */
     val maxChordGrade: Double = 0.12,
-    /** The terrain rises at least this above the portal line somewhere between the portals, metres. */
+    /**
+     * The terrain rises at least this above the portal line somewhere between the portals, metres —
+     * and already within [faceReachM] of **each** portal.
+     */
     val minHeightM: Double = 15.0,
+    /**
+     * How far inside each portal the terrain must already stand [minHeightM] above the portal line,
+     * metres: a mountain face, not the far wall of a stream gully under a bridge, which a terrain
+     * model reads as a notch (review of E4: `sample.gpx` D 109 mirrored, a 70 m real hill flattened
+     * without it, rejected with it). Every tunnel of the tuning set and every negative is unchanged
+     * from 75 to 150 m; a larger height there (20 m) loses the first Nesque tunnel on Mapterhorn.
+     */
+    val faceReachM: Double = 100.0,
     /**
      * The terrain never dips more than this below the portal line, metres: a gorge read beside the
      * road, or open ground between two tunnels on a descending road, is not under a mountain.
@@ -80,6 +96,7 @@ data class TunnelDetectorOptions(
         require(stepM > 0.0) { "stepM must be positive, got $stepM" }
         require(footWindowStations >= 1 && steepWindowStations >= 1) { "grade windows must cover a station" }
         require(sideSearchStations >= 0) { "negative sideSearchM" }
+        require(faceReachStations >= 1) { "faceReachM must cover a station" }
         require(maxRoadGrade >= 0.0 && minPortalGrade > 0.0 && minSideGrade > 0.0) { "grades must be positive" }
         require(maxChordGrade >= 0.0 && minHeightM > 0.0 && maxBelowChordM >= 0.0) { "negative threshold" }
         require(minLengthM in 0.0..maxLengthM) { "minLengthM must be in 0..maxLengthM" }
@@ -104,6 +121,9 @@ data class TunnelDetectorOptions(
 
     /** [sideSearchM] in stations (10). */
     internal val sideSearchStations: Int get() = stations(sideSearchM, "sideSearchM")
+
+    /** [faceReachM] in stations (20). */
+    internal val faceReachStations: Int get() = stations(faceReachM, "faceReachM")
 
     companion object {
         /** The E4 thresholds on a 5 m grid. */
