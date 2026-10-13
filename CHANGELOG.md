@@ -1,3 +1,10 @@
+# [6.4.0](https://github.com/glandais/vcyclist/compare/v6.3.0...v6.4.0) (2026-10-13)
+
+
+### Features
+
+* **engine:** switch bridge decks and tunnels per run, and report what they did on every door ([8d096d4](https://github.com/glandais/vcyclist/commit/8d096d47df635c3636acc128e065bbe10d4454aa))
+
 # [6.3.0](https://github.com/glandais/vcyclist/compare/v6.2.0...v6.3.0) (2026-10-13)
 
 
