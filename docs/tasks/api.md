@@ -587,6 +587,18 @@ curl -s -X POST -H 'Content-Type: application/gpx+xml' --data-binary @in.gpx 'lo
 - **`"virtualized"`** est le seul défaut de porte sans constante dans le cœur ; JS et WASI l'écrivent
   chacun en littéral. `HttpDefaults.TRACK_NAME` en est la seule écriture dans `:api` ; une
   constante dans le cœur supprimerait les trois.
+- **Constaté à A1.** Le DSL natif suffit : pas de repli smiley4. Le document de base est construit
+  par `OpenApiDoc.build { info = … }` et non par le constructeur, parce que Swagger UI construit le
+  sien par ce `Builder`, qui émet un `webhooks: {}` vide : c'est la seule façon que `/swagger/openapi.json`
+  et `/api/v1/openapi.json` soient identiques octet pour octet. Le contrat committé porte donc
+  `webhooks: {}`.
+- **`ComputeGate` lance le travail dans sa propre portée et ne fait qu'*attendre* le résultat** sous
+  `withTimeout`. Un `withContext(Dispatchers.Default)` autour d'une boucle qui ne suspend jamais ne
+  rendrait pas la main avant la fin de la boucle, délai ou pas. Un calcul encore en attente de son
+  permis est réellement annulé ; un calcul démarré finit et garde son permis. `busy` reste au
+  catalogue des problèmes mais la porte ne le lève pas encore : la file attend, bornée par le délai.
+- **`executableJar` fusionne les `META-INF/services`** des dépendances au lieu de garder le premier
+  (`DuplicatesStrategy.EXCLUDE` seul perdrait des fournisseurs `ServiceLoader` de Ktor).
 - Le DSL OpenAPI natif de Ktor est `@ExperimentalKtorApi` ; si une montée de Ktor le casse, le repli
   est smiley4 `ktor-openapi` (voir *Bibliothèques*), sans changer le contrat committé autrement que
   par la régénération.

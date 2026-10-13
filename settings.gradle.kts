@@ -13,4 +13,4 @@ dependencyResolutionManagement {
     }
 }
 
-include(":elevation", ":gpx", ":engine", ":fit", ":map", ":cli", ":codegen", ":demo")
+include(":elevation", ":gpx", ":engine", ":fit", ":map", ":cli", ":api", ":codegen", ":demo")

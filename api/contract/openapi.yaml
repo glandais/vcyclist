@@ -1,0 +1,240 @@
+openapi: 3.1.1
+info:
+  title: vcyclist API
+  version: 1.0.0
+  description: 'HTTP door of the vcyclist engine, a physics-based cycling simulator
+    that turns GPS traces into physics-aware virtualized rides. Stateless: every request
+    carries its own GPX. Errors are RFC 9457 `application/problem+json` documents.
+    This document is generated from the server''s routing tree (`./gradlew :api:generateOpenApi`).'
+paths:
+  /api/v1/health:
+    get:
+      operationId: getHealth
+      tags:
+      - meta
+      summary: Liveness probe
+      description: Answers `{"status":"UP"}` while the server accepts requests. Computes
+        nothing.
+      responses:
+        "200":
+          description: The server is up
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Health"
+        "400":
+          description: 'Problem: `urn:vcyclist:problem:unknown-key`'
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Problem"
+  /api/v1/version:
+    get:
+      operationId: getVersion
+      tags:
+      - meta
+      summary: Contract and engine versions
+      description: '`apiVersion` is the version of this contract, which changes only
+        when the contract does; `engineVersion` is the version of the vcyclist engine
+        the server was built with.'
+      responses:
+        "200":
+          description: The versions
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Version"
+        "400":
+          description: 'Problem: `urn:vcyclist:problem:unknown-key`'
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Problem"
+  /api/v1/catalog:
+    get:
+      operationId: getCatalog
+      tags:
+      - meta
+      summary: Wire values of every enumeration
+      description: The accepted spellings of every enumerated option — power models,
+        road conditions, racing-line corridors, elevation-gain presets, GPX power
+        sources, DEM sources — and the corner kinds and output formats the API emits.
+        Read from the engine, never restated.
+      responses:
+        "200":
+          description: The catalogue
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Catalog"
+        "400":
+          description: 'Problem: `urn:vcyclist:problem:unknown-key`'
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Problem"
+  /api/v1/fields:
+    get:
+      operationId: listFields
+      tags:
+      - meta
+      summary: Per-point fields of a track
+      description: Every per-point field a track carries, in ordinal order, with its
+        unit and category. `prop` is the name the CSV and JSON-columns exports accept
+        in their `fields` option.
+      responses:
+        "200":
+          description: The field definitions
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/FieldDefinition"
+        "400":
+          description: 'Problem: `urn:vcyclist:problem:unknown-key`'
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Problem"
+webhooks: {}
+components:
+  schemas:
+    Health:
+      type: object
+      title: Health
+      required:
+      - status
+      properties:
+        status:
+          type: string
+    FieldError:
+      type: object
+      title: FieldError
+      required:
+      - pointer
+      - message
+      properties:
+        pointer:
+          type: string
+        message:
+          type: string
+    Problem:
+      type: object
+      title: Problem
+      required:
+      - type
+      - title
+      - status
+      properties:
+        type:
+          type: string
+        title:
+          type: string
+        status:
+          type: integer
+        detail:
+          type:
+          - string
+          - "null"
+        instance:
+          type:
+          - string
+          - "null"
+        unknownKeys:
+          type:
+          - array
+          - "null"
+          items:
+            type: string
+        errors:
+          type:
+          - array
+          - "null"
+          items:
+            $ref: "#/components/schemas/FieldError"
+    Version:
+      type: object
+      title: Version
+      required:
+      - apiVersion
+      - engineVersion
+      properties:
+        apiVersion:
+          type: string
+        engineVersion:
+          type: string
+    Catalog:
+      type: object
+      title: Catalog
+      required:
+      - powerModels
+      - roadConditions
+      - corridorModes
+      - elevationGainPresets
+      - gpxPowerSources
+      - elevationSources
+      - cornerKinds
+      - outputFormats
+      properties:
+        powerModels:
+          type: array
+          items:
+            type: string
+        roadConditions:
+          type: array
+          items:
+            type: string
+        corridorModes:
+          type: array
+          items:
+            type: string
+        elevationGainPresets:
+          type: array
+          items:
+            type: string
+        gpxPowerSources:
+          type: array
+          items:
+            type: string
+        elevationSources:
+          type: array
+          items:
+            type: string
+        cornerKinds:
+          type: array
+          items:
+            type: string
+        outputFormats:
+          type: array
+          items:
+            type: string
+    FieldDefinition:
+      type: object
+      title: FieldDefinition
+      required:
+      - index
+      - prop
+      - unit
+      - shortDescription
+      - categoryId
+      - categoryName
+      - notSelectable
+      - anglesInRadians
+      properties:
+        index:
+          type: integer
+        prop:
+          type: string
+        unit:
+          type: string
+        shortDescription:
+          type: string
+        categoryId:
+          type: string
+        categoryName:
+          type: string
+        notSelectable:
+          type: boolean
+        anglesInRadians:
+          type: boolean
