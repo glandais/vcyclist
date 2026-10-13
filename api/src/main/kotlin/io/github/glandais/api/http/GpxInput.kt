@@ -115,7 +115,56 @@ suspend fun <R> ApplicationCall.receiveGpxInput(
     requestSerializer: KSerializer<R>?,
     config: ApiConfig,
     extraQuery: Set<String> = emptySet(),
-): GpxInput<R> {
+): GpxInput<R> = receiveGpxUpload(requestSerializer, config, extraQuery).parse(apiServices.computeGate, config)
+
+/**
+ * A GPX upload read and checked, not parsed yet: what [receiveGpxUpload] returns so a route can
+ * map its [request] into engine objects — and answer 400 — before any computation starts.
+ */
+class GpxUpload<R>(
+    private val xml: String,
+    val request: R?,
+    private val kinds: GpxKindsParam,
+    private val split: GpxSplitParam,
+    private val trackIndex: Int?,
+    private val repair: Boolean,
+) {
+    /**
+     * Parses the XML under [gate] and narrows it to the selected paths.
+     *
+     * @throws ApiProblem `invalid-gpx`, `empty-gpx`, `track-index-out-of-range`, `too-many-points`,
+     *   `timeout`
+     */
+    suspend fun parse(
+        gate: ComputeGate,
+        config: ApiConfig,
+    ): GpxInput<R> =
+        gate.run {
+            val (document, warnings) = parseGpx(xml, repair)
+            val selected = select(document, kinds.kinds, split, trackIndex, config.maxTrackPoints)
+            GpxInput(
+                document = document,
+                paths = selected.map { it.toPath() },
+                names = selected.map { it.track.name },
+                kinds = selected.map { it.track.kind },
+                request = request,
+                warnings = warnings,
+            )
+        }
+}
+
+/**
+ * The first half of [receiveGpxInput]: every check that needs no computation — query keys and
+ * values, media type, size, multipart parts, the strict decode of `request` — without parsing.
+ *
+ * @throws ApiProblem `unknown-key`, `invalid-option`, `invalid-body`, `unsupported-media-type`,
+ *   `payload-too-large`
+ */
+suspend fun <R> ApplicationCall.receiveGpxUpload(
+    requestSerializer: KSerializer<R>?,
+    config: ApiConfig,
+    extraQuery: Set<String> = emptySet(),
+): GpxUpload<R> {
     requireOnlyQuery(*(GpxQuery.names + extraQuery).toTypedArray())
     val kinds = queryEnum(GpxQuery.KINDS, GpxKindsParam::byIdOrNull) ?: GpxKindsParam.DEFAULT
     val split = queryEnum(GpxQuery.SPLIT, GpxSplitParam::byIdOrNull) ?: GpxSplitParam.DEFAULT
@@ -136,19 +185,7 @@ suspend fun <R> ApplicationCall.receiveGpxInput(
                     GpxBodyTypes.joinToString(", ") + " body",
             )
         }
-
-    return apiServices.computeGate.run {
-        val (document, warnings) = parseGpx(xml, repair)
-        val selected = select(document, kinds.kinds, split, trackIndex, config.maxTrackPoints)
-        GpxInput(
-            document = document,
-            paths = selected.map { it.toPath() },
-            names = selected.map { it.track.name },
-            kinds = selected.map { it.track.kind },
-            request = request,
-            warnings = warnings,
-        )
-    }
+    return GpxUpload(xml, request, kinds, split, trackIndex, repair)
 }
 
 /** Reads the parts of a multipart upload: the `gpx` text and the decoded `request`. */

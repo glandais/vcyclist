@@ -4,6 +4,9 @@ import io.github.glandais.api.http.ApiJson
 import io.github.glandais.api.http.MediaTypes
 import io.github.glandais.api.http.PROBLEM_TYPE_PREFIX
 import io.github.glandais.api.http.Problem
+import io.github.glandais.api.service.ElevationGateway
+import io.github.glandais.elevation.ElevationProviderConfig
+import io.github.glandais.elevation.RawTile
 import io.ktor.client.HttpClient
 import io.ktor.client.plugins.contentnegotiation.ContentNegotiation
 import io.ktor.client.statement.HttpResponse
@@ -16,6 +19,7 @@ import io.ktor.server.application.Application
 import io.ktor.server.testing.ApplicationTestBuilder
 import io.ktor.server.testing.testApplication
 import java.io.File
+import java.util.concurrent.atomic.AtomicInteger
 import kotlin.test.assertEquals
 import kotlin.test.assertTrue
 import kotlin.test.fail
@@ -41,7 +45,7 @@ fun testConfig(
  */
 fun apiTest(
     config: ApiConfig = testConfig(),
-    deps: ApiDependencies = ApiDependencies(),
+    deps: ApiDependencies = offlineDependencies(),
     extraRoutes: Application.() -> Unit = {},
     block: suspend ApplicationTestBuilder.(client: HttpClient) -> Unit,
 ) = testApplication {
@@ -55,6 +59,39 @@ fun apiTest(
         }
     block(client)
 }
+
+/**
+ * A DEM where every point is at [ELEVATION_M]: each tile is filled with the Terrarium pixel
+ * R=128, G=100, B=0, which decodes to `128·256 + 100 − 32768` = 100 m. Every tier gets tiles of
+ * its own [ElevationProviderConfig.tileSize] (BIL sources decode into the same Terrarium bytes).
+ */
+object FlatTerrariumTiles {
+    const val ELEVATION_M: Double = 100.0
+
+    /** How many tiles were asked for, across every tier. */
+    val fetched = AtomicInteger()
+
+    val fetcherFor: (ElevationProviderConfig) -> suspend (String) -> RawTile = { config ->
+        { _ ->
+            fetched.incrementAndGet()
+            tile(config.tileSize)
+        }
+    }
+
+    private fun tile(size: Int): RawTile {
+        val rgba = ByteArray(size * size * 4)
+        for (i in 0 until size * size) {
+            rgba[i * 4] = 128.toByte()
+            rgba[i * 4 + 1] = 100.toByte()
+            rgba[i * 4 + 2] = 0
+            rgba[i * 4 + 3] = 255.toByte()
+        }
+        return RawTile(size, size, rgba)
+    }
+}
+
+/** Collaborators that never reach the network: the DEM is [FlatTerrariumTiles]. */
+fun offlineDependencies(): ApiDependencies = ApiDependencies(elevation = ElevationGateway(FlatTerrariumTiles.fetcherFor))
 
 /** Asserts [response] is a problem document of [slug] with [status], and returns it. */
 suspend fun assertProblem(

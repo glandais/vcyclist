@@ -8,6 +8,7 @@ import kotlinx.coroutines.async
 import kotlinx.coroutines.sync.Semaphore
 import kotlinx.coroutines.sync.withPermit
 import kotlinx.coroutines.withTimeout
+import java.util.concurrent.atomic.AtomicLong
 
 /**
  * The one way a route runs CPU-bound engine work: at most [concurrency] computations at once, on
@@ -34,6 +35,13 @@ class ComputeGate(
 
     private val semaphore = Semaphore(concurrency)
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
+    private val admittedCount = AtomicLong()
+
+    /**
+     * How many computations were ever submitted to this gate. Observability — and the proof, in
+     * tests, that a request rejected for its options never reached the engine.
+     */
+    val admitted: Long get() = admittedCount.get()
 
     /**
      * Runs [block] under the gate and returns its result, or rethrows its failure.
@@ -41,6 +49,7 @@ class ComputeGate(
      * @throws ApiProblem `timeout` when [timeoutMs] elapses first
      */
     suspend fun <T> run(block: suspend () -> T): T {
+        admittedCount.incrementAndGet()
         val work = scope.async { semaphore.withPermit { block() } }
         try {
             return withTimeout(timeoutMs) { work.await() }

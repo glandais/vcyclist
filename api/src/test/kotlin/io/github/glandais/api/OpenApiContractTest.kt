@@ -132,7 +132,7 @@ class OpenApiContractTest {
 
     private companion object {
         /** Operations of the contract at this step of `docs/tasks/api.md`. */
-        const val EXPECTED_OPERATIONS = 5
+        const val EXPECTED_OPERATIONS = 7
 
         val HTTP_METHODS = HttpMethod.DefaultMethods.map { it.value.lowercase() }.toSet()
     }

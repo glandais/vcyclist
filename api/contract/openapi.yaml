@@ -219,6 +219,165 @@ paths:
             application/problem+json:
               schema:
                 $ref: "#/components/schemas/Problem"
+  /api/v1/enhance:
+    post:
+      operationId: enhance
+      tags:
+      - enhance
+      summary: Simulate a ride on a GPX
+      description: Runs the vcyclist pipeline — densify, optional DEM elevations,
+        smoothing, curvature or racing line, cornering and braking limits, the time-stepping
+        physics simulation, then the optional 1 Hz resample, W' balance and simplification
+        — on each selected path, with the rider, bike, wind and power strategy of
+        the `request` part. Every absent option takes the default published by `GET
+        /api/v1/defaults`. Unknown keys and invalid values are rejected before any
+        computation.
+      parameters:
+      - name: kinds
+        in: query
+        description: 'Which containers to read: `all` (`<trk>` and `<rte>`), `tracks`
+          (`<trk>` only), `routes` (`<rte>` only). Default `all`.'
+        schema:
+          type: string
+          default: all
+          enum:
+          - all
+          - tracks
+          - routes
+      - name: split
+        in: query
+        description: '`tracks`: one path per `<trk>` / `<rte>`, segments concatenated
+          (the gap between two segments counts as distance). `segments`: one path
+          per `<trkseg>`. Default `tracks`.'
+        schema:
+          type: string
+          default: tracks
+          enum:
+          - tracks
+          - segments
+      - name: trackIndex
+        in: query
+        description: 'Keep only the path at this index of the selection (after `kinds`
+          and `split`, empty paths dropped). Absent: every path. Out of range: 422
+          `track-index-out-of-range`.'
+        schema:
+          type: integer
+          minimum: 0.0
+      - name: repair
+        in: query
+        description: When the XML does not parse, repair it (BOM, control characters,
+          bare `&`, split surrogate references) and parse again; each repair is reported
+          in `warnings`. Default `true`.
+        schema:
+          type: boolean
+          default: true
+      - name: points
+        in: query
+        description: Include every point of each enhanced path. Default `false`.
+        schema:
+          type: boolean
+          default: false
+      requestBody:
+        description: The GPX, as a multipart upload (part `gpx`) or as the raw body.
+          Options travel in the multipart part `request`; a raw body takes every default.
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required:
+              - gpx
+              properties:
+                gpx:
+                  type: string
+                  description: The GPX document
+                  format: binary
+                request:
+                  $ref: "#/components/schemas/EnhanceRequest"
+            encoding:
+              gpx:
+                contentType: application/gpx+xml
+              request:
+                contentType: application/json
+          application/gpx+xml:
+            schema:
+              type: string
+              format: binary
+          application/xml:
+            schema:
+              type: string
+              format: binary
+          text/xml:
+            schema:
+              type: string
+              format: binary
+        required: true
+      responses:
+        "200":
+          description: One result per selected path, and the warnings
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/EnhanceResponse"
+        "400":
+          description: 'Problem: `urn:vcyclist:problem:invalid-body`, `urn:vcyclist:problem:unknown-key`,
+            `urn:vcyclist:problem:invalid-option`, `urn:vcyclist:problem:invalid-gpx`'
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Problem"
+        "413":
+          description: 'Problem: `urn:vcyclist:problem:payload-too-large`, `urn:vcyclist:problem:too-many-points`'
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Problem"
+        "415":
+          description: 'Problem: `urn:vcyclist:problem:unsupported-media-type`'
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Problem"
+        "422":
+          description: 'Problem: `urn:vcyclist:problem:empty-gpx`, `urn:vcyclist:problem:track-index-out-of-range`'
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Problem"
+        "502":
+          description: 'Problem: `urn:vcyclist:problem:dem-unavailable`'
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Problem"
+        "503":
+          description: 'Problem: `urn:vcyclist:problem:timeout`, `urn:vcyclist:problem:dem-rate-limited`'
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Problem"
+  /api/v1/defaults:
+    get:
+      operationId: getDefaults
+      tags:
+      - meta
+      summary: Defaults this door applies
+      description: 'The value every absent option takes, in the request shapes themselves:
+        any member can be sent back as is and gives the same computation. Read from
+        the engine, never restated. `demZoom` is null: each DEM source uses its own
+        default zoom. `limits` are this server''s.'
+      responses:
+        "200":
+          description: The defaults
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Defaults"
+        "400":
+          description: 'Problem: `urn:vcyclist:problem:unknown-key`'
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Problem"
 webhooks: {}
 components:
   schemas:
@@ -543,3 +702,383 @@ components:
           type: array
           items:
             type: string
+    EnhanceOptions:
+      type:
+      - object
+      - "null"
+      title: EnhanceOptions
+      properties:
+        fixElevation:
+          type:
+          - boolean
+          - "null"
+          description: 'Replace elevations with the DEM''s. Absent or null: the default
+            published by `GET /api/v1/defaults`.'
+        computeMaxSpeeds:
+          type:
+          - boolean
+          - "null"
+          description: 'Compute cornering and braking speed limits. Absent or null:
+            the default published by `GET /api/v1/defaults`.'
+        virtualizeTrack:
+          type:
+          - boolean
+          - "null"
+          description: 'Run the time-stepping simulation. Absent or null: the default
+            published by `GET /api/v1/defaults`.'
+        computeOnePointPerSecond:
+          type:
+          - boolean
+          - "null"
+          description: 'Resample the result to one point per second. Absent or null:
+            the default published by `GET /api/v1/defaults`.'
+        simplifyEnabled:
+          type:
+          - boolean
+          - "null"
+          description: 'Simplify the result (Douglas-Peucker 3D). Absent or null:
+            the default published by `GET /api/v1/defaults`.'
+        simplifyToleranceM:
+          type:
+          - number
+          - "null"
+          description: 'Simplification tolerance, metres. Absent or null: the default
+            published by `GET /api/v1/defaults`.'
+        simplifyZExaggeration:
+          type:
+          - number
+          - "null"
+          description: 'Elevation exaggeration of the simplification. Absent or null:
+            the default published by `GET /api/v1/defaults`.'
+        wPrimeBalanceEnabled:
+          type:
+          - boolean
+          - "null"
+          description: 'Annotate W'' balance. Absent or null: the default published
+            by `GET /api/v1/defaults`.'
+        wPrimeBalanceCriticalPower:
+          type:
+          - number
+          - "null"
+          description: 'Critical power of the W'' balance, watts. Absent or null:
+            the default published by `GET /api/v1/defaults`.'
+        wPrimeBalanceWPrime:
+          type:
+          - number
+          - "null"
+          description: 'W'' of the W'' balance, joules. Absent or null: the default
+            published by `GET /api/v1/defaults`.'
+        curvatureEnabled:
+          type:
+          - boolean
+          - "null"
+          description: 'Estimate the trajectory curvature. Absent or null: the default
+            published by `GET /api/v1/defaults`.'
+        racingLineEnabled:
+          type:
+          - boolean
+          - "null"
+          description: 'Ride the racing line (moves every coordinate). Absent or null:
+            the default published by `GET /api/v1/defaults`.'
+        racingLineCorridor:
+          type:
+          - string
+          - "null"
+          description: 'Racing-line corridor, one of `GET /api/v1/catalog` `corridorModes`.
+            Absent or null: the default published by `GET /api/v1/defaults`.'
+        racingLineRoadWidthM:
+          type:
+          - number
+          - "null"
+          description: 'Road width where the GPX gives none, metres. Absent or null:
+            the default published by `GET /api/v1/defaults`.'
+        elevationGainPreset:
+          type:
+          - string
+          - "null"
+          description: 'Elevation-gain preset, one of `GET /api/v1/catalog` `elevationGainPresets`.
+            Naming one takes its own threshold and smoothing window. Absent or null:
+            the default published by `GET /api/v1/defaults`.'
+        elevationGainThresholdM:
+          type:
+          - number
+          - "null"
+          description: 'Elevation-gain dead band, metres; wins over the preset''s.
+            Absent or null: the default published by `GET /api/v1/defaults`.'
+        elevationGainEnabled:
+          type:
+          - boolean
+          - "null"
+          description: 'Compute the filtered elevation gain. Absent or null: the default
+            published by `GET /api/v1/defaults`.'
+        elevationSmoothWindowM:
+          type:
+          - number
+          - "null"
+          description: 'Half-width of the elevation smoothing kernel, metres. Absent
+            or null: the default published by `GET /api/v1/defaults`.'
+        demZoom:
+          type:
+          - integer
+          - "null"
+          description: 'DEM zoom level, 0..15. Absent or null: the DEM source''s own
+            default zoom.'
+        demSource:
+          type:
+          - string
+          - "null"
+          description: 'DEM source, one of `GET /api/v1/catalog` `elevationSources`.
+            Absent or null: the default published by `GET /api/v1/defaults`.'
+    Cyclist:
+      type:
+      - object
+      - "null"
+      title: Cyclist
+      properties:
+        massKg:
+          type:
+          - number
+          - "null"
+          description: 'Rider mass, kg. Absent or null: the default published by `GET
+            /api/v1/defaults`.'
+        cd:
+          type:
+          - number
+          - "null"
+          description: 'Drag coefficient. Absent or null: the default published by
+            `GET /api/v1/defaults`.'
+        frontalAreaM2:
+          type:
+          - number
+          - "null"
+          description: 'Frontal area, m². Absent or null: the default published by
+            `GET /api/v1/defaults`.'
+        maxLeanAngleDeg:
+          type:
+          - number
+          - "null"
+          description: 'Maximum lean angle, degrees (a tyre friction coefficient).
+            Absent or null: the default published by `GET /api/v1/defaults`.'
+        maxBrakeG:
+          type:
+          - number
+          - "null"
+          description: 'Maximum braking, g. Absent or null: the default published
+            by `GET /api/v1/defaults`.'
+        maxSpeedKmH:
+          type:
+          - number
+          - "null"
+          description: 'Speed cap, km/h. Absent or null: the default published by
+            `GET /api/v1/defaults`.'
+        roadCondition:
+          type:
+          - string
+          - "null"
+          description: 'Road-surface preset, one of `GET /api/v1/catalog` `roadConditions`,
+            case-insensitive. The preset is the last word: it overrides `maxLeanAngleDeg`
+            and `maxBrakeG` (a warning says so). Absent: none.'
+    Bike:
+      type:
+      - object
+      - "null"
+      title: Bike
+      properties:
+        crr:
+          type:
+          - number
+          - "null"
+          description: 'Rolling resistance coefficient. Absent or null: the default
+            published by `GET /api/v1/defaults`.'
+        inertiaFront:
+          type:
+          - number
+          - "null"
+          description: 'Front wheel inertia, kg·m². Absent or null: the default published
+            by `GET /api/v1/defaults`.'
+        inertiaRear:
+          type:
+          - number
+          - "null"
+          description: 'Rear wheel inertia, kg·m². Absent or null: the default published
+            by `GET /api/v1/defaults`.'
+        wheelRadiusM:
+          type:
+          - number
+          - "null"
+          description: 'Wheel radius, m. Absent or null: the default published by
+            `GET /api/v1/defaults`.'
+        efficiency:
+          type:
+          - number
+          - "null"
+          description: 'Drivetrain efficiency, 0..1. Absent or null: the default published
+            by `GET /api/v1/defaults`.'
+        maxPedalingLeanAngleDeg:
+          type:
+          - number
+          - "null"
+          description: 'Lean angle past which the rider stops pedalling, degrees.
+            Absent or null: the default published by `GET /api/v1/defaults`.'
+    Wind:
+      type:
+      - object
+      - "null"
+      title: Wind
+      properties:
+        windSpeed:
+          type:
+          - number
+          - "null"
+          description: 'Wind speed, m/s. Absent or null: 0.'
+        windDirection:
+          type:
+          - number
+          - "null"
+          description: 'Direction the wind blows TOWARD, degrees clockwise from north
+            — the convention of `dominantHeadwindAzimuth`. Absent or null: 0.'
+    PowerProvider:
+      type:
+      - object
+      - "null"
+      title: PowerProvider
+      properties:
+        type:
+          type:
+          - string
+          - "null"
+          description: 'Power model, one of `GET /api/v1/catalog` `powerModels`, case-insensitive.
+            `from_data` replays the GPX''s power. Absent or null: the default published
+            by `GET /api/v1/defaults`.'
+        power:
+          type:
+          - number
+          - "null"
+          description: 'Target power, watts. Absent or null: the default published
+            by `GET /api/v1/defaults`.'
+        useHarmonics:
+          type:
+          - boolean
+          - "null"
+          description: 'Add a harmonic variation to the power. Absent or null: the
+            default published by `GET /api/v1/defaults`.'
+        criticalPower:
+          type:
+          - number
+          - "null"
+          description: 'Critical power, watts (durability and critical-power models).
+            Absent or null: the default published by `GET /api/v1/defaults`.'
+        wPrime:
+          type:
+          - number
+          - "null"
+          description: 'W'', joules (critical-power model). Absent or null: the default
+            published by `GET /api/v1/defaults`.'
+        pacing:
+          type:
+          - boolean
+          - "null"
+          description: 'Redistribute the power with the terrain. Absent or null: the
+            default published by `GET /api/v1/defaults`.'
+        maxSlewWPerS:
+          type:
+          - number
+          - "null"
+          description: 'Maximum power change rate, W/s; 0 disables. Absent or null:
+            the default published by `GET /api/v1/defaults`.'
+    EnhanceRequest:
+      type: object
+      title: EnhanceRequest
+      description: 'The simulation settings: pipeline options, cyclist, bike, wind,
+        power strategy and road-width override.'
+      properties:
+        options:
+          $ref: "#/components/schemas/EnhanceOptions"
+        cyclist:
+          $ref: "#/components/schemas/Cyclist"
+        bike:
+          $ref: "#/components/schemas/Bike"
+        wind:
+          $ref: "#/components/schemas/Wind"
+        power:
+          $ref: "#/components/schemas/PowerProvider"
+        roadWidthOverrideM:
+          type:
+          - number
+          - "null"
+          description: 'Road width written on EVERY point, metres, finite and > 0
+            — like the CLI''s `--road-width`, it beats the GPX''s own widths and the
+            OSM inference. Absent or null: the GPX''s widths.'
+    TrackResult:
+      type: object
+      title: TrackResult
+      required:
+      - summary
+      properties:
+        name:
+          type:
+          - string
+          - "null"
+        summary:
+          $ref: "#/components/schemas/PathSummary"
+        dominantHeadwindAzimuth:
+          type:
+          - number
+          - "null"
+        points:
+          type:
+          - array
+          - "null"
+          items:
+            $ref: "#/components/schemas/Point"
+    EnhanceResponse:
+      type: object
+      title: EnhanceResponse
+      required:
+      - tracks
+      - warnings
+      properties:
+        tracks:
+          type: array
+          items:
+            $ref: "#/components/schemas/TrackResult"
+        warnings:
+          type: array
+          items:
+            type: string
+    Limits:
+      type: object
+      title: Limits
+      required:
+      - maxBodyBytes
+      - maxTrackPoints
+      - maxElevationPoints
+      - requestTimeoutMs
+      - computeConcurrency
+      properties:
+        maxBodyBytes:
+          type: integer
+        maxTrackPoints:
+          type: integer
+        maxElevationPoints:
+          type: integer
+        requestTimeoutMs:
+          type: integer
+        computeConcurrency:
+          type: integer
+    Defaults:
+      type: object
+      title: Defaults
+      required:
+      - limits
+      properties:
+        enhance:
+          $ref: "#/components/schemas/EnhanceOptions"
+        cyclist:
+          $ref: "#/components/schemas/Cyclist"
+        bike:
+          $ref: "#/components/schemas/Bike"
+        power:
+          $ref: "#/components/schemas/PowerProvider"
+        limits:
+          $ref: "#/components/schemas/Limits"

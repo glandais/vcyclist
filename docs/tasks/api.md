@@ -609,6 +609,26 @@ curl -s -X POST -H 'Content-Type: application/gpx+xml' --data-binary @in.gpx 'lo
   `IOException` nue : aucun `catch` du handler ne la voit, c'est `StatusPages` qui la traduit en 413
   (`isBodyLimitExceeded`, reconnue à son message). Un champ DTO nullable de type objet (`bounds`)
   est rendu par Ktor en `$ref` simple, sans `null` : limite du DSL.
+- **Constaté à A3.** `receiveGpxInput` est coupé en deux : `receiveGpxUpload` (toutes les
+  vérifications sans calcul, décodage strict de `request` compris) puis `GpxUpload.parse` (sous la
+  `ComputeGate`). `/enhance` mappe ses options **entre les deux** : un `invalid-option` — enum fil
+  inconnu, `require` d'un `init` du cœur, `demZoom` hors `ElevationFunctions.isValidZoomLevel`,
+  `roadWidthOverrideM` non fini ou ≤ 0 — part avant même le parsing du GPX. `ComputeGate.admitted`
+  compte les calculs admis ; les tests s'en servent pour prouver qu'une 400 n'a rien calculé.
+  L'erreur nomme son pointeur dans `errors` (`/options/racingLineCorridor`). Les lecteurs partent de
+  `HttpDefaults.enhance` par `copy` des sous-objets, pour que les champs que le fil ne porte pas
+  (fenêtres de courbure, réglages de la ligne de course) gardent la valeur du défaut ; nommer un
+  préréglage de dénivelé prend son seuil **et** sa fenêtre (`smoothWindowM`), un seuil explicite
+  l'emporte. `EnhanceRequest` n'a pas encore `output` : il arrive avec A4 et ses DTO. `DefaultsDto`
+  n'a que `enhance`, `cyclist`, `bike`, `power`, `limits` à ce stade ; ses quatre premiers membres
+  sont **déclarés nullables** quoique toujours remplis, sans quoi Ktor émet une seconde copie non
+  nulle de chaque schéma (`EnhanceOptions2`…) ; `demZoom` y est publié `null` (chaque source garde
+  son zoom par défaut — publier 12 l'appliquerait aussi à `ign-lidar-hd`). Le champ de
+  `TrackResult` est `dominantHeadwindAzimuth` (degrés). La bibliothèque `:elevation` enveloppe la
+  `TileFetchException` dans une `IllegalStateException` : `StatusPages` la cherche dans la chaîne
+  des causes. Le verrou de l'`ElevationGateway` est tenu pendant **tout** le pipeline du chemin
+  (`Enhancer` ne sépare pas l'étape MNT) : deux `/enhance` avec `fixElevation` sur la même source
+  et le même zoom se suivent. Les descriptions de champs passent par `@JsonSchema.Description`.
 - Le DSL OpenAPI natif de Ktor est `@ExperimentalKtorApi` ; si une montée de Ktor le casse, le repli
   est smiley4 `ktor-openapi` (voir *Bibliothèques*), sans changer le contrat committé autrement que
   par la régénération.

@@ -1,6 +1,7 @@
 package io.github.glandais.api.http
 
 import io.github.glandais.api.apiServices
+import io.github.glandais.elevation.TileFetchException
 import io.ktor.http.HttpHeaders
 import io.ktor.http.HttpStatusCode
 import io.ktor.server.application.ApplicationCall
@@ -12,6 +13,25 @@ import io.ktor.server.response.header
 import io.ktor.server.response.respondText
 import kotlinx.serialization.SerializationException
 import java.io.IOException
+
+/**
+ * The problem a DEM failure answers, or `null` when [cause] is not one: the first
+ * [TileFetchException] of the cause chain — the elevation library wraps it in an
+ * `IllegalStateException`.
+ */
+fun demProblemOrNull(cause: Throwable): ApiProblem? {
+    val fetch = generateSequence(cause) { it.cause }.filterIsInstance<TileFetchException>().firstOrNull() ?: return null
+    // The tile URL stays in the log: it can carry a server-side key, and the client chose none of it.
+    return if (fetch.retryAfterSeconds != null) {
+        ApiProblem(
+            ProblemKind.DEM_RATE_LIMITED,
+            "The elevation tile server is rate limiting (HTTP ${fetch.status}); retry after ${fetch.retryAfterSeconds} s",
+            retryAfterSeconds = fetch.retryAfterSeconds,
+        )
+    } else {
+        ApiProblem(ProblemKind.DEM_UNAVAILABLE, "The elevation tile server failed (HTTP ${fetch.status})")
+    }
+}
 
 /** Writes [problem] as `application/problem+json`, with its own status. */
 suspend fun ApplicationCall.respondProblem(
@@ -45,6 +65,9 @@ suspend fun ApplicationCall.respondProblem(
  *   engine options class throws, and its message is written for the caller;
  * - [SerializationException] (and Ktor's [BadRequestException] around it) → `invalid-body`;
  * - an [IOException] that is Ktor's multipart body limit ([isBodyLimitExceeded]) → `payload-too-large`;
+ * - a [TileFetchException] anywhere in the cause chain (the elevation library wraps it) →
+ *   `dem-rate-limited` with `Retry-After` when the tile server said when to retry, `dem-unavailable`
+ *   otherwise;
  * - bare 404 / 405 / 406 / 415 statuses → their slug;
  * - anything else → `internal`, logged, with a generic detail — a stack trace is not an answer.
  */
@@ -76,6 +99,12 @@ fun StatusPagesConfig.configureProblems() {
         }
     }
     exception<Throwable> { call, cause ->
+        val dem = demProblemOrNull(cause)
+        if (dem != null) {
+            call.application.log.warn("DEM tile fetch failed on ${call.request.path()}: ${dem.detail}")
+            call.respondProblem(dem.kind, dem.detail, retryAfterSeconds = dem.retryAfterSeconds)
+            return@exception
+        }
         call.application.log.error("Unhandled error on ${call.request.path()}", cause)
         call.respondProblem(ProblemKind.INTERNAL, "Internal error; see the server log")
     }
