@@ -599,6 +599,16 @@ curl -s -X POST -H 'Content-Type: application/gpx+xml' --data-binary @in.gpx 'lo
   catalogue des problèmes mais la porte ne le lève pas encore : la file attend, bornée par le délai.
 - **`executableJar` fusionne les `META-INF/services`** des dépendances au lieu de garder le premier
   (`DuplicatesStrategy.EXCLUDE` seul perdrait des fournisseurs `ServiceLoader` de Ktor).
+- **Constaté à A2.** `GpxInput` porte aussi `kinds: List<GpxPathKind>`, aligné sur `paths` et
+  `names` : `tracksAsPaths` / `segmentsAsPaths` perdent le conteneur. La sélection est faite sur le
+  `GpxDocument` *avant* conversion (`trackIndex` ne convertit qu'un chemin, et `maxTrackPoints` se
+  vérifie sans allouer) ; un segment est converti par `segmentsAsPaths` sur une copie à un seul
+  segment, seule voie publique qui applique la largeur de route de la trace. `trackIndex < 0` est
+  400 `invalid-option` (hors domaine), au-delà de la sélection 422. Un multipart *chunked* au-delà de
+  `formFieldLimit` échoue dans la coroutine du parseur de Ktor, qui annule l'appel par une
+  `IOException` nue : aucun `catch` du handler ne la voit, c'est `StatusPages` qui la traduit en 413
+  (`isBodyLimitExceeded`, reconnue à son message). Un champ DTO nullable de type objet (`bounds`)
+  est rendu par Ktor en `$ref` simple, sans `null` : limite du DSL.
 - Le DSL OpenAPI natif de Ktor est `@ExperimentalKtorApi` ; si une montée de Ktor le casse, le repli
   est smiley4 `ktor-openapi` (voir *Bibliothèques*), sans changer le contrat committé autrement que
   par la régénération.

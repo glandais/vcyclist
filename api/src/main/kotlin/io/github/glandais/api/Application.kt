@@ -5,6 +5,7 @@ import io.github.glandais.api.http.ComputeGate
 import io.github.glandais.api.http.configureProblems
 import io.github.glandais.api.openapi.openApiRoutes
 import io.github.glandais.api.openapi.swaggerRoutes
+import io.github.glandais.api.routes.gpxRoutes
 import io.github.glandais.api.routes.metaRoutes
 import io.ktor.http.HttpHeaders
 import io.ktor.http.HttpMethod
@@ -89,6 +90,7 @@ fun Application.module(
     routing {
         route(API_PREFIX) {
             metaRoutes()
+            gpxRoutes()
             openApiRoutes()
         }
         swaggerRoutes()

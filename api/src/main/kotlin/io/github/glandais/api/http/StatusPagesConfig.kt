@@ -1,5 +1,6 @@
 package io.github.glandais.api.http
 
+import io.github.glandais.api.apiServices
 import io.ktor.http.HttpHeaders
 import io.ktor.http.HttpStatusCode
 import io.ktor.server.application.ApplicationCall
@@ -10,6 +11,7 @@ import io.ktor.server.request.path
 import io.ktor.server.response.header
 import io.ktor.server.response.respondText
 import kotlinx.serialization.SerializationException
+import java.io.IOException
 
 /** Writes [problem] as `application/problem+json`, with its own status. */
 suspend fun ApplicationCall.respondProblem(
@@ -42,6 +44,7 @@ suspend fun ApplicationCall.respondProblem(
  * - [IllegalArgumentException] → `invalid-option`: it is what a `require` in the `init` of an
  *   engine options class throws, and its message is written for the caller;
  * - [SerializationException] (and Ktor's [BadRequestException] around it) → `invalid-body`;
+ * - an [IOException] that is Ktor's multipart body limit ([isBodyLimitExceeded]) → `payload-too-large`;
  * - bare 404 / 405 / 406 / 415 statuses → their slug;
  * - anything else → `internal`, logged, with a generic detail — a stack trace is not an answer.
  */
@@ -61,6 +64,15 @@ fun StatusPagesConfig.configureProblems() {
             call.respondProblem(root.kind, root.detail, root.unknownKeys, root.errors, root.retryAfterSeconds)
         } else {
             call.respondProblem(ProblemKind.INVALID_BODY, cause.message)
+        }
+    }
+    exception<IOException> { call, cause ->
+        if (isBodyLimitExceeded(cause)) {
+            val problem = payloadTooLarge(call.apiServices.config.maxBodyBytes)
+            call.respondProblem(problem.kind, problem.detail)
+        } else {
+            call.application.log.error("Unhandled error on ${call.request.path()}", cause)
+            call.respondProblem(ProblemKind.INTERNAL, "Internal error; see the server log")
         }
     }
     exception<Throwable> { call, cause ->

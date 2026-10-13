@@ -24,11 +24,13 @@ import kotlin.test.fail
 fun testConfig(
     maxBodyBytes: Long = 64L * 1024,
     requestTimeoutMs: Long = 30_000,
+    maxTrackPoints: Int = ApiConfig().maxTrackPoints,
 ): ApiConfig =
     ApiConfig(
         host = "127.0.0.1",
         port = 0,
         maxBodyBytes = maxBodyBytes,
+        maxTrackPoints = maxTrackPoints,
         requestTimeoutMs = requestTimeoutMs,
         computeConcurrency = 2,
     )

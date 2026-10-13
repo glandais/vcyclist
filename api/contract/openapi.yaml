@@ -97,6 +97,128 @@ paths:
             application/problem+json:
               schema:
                 $ref: "#/components/schemas/Problem"
+  /api/v1/gpx/parse:
+    post:
+      operationId: parseGpx
+      tags:
+      - gpx
+      summary: Parse a GPX
+      description: 'Reads a GPX document and returns its waypoints and, for each selected
+        path, its name, its container and its statistics — optionally every point.
+        Simulates nothing: distances and elevations are those of the file.'
+      parameters:
+      - name: kinds
+        in: query
+        description: 'Which containers to read: `all` (`<trk>` and `<rte>`), `tracks`
+          (`<trk>` only), `routes` (`<rte>` only). Default `all`.'
+        schema:
+          type: string
+          default: all
+          enum:
+          - all
+          - tracks
+          - routes
+      - name: split
+        in: query
+        description: '`tracks`: one path per `<trk>` / `<rte>`, segments concatenated
+          (the gap between two segments counts as distance). `segments`: one path
+          per `<trkseg>`. Default `tracks`.'
+        schema:
+          type: string
+          default: tracks
+          enum:
+          - tracks
+          - segments
+      - name: trackIndex
+        in: query
+        description: 'Keep only the path at this index of the selection (after `kinds`
+          and `split`, empty paths dropped). Absent: every path. Out of range: 422
+          `track-index-out-of-range`.'
+        schema:
+          type: integer
+          minimum: 0.0
+      - name: repair
+        in: query
+        description: When the XML does not parse, repair it (BOM, control characters,
+          bare `&`, split surrogate references) and parse again; each repair is reported
+          in `warnings`. Default `true`.
+        schema:
+          type: boolean
+          default: true
+      - name: points
+        in: query
+        description: Include every point of each path. Default `false`.
+        schema:
+          type: boolean
+          default: false
+      requestBody:
+        description: The GPX, as a multipart upload (part `gpx`) or as the raw body.
+          This operation takes no `request` part.
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required:
+              - gpx
+              properties:
+                gpx:
+                  type: string
+                  description: The GPX document
+                  format: binary
+            encoding:
+              gpx:
+                contentType: application/gpx+xml
+          application/gpx+xml:
+            schema:
+              type: string
+              format: binary
+          application/xml:
+            schema:
+              type: string
+              format: binary
+          text/xml:
+            schema:
+              type: string
+              format: binary
+        required: true
+      responses:
+        "200":
+          description: The parsed document
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ParsedGpx"
+        "400":
+          description: 'Problem: `urn:vcyclist:problem:invalid-body`, `urn:vcyclist:problem:unknown-key`,
+            `urn:vcyclist:problem:invalid-option`, `urn:vcyclist:problem:invalid-gpx`'
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Problem"
+        "413":
+          description: 'Problem: `urn:vcyclist:problem:payload-too-large`, `urn:vcyclist:problem:too-many-points`'
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Problem"
+        "415":
+          description: 'Problem: `urn:vcyclist:problem:unsupported-media-type`'
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Problem"
+        "422":
+          description: 'Problem: `urn:vcyclist:problem:empty-gpx`, `urn:vcyclist:problem:track-index-out-of-range`'
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Problem"
+        "503":
+          description: 'Problem: `urn:vcyclist:problem:timeout`'
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Problem"
 webhooks: {}
 components:
   schemas:
@@ -238,3 +360,186 @@ components:
           type: boolean
         anglesInRadians:
           type: boolean
+    Waypoint:
+      type: object
+      title: Waypoint
+      required:
+      - latitudeDeg
+      - longitudeDeg
+      properties:
+        latitudeDeg:
+          type: number
+        longitudeDeg:
+          type: number
+        elevationM:
+          type:
+          - number
+          - "null"
+        name:
+          type:
+          - string
+          - "null"
+        description:
+          type:
+          - string
+          - "null"
+        symbol:
+          type:
+          - string
+          - "null"
+        type:
+          type:
+          - string
+          - "null"
+        timeEpochMs:
+          type:
+          - integer
+          - "null"
+    Bounds:
+      type:
+      - object
+      - "null"
+      title: Bounds
+      required:
+      - minLatitude
+      - minLongitude
+      - maxLatitude
+      - maxLongitude
+      properties:
+        minLatitude:
+          type: number
+        minLongitude:
+          type: number
+        maxLatitude:
+          type: number
+        maxLongitude:
+          type: number
+    PathSummary:
+      type: object
+      title: PathSummary
+      required:
+      - size
+      - totalDistance
+      - elevationGain
+      - elevationLoss
+      - reportedElevationGain
+      - reportedElevationLoss
+      properties:
+        size:
+          type: integer
+        totalDistance:
+          type: number
+        durationMs:
+          type:
+          - number
+          - "null"
+        minElevation:
+          type:
+          - number
+          - "null"
+        maxElevation:
+          type:
+          - number
+          - "null"
+        elevationGain:
+          type: number
+        elevationLoss:
+          type: number
+        elevationGainFiltered:
+          type:
+          - number
+          - "null"
+        elevationLossFiltered:
+          type:
+          - number
+          - "null"
+        reportedElevationGain:
+          type: number
+        reportedElevationLoss:
+          type: number
+        bounds:
+          $ref: "#/components/schemas/Bounds"
+    Point:
+      type: object
+      title: Point
+      properties:
+        latitudeDeg:
+          type:
+          - number
+          - "null"
+        longitudeDeg:
+          type:
+          - number
+          - "null"
+        elevation:
+          type:
+          - number
+          - "null"
+        timeMs:
+          type:
+          - number
+          - "null"
+        speed:
+          type:
+          - number
+          - "null"
+        pComputedPower:
+          type:
+          - number
+          - "null"
+        distance:
+          type:
+          - number
+          - "null"
+        grade:
+          type:
+          - number
+          - "null"
+    ParsedPath:
+      type: object
+      title: ParsedPath
+      required:
+      - kind
+      - summary
+      properties:
+        name:
+          type:
+          - string
+          - "null"
+        kind:
+          type: string
+        summary:
+          $ref: "#/components/schemas/PathSummary"
+        points:
+          type:
+          - array
+          - "null"
+          items:
+            $ref: "#/components/schemas/Point"
+    ParsedGpx:
+      type: object
+      title: ParsedGpx
+      required:
+      - name
+      - waypoints
+      - paths
+      - warnings
+      properties:
+        name:
+          type: string
+        startTimeEpochMs:
+          type:
+          - integer
+          - "null"
+        waypoints:
+          type: array
+          items:
+            $ref: "#/components/schemas/Waypoint"
+        paths:
+          type: array
+          items:
+            $ref: "#/components/schemas/ParsedPath"
+        warnings:
+          type: array
+          items:
+            type: string

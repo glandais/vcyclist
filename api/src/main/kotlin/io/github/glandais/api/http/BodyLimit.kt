@@ -3,6 +3,7 @@ package io.github.glandais.api.http
 import io.ktor.http.HttpHeaders
 import io.ktor.server.application.ApplicationCall
 import io.ktor.server.request.receiveChannel
+import io.ktor.utils.io.ByteReadChannel
 import io.ktor.utils.io.readAvailable
 import java.io.ByteArrayOutputStream
 
@@ -16,20 +17,43 @@ import java.io.ByteArrayOutputStream
  * @throws ApiProblem `payload-too-large`
  */
 suspend fun ApplicationCall.receiveBoundedBytes(max: Long): ByteArray {
+    requireDeclaredLengthAtMost(max)
+    val declared = request.headers[HttpHeaders.ContentLength]?.toLongOrNull()
+    return receiveChannel().readBounded(max, initialCapacity = declared?.toInt()?.coerceAtMost(DEFAULT_BUFFER)) {
+        throw payloadTooLarge(max)
+    }
+}
+
+/**
+ * Refuses a request whose declared `Content-Length` is above [max], before a byte is read.
+ *
+ * @throws ApiProblem `payload-too-large`
+ */
+fun ApplicationCall.requireDeclaredLengthAtMost(max: Long) {
     val declared = request.headers[HttpHeaders.ContentLength]?.toLongOrNull()
     if (declared != null && declared > max) {
-        throw tooLarge(max)
+        throw payloadTooLarge(max)
     }
-    val channel = receiveChannel()
-    val out = ByteArrayOutputStream(declared?.toInt()?.coerceAtMost(DEFAULT_BUFFER) ?: DEFAULT_BUFFER)
+}
+
+/**
+ * Reads this channel to its end, calling [onExceeded] — which must throw — as soon as more than
+ * [max] bytes have arrived.
+ */
+suspend fun ByteReadChannel.readBounded(
+    max: Long,
+    initialCapacity: Int? = null,
+    onExceeded: () -> Nothing,
+): ByteArray {
+    val out = ByteArrayOutputStream(initialCapacity ?: DEFAULT_BUFFER)
     val buffer = ByteArray(DEFAULT_BUFFER)
     var total = 0L
     while (true) {
-        val read = channel.readAvailable(buffer, 0, buffer.size)
+        val read = readAvailable(buffer, 0, buffer.size)
         if (read == -1) break
         total += read
         if (total > max) {
-            throw tooLarge(max)
+            onExceeded()
         }
         out.write(buffer, 0, read)
     }
@@ -38,4 +62,16 @@ suspend fun ApplicationCall.receiveBoundedBytes(max: Long): ByteArray {
 
 private const val DEFAULT_BUFFER: Int = 8 * 1024
 
-private fun tooLarge(max: Long): ApiProblem = ApiProblem(ProblemKind.PAYLOAD_TOO_LARGE, "Request body exceeds the limit of $max bytes")
+/**
+ * Whether [e] is Ktor's own report of a body limit — `formFieldLimit` in the multipart parser
+ * ("Limit of N bytes exceeded while searching for …", "Multipart content length exceeds limit …").
+ * Ktor raises it as a bare [java.io.IOException] from the parser's coroutine, which cancels the
+ * call: no `catch` in a handler sees it, only `StatusPages` does.
+ */
+fun isBodyLimitExceeded(e: java.io.IOException): Boolean {
+    val message = e.message ?: return false
+    return message.contains("limit", ignoreCase = true) && message.contains("exceed", ignoreCase = true)
+}
+
+/** The `payload-too-large` problem for a limit of [max] bytes. */
+fun payloadTooLarge(max: Long): ApiProblem = ApiProblem(ProblemKind.PAYLOAD_TOO_LARGE, "Request body exceeds the limit of $max bytes")
