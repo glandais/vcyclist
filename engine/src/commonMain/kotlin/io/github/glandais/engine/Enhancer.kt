@@ -1,13 +1,18 @@
 package io.github.glandais.engine
 
 import io.github.glandais.elevation.ElevationProvider
+import io.github.glandais.engine.path.BridgeDeckResult
 import io.github.glandais.engine.path.BridgeDeckStep
+import io.github.glandais.engine.path.DeckDetectorOptions
 import io.github.glandais.engine.path.ElevationGain
 import io.github.glandais.engine.path.ElevationStep
 import io.github.glandais.engine.path.Path
 import io.github.glandais.engine.path.PathSimplifier
 import io.github.glandais.engine.path.PointPerDistance
 import io.github.glandais.engine.path.PointPerSecond
+import io.github.glandais.engine.path.TunnelDetectorOptions
+import io.github.glandais.engine.path.TunnelStep
+import io.github.glandais.engine.path.writtenRange
 import io.github.glandais.engine.physics.AeroProviderConstant
 import io.github.glandais.engine.physics.MaxSpeedComputer
 import io.github.glandais.engine.physics.PowerProviderConstant
@@ -17,6 +22,7 @@ import io.github.glandais.engine.physics.WindProviderNone
 import io.github.glandais.engine.physiology.WPrimeBalanceComputer
 import io.github.glandais.engine.trajectory.PathCurvature
 import io.github.glandais.engine.trajectory.RacingLine
+import kotlin.math.abs
 
 /**
  * Top-level enhancement pipeline : transforms a raw GPS [Path] into a physics-aware
@@ -38,6 +44,11 @@ import io.github.glandais.engine.trajectory.RacingLine
  *      path, so a 40 m bridge is not two points; before step 4, so `sourceElevation` carries the
  *      deck. A tile it cannot read leaves the path as step 3 made it; the status is discarded here
  *      (reporting it is `elevation-bridge-decks` E7).
+ *    - **3c. tunnels** (`TunnelStep`) — only after step 2, on **any** source: the terrain model
+ *      reads the mountain above a tunnel, so each tunnel the terrain betrays (a bump with
+ *      impossible grades on both sides, between portals a road could join) is replaced by the line
+ *      between its portals. After 3b, whose terrain samples it reuses; before step 4, so
+ *      `sourceElevation` and the reported D+ lose the fictitious climb. Same failure rule as 3b.
  * 4. smooth elevations (always runs) — keeps the pre-smoothing profile in `sourceElevation`.
  * 5. **curvature**, *or* the **racing line** : both write `trajectoryCurvature`, which step 6
  *    prefers over its own windowed estimate. The curvature pass is an annotation and moves nothing;
@@ -52,6 +63,9 @@ import io.github.glandais.engine.trajectory.RacingLine
  * Stateless ; safe for concurrent calls.
  */
 object Enhancer {
+    /** Step 1's spacing: the widest gap between two points step 2 reads the terrain at. */
+    private const val PRE_FIX_SPACING_M = 30.0
+
     /** Build a [CoursePhysics] from [path] using all default-physics providers (ISA rho, no wind). */
     fun getDefaultCourse(path: Path): CoursePhysics =
         CoursePhysics(
@@ -112,6 +126,17 @@ object Enhancer {
         course: CoursePhysics,
         options: EnhanceOptions = EnhanceOptions.DEFAULT,
         elevationProvider: ElevationProvider? = null,
+    ): Path = enhanceCourse(course, options, elevationProvider, tunnels = true)
+
+    /**
+     * [enhanceCourse] with step 3c switchable, for the measurement bench only: there is no door
+     * option for it (that is `elevation-bridge-decks` E7).
+     */
+    internal suspend fun enhanceCourse(
+        course: CoursePhysics,
+        options: EnhanceOptions,
+        elevationProvider: ElevationProvider?,
+        tunnels: Boolean,
     ): Path {
         require(!options.fixElevation || elevationProvider != null) {
             "fixElevation = true but elevationProvider is null. Pass a provider, or set " +
@@ -120,7 +145,7 @@ object Enhancer {
         var path = course.path
 
         // Step 1 : densify before fixElevation so DEM lookups have ~30 m granularity.
-        path = PointPerDistance.compute(path, minDistanceM = -1.0, maxDistanceM = 30.0)
+        path = PointPerDistance.compute(path, minDistanceM = -1.0, maxDistanceM = PRE_FIX_SPACING_M)
 
         // Step 2 : fix elevation (optional). The provider is non-null here — see the require above.
         if (options.fixElevation && elevationProvider != null) {
@@ -134,8 +159,30 @@ object Enhancer {
         // is never overwritten), and only when the provider carries a surface model. On the dense
         // path, before the smoother, so `sourceElevation` and the reported D+ carry the deck.
         val surface = elevationProvider?.surfaceModel
+        var decks: BridgeDeckResult? = null
         if (options.fixElevation && elevationProvider != null && surface != null) {
-            path = BridgeDeckStep.apply(path, elevationProvider, surface).path
+            decks = BridgeDeckStep.apply(path, elevationProvider, surface)
+            path = decks.path
+        }
+
+        // Step 3c : tunnels — after a DEM correction only, on any source (no surface model needed).
+        // The deck write moves no coordinate, so 3b's terrain samples are this step's stations when
+        // both grids agree; otherwise it reads them itself. It never writes over a deck.
+        if (tunnels && options.fixElevation && elevationProvider != null) {
+            val tunnelOptions = TunnelDetectorOptions.DEFAULT
+            val deckStep = DeckDetectorOptions.DEFAULT.stepM
+            val sameGrid = abs(tunnelOptions.stepM - deckStep) < 1e-9
+            val protected = decks?.replacements?.map { it.writtenRange(deckStep) } ?: emptyList()
+            path =
+                TunnelStep
+                    .apply(
+                        path,
+                        elevationProvider,
+                        tunnelOptions,
+                        samples = decks?.terrain?.takeIf { sameGrid },
+                        protected = protected,
+                        refreshM = PRE_FIX_SPACING_M,
+                    ).path
         }
 
         // Step 4 : smooth elevations (always runs).

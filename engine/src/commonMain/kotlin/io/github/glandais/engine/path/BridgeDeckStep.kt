@@ -28,6 +28,9 @@ internal enum class BridgeDeckStatus {
  * @property path the input instance itself unless [status] is [BridgeDeckStatus.APPLIED]
  * @property detection the detector's output, `null` when it did not run
  * @property replacements the stretches written back, station indices on the step's 5 m grid
+ * @property terrain the terrain model read at the stations of [alongTrackStations], `null` when it was
+ *   not read (a path of fewer than two points, a failed fetch). [TunnelStep] reuses it rather than
+ *   read the same tiles twice: the deck write moves no coordinate, so the stations are the same.
  */
 internal class BridgeDeckResult(
     val path: Path,
@@ -35,13 +38,14 @@ internal class BridgeDeckResult(
     val detection: DeckDetection?,
     val replacements: List<DeckReplacement>,
     val dropped: List<List<DeckCandidate>> = emptyList(),
+    val terrain: DoubleArray? = null,
 )
 
 /**
  * Stations every [stepM] metres along [path]: station `k` lies at path distance `k × stepM`, for
  * `k = 0 .. floor(totalDistance / stepM)`, its position interpolated linearly between the two path
  * points around it. Distances are the path's own [Path.distance] (cumulative haversine). Shared with
- * the tunnel step to come (E4), which reads the terrain on the same grid.
+ * [TunnelStep] (E4), which reads the terrain on the same grid.
  */
 internal fun alongTrackStations(
     path: Path,
@@ -79,8 +83,15 @@ private fun fraction(
     return if (span > 0) ((s - path.distance(j)) / span).coerceIn(0.0, 1.0) else 0.0
 }
 
-/** The path's elevation interpolated at distance [s]. */
-private fun elevationAt(
+/**
+ * The distances [BridgeDeckStep.write] rewrites for this stretch on a [stepM] grid: from its first
+ * pin to its last, open-ended past a route end it is held flat to.
+ */
+internal fun DeckReplacement.writtenRange(stepM: Double): ClosedFloatingPointRange<Double> =
+    (if (pinnedStart) first * stepM else Double.NEGATIVE_INFINITY)..(if (pinnedEnd) last * stepM else Double.POSITIVE_INFINITY)
+
+/** The path's elevation interpolated at distance [s]. Shared with [TunnelStep]. */
+internal fun elevationAt(
     path: Path,
     s: Double,
 ): Double {
@@ -146,7 +157,8 @@ internal object BridgeDeckStep {
                 currentCoroutineContext().ensureActive()
                 return BridgeDeckResult(path, BridgeDeckStatus.FETCH_FAILED, null, emptyList())
             }
-        return replace(path, samples.first, samples.second, options)
+        val r = replace(path, samples.first, samples.second, options)
+        return BridgeDeckResult(r.path, r.status, r.detection, r.replacements, r.dropped, samples.first)
     }
 
     /** Steps 3–4 on the terrain [mnt] and surface [mns] read at the stations of [path]. Never guarded. */
