@@ -43,6 +43,15 @@ public class ElevationSourceJavaTest {
     }
 
     @Test
+    public void theIgnSourceCarriesItsSurfaceModel() {
+        ElevationProvider ign = ElevationProviderJvm.newElevationProvider(ElevationSource.IGN_LIDAR_HD);
+        assertNotNull("bridge decks: the MNS rides along", ign.getSurfaceModel());
+        assertEquals(IgnLidarHdLayer.MNS.config(null), ign.getSurfaceModel().getConfig());
+        assertNull(ign.withSurfaceModel(null).getSurfaceModel());
+        assertNull(ElevationProviderJvm.newElevationProvider(ElevationSource.IGN_LIDAR_HD, 14).getSurfaceModel());
+    }
+
+    @Test
     public void aBilTileDecodesFromJava() {
         ByteBuffer bil = ByteBuffer.allocate(2 * 2 * 4).order(ByteOrder.LITTLE_ENDIAN);
         bil.putFloat(100f).putFloat(200f).putFloat(300f).putFloat(-9999f);

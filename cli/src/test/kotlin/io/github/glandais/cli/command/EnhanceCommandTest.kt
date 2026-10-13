@@ -6,7 +6,10 @@ import io.github.glandais.cli.RootCommand
 import io.github.glandais.elevation.ElevationProvider
 import io.github.glandais.elevation.ElevationProviderConfig
 import io.github.glandais.elevation.ElevationSource
+import io.github.glandais.elevation.IgnLidarHdLayer
 import io.github.glandais.elevation.RawTile
+import io.github.glandais.elevation.decodeBil32Tile
+import io.github.glandais.elevation.provider
 import io.github.glandais.engine.EngineConstants
 import io.github.glandais.engine.gpx.GpxParser
 import io.github.glandais.engine.gpx.tracksAsPaths
@@ -722,6 +725,75 @@ class EnhanceCommandTest {
         assertEquals(ExitCodes.RUNTIME, result.code, "a failed correction must not exit 0")
         assertContains(result.err, "tile unreachable")
         assertTrue(!output.exists(), "no output file must be written when the correction failed")
+    }
+
+    // ---- bridge decks (E3 of elevation-bridge-decks) -----------------------------------------
+
+    /**
+     * An IGN-shaped BIL tile (z15, 256 px, EPSG:4326 `BBOX` in its URL) whose value depends on the
+     * longitude only: [f] of the metres east of 1°E along 47°N.
+     */
+    private fun lonTile(
+        url: String,
+        f: (Double) -> Double,
+    ): RawTile {
+        val bbox =
+            url
+                .substringAfter("BBOX=")
+                .substringBefore('&')
+                .split(',')
+                .map { it.toDouble() }
+        val metresPerDegree = 111_194.93 * kotlin.math.cos(Math.toRadians(47.0))
+        val bytes =
+            java.nio.ByteBuffer
+                .allocate(256 * 256 * 4)
+                .order(java.nio.ByteOrder.LITTLE_ENDIAN)
+        for (py in 0 until 256) {
+            for (px in 0 until 256) {
+                val lon = bbox[1] + (px + 0.5) * (bbox[3] - bbox[1]) / 256
+                bytes.putFloat(f((lon - 1.0) * metresPerDegree).toFloat())
+            }
+        }
+        return decodeBil32Tile(bytes.array(), 256, url)
+    }
+
+    @Test
+    fun `case 32 — a provider carrying a surface model rides the bridge deck, not the river`() {
+        // A 400 m bridge 1 km east of the start: banks at 10 m, the river at 0 m, the deck at 18 m.
+        val mnt: (Double) -> Double = { x ->
+            if (x < 1_000 || x > 1_400) {
+                10.0
+            } else if (x < 1_025 || x > 1_375) {
+                8.0
+            } else {
+                0.0
+            }
+        }
+        val mns: (Double) -> Double = { x -> if (x < 1_000 || x > 1_400) 10.0 else 18.0 }
+        val terrain = ElevationProvider(IgnLidarHdLayer.MNT.config(15)) { url -> lonTile(url, mnt) }
+        val input = File(work, "bridge.gpx")
+        input.writeText(
+            """<?xml version="1.0" encoding="UTF-8"?>
+<gpx version="1.1" xmlns="http://www.topografix.com/GPX/1/1">
+  <trk><name>bridge</name><trkseg>
+    <trkpt lat="47.0" lon="1.0"><ele>50</ele></trkpt>
+    <trkpt lat="47.0" lon="1.0400"><ele>50</ele></trkpt>
+  </trkseg></trk>
+</gpx>
+""",
+        )
+
+        fun maxEle(provider: ElevationProvider): Double {
+            val command = EnhanceCommand().also { it.elevationProviderFactory = { provider } }
+            val output = File(work, "bridge-out.gpx")
+            val result = runCommand(command, input.path, "--gpx", output.path, "--fix-elevation")
+            assertEquals(0, result.code, result.err)
+            val path = GpxParser.parse(output.readText()).tracksAsPaths().single()
+            return (0 until path.size).maxOf { path.elevation(it) }
+        }
+        val surface = IgnLidarHdLayer.MNS.provider(15) { { url -> lonTile(url, mns) } }
+        assertEquals(18.0, maxEle(terrain.withSurfaceModel(surface)), 0.1, "the deck")
+        assertEquals(10.0, maxEle(terrain), 0.1, "without a surface model, the banks are the highest point")
     }
 
     @Test

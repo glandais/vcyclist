@@ -6,6 +6,7 @@ import kotlin.math.abs
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFailsWith
+import kotlin.test.assertNotNull
 import kotlin.test.assertNull
 import kotlin.test.assertSame
 import kotlin.test.assertTrue
@@ -140,6 +141,54 @@ class ElevationSourceTest {
         assertEquals(14, provider.config.zoomLevel)
         assertEquals(ElevationSource.MAPTERHORN.config(), provider.fallback?.config)
         assertEquals(listOf(TileEncoding.BIL32, TileEncoding.TERRARIUM), configs.map { it.encoding })
+    }
+
+    // ── Surface model (bridge decks, E3) ────────────────────────────────────────────────────
+
+    @Test
+    fun `IGN LiDAR HD at its default zoom carries the MNS as its surface model, through the same fetcherFor`() {
+        val configs = mutableListOf<ElevationProviderConfig>()
+        val provider =
+            ElevationSource.IGN_LIDAR_HD.provider { config ->
+                configs += config
+                { flatTerrarium(config.tileSize, 0) }
+            }
+        val surface = assertNotNull(provider.surfaceModel)
+        assertEquals(IgnLidarHdLayer.MNS.config(), surface.config)
+        assertNull(surface.surfaceModel)
+        assertTrue(IgnLidarHdLayer.MNS.config() in configs, "the MNS is fetched through fetcherFor: $configs")
+        assertNull(provider.fallback?.surfaceModel, "the Mapterhorn fallback carries none")
+    }
+
+    @Test
+    fun `no surface model at another zoom, nor for Mapterhorn, nor for a hand-built provider`() {
+        assertNull(ElevationSource.IGN_LIDAR_HD.provider(14) { config -> { flatTerrarium(config.tileSize, 0) } }.surfaceModel)
+        assertNull(ElevationSource.MAPTERHORN.provider { config -> { flatTerrarium(config.tileSize, 0) } }.surfaceModel)
+        assertNull(ElevationProvider(ElevationSource.IGN_LIDAR_HD.config()) { flatTerrarium(256, 0) }.surfaceModel)
+    }
+
+    @Test
+    fun `withFallback keeps the surface model, withSurfaceModel null detaches it and keeps the fallback`() {
+        val fetcher: (ElevationProviderConfig) -> suspend (String) -> RawTile = { config -> { flatTerrarium(config.tileSize, 0) } }
+        val ign = ElevationSource.IGN_LIDAR_HD.provider(null, fetcher)
+        val surface = ign.surfaceModel
+        val other = ElevationSource.MAPTERHORN.provider(null, fetcher)
+        assertSame(surface, ign.withFallback(other).surfaceModel)
+        val bare = ign.withSurfaceModel(null)
+        assertNull(bare.surfaceModel)
+        assertSame(ign.fallback, bare.fallback)
+        assertSame(surface, bare.withSurfaceModel(surface).surfaceModel)
+    }
+
+    @Test
+    fun `a surface model must be a raw layer, and a raw layer carries none`() {
+        val fetcher: (ElevationProviderConfig) -> suspend (String) -> RawTile = { config -> { flatTerrarium(config.tileSize, 0) } }
+        val terrain = ElevationSource.MAPTERHORN.provider(null, fetcher)
+        val mns = IgnLidarHdLayer.MNS.provider(null, fetcher)
+        assertFailsWith<IllegalArgumentException> { terrain.withSurfaceModel(ElevationSource.MAPTERHORN.provider(null, fetcher)) }
+        assertFailsWith<IllegalArgumentException> { mns.withSurfaceModel(IgnLidarHdLayer.MNS.provider(null, fetcher)) }
+        assertFailsWith<IllegalArgumentException> { mns.withSurfaceModel(null) }
+        assertSame(mns, terrain.withSurfaceModel(mns).surfaceModel)
     }
 
     // ── No data, end to end ─────────────────────────────────────────────────────────────────

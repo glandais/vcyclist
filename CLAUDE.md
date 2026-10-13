@@ -57,6 +57,11 @@ cd demo && npm run dev                   # browser demo, hot reload (rebuilds th
 1. `PointPerDistance(-1, 30)` — densify before DEM lookup
 2. `fixElevation` (optional, needs an `ElevationProvider`)
 3. `PointPerDistance(1, 2)`
+   - **3b.** `BridgeDeckStep` — only after `fixElevation`, and only when the provider carries a
+     surface model (`ign-lidar-hd` at z15): `DeckDetector` + `DeckProfileBuilder` replace each
+     accepted deck by its LiDAR profile; skipped on WASI (one-layer host). A tile read that fails
+     leaves the path as it was (`FETCH_FAILED`, not reported to the user until E7); a defect in
+     detection or building throws
 4. `smoothElevation` (150 m kernel, always) — keeps the pre-smoothing profile in
    `sourceElevation`
 5. `PathCurvature` (writes `trajectoryCurvature`) **or** `RacingLine.compute` when
@@ -92,6 +97,9 @@ diagram, and run a CLI smoke.
   solves it by **bisection** — the map is decreasing, fixed-point iterates oscillate.
 - `MuscularPowerProvider` cuts power past `Bike.maxPedalingLeanAngleDeg`, and fails **open** when
   `radius` is absent — failing closed would zero a whole ride.
+- `ElevationProvider.surfaceModel` (a raw MNS layer) is what turns bridge decks on: only
+  `ElevationSource.IGN_LIDAR_HD.provider()` at its own zoom attaches one; `withSurfaceModel(null)`
+  detaches it. There is no door option yet — `elevation-bridge-decks` E7 decides whether there is.
 - Curvature estimation and the racing line are subtle and were tuned by measurement, not reasoning.
   Read [`docs/guides/racing-line.md`](docs/guides/racing-line.md) and ledger rows R23–R26 before
   touching `engine`'s `trajectory` package or `RacingLine`.

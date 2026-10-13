@@ -8,8 +8,10 @@ package io.github.glandais.elevation
  * **Not a DEM source.** No wire id, no `byId`, absent from [ElevationSource.entries]: no door
  * (`--dem-source`, `demSource`, `vcSetElevationConfig`) can parse one, so a cyclist can never pick
  * the MNS as the ground they ride on — under a canopy it reads the treetops. These layers exist for
- * the bridge-deck detector (`DeckDetector` in `:gpx`), which reads the MNS only where it has
- * established that a deck stands (`docs/tasks/elevation-bridge-decks.md`, *Input 4*).
+ * the bridge decks: [ElevationSource.IGN_LIDAR_HD]'s provider carries the [MNS] as its
+ * [ElevationProvider.surfaceModel], and the enhancer's bridge-deck step (`DeckDetector`,
+ * `DeckProfileBuilder` in `:gpx`) rides the MNS only where it has established that a deck stands
+ * (`docs/tasks/elevation-bridge-decks.md`, *Input 4* and E3).
  *
  * **No fallback, and no-data stays no-data.** A [provider] of a layer answers `NaN` wherever IGN has
  * no data — abroad, at sea, in a survey gap — never Mapterhorn and never 0 m: mixing a Mapterhorn

@@ -95,6 +95,10 @@ fun newElevationProvider(configDto: ElevationProviderConfigDto?): ElevationProvi
             tileSize = configDto?.tileSize ?: base.tileSize,
         )
     val primary = ElevationProvider(cfg)
+    // No surface model, unlike `ElevationSource.provider()` and the JVM factory: this provider only
+    // serves the demo's elevation explorer (point lookups never read the surface), and the JS engine
+    // builds its own through `ElevationSource.provider()`. If a provider ever crosses into
+    // `enhance`, attach one here — `docs/tasks/elevation-bridge-decks.md`, E7.
     return source.fallback?.let { primary.withFallback(it.provider()) } ?: primary
 }
 

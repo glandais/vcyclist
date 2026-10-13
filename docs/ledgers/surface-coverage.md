@@ -193,7 +193,10 @@ Légende : ✅ atteignable · ⚠️ partiel (la note dit en quoi) · ❌ absent
     IGN `-9999` y lit 0 m. Java : `ElevationProviderJvm.newElevationProvider(ElevationSource)`,
     puis `EnhancerJvm.enhanceCourseDefaultAsync(path, provider)`. Démo : la source sous « Fix
     Elevation » dans l'onglet d'enrichissement, et un sélecteur dans l'explorateur d'altitude,
-    attribution affichée (`elevationAttribution`).
+    attribution affichée (`elevationAttribution`). **Tabliers de pont** (`elevation-bridge-decks`,
+    E3) : `ign-lidar-hd` au zoom 15 porte le MNS comme `surfaceModel`, et le pipeline y remplace
+    chaque tablier détecté — sur toutes les portes sauf WASI, dont l'hôte ne sert qu'une couche
+    (ligne propre : E7 ; l'écart est écrit dans `wasm-wasi-abi.md`, § `vcSetElevationConfig`).
 
 [^bridge]: **Refermé en S5.** `ElevationProvider` a trois membres `suspend` et seuls deux avaient
     des ponts `Blocking`/`Async` ; celui qui manquait était justement le seul à cinq paramètres par

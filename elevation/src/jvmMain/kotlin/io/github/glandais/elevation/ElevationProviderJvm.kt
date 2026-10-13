@@ -58,11 +58,17 @@ fun newElevationProvider(config: ElevationProviderConfig): ElevationProvider = E
 /**
  * The provider for a catalogued [source] — its fallback chained behind it — at the source's own
  * zoom. `newElevationProvider(ElevationSource.IGN_LIDAR_HD)` is IGN LiDAR HD over France with
- * Mapterhorn wherever IGN has no data.
+ * Mapterhorn wherever IGN has no data, and — at zoom 15 only — IGN's MNS attached as its
+ * [ElevationProvider.surfaceModel]: one more tile per terrain tile, and bridge decks ridden instead
+ * of the valley when the provider is handed to the enhancer (`EnhancerJvm`). Detach it with
+ * `withSurfaceModel(null)`. See [ElevationSource.provider].
  */
 fun newElevationProvider(source: ElevationSource): ElevationProvider = source.provider()
 
-/** Same, at [zoomLevel] for the source itself; the fallback keeps its own default zoom. */
+/**
+ * Same, at [zoomLevel] for the source itself; the fallback keeps its own default zoom. The surface
+ * model is attached only when [zoomLevel] is IGN's 15, the zoom the deck detector was calibrated at.
+ */
 fun newElevationProvider(
     source: ElevationSource,
     zoomLevel: Int,

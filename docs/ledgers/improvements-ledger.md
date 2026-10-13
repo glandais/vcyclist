@@ -80,6 +80,7 @@ deliberately skipped. The matrix lives in
 | R28 | **Elevation smoothing scale as an option** | **High (measured, 17 % on a switchback climb)** | Low | ✅ (default unchanged) |
 | R29 | DEM road-snapping corridor (Strava's basemap idea) | **None (measured)** | High | ❌ |
 | R30 | DEM zoom above 12 | Negligible (measured) | Very low | ❌ (door shipped) |
+| R31 | **Bridge decks from the LiDAR HD surface model** | **High (measured: Saint-Nazaire 65.8 → 0.5 m)** | Medium | ✅ (`ign-lidar-hd` z15, automatic; no door option) |
 
 Recommended order if acted on: ~~R15 → R12 → R9 → R17 → R10 → R18 → R16 → R11 → R19 → R23 → R24~~ —
 **all shipped**. Left: **R14** (posture CdA) and **R20** (RPE / Hazard Score), both deferred on
@@ -1216,6 +1217,51 @@ That is the failure mode Strava's own documentation admits ("in some regions the
 elevation basemap data is poor, resulting in inflated elevation totals"), and it is a far larger
 error than anything R27 or R30 addresses. R29 attacked it and failed: the recorded line is already
 the smoothest place in its own corridor, so the gap is the model rather than where it is sampled.
+
+### R31 — Bridge decks from the LiDAR HD surface model ✅ (automatic with `ign-lidar-hd` at z15)
+
+A terrain model has no bridges: on the four Strava routes of `elevation-bridge-decks` vcyclist rode
+Saint-Nazaire's deck 65.8 m under the road and the Nantes decks 6 to 11.5 m under it, and the
+canyons alone took the Nantes route's dense D+ to 1.52× the truth. `DeckDetector` (`:gpx`) finds
+the decks on the MNS − MNT of IGN's LiDAR HD; `DeckProfileBuilder` builds each deck's profile from
+its clean stations (linear across holes and superstructure, 25 m median, slope cap at
+`maxSlopeP95`), and `BridgeDeckStep` (`:engine`, pipeline step 3b) writes it back between two pins
+on the path's own elevation. No new threshold, no door option: the step runs when the provider
+carries a surface model, which only `ElevationSource.IGN_LIDAR_HD.provider()` at zoom 15 attaches.
+
+**Measured** (`ElevationBenchProbeTest.bench`, `ign-lidar-hd` without → with the surface model):
+
+| Route | Deck `B` src RMS / max | All stations src RMS | D+ `dem` (5 m grid) / truth | Reported D+ / truth | Duration |
+|---|---|---|---|---|---|
+| `test1` Saint-Nazaire | 36.92 / −65.79 → 0.48 / −5.99 m | 21.68 → 0.45 m | 0.74 → 1.08 | 0.17 → 0.82 | 17:34 → 18:21 |
+| `test2` Nantes | 8.69 / −11.54 → 0.77 / −6.19 m | 3.24 → 0.43 m | 1.52 → 0.95 | 0.98 → 0.49 | 44:05 → 44:33 |
+| `test3` Mauves | 7.60 / −8.95 → 0.04 / +0.23 m | 1.98 → 0.77 m | 1.94 → 1.49 | 0.60 → 0.57 | 17:10 → 17:11 |
+| `test4` Vercors | unchanged (Échevis, 25 m, not detected) | 17.29 m | 1.19 | 1.13 | 3:46:39 |
+
+**Detection.** 18 of 21 bridges replaced on these four routes — but they are the **calibration**
+routes the detector was tuned on (the three missed: Pont écluse sud aval, Pont de la Rotonde and
+Échevis). On the held-out series `p09..p17`, judged once, it found **4 of 11 spans, 30 % of the
+deck stations** (Wilson 95 % ≈ 15–65 %), with 0 false positives there as everywhere. The misses
+take three shapes: short bridges (≤ 60 m), long decks under heavy superstructure (truss,
+suspension: `ROUGH`), and a long arch rejected as too steep (Pont-Saint-Esprit, `STEEP` 10.5 %).
+
+**Profile.** Saint-Nazaire's top at 63.67 m against 63.68 m; its `sourceElevation` — the profile
+*before* the 150 m smoothing, which `ElevationGain` reads — is 0.54 m off at worst. What the physics
+rides is the smoothed `elevation`, and the kernel now spreads each deck onto its approaches: up to
+**+9.29 m** above the truth on `test1` and +5.23 m on `test2` (all stations), pending E5. The two
+`B` maxima that stay large are bridges the detector misses (Pont écluse sud aval, Pont de la
+Rotonde). Four Nantes decks miss the spec's 2 m target (2.6–4.8 m), each at its last deck station,
+where the profile ramps down to the end pin. The reported D+ of `test2` falls to 0.49 because
+`PathSimplifier` drops the deck ramps (E1 already saw it eat `test1`'s); that is E5's.
+`sample.gpx`: +0.04 % reported D+, −0.01 % duration, nine stretches of 25–60 m lifted by 0.1–6 m
+on average.
+
+**Silent failure.** One surface tile that cannot be read drops every deck of the route
+(`FETCH_FAILED`) and the enhancer does not report it: the same command can ride the decks or the
+valley depending on the network and the cache. Surfacing it is E7's.
+
+Full tables, the profile variants that were compared and the held-out run in
+[`../tasks/elevation-bridge-decks.md`](../tasks/elevation-bridge-decks.md), *Mesures (E3)*.
 
 ## G. Cross-cutting notes
 

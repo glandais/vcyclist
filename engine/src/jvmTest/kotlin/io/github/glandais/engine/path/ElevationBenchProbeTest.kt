@@ -46,7 +46,7 @@ import kotlin.test.assertTrue
  * tunnels, Strava shifted onto the MNT frame on balcony spans (where the MNT reads the cliff), LiDAR
  * MNT elsewhere, all NGF-IGN69 — so the E1 bench never calls Overpass or the MNS.
  *
- * Seven tests:
+ * Nine tests:
  * - [truth_files_parse_and_hold_their_guards] runs on every `jvmTest`: it only reads the frozen
  *   files, checks their sizes (so a broken reader fails loudly instead of measuring nothing) and
  *   the spec's guards (Saint-Nazaire at 63.7 m and a 5.9 % slope P95, Grands Goulets 600 → 681 m).
@@ -66,7 +66,13 @@ import kotlin.test.assertTrue
  *   z15 for the 20 controls, 178 BIL tiles (≈ 47 MB). A warm run fetches nothing.
  * - [deckHoldoutJudge] (E2 quinquies) is the only reader of the second held-out series `p09..`
  *   (`holdout2`): gated on `INTEGRATION=1` **and** `DECK_JUDGE=1`, so a plain `INTEGRATION=1` run
- *   of this class never measures it. Print-only; a failure there is reported, never tuned.
+ *   of this class never measures it. Print-only; a failure there is reported, never tuned. Since
+ *   E3 it also prints the deck profile of every region it accepts.
+ * - E3 (the deck step, [BridgeDeckStep]): [bench] gains the `ign -decks` column (E1's
+ *   `ign-lidar-hd`, surface model detached) beside `ign-lidar-hd`, which now replaces decks;
+ *   [deckProfiles] compares the profile variants of the E3 plan region by region on the Strava
+ *   routes and `p01..p08`; [deckSampleGpx] runs `sample.gpx` with and without decks. All three are
+ *   `INTEGRATION=1`; the MNS adds one tile per MNT tile, from the same disk cache.
  *
  *     INTEGRATION=1 ./gradlew :engine:jvmTest --tests '*ElevationBenchProbeTest*' --rerun-tasks -i
  *
@@ -213,9 +219,12 @@ class ElevationBenchProbeTest {
     // ── Matching vcyclist points to the truth ───────────────────────────────────────────────────
 
     /**
-     * Monotone nearest-station matching: a cursor walks the truth, and each output point looks for
-     * its nearest station in a window ahead of it. A global nearest neighbour would jump across
-     * test2's self-crossings (Pont Général Audibert is ridden twice).
+     * Windowed nearest-station matching: a cursor walks the truth, and each output point looks for
+     * its nearest station from 20 stations behind the cursor to 200 ahead. A global nearest
+     * neighbour would jump across test2's self-crossings (Pont Général Audibert is ridden twice).
+     * **Not monotone**: the cursor can step back, so where the route passes back within metres of
+     * itself (test2 near Pont de Bellevue, km 1.00 / 1.22) points of one passage can be matched to
+     * stations of the other.
      */
     private class Matcher(
         private val t: Truth,
@@ -334,17 +343,31 @@ class ElevationBenchProbeTest {
     // ── The bench ───────────────────────────────────────────────────────────────────────────────
 
     private class Run(
-        val source: ElevationSource,
+        /** The column: `mapterhorn`, `ign -decks` (E1's `ign-lidar-hd`) or `ign-lidar-hd` (E3). */
+        val label: String,
         val dense: Path,
-        val full: Path,
-        /** Full run with `simplifyPath` off: the reported D+ before `PathSimplifier`. */
-        val unsimplified: Path,
+        /** D+ reported by a full `EnhanceOptions.DEFAULT` run. */
+        val reportedGainM: Double,
+        /** Same, `simplifyPath` off: the reported D+ before `PathSimplifier`. */
+        val oneHzGainM: Double,
+        /** Simulated duration of the full run. */
+        val durationMs: Double,
         /** Fractional truth index per dense point, NaN where rejected. */
         val match: DoubleArray,
         val rejected: Int,
         /** Median of vcyclist - truth on open terrain: a diagnostic, never subtracted. */
         val openMedianM: Double,
-    )
+        /** Step 3b's status, `null` when the provider carries no surface model. */
+        val deckStatus: BridgeDeckStatus?,
+        val replacements: List<DeckReplacement>,
+        val dropped: Int,
+    ) {
+        /** Whether the deck step's write-back range covers distance [d]. */
+        fun replaced(d: Double): Boolean =
+            replacements.any { rep ->
+                (!rep.pinnedStart || d >= rep.first * STEP_M) && (!rep.pinnedEnd || d <= rep.last * STEP_M)
+            }
+    }
 
     private class Err(
         val n: Int,
@@ -410,8 +433,23 @@ class ElevationBenchProbeTest {
         val structures = readStructures()
         assertEquals(STRUCTURE_COUNTS.values.sum(), structures.size)
         println("[bench] tile cache: ${cacheDir.absolutePath}")
-        val sources = listOf(ElevationSource.MAPTERHORN, ElevationSource.IGN_LIDAR_HD)
-        val providers = sources.associateWith { it.provider(null) { cfg -> cachedFetcher(cfg) } }
+        val ign = { ElevationSource.IGN_LIDAR_HD.provider(null) { cfg -> cachedFetcher(cfg) } }
+        assertNotNull(ign().surfaceModel, "ign-lidar-hd at its default zoom carries the MNS")
+        // E1's columns, then E3's: `ign -decks` is E1's `ign-lidar-hd`, the surface model detached.
+        // Built afresh for each run: three providers' 100-tile caches at once exhaust the test heap
+        // on test4, and the tiles come from disk anyway.
+        val providers: Map<String, () -> io.github.glandais.elevation.ElevationProvider> =
+            linkedMapOf(
+                "mapterhorn" to { ElevationSource.MAPTERHORN.provider(null) { cfg -> cachedFetcher(cfg) } },
+                "ign -decks" to { ign().withSurfaceModel(null) },
+                "ign-lidar-hd" to ign,
+            )
+        var regions = 0
+        val replacedBridges = ArrayList<String>()
+        val notReplaced = ArrayList<String>()
+        val bellevueRegions = ArrayList<Int>()
+        val targets = ArrayList<Pair<String, Boolean>>()
+        val targetLines = ArrayList<String>()
 
         for ((route, rows) in ROUTES) {
             val truth = readTruth(route)
@@ -422,18 +460,40 @@ class ElevationBenchProbeTest {
             val input = GpxParser.parse(File(dataDir, "$route.gpx").readText()).firstTrackAsPath()
 
             val runs =
-                sources.map { source ->
-                    val provider = providers.getValue(source)
+                providers.map { (label, newProvider) ->
+                    val provider = newProvider()
+                    var deck: BridgeDeckResult? = null
                     val dense =
                         runBlocking {
                             var p = PointPerDistance.compute(input, minDistanceM = -1.0, maxDistanceM = 30.0)
                             p = ElevationStep.fixElevation(p, provider)
                             p = PointPerDistance.compute(p, minDistanceM = 1.0, maxDistanceM = 2.0)
+                            // Step 3b, as Enhancer runs it.
+                            provider.surfaceModel?.let { surface ->
+                                val result = BridgeDeckStep.apply(p, provider, surface)
+                                // It moves nothing outside its stretches, bit for bit.
+                                for (i in 0 until p.size) {
+                                    val d = p.distance(i)
+                                    val inside =
+                                        result.replacements.any { rep ->
+                                            (!rep.pinnedStart || d >= rep.first * STEP_M) && (!rep.pinnedEnd || d <= rep.last * STEP_M)
+                                        }
+                                    if (!inside) {
+                                        assertEquals(
+                                            p.elevation(i).toRawBits(),
+                                            result.path.elevation(i).toRawBits(),
+                                            "$route: point $i moved",
+                                        )
+                                    }
+                                }
+                                deck = result
+                                p = result.path
+                            }
                             ElevationStep.smoothElevation(p, EnhanceOptions.DEFAULT.elevationSmoothWindowM)
                         }
                     val full = runBlocking { Enhancer.enhanceCourseDefault(input, provider, EnhanceOptions.DEFAULT) }
                     val noSimplify = EnhanceOptions.DEFAULT.copy(simplifyPath = SimplifyPathOptions(enabled = false))
-                    val unsimplified = runBlocking { Enhancer.enhanceCourseDefault(input, provider, noSimplify) }
+                    val oneHzGain = runBlocking { Enhancer.enhanceCourseDefault(input, provider, noSimplify) }.reportedElevationGain
                     val matcher = Matcher(truth)
                     val match =
                         DoubleArray(dense.size) { i ->
@@ -447,18 +507,120 @@ class ElevationBenchProbeTest {
                             if (truth.kind[k] != 'T' || onStructure[k]) null else dense.sourceElevation(i) - truth.zAt(f)
                         }
                     Run(
-                        source = source,
+                        label = label,
                         dense = dense,
-                        full = full,
-                        unsimplified = unsimplified,
+                        reportedGainM = full.reportedElevationGain,
+                        oneHzGainM = oneHzGain,
+                        durationMs = full.durationMs,
                         match = match,
                         rejected = matcher.rejected,
                         openMedianM = median(open),
+                        deckStatus = deck?.status,
+                        replacements = deck?.replacements ?: emptyList(),
+                        dropped = deck?.dropped?.size ?: 0,
                     )
                 }
             report(route, truth, spans, onStructure, runs)
+            val withDecks = runs.single { it.label == "ign-lidar-hd" }
+            val without = runs.single { it.label == "ign -decks" }
+            reportDecks(route, truth, structures, withDecks)
+            // test4's one bridge, Échevis (25 m), is not detected: NO_DECK there.
+            assertEquals(
+                if (route ==
+                    "test4"
+                ) {
+                    BridgeDeckStatus.NO_DECK
+                } else {
+                    BridgeDeckStatus.APPLIED
+                },
+                withDecks.deckStatus,
+                "$route: deck step",
+            )
+            regions += withDecks.replacements.size
+
+            // Against the same route without a surface model (the E1 column): sourceElevation is
+            // bit-identical outside the stretches, so detaching the surface is E1 exactly.
+            assertEquals(without.dense.size, withDecks.dense.size, "$route: dense sizes")
+            for (i in 0 until withDecks.dense.size) {
+                if (withDecks.replaced(withDecks.dense.distance(i))) continue
+                assertEquals(
+                    without.dense.sourceElevation(i).toRawBits(),
+                    withDecks.dense.sourceElevation(i).toRawBits(),
+                    "$route: sourceElevation of point $i differs from ign -decks",
+                )
+            }
+
+            // Bridges a replaced stretch touches, and the regions each lies in.
+            fun regionsOn(st: Structure): List<DeckReplacement> =
+                withDecks.replacements.filter { rep ->
+                    (0 until withDecks.dense.size).any { i ->
+                        val f = withDecks.match[i]
+                        val d = withDecks.dense.distance(i)
+                        !f.isNaN() && f.roundToInt() in st.i0..st.i1 && d >= rep.first * STEP_M && d <= rep.last * STEP_M
+                    }
+                }
+            for (st in spans.filter { it.kind == "bridge" }) {
+                val on = regionsOn(st)
+                if (on.isNotEmpty()) replacedBridges += "${st.route} ${st.label}" else notReplaced += "${st.route} ${st.label}"
+                if ("Bellevue" in st.name) bellevueRegions += on.map { it.spans.size }
+                // The spec's Validation targets on decks: ≤ 2 m on the Nantes bridges, ≤ 5 m on
+                // Saint-Nazaire (src: what ElevationGain reads).
+                if (st.route == "test2" || "Saint-Nazaire" in st.name) {
+                    val e =
+                        errors(withDecks, truth, { it in st.i0..st.i1 && truth.kind[it] == 'B' }) { withDecks.dense.sourceElevation(it) }
+                    val limit = if (st.route == "test2") 2.0 else 5.0
+                    val ok = abs(e.maxErr) <= limit
+                    targets += "${st.route} ${st.label}" to ok
+                    // Where the worst point lies: metres from the structure's first B station,
+                    // and from its last one.
+                    val bStations = (st.i0..st.i1).filter { truth.kind[it] == 'B' }
+                    var worstAt = Double.NaN
+                    var worst = 0.0
+                    for (i in 0 until withDecks.dense.size) {
+                        val f = withDecks.match[i]
+                        if (f.isNaN() || f.roundToInt() !in bStations) continue
+                        val err = withDecks.dense.sourceElevation(i) - truth.zAt(f)
+                        if (abs(err) > abs(worst)) {
+                            worst = err
+                            worstAt = f
+                        }
+                    }
+                    targetLines +=
+                        "[bench]   %-5s %-28s B rms %5.2f max %+6.2f m at %+.0f m from the first B station, %+.0f m from the last (target ≤ %.0f m) %s%s"
+                            .fmt(
+                                st.route,
+                                st.label,
+                                e.rms,
+                                e.maxErr,
+                                (worstAt - bStations.first()) * STEP_M,
+                                (worstAt - bStations.last()) * STEP_M,
+                                limit,
+                                if (ok) "ok" else "MISSED",
+                                if (on.isNotEmpty()) "" else " (not replaced: the detector does not accept it)",
+                            )
+                }
+            }
+            if (route != "test4") {
+                val ratio = gridDem(withDecks) / ElevationGain.compute(truth.s, truth.z, ElevationGainOptions.DEFAULT).gainM
+                val ok = ratio in 0.8..1.2
+                targets += "$route D+ dem" to ok
+                targetLines += "[bench]   %-5s D+ dem / true %.2f (target 0.80–1.20) %s".fmt(route, ratio, if (ok) "ok" else "MISSED")
+            }
         }
+
         println()
+        println(
+            "[bench] E3: %d regions replaced on the four routes, %d / %d bridges replaced; not replaced: %s; Pont de Bellevue in regions of %s span(s)"
+                .fmt(
+                    regions,
+                    replacedBridges.size,
+                    replacedBridges.size + notReplaced.size,
+                    notReplaced.joinToString(),
+                    bellevueRegions,
+                ),
+        )
+        println("[bench] E3 Validation targets (ign-lidar-hd with decks, src = sourceElevation):")
+        targetLines.forEach(::println)
         println(
             "[bench] tiles: %d from disk, %d fetched (%.1f MB)".fmt(
                 tileHits.get(),
@@ -466,6 +628,71 @@ class ElevationBenchProbeTest {
                 bytesFetched.get() / 1e6,
             ),
         )
+        assertEquals(EXPECTED_DECK_REGIONS, regions, "regions replaced on the four routes")
+        assertEquals(EXPECTED_REPLACED_BRIDGES, replacedBridges.size, "bridges replaced")
+        assertEquals(listOf(2), bellevueRegions, "Pont de Bellevue: its two parts joined into one region")
+        for ((name, ok) in targets) if (name !in TARGETS_MISSED) assertTrue(ok, "Validation target missed: $name")
+        assertEquals(TARGETS_MISSED, targets.filter { !it.second }.map { it.first }.toSet(), "targets missed (reported in the task doc)")
+    }
+
+    /** D+ at the `dem` preset of [r]'s `sourceElevation`, resampled on the 5 m grid like the truth. */
+    private fun gridDem(r: Run): Double {
+        val d = DoubleArray(r.dense.size) { r.dense.distance(it) }
+        val src5 = grid5(d, DoubleArray(r.dense.size) { r.dense.sourceElevation(it) })
+        return ElevationGain.compute(DoubleArray(src5.size) { it * STEP_M }, src5, ElevationGainOptions.DEFAULT).gainM
+    }
+
+    /** E3's block of the bench: the deck step's status and every stretch it replaced. */
+    private fun reportDecks(
+        route: String,
+        truth: Truth,
+        structures: List<Structure>,
+        r: Run,
+    ) {
+        if (r.deckStatus == null) return
+        val onTruth = BooleanArray(truth.size)
+        structures.filter { it.route == route && (it.kind == "bridge" || it.kind == "missed") }.forEach { st ->
+            for (k in st.i0..st.i1) onTruth[k] = true
+        }
+        val outside = HashSet<Int>()
+        for (i in 0 until r.dense.size) {
+            val f = r.match[i]
+            if (!f.isNaN() && r.replaced(r.dense.distance(i)) && !onTruth[f.roundToInt()]) outside += f.roundToInt()
+        }
+        println(
+            "[bench] E3 deck step: %s, %d region(s), %d dropped, %d truth stations replaced outside every bridge (incl. missed OSM bridges)"
+                .fmt(
+                    r.deckStatus,
+                    r.replacements.size,
+                    r.dropped,
+                    outside.size,
+                ),
+        )
+        for (rep in r.replacements) {
+            val st =
+                structures
+                    .filter { it.route == route && (it.kind == "bridge" || it.kind == "missed") }
+                    .filter { s ->
+                        (0 until r.dense.size).any { i ->
+                            val f = r.match[i]
+                            val d = r.dense.distance(i)
+                            !f.isNaN() && f.roundToInt() in s.i0..s.i1 && d >= rep.first * STEP_M && d <= rep.last * STEP_M
+                        }
+                    }.joinToString("; ") { "${it.kind} ${it.label}" }
+                    .ifEmpty { "—" }
+            println(
+                "[bench]   km %6.2f–%6.2f, %d span(s), %3d anchors, anchors km %6.2f–%6.2f, deck top %6.2f m | %s".fmt(
+                    rep.first * STEP_M / 1000,
+                    rep.last * STEP_M / 1000,
+                    rep.spans.size,
+                    rep.anchors.size,
+                    rep.anchorFirst * STEP_M / 1000,
+                    rep.anchorLast * STEP_M / 1000,
+                    (rep.anchorFirst..rep.anchorLast).maxOf { rep.elevationM[it - rep.first] },
+                    st,
+                ),
+            )
+        }
     }
 
     private fun report(
@@ -517,18 +744,18 @@ class ElevationBenchProbeTest {
             val d = DoubleArray(r.dense.size) { r.dense.distance(it) }
             val src = DoubleArray(r.dense.size) { r.dense.sourceElevation(it) }
             val ele = DoubleArray(r.dense.size) { r.dense.elevation(it) }
-            val reported = r.full.reportedElevationGain
-            val oneHz = r.unsimplified.reportedElevationGain
+            val reported = r.reportedGainM
+            val oneHz = r.oneHzGainM
             val src5 = grid5(d, src)
             val s5 = DoubleArray(src5.size) { it * STEP_M }
             val gridDem = ElevationGain.compute(s5, src5, dem).gainM
             val gridRaw = ElevationGain.compute(s5, src5, raw).gainM
             val openErr = errors(r, truth, { truth.kind[it] == 'T' && !onStructure[it] }) { src[it] }
-            val secs = (r.full.durationMs / 1000).roundToInt()
+            val secs = (r.durationMs / 1000).roundToInt()
             println(
                 "$tag %-12s | %6d | %5d | %+7.2f | %7.0f | %5.2f | %7.0f | %5.2f | %7.0f | %5.2f | %7.0f | %5.2f | %2d:%02d:%02d | %8.2f | %7d | %7d"
                     .fmt(
-                        r.source.id,
+                        r.label,
                         r.dense.size,
                         r.rejected,
                         r.openMedianM,
@@ -549,11 +776,28 @@ class ElevationBenchProbeTest {
                     ),
             )
         }
+        // E3: the deck truth (`B`: MNS median on a detected deck) and, apart, the stations under a
+        // deck hole whose truth is the MNT (`b`: Mauves, Saint-Nazaire), which judge nothing.
+        // Every station last, the whole route against its truth.
+        for ((kind, label) in listOf('B' to "deck B", 'b' to "hole b (not judged)", '*' to "all stations")) {
+            if (kind != '*' && truth.kind.none { it == kind }) continue
+            val scope: (Int) -> Boolean = { kind == '*' || truth.kind[it] == kind }
+            println(
+                "$tag %-20s | %s".fmt(
+                    label,
+                    runs.joinToString(" | ") { r ->
+                        val es = errors(r, truth, scope) { r.dense.sourceElevation(it) }
+                        val ee = errors(r, truth, scope) { r.dense.elevation(it) }
+                        "%s: src rms %5.2f max %+7.2f, ele rms %5.2f max %+7.2f".fmt(r.label, es.rms, es.maxErr, ee.rms, ee.maxErr)
+                    },
+                ),
+            )
+        }
         if (spans.isEmpty()) return
         println("$tag structures — err = vcyclist - truth (m), max is the signed worst; src = sourceElevation, ele = 150 m smoothed")
         val head =
             runs.joinToString(" | ") { r ->
-                "%-34s".fmt("${r.source.id}: src max/rms  ele max/rms")
+                "%-34s".fmt("${r.label}: src max/rms  ele max/rms")
             }
         println("$tag %-8s %-28s | %13s | %6s | %7s | %s".fmt("kind", "name", "km", "L", "true max", head))
         for (st in spans) {
@@ -2566,6 +2810,348 @@ class ElevationBenchProbeTest {
         )
     }
 
+    // ── E3: the deck profile ────────────────────────────────────────────────────────────────
+
+    /** Rolling nan-quantile ([q] in 0..1, numpy's linear percentile) over `2·half + 1` stations, clamped. */
+    private fun rollingNanQuantile(
+        x: DoubleArray,
+        half: Int,
+        q: Double,
+    ): DoubleArray =
+        DoubleArray(x.size) { k ->
+            val w = (k - half..k + half).map { x[it.coerceIn(0, x.size - 1)] }.filter { !it.isNaN() }.sorted()
+            if (w.isEmpty()) {
+                Double.NaN
+            } else {
+                val rank = (w.size - 1) * q
+                val lo = floor(rank).toInt()
+                w[lo] + (w[minOf(lo + 1, w.size - 1)] - w[lo]) * (rank - lo)
+            }
+        }
+
+    /** The detector's `clean` (window-max roughness below `maxRoughnessM`), rebuilt from its definition. */
+    private fun cleanStations(
+        p: DeckProfile,
+        o: DeckDetectorOptions,
+    ): BooleanArray {
+        val n = p.size
+        val half = (o.roughnessWindowM / o.stepM).roundToInt() / 2
+        val mf = rollingNanQuantile(p.mnsM, (o.surfaceMedianWindowM / o.stepM).roundToInt() / 2, 0.5)
+        val rough =
+            DoubleArray(n) { k ->
+                sqrt(
+                    (k - half..k + half).sumOf { j -> (p.mnsM[j.coerceIn(0, n - 1)] - mf[j.coerceIn(0, n - 1)]).let { it * it } } /
+                        (2 * half + 1),
+                )
+            }
+        return BooleanArray(n) { k ->
+            val w = (k - half..k + half).map { rough[it.coerceIn(0, n - 1)] }
+            w.none { it.isNaN() } && w.max() < o.maxRoughnessM
+        }
+    }
+
+    /**
+     * A profile of [rep]'s stretch from [deck] on its anchors' span: pinned to the MNT at the pins,
+     * flat to a route end, linear between — what [DeckReplacement.withEnds] does to the code's own.
+     */
+    private fun ramped(
+        rep: DeckReplacement,
+        deck: DoubleArray,
+        mnt: DoubleArray,
+    ): DoubleArray {
+        val z = DoubleArray(rep.last - rep.first + 1) { Double.NaN }
+        for (k in rep.anchorFirst..rep.anchorLast) z[k - rep.first] = deck[k - rep.anchorFirst]
+        if (rep.pinnedStart) z[0] = mnt[rep.first] else for (k in rep.first until rep.anchorFirst) z[k - rep.first] = deck.first()
+        if (rep.pinnedEnd) z[z.size - 1] = mnt[rep.last] else for (k in rep.anchorLast + 1..rep.last) z[k - rep.first] = deck.last()
+        var prev = -1
+        for (j in z.indices) {
+            if (z[j].isNaN()) continue
+            if (prev >= 0) for (m in prev + 1 until j) z[m] = z[prev] + (z[j] - z[prev]) * (m - prev) / (j - prev)
+            prev = j
+        }
+        return z
+    }
+
+    /** The §1.1 variants of the E3 plan on [rep]: R1 raw `mf` on the deck mask, R4 anchors + median, R5 anchors + P25, R8 the code. */
+    private fun deckVariants(
+        p: DeckProfile,
+        rep: DeckReplacement,
+        o: DeckDetectorOptions,
+    ): Map<String, DoubleArray> {
+        val half = (o.surfaceMedianWindowM / o.stepM).roundToInt() / 2
+        val mf = rollingNanQuantile(p.mnsM, half, 0.5)
+        val mask = rep.spans.flatMap { c -> c.deckRanges.flatMap { it.toList() } }.toSet()
+        val r1 =
+            DoubleArray(rep.last - rep.first + 1) { j ->
+                (rep.first + j).let { k ->
+                    if (k in mask &&
+                        !mf[k].isNaN()
+                    ) {
+                        mf[k]
+                    } else {
+                        p.mntM[k]
+                    }
+                }
+            }
+        val u = rep.anchorFirst
+        val v = rep.anchorLast
+        val x = DoubleArray(v - u + 1 + 2 * half) { Double.NaN }
+        for (j in 0 until rep.anchors.size - 1) {
+            val c0 = rep.anchors[j]
+            val c1 = rep.anchors[j + 1]
+            for (k in c0..c1) x[k - u + half] = p.mnsM[c0] + (p.mnsM[c1] - p.mnsM[c0]) * (k - c0) / (c1 - c0)
+        }
+
+        fun anchored(q: Double) = rollingNanQuantile(x, half, q).let { m -> DoubleArray(v - u + 1) { m[it + half] } }
+        return linkedMapOf(
+            "R1 raw mf on mask" to r1,
+            "R4 anchors+median" to ramped(rep, anchored(0.5), p.mntM),
+            "R5 anchors+P25" to ramped(rep, anchored(0.25), p.mntM),
+            "R8 code (cap)" to rep.withEnds(p.mntM[rep.first], p.mntM[rep.last]),
+        )
+    }
+
+    /**
+     * One region of E3, every §1.1 variant: coverage of the deck stations ([deckKind]: `B` on the
+     * Strava routes, `D` on the controls), slope P95 (20 m, the detector's) and max (5 m) on them
+     * inside the anchors' span, the abutment steps (profile at the first / last anchor minus the MNT
+     * at the pin), the deck top, "deck RMS" — RMS of profile − `mf` on the clean deck stations, a
+     * self-consistency check, **not** a truth — and, where [truthZ] exists, RMS / max against it.
+     * Returns the variants' max 5 m slope on the anchors' span, by label.
+     */
+    private fun printRegion(
+        tag: String,
+        id: String,
+        p: DeckProfile,
+        rep: DeckReplacement,
+        kind: CharArray,
+        deckKind: Char,
+        truthZ: DoubleArray?,
+        o: DeckDetectorOptions,
+    ): Map<String, Pair<Double, Double>> {
+        val half = (o.surfaceMedianWindowM / o.stepM).roundToInt() / 2
+        val mf = rollingNanQuantile(p.mnsM, half, 0.5)
+        val clean = cleanStations(p, o)
+        val onDeck = (rep.first..rep.last).filter { kind[it] == deckKind }
+        val deckRuns = runsOf(kind, deckKind).filter { it.first <= rep.last && it.last >= rep.first }
+        val deckAll = deckRuns.sumOf { it.last - it.first + 1 }
+        val inSpan = deckRuns.sumOf { r -> r.count { it in rep.spanFirst..rep.spanLast } }
+        println(
+            "$tag E3 %s km %.2f–%.2f (span %.2f–%.2f, anchors %.2f–%.2f, %d anchors, %d span(s)): %c coverage %d / %d".fmt(
+                id,
+                rep.first * o.stepM / 1000,
+                rep.last * o.stepM / 1000,
+                rep.spanFirst * o.stepM / 1000,
+                rep.spanLast * o.stepM / 1000,
+                rep.anchorFirst * o.stepM / 1000,
+                rep.anchorLast * o.stepM / 1000,
+                rep.anchors.size,
+                rep.spans.size,
+                deckKind,
+                inSpan,
+                deckAll,
+            ),
+        )
+        val out = LinkedHashMap<String, Pair<Double, Double>>()
+        for ((label, z) in deckVariants(p, rep, o)) {
+            fun at(k: Int) = z[k - rep.first]
+            val inner = onDeck.filter { it - 2 >= rep.anchorFirst && it + 2 <= rep.anchorLast }
+            val slopes20 = inner.map { abs(at(it + 2) - at(it - 2)) / (4 * o.stepM) }.sorted()
+            val p95 =
+                if (slopes20.isEmpty()) {
+                    Double.NaN
+                } else {
+                    val rank = (slopes20.size - 1) * 0.95
+                    val lo = floor(rank).toInt()
+                    slopes20[lo] + (slopes20[minOf(lo + 1, slopes20.size - 1)] - slopes20[lo]) * (rank - lo)
+                }
+            val step5 = onDeck.filter { it in rep.anchorFirst until rep.anchorLast }.map { abs(at(it + 1) - at(it)) / o.stepM }
+            val max5 = step5.maxOrNull() ?: Double.NaN
+            val maxAll = (rep.anchorFirst until rep.anchorLast).maxOfOrNull { abs(at(it + 1) - at(it)) / o.stepM } ?: Double.NaN
+            out[label] = max5 to maxAll
+            val cleanDeck = onDeck.filter { clean[it] && !mf[it].isNaN() }
+            val deckRms = sqrt(cleanDeck.sumOf { (at(it) - mf[it]).let { d -> d * d } } / cleanDeck.size.coerceAtLeast(1))
+            val truth =
+                truthZ?.let { tz ->
+                    val e = onDeck.map { at(it) - tz[it] }
+                    val worst = e.maxByOrNull { abs(it) } ?: Double.NaN
+                    " | truth %c rms %5.2f max %+6.2f".fmt(deckKind, sqrt(e.sumOf { it * it } / e.size.coerceAtLeast(1)), worst)
+                } ?: ""
+            println(
+                "$tag     %-18s P95 %5.1f %% max %5.1f %% (all anchors' span %5.1f %%) | abutments %+5.2f / %+5.2f m | top %7.2f | deck RMS %5.2f on %d clean%s"
+                    .fmt(
+                        label,
+                        p95 * 100,
+                        max5 * 100,
+                        maxAll * 100,
+                        at(rep.anchorFirst) - p.mntM[rep.first],
+                        at(rep.anchorLast) - p.mntM[rep.last],
+                        (rep.anchorFirst..rep.anchorLast).maxOf { at(it) },
+                        deckRms,
+                        cleanDeck.size,
+                        truth,
+                    ),
+            )
+        }
+        return out
+    }
+
+    /**
+     * E3, `INTEGRATION=1`: [DeckProfileBuilder] on the variant (a) samples of the Strava routes and
+     * of the tuning controls `p01..p08` (`p09..` dropped before any tile is read, as in
+     * [deckControls]), with the §1.1 variants of the E3 plan side by side. The controls have **no
+     * elevation truth**: their "deck RMS" measures the profile against the raw MNS median on clean
+     * deck stations, a self-consistency check. Asserted: every profile keeps its slope at or under
+     * `maxSlopeP95` between two stations of its anchors' span; Saint-Nazaire's `B` RMS ≤ 0.15 m;
+     * the cap is what bounds Cheviré, Normandie and Millau (their max reaches it).
+     */
+    @Test
+    fun deckProfiles() {
+        if (!enabled || dataDir == null) {
+            println("[profiles] set INTEGRATION=1 (and run from the repository) to measure the E3 deck profiles")
+            return
+        }
+        val tag = "[profiles]"
+        val o = DeckDetectorOptions.DEFAULT
+        val cap = o.maxSlopeP95
+        val structures = readStructures()
+        val (allIndex, controls, _) = readControls()
+        val tuning = allIndex.filter { it.positive && !it.holdout2 }
+        assertEquals(CONTROL_ROLES.getValue("held-out-positive"), tuning.size, "p01..p08")
+        println("$tag tile cache: ${cacheDir.absolutePath}")
+        val maxima = LinkedHashMap<String, List<Map<String, Pair<Double, Double>>>>()
+        var nazaireRms = Double.NaN
+        for ((route, rows) in ROUTES) {
+            val t = readTruth(route)
+            assertEquals(rows, t.size)
+            val p = sampleSurface(route, t.lat, t.lon)
+            val built = DeckProfileBuilder.build(p, DeckDetector.detect(p, o), o)
+            println()
+            println("$tag ═══ $route: %d region(s), %d dropped".fmt(built.replacements.size, built.dropped.size))
+            maxima[route] =
+                built.replacements.map { rep ->
+                    printRegion(tag, route, p, rep, t.kind, 'B', t.z, o).also {
+                        if (structures.any { it.route == route && "Saint-Nazaire" in it.name && it.i0 <= rep.last && it.i1 >= rep.first }) {
+                            val z = rep.withEnds(p.mntM[rep.first], p.mntM[rep.last])
+                            val e = (rep.first..rep.last).filter { t.kind[it] == 'B' }.map { z[it - rep.first] - t.z[it] }
+                            nazaireRms = sqrt(e.sumOf { it * it } / e.size)
+                        }
+                    }
+                }
+        }
+        for (row in tuning) {
+            val c = controls.getValue(row.id)
+            val p = sampleSurface(row.id, c.lat, c.lon)
+            val built = DeckProfileBuilder.build(p, DeckDetector.detect(p, o), o)
+            println()
+            println(
+                "$tag ═══ ${row.id}: %d region(s), %d dropped (no elevation truth: deck RMS is against the raw MNS median)".fmt(
+                    built.replacements.size,
+                    built.dropped.size,
+                ),
+            )
+            maxima[row.id] = built.replacements.map { rep -> printRegion(tag, row.id, p, rep, c.kind, 'D', null, o) }
+        }
+        println()
+        println("$tag Saint-Nazaire B rms (code): %.3f m".fmt(nazaireRms))
+        for ((id, regions) in maxima) {
+            for (m in regions) {
+                val (_, all) = m.getValue("R8 code (cap)")
+                assertTrue(all <= cap + 1e-9, "$id: a slope of ${all * 100} % between two stations of the anchors' span")
+            }
+        }
+        assertTrue(nazaireRms <= 0.15, "Saint-Nazaire B rms $nazaireRms")
+        for (id in listOf("p01-chevire", "p06-normandie", "p07-millau-a75")) {
+            val top = maxima.getValue(id).maxOf { it.getValue("R8 code (cap)").first }
+            assertEquals(cap, top, 1e-9, "$id: the cap bounds the deck")
+        }
+    }
+
+    /**
+     * E3, `INTEGRATION=1`: `sample.gpx` (130 km, the project's reference ride) through
+     * `ign-lidar-hd` with and without its surface model — the spec's Validation asks for the
+     * reported D+ and the simulated duration within 0.5 % off structures, and every difference
+     * explained structure by structure. Printed: each replaced stretch, its length, the deck top
+     * against the terrain it replaces, and the D+ of the dense `sourceElevation` with and without.
+     */
+    @Test
+    fun deckSampleGpx() {
+        if (!enabled || dataDir == null) {
+            println("[sample] set INTEGRATION=1 (and run from the repository) to run sample.gpx with and without decks")
+            return
+        }
+        val tag = "[sample]"
+        val file = File(dataDir.parentFile.parentFile, "gpx/src/commonTest/resources/sample.gpx")
+        val input = GpxParser.parse(file.readText()).firstTrackAsPath()
+        val h0 = tileHits.get()
+        val m0 = tileMisses.get()
+        val results =
+            listOf(false, true).associateWith { decks ->
+                val ign = ElevationSource.IGN_LIDAR_HD.provider(null) { cfg -> cachedFetcher(cfg) }
+                val provider = if (decks) ign else ign.withSurfaceModel(null)
+                runBlocking { Enhancer.enhanceCourseDefault(input, provider, EnhanceOptions.DEFAULT) }
+            }
+        val ign = ElevationSource.IGN_LIDAR_HD.provider(null) { cfg -> cachedFetcher(cfg) }
+        val (pre, deck) =
+            runBlocking {
+                var p = PointPerDistance.compute(input, minDistanceM = -1.0, maxDistanceM = 30.0)
+                p = ElevationStep.fixElevation(p, ign)
+                p = PointPerDistance.compute(p, minDistanceM = 1.0, maxDistanceM = 2.0)
+                p to BridgeDeckStep.apply(p, ign, ign.surfaceModel!!)
+            }
+        val without = results.getValue(false)
+        val with = results.getValue(true)
+        println(
+            "$tag sample.gpx %.1f km | reported D+ %.1f -> %.1f m (%+.2f %%) | duration %.0f -> %.0f s (%+.2f %%) | deck step %s, %d region(s), %d dropped"
+                .fmt(
+                    input.totalDistance / 1000,
+                    without.reportedElevationGain,
+                    with.reportedElevationGain,
+                    100 * (with.reportedElevationGain / without.reportedElevationGain - 1),
+                    without.durationMs / 1000,
+                    with.durationMs / 1000,
+                    100 * (with.durationMs / without.durationMs - 1),
+                    deck.status,
+                    deck.replacements.size,
+                    deck.dropped.size,
+                ),
+        )
+
+        fun denseGain(p: Path): Double {
+            val d = DoubleArray(p.size) { p.distance(it) }
+            val z5 = grid5(d, DoubleArray(p.size) { p.elevation(it) })
+            return ElevationGain.compute(DoubleArray(z5.size) { it * STEP_M }, z5, ElevationGainOptions.DEFAULT).gainM
+        }
+        println("$tag dense profile (5 m grid, dem preset): D+ %.1f -> %.1f m".fmt(denseGain(pre), denseGain(deck.path)))
+        for (rep in deck.replacements) {
+            val idx = (0 until pre.size).filter { pre.distance(it) in rep.first * STEP_M..rep.last * STEP_M }
+            println(
+                "$tag   km %7.2f–%7.2f, %3.0f m, %d span(s), %3d anchors: terrain %6.1f..%6.1f m -> deck %6.1f..%6.1f m, mean lift %+.1f m (%.5f, %.5f)"
+                    .fmt(
+                        rep.first * STEP_M / 1000,
+                        rep.last * STEP_M / 1000,
+                        (rep.last - rep.first) * STEP_M,
+                        rep.spans.size,
+                        rep.anchors.size,
+                        idx.minOf { pre.elevation(it) },
+                        idx.maxOf { pre.elevation(it) },
+                        idx.minOf { deck.path.elevation(it) },
+                        idx.maxOf { deck.path.elevation(it) },
+                        idx.sumOf { deck.path.elevation(it) - pre.elevation(it) } / idx.size,
+                        pre.latitudeDeg(idx[idx.size / 2]),
+                        pre.longitudeDeg(idx[idx.size / 2]),
+                    ),
+            )
+        }
+        println(
+            "$tag tiles: %d from disk, %d fetched in this test (%.1f MB in total)".fmt(
+                tileHits.get() - h0,
+                tileMisses.get() - m0,
+                bytesFetched.get() / 1e6,
+            ),
+        )
+    }
+
     /** Variant (a) of [deckDetector]: MNS − MNT z15, bilinear, one layer after the other. */
     private fun sampleSurface(
         key: String,
@@ -2706,6 +3292,17 @@ class ElevationBenchProbeTest {
                     ),
             )
         }
+        // E3 (added after the E2 quinquies judgement; DEFAULT only): the deck profile of every
+        // region, as deckProfiles prints it. No elevation truth here either.
+        println()
+        println("$tag E3 deck profiles at DEFAULT (no elevation truth: deck RMS is against the raw MNS median)")
+        for (row in judged) {
+            val c = controls.getValue(row.id)
+            val p = profiles.getValue(row.id)
+            val built = DeckProfileBuilder.build(p, DeckDetector.detect(p, DeckDetectorOptions.DEFAULT), DeckDetectorOptions.DEFAULT)
+            println("$tag ═══ ${row.id}: %d region(s), %d dropped".fmt(built.replacements.size, built.dropped.size))
+            for (rep in built.replacements) printRegion(tag, row.id, p, rep, c.kind, 'D', null, DeckDetectorOptions.DEFAULT)
+        }
         println()
         println(
             "$tag tiles: %d from disk, %d fetched (%.1f MB) in this test".fmt(tileHits.get(), tileMisses.get(), bytesFetched.get() / 1e6),
@@ -2716,6 +3313,28 @@ class ElevationBenchProbeTest {
         const val STEP_M = 5.0
         const val MATCH_MAX_M = 30.0
         const val STEEP_GRADE = 0.15
+
+        /** E3: regions the deck step replaces on the four routes (Bellevue's two parts joined). */
+        const val EXPECTED_DECK_REGIONS = 18
+
+        /** E3: bridges of structures.csv that a replaced stretch touches. */
+        const val EXPECTED_REPLACED_BRIDGES = 18
+
+        /**
+         * E3: Validation targets of the spec that the bench misses, reported in the task doc, never
+         * tuned: four Nantes decks whose worst point is the last `B` station, on the ramp down to
+         * the end pin; the Rotonde, which the detector does not accept; and test3's D+, which the
+         * MNT's own station-to-station noise inflates off the bridge (E1, *Limites*).
+         */
+        val TARGETS_MISSED: Set<String> =
+            setOf(
+                "test2 Pont de Pirmil",
+                "test2 Pont Aristide Briand",
+                "test2 way 1287936957",
+                "test2 way 410671587",
+                "test2 Pont de la Rotonde",
+                "test3 D+ dem",
+            )
 
         /** Truth rows per route — the size self-check of the CSV reader. */
         val ROUTES = linkedMapOf("test1" to 2006, "test2" to 4911, "test3" to 2028, "test4" to 22251)

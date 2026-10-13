@@ -29,10 +29,13 @@ enum class ElevationSource(
      * vertically accurate to ~10 cm, served as BIL float32 by the Géoplateforme raster WMS.
      *
      * The terrain model, not the surface one (MNS): the MNS is the top of whatever stands on the
-     * ground, trees and roofs included, and a cyclist rides under the canopy, not over it. One
-     * consequence a cyclist will meet: a terrain model has **no bridges** — a viaduct samples the
-     * valley floor below it. The 150 m smoother does not hide a 50 m dip; see
-     * `docs/guides/elevation.md`.
+     * ground, trees and roofs included, and a cyclist rides under the canopy, not over it. A terrain
+     * model has **no bridges** — a viaduct samples the valley floor below it — so at its default
+     * zoom (15) this source's [provider] also carries IGN's MNS as its
+     * [ElevationProvider.surfaceModel]: the enhancer detects each deck on it and rides the deck's
+     * LiDAR profile instead of the valley (`docs/tasks/elevation-bridge-decks.md`, E3). At any other
+     * zoom, and on WASI, whose host serves one layer only, the viaducts stay on the valley floor;
+     * see `docs/guides/elevation.md`.
      *
      * Falls back to [MAPTERHORN] wherever IGN has no data — abroad, at sea, in a survey gap — so a
      * ride crossing a border is not flattened to 0 m on the far side.
@@ -105,6 +108,10 @@ private fun tileNorthLatitude(
  * [zoomLevel] applies to this source only: the fallback keeps its own default, since a zoom chosen
  * for 1 m LiDAR would ask Mapterhorn for tiles it does not publish.
  *
+ * [ElevationSource.IGN_LIDAR_HD] at its default zoom also carries IGN's MNS as its
+ * [ElevationProvider.surfaceModel], fetched through the same [fetcherFor] (so a disk cache covers it
+ * too): one more tile per terrain tile, read only by the enhancer's bridge-deck step.
+ *
  * @param fetcherFor the fetcher of each tier, given its configuration — so a custom transport (the
  *   CLI's disk cache) decodes each source's bytes with that source's [TileEncoding].
  */
@@ -114,6 +121,12 @@ fun ElevationSource.provider(
 ): ElevationProvider {
     val config = config(zoomLevel)
     val primary = ElevationProvider(config, fetcherFor(config))
-    val next = fallback ?: return primary
-    return primary.withFallback(next.provider(null, fetcherFor))
+    val withFallback = fallback?.let { primary.withFallback(it.provider(null, fetcherFor)) } ?: primary
+    // Decks only at the zoom the detector was calibrated at: at z14 it found 13 of 21 bridges and
+    // 19 stations off them (`elevation-bridge-decks.md`, E2, variant c).
+    return if (this == ElevationSource.IGN_LIDAR_HD && config.zoomLevel == IgnLidarHdLayer.MNS.defaultZoomLevel) {
+        withFallback.withSurfaceModel(IgnLidarHdLayer.MNS.provider(null, fetcherFor))
+    } else {
+        withFallback
+    }
 }

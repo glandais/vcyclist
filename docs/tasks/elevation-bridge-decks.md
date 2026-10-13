@@ -1702,6 +1702,219 @@ L'étape demande un *second* fournisseur (MNS, MNH) à côté du fournisseur de 
 que si la source primaire est `ign-lidar-hd` ou `mapterhorn` sur la France (les deux sont du MNT
 LiDAR). Hors couverture, le MNH répond `-9999` : pas d'ouvrage détecté, rien ne change.
 
+#### Mesures (E3)
+
+**Livré.** `DeckProfileBuilder` (`:gpx`, `commonMain`, pur) construit le profil de chaque tablier
+accepté ; `BridgeDeckStep` (`:engine`, `internal`) l'écrit dans le chemin, en **étape 3b** du
+pipeline : après `PointPerDistance(1, 2)`, avant `smoothElevation`, donc `sourceElevation` — et le
+D+ rapporté — portent le tablier. Aucun seuil nouveau : tout est lu dans `DeckDetectorOptions`.
+Aucune option de porte, aucun champ d'`EnhanceOptions`, aucun `PointField` : l'étape tourne quand
+`fixElevation` est vrai et que le fournisseur porte un **modèle de surface**
+(`ElevationProvider.surfaceModel`, nouveau membre public). Seul
+`ElevationSource.IGN_LIDAR_HD.provider()` à son zoom par défaut (15) en attache un — le MNS, par le
+même `fetcherFor`, donc le cache disque de la CLI et du banc le couvre. CLI et JS (et la démo, par
+son sélecteur de MNT) ont donc les tabliers avec `ign-lidar-hd` ; WASI construit son fournisseur à
+la main, sans surface, et garde les ponts au MNT (décision du 2026-10-13) ; `--dem-zoom 14`,
+Mapterhorn et tout fournisseur fait main n'en ont pas. Une erreur de **lecture de tuile** rend le
+chemin tel quel (`FETCH_FAILED`), jamais un échec de la sortie ; seules les deux lectures (MNT puis
+MNS) sont dans le `try` : détection, construction et écriture n'y sont pas, et un défaut chez elles
+lève au lieu de se faire passer pour une tuile manquante (test). `Enhancer` jette le statut :
+`FETCH_FAILED` n'est signalé à personne — voir *Ce que E7 doit faire*.
+
+L'algorithme est celui du plan : ancres = stations propres (règle du détecteur, extraite en
+`DeckDetector.surfaceState`, sans changement de comportement : `DeckDetectorTest` et la parité
+Python restent verts), dans le masque de tablier, MNS fini ; linéaire entre ancres ; médiane 25 m ;
+plafond de pente à `maxSlopeP95` (10 %) ; rampes linéaires jusqu'à l'altitude du chemin à `a − 1`
+et `b + 1`, profil tenu plat jusqu'à un bout de parcours ; deux spans joints quand moins de
+`mergeGapM` les séparent et que tout l'écart est à plus de `minCanyonDropM` sous la droite entre
+leurs ancres.
+
+**Écarts au plan.**
+
+1. **Le plafond n'est qu'une dilatation.** Avec un cône, la dilatation donne déjà un profil de pente
+   ≤ `maxSlopeP95` ; l'érosion qui la suit et toute l'ouverture sont alors des identités. La
+   « fermeture puis ouverture » du plan vaut donc le plus petit majorant de pente 10 %, et c'est ce
+   qui est codé (`capSlope`, deux passes). Le plafond **ne fait que relever** : il comble une
+   cuvette, et garde un pic propre en le changeant en tente de pente 10 % (test `known limit`). Les
+   chiffres du sondage (sommet de Normandie inchangé, erreur de Saint-Nazaire remontée de −0,42 à
+   −0,35 m) étaient déjà ceux d'un majorant.
+2. `build` rend `DeckProfiles` (remplacements **et** régions écartées, faute de deux ancres), et
+   `DeckReplacement` est une classe simple (tableau dedans) avec `spanFirst/spanLast`, les `anchors`
+   et `withEnds(e0, e1)` qui pose les épingles et remplit les rampes.
+3. `copyAllSlots` n'est ni déplacé ni dupliqué : `Path.copy()` suffit.
+4. **Annulation.** `ElevationCalculator` enveloppe toute exception d'un fetcher, annulation comprise,
+   dans une `IllegalStateException` : l'étape demande donc au job (`ensureActive`) avant de rendre
+   `FETCH_FAILED`, sans quoi une sortie annulée irait au bout.
+5. Banc : un fournisseur neuf par colonne et par itinéraire — trois caches de 100 tuiles à la fois
+   épuisaient le tas de test sur `test4`.
+6. **Ce que garde le `catch`.** Il n'enveloppe que les deux `setElevations` ; le reste passe par
+   `replaceDecks`, hors garde. `apply` prend ce dernier en paramètre (`replace`), une couture pour le
+   seul test qui vérifie qu'une `IllegalStateException` venue de la détection atteint l'appelant.
+
+**Variantes du profil** (`deckProfiles`, `INTEGRATION=1`, échantillonnage (a) aux stations de la
+vérité ; le sondage jetable du plan est reproduit par un test qui se relance). Pente : P95 sur 20 m
+comme le détecteur, max **entre deux stations** (5 m), là où le plafond s'exprime — le sondage lisait
+une autre fenêtre, d'où des max bruts différents (R1, R4), mêmes classements.
+
+| Variante | Saint-Nazaire `B` rms / max | Nantes `B` rms, pire des 14 autres | Bellevue (joint) `B` rms / max | Mauves `B` rms | Cheviré P95 / max | Normandie max / sommet | Millau max | Thouaré P95 / max |
+|---|---|---|---|---|---|---|---|---|
+| R1 `mf` brut sur le masque | 0,09 / −0,56 | 0,67 | 1,35 / −5,56 | 0,04 | 13,0 / 73,7 % | 269,4 % / 92,98 m | 87,4 % | 7,5 / 23,7 % |
+| R4 ancres + médiane | 0,08 / −0,42 | 0,67 | 0,81 / +2,02 | 0,04 | 7,4 / 34,2 % | 26,9 % / 66,84 m | 26,8 % | 7,3 / 24,9 % |
+| R5 ancres + P25 | 0,25 / −1,35 | 0,96 | 0,80 / +1,98 | 0,09 | 7,4 / 35,6 % | 23,5 % / 66,84 m | 26,8 % | 8,4 / 23,7 % |
+| **R8 code (plafond 10 %)** | **0,08 / −0,35** | 0,68 | 0,81 / +2,02 | 0,04 | 7,9 / **10,0 %** | **10,0 %** / 66,84 m | **10,0 %** | 5,8 / 10,0 % |
+
+Asserté : pente ≤ `maxSlopeP95` entre deux stations du span des ancres sur chaque région (18
+Strava, 11 témoins) ; Saint-Nazaire `B` rms 0,082 m ≤ 0,15 ; Cheviré, Normandie et Millau
+plafonnés exactement à 10,0 %. Le plafond n'agit que sur 10 des 29 régions (Bellevue, 362043805,
+30807706, 1287936957, Saint-Nazaire, Cheviré, Thouaré, Normandie, Millau, périphérique `p08`) ;
+ailleurs R8 = R4. « Deck RMS » (profil − `mf` brut sur les stations propres du tablier) va de 0,00
+à 0,40 m (R8) : contrôle de cohérence, **pas une vérité** — les témoins n'ont pas de vérité
+d'altitude, et sur les itinéraires Strava la vérité `B` est elle-même le `mf` brut de `analyze.py`,
+ce qui donne à R1 un avantage de construction : la vérité ne départage médiane et P25 qu'au-delà de
+≈ 0,5 m. Couverture des stations `D` par les spans remplacés : de 93 % (Ancenis, 80 / 86) à 100 %.
+Marches aux culées (profil à la première/dernière ancre − MNT à l'épingle) : −1,55 à +2,57 m, la
+plupart entre +0,0 et +1,3 m.
+
+**Banc E1** (`bench`, colonnes `ign -decks` = l'`ign-lidar-hd` d'E1, MNS détaché, puis
+`ign-lidar-hd` avec tabliers). La colonne `ign -decks` est identique, ligne pour ligne, au banc
+lancé sur `8bac315` le même jour (même cache) ; asserté : hors des tronçons remplacés, chaque point
+garde son altitude et sa `sourceElevation` au bit près.
+
+| Itinéraire | `B` src rms / max (m) | Toutes stations src rms / max (m) | D+ dem / vrai | D+ rep. / vrai | D+ 1 Hz / vrai | D+ raw / vrai | Durée | > 15 % src / ele |
+|---|---|---|---|---|---|---|---|---|
+| test1 avant | 36,92 / −65,79 | 21,68 / −65,79 | 53 / 0,74 | 12 / 0,17 | 52 / 0,73 | 125 / 1,01 | 0:17:34 | 18 / 0 |
+| test1 **après** | **0,48 / −5,99** | **0,45 / −5,99** | **78 / 1,08** | 59 / 0,82 | 78 / 1,08 | 109 / 0,89 | 0:18:21 | 2 / 0 |
+| test2 avant | 8,69 / −11,54 | 3,24 / −11,54 | 136 / 1,52 | 87 / 0,98 | 135 / 1,52 | 225 / 1,26 | 0:44:05 | 48 / 0 |
+| test2 **après** | **0,77 / −6,19** | **0,43 / −6,19** | **85 / 0,95** | 44 / 0,49 | 84 / 0,95 | 180 / 1,01 | 0:44:33 | 0 / 0 |
+| test3 avant | 7,60 / −8,95 | 1,98 / −8,95 | 35 / 1,94 | 11 / 0,60 | 32 / 1,76 | 109 / 0,50 | 0:17:10 | 0 / 0 |
+| test3 **après** | **0,04 / +0,23** | **0,77 / +6,29** | **27 / 1,49** | 10 / 0,57 | 26 / 1,48 | 101 / 0,47 | 0:17:11 | 0 / 0 |
+| test4 avant = après | 4,44 / −6,61 | 17,29 / +220,26 | 2 872 / 1,19 | 2 732 / 1,13 | 2 868 / 1,19 | 3 100 / 1,18 | 3:46:39 | 402 / 236 |
+
+Les stations `b` (vérité = MNT sous un trou du MNS, non jugées) : `test1` 0,46 / −1,97 → 0,44 /
+−1,48 m, `test3` 0,59 / −3,59 → 1,28 / +1,62 m (le profil ponté passe 1,6 m au-dessus de la vérité
+MNT, comme le sondage l'annonçait). Le profil lissé (`ele`) sur toutes les stations : `test1` 21,65
+→ 0,51 m rms, max **+9,29 m** ; `test2` 2,88 → 0,53 m, max +5,23 m : le noyau de 150 m étale
+désormais le tablier sur les rampes d'accès — c'est la question d'E5.
+
+**Par pont** (m, `src` max / RMS sur toute l'emprise de `structures.csv`, culées et stations `b`
+comprises ; avant → après) :
+
+| Pont | Avant | Après |
+|---|---|---|
+| test1 Pont de Saint-Nazaire (D 213) | −65,8 / 36,1 | **−1,5 / 0,1** |
+| test1 way 27013264 | −5,2 / 4,2 | −1,1 / 0,2 |
+| test1 Pont écluse sud aval *(non détecté)* | −6,0 / 4,6 | −6,0 / 4,6 |
+| test2 Pont de Bellevue (2 spans joints) | −10,5 / 8,5 | +1,9 / 0,8 |
+| test2 way 362043805 | −7,3 / 5,9 | −1,3 / 0,7 |
+| test2 Pont Léopold-Sédar-Senghor | −10,5 / 8,9 | −0,5 / 0,2 |
+| test2 Pont Éric Tabarly | −9,8 / 8,7 | −0,6 / 0,1 |
+| test2 Pont Willy-Brandt | −10,5 / 9,2 | −0,4 / 0,1 |
+| test2 Pont Georges Clemenceau | −11,5 / 10,4 | −0,1 / 0,0 |
+| test2 Pont de Pirmil | −11,4 / 10,1 | −4,8 / 0,7 |
+| test2 Pont Aristide Briand | −11,3 / 9,5 | −2,8 / 0,3 |
+| test2 Pont Général Audibert | −10,2 / 8,7 | −1,2 / 0,2 |
+| test2 way 30807706 | −9,0 / 8,3 | +1,0 / 0,6 |
+| test2 Boulevard Victor Schœlcher (Trois Continents) | −10,9 / 8,8 | −1,7 / 0,2 |
+| test2 way 1287936957 | −9,0 / 7,2 | −3,0 / 0,6 |
+| test2 Pont Haudaudine | −10,1 / 8,4 | −1,3 / 0,2 |
+| test2 Pont Général Audibert (2ᵉ) | −7,9 / 6,9 | +0,1 / 0,1 |
+| test2 Pont de la Rotonde *(non détecté)* | −6,2 / 5,1 | −6,2 / 5,1 |
+| test2 way 410671587 | −7,6 / 6,1 | −2,6 / 0,6 |
+| test3 Pont de Mauves-sur-Loire | −8,9 / 6,3 | +1,6 / 0,7 |
+| test4 Pont d'Échevis *(non détecté)* | −6,6 / 4,4 | −6,6 / 4,4 |
+
+18 régions remplacées (2 / 15 / 1 / 0), 18 ponts sur 21 touchés, Bellevue en **une** région de deux
+spans (asserté), aucune région écartée. Stations de vérité remplacées hors de tout pont (pont OSM
+manqué compris) : 2 / 27 / 3 / 0, des culées et rampes. La ligne « missed Pont de Bellevue »
+(km 1,22–1,26) bouge (+4,4 → +5,4 m) sans être remplacée : l'itinéraire y repasse à 0,4 m de sa
+station de km 1,00, et l'appariement du banc — qui n'est **pas** monotone : sa fenêtre part de
+20 stations derrière le curseur, qui peut donc reculer — y envoie des points du tablier. Un
+artefact du banc, pas de l'étape ; le même va-et-vient peut toucher aussi les `B` rms / max de
+Bellevue lui-même, dans les deux colonnes.
+
+**Cibles de la *Validation*** (asserté, les manquées épinglées dans `TARGETS_MISSED`, rien de réglé) :
+
+| Cible | Mesure | Verdict |
+|---|---|---|
+| Saint-Nazaire, erreur max sur `B` ≤ 5 m | −0,54 m (rms 0,08), point haut 63,67 m pour 63,68 | ✅ |
+| Ponts nantais remplacés, erreur max sur `B` ≤ 2 m | 11 sur 15 ; Pirmil −4,83, Aristide Briand −2,83, way 1287936957 −3,04, way 410671587 −2,57 m | ❌ 4 |
+| Pont de la Rotonde ≤ 2 m | −6,19 m, non détecté (E2) | ❌ |
+| D+ dem / vrai dans [0,8 ; 1,2], test1 / test2 / test3 | 1,08 / 0,95 / **1,49** | ❌ test3 |
+| Cheviré ≤ 5 m | pas de vérité d'altitude sur `p01` | non mesurable |
+
+Les quatre ponts nantais manqués le sont **tous à leur dernière station `B`** (à +1 / −3 / +1 / −1 m
+du bout) : la dernière ancre propre précède le bout du tablier, et la rampe vers l'épingle `b + 1`
+y descend déjà. Le RMS sur `B` reste 0,30 à 0,70 m. Corriger demanderait de prolonger le profil
+jusqu'au bout du span avant la rampe : un choix de structure, à décider sur une autre série que
+celle-ci. `test3` : le profil de Mauves est juste (`B` 0,04 m rms) et le D+ dem passe de 1,94 à 1,49 ;
+le reste vient du MNT lui-même hors du pont (le MNT LiDAR seul donne 26 m pour 18 vrais, E1,
+*Limites*) — affaire d'E5.
+
+**Le D+ rapporté de `test2` tombe à 0,49** (44 m pour 89) alors que le profil dense est à 0,95 :
+`PathSimplifier` efface les rampes de pont comme E1 l'avait vu sur `test1` (58 → 12 m). C'est E5
+(lissage, preset et simplification), qui n'est pas bloqué : l'étape 3b ne lit ni le noyau ni le
+preset.
+
+**Smoke CLI** (`enhance docs/deck-strava-data/test1.gpx --fix-elevation --cache build/dem-cache`) :
+
+| `--dem-source` | `<ele>` max | `<ele>` min | Durée | D+ / D− rapportés |
+|---|---|---|---|---|
+| `ign-lidar-hd` | **63,37 m** (le point haut à 63,68 m, après noyau 150 m et simplification) | 2,84 m | 1 101 s | 59 / 61 m |
+| `ign-lidar-hd --dem-zoom 14` | 6,76 m (pas de tablier) | −2,21 m | 1 053 s | 13 / 14 m |
+| `mapterhorn` | 6,54 m | −2,00 m | 1 053 s | 12 / 11 m |
+
+**`sample.gpx`** (`deckSampleGpx`, 130,4 km en Savoie, `EnhanceOptions.DEFAULT`, `ign-lidar-hd` sans
+→ avec MNS) : D+ rapporté 4 552,6 → 4 554,6 m (**+0,04 %**), durée 19 618 → 19 617 s (**−0,01 %**),
+dans la tolérance de 0,5 %. Neuf tronçons remplacés, deux régions écartées (moins de deux ancres),
+tous courts — 25 à 60 m : passages au-dessus de ruisseaux ou de routes, relevés de 0,1 à 6,0 m en
+moyenne (km 1,55 ; 2,75 ; 2,83 ; 19,03 ; 71,17 ; 87,81 ; 95,12 ; 100,95 ; 112,52 ; coordonnées
+imprimées par le test). D+ dense (grille 5 m, preset `dem`) : 4 684,1 → 4 676,8 m. Aucun n'a été
+vérifié sur le terrain.
+
+**Coût.** Une tuile de MNS par tuile de MNT : sur les quatre itinéraires, les 189 tuiles d'E2
+(49,5 MB) ; sur `sample.gpx`, 132 tuiles de plus à froid (≈ 35 MB ; 264 tuiles, 69,2 MB pour MNT
+et MNS ensemble ce jour-là). La relecture du MNT aux stations, en ordre inverse, ne coûte rien sur
+les routes de moins de ≈ 100 tuiles. Banc chaud : 1 273 tuiles lues sur disque, 0 téléchargée.
+
+**Série tenue à l'écart.** `deckHoldoutJudge` a gagné l'impression E3 par région, après que E3 a
+été figé ; **passé une seule fois**, le 2026-10-13 à 17 h 38, sans retouche ensuite. Les verdicts
+du détecteur sont ceux du jugement d'E2 quinquies (DEFAULT 4/11, 235 / 772 = 30 %, 0 FP, 0
+`G`/`O`/`L`). Les quatre régions (Sully, Chalon, Saint-Cloud, Blois) : pente max entre deux
+stations 2,1 à 6,9 %, le plafond n'agit nulle part, R8 = R4 partout, « deck RMS » 0,00 à 0,10 m,
+marches aux culées +0,03 à +1,55 m, aucune région écartée. Sans vérité d'altitude, ce passage ne
+juge que la tenue du profil, pas son exactitude.
+
+**Tests.** `DeckProfileBuilderTest` (12 : canyon plat et rampes, tablier bombé, canopée, trous de
+MNS, cuvette comblée par le plafond, pic propre en tente — `known limit`, jonction Bellevue /
+Saumur / `mergeGapM`, bouts de parcours, moins de deux ancres, toit plat relevé — `known limit`,
+jamais deux tronçons qui se chevauchent — adjacents joints, à une station l'épingle partagée —,
+`capSlope`) ; `BridgeDeckStepTest` (9, tuiles IGN synthétiques : dont un défaut de détection qui
+lève au lieu de `FETCH_FAILED`, et `write` sur un `Path` avec tablier en début et fin de parcours
+— tenu plat au-delà de la dernière station — et deux tabliers à une station l'un de l'autre) ;
+`EnhancerBridgeDeckTest` (4 : dont une tuile MNS illisible qui rend, au bit près, la sortie sans
+modèle de surface) ;
+`ElevationSourceTest` (+4) et `ElevationSourceJavaTest` (+1, `getSurfaceModel()` depuis Java) ;
+`EnhanceCommandTest` cas 32 (CLI hors ligne par `elevationProviderFactory`). Les tests de parité
+des portes ne bougent pas : aucune clé, aucun défaut, aucun export.
+
+**Ce que E7 doit faire.** (1) Décider d'une option `bridgeDecks` (désactivation) ; si oui, toute la
+checklist des six surfaces, défaut dérivé de `provider.surfaceModel != null`, jamais un littéral.
+(2) Une ligne propre dans `surface-coverage.md` — cœur / CLI / JS / JVM / démo ✅ (automatique avec
+`ign-lidar-hd` z15), WASI ❌ ; une note de bas de page l'annonce déjà, et `wasm-wasi-abi.md`
+(§ `vcSetElevationConfig`, « No bridge decks on this door either ») écrit déjà l'écart (pas
+d'argument de couche à `fetch_tile`, décision du 2026-10-13). (3) Peut-être exposer
+`BridgeDeckResult` (statut, tronçons) à la démo, par un drapeau `PointField` ou un scalaire : c'est
+aussi le crochet de provenance dont E5 a besoin. (4) **Signaler `FETCH_FAILED` et `dropped`.**
+Aujourd'hui `Enhancer` jette le statut : une seule tuile MNS refusée (HTTP 400 / 429, cache froid)
+renvoie *tous* les tabliers du parcours au fond de vallée, sans un mot, et la même commande peut
+rendre l'un ou l'autre profil selon le réseau — contraire à la règle de `DiskCachedElevation`
+(« Errors stay loud »). Au minimum un avertissement de la CLI ; mieux, un statut sur le résultat
+d'`enhance`, lu par chaque porte. `EnhancerBridgeDeckTest` épingle déjà la sortie dans ce cas. (5)
+`ElevationJsApi.newElevationProvider` construit son fournisseur à la main, **sans** surface (il ne
+sert que l'explorateur d'altitude), alors que la fabrique JVM `newElevationProvider(ElevationSource)`
+en attache une : si un fournisseur JS doit un jour entrer dans `enhance`, lui attacher le MNS. **E4** réutilise `alongTrackStations` et la
+lecture du MNT aux stations, sans surface, donc aussi sous WASI.
+
 ### E4 — Tunnels, et canyons sans MNS, sur le seul MNT
 
 **Les tunnels ne sont plus optionnels** (*Input 5*) : le LiDAR ne voit pas dedans, aucune couche

@@ -49,7 +49,9 @@ plausible-looking output whose elevations were never corrected (task g34).
 pixel, falling back to Mapterhorn wherever IGN has no data (abroad, at sea). Its WMS tiles land
 under `--cache` as `data.geopf.fr/wms-r/wms/{sha256 of the query}.bil` — the tile is in the query
 string, so the path alone would not tell two apart. A cold 130 km ride is ~130 tiles and ~33 MB,
-paced under IGN's rate limit; the second run is offline. What it is worth, and the bridges a
+paced under IGN's rate limit; the second run is offline. At its default zoom (15) it also reads
+IGN's surface model, one more tile per terrain tile, and rides each bridge deck it detects instead
+of the valley under it (`--dem-zoom 14` turns that off). What it is worth, and the bridges a
 terrain model does not have: [`docs/guides/elevation.md`](../docs/guides/elevation.md#choosing-the-dem-source-ign-lidar-hd).
 
 ### `export` — derived outputs, no physics

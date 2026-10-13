@@ -1,6 +1,7 @@
 package io.github.glandais.engine
 
 import io.github.glandais.elevation.ElevationProvider
+import io.github.glandais.engine.path.BridgeDeckStep
 import io.github.glandais.engine.path.ElevationGain
 import io.github.glandais.engine.path.ElevationStep
 import io.github.glandais.engine.path.Path
@@ -21,24 +22,32 @@ import io.github.glandais.engine.trajectory.RacingLine
  * Top-level enhancement pipeline : transforms a raw GPS [Path] into a physics-aware
  * virtualized ride.
  *
- * Steps (each optional via [EnhanceOptions], except `PointPerDistance` which is always run) :
+ * Steps (each optional via [EnhanceOptions], except `PointPerDistance` which is always run),
+ * numbered as in `CLAUDE.md` :
  * 1. **Pre-fix densify** : `PointPerDistance.compute(path, -1.0, 30.0)` — densifies sparse
  *    paths to at most 30 m between points so that `fixElevation` has enough sample sites at
  *    the DEM tile resolution (~30 m). `minDist=-1` disables the lower bound so no source
  *    waypoint is dropped.
- * 2. fix elevation (Terrarium tiles via [ElevationProvider]) — optional.
+ * 2. fix elevation (DEM tiles via [ElevationProvider]) — optional.
  * 3. **Post-fix refine** : `PointPerDistance.compute(path, 1.0, 2.0)` — refines to 1-2 m
  *    spacing so downstream physics (`MaxSpeedComputer`, `VirtualizeService`) operates on a
  *    dense, regular trace.
- * 4. smooth elevations (always runs).
- * 4b. **curvature**, *or* the **racing line** : both write `trajectoryCurvature`, which step 5
+ *    - **3b. bridge decks** (`BridgeDeckStep`) — only after step 2, and only when the provider
+ *      carries a [surface model][ElevationProvider.surfaceModel] (`ign-lidar-hd` at zoom 15): each
+ *      deck the LiDAR shows replaces the valley floor the terrain model reads under it. On the dense
+ *      path, so a 40 m bridge is not two points; before step 4, so `sourceElevation` carries the
+ *      deck. A tile it cannot read leaves the path as step 3 made it; the status is discarded here
+ *      (reporting it is `elevation-bridge-decks` E7).
+ * 4. smooth elevations (always runs) — keeps the pre-smoothing profile in `sourceElevation`.
+ * 5. **curvature**, *or* the **racing line** : both write `trajectoryCurvature`, which step 6
  *    prefers over its own windowed estimate. The curvature pass is an annotation and moves nothing;
  *    the racing line replaces every coordinate with an optimised trajectory and is off by default.
- * 5. compute max speeds (cornering + braking).
- * 6. virtualize track (time-stepping simulation).
- * 7. resample to 1 Hz.
- * 8. annotate W′ balance (Critical Power model) — writes one field, changes no other.
- * 9. simplify with Douglas-Peucker 3D.
+ * 6. compute max speeds (cornering + braking).
+ * 7. virtualize track (time-stepping simulation).
+ * 8. resample to 1 Hz.
+ * 9. annotate W′ balance (Critical Power model) — writes one field, changes no other.
+ * 10. simplify with Douglas-Peucker 3D.
+ * 11. elevation gain (D+/D− with a dead band) — annotation, reads `sourceElevation`, moves no point.
  *
  * Stateless ; safe for concurrent calls.
  */
@@ -110,21 +119,29 @@ object Enhancer {
         }
         var path = course.path
 
-        // Step 1a : densify before fixElevation so DEM lookups have ~30 m granularity.
+        // Step 1 : densify before fixElevation so DEM lookups have ~30 m granularity.
         path = PointPerDistance.compute(path, minDistanceM = -1.0, maxDistanceM = 30.0)
 
-        // Step 1b : fix elevation (optional). The provider is non-null here — see the require above.
+        // Step 2 : fix elevation (optional). The provider is non-null here — see the require above.
         if (options.fixElevation && elevationProvider != null) {
             path = ElevationStep.fixElevation(path, elevationProvider)
         }
 
-        // Step 1c : refine to 1-2 m spacing before downstream physics.
+        // Step 3 : refine to 1-2 m spacing before downstream physics.
         path = PointPerDistance.compute(path, minDistanceM = 1.0, maxDistanceM = 2.0)
 
-        // Step 1d : smooth elevations (always runs).
+        // Step 3b : bridge decks — only after a DEM correction (a GPX's own <ele>, a barometer's,
+        // is never overwritten), and only when the provider carries a surface model. On the dense
+        // path, before the smoother, so `sourceElevation` and the reported D+ carry the deck.
+        val surface = elevationProvider?.surfaceModel
+        if (options.fixElevation && elevationProvider != null && surface != null) {
+            path = BridgeDeckStep.apply(path, elevationProvider, surface).path
+        }
+
+        // Step 4 : smooth elevations (always runs).
         path = ElevationStep.smoothElevation(path, options.elevationSmoothWindowM)
 
-        // Step 1e : curvature, or the racing line.
+        // Step 5 : curvature, or the racing line.
         //
         // These are alternatives, not a sequence. Both write `trajectoryCurvature`, and the racing
         // line's is the curvature of the line *actually ridden* — which is the one the speed limits
@@ -132,7 +149,7 @@ object Enhancer {
         // overwritten.
         //
         // Placed here because the path is dense and its geometry is final, while `radius` and
-        // `speedMax` are still unwritten, so step 2 consumes whichever ran.
+        // `speedMax` are still unwritten, so step 6 consumes whichever ran.
         val racingLineApplied = options.racingLine.enabled
         if (racingLineApplied) {
             path = RacingLine.compute(path, options.racingLine)
@@ -143,30 +160,30 @@ object Enhancer {
         // Wrap the updated path into a fresh CoursePhysics carrying the new path.
         var working = course.copy(course = course.course.copy(path = path))
 
-        // Step 2 : max speeds (always if virtualize, otherwise optional).
+        // Step 6 : max speeds (always if virtualize, otherwise optional).
         if (options.computeMaxSpeeds || options.virtualizeTrack) {
             MaxSpeedComputer.computeMaxSpeeds(working.course)
         }
 
-        // Step 3 : virtualize.
+        // Step 7 : virtualize.
         if (options.virtualizeTrack) {
             path = VirtualizeService.virtualizeTrack(working)
             working = working.copy(course = working.course.copy(path = path))
         }
 
-        // Step 4 : 1 Hz resample.
+        // Step 8 : 1 Hz resample.
         if (options.computeOnePointPerSecond) {
             path = PointPerSecond.computeOnePointPerSecond(path)
         }
 
-        // Step 4b : W′ balance. Annotation only — reads `pComputedPower`, writes `wPrimeBalance`,
+        // Step 9 : W′ balance. Annotation only — reads `pComputedPower`, writes `wPrimeBalance`,
         // touches nothing else. Runs before simplification so it integrates the full-resolution
         // power trace ; Douglas-Peucker then carries the values it keeps.
         if (options.wPrimeBalance.enabled) {
             WPrimeBalanceComputer.compute(path, options.wPrimeBalance)
         }
 
-        // Step 5 : simplify.
+        // Step 10 : simplify.
         if (options.simplifyPath.enabled) {
             // The racing line lives inside roughly 2.5 m of the centreline, so the default 10 m
             // Douglas-Peucker tolerance would discard the entire deliverable — computed, written,
@@ -185,7 +202,7 @@ object Enhancer {
                 )
         }
 
-        // Step 6 : cumulative ascent with a dead band. Annotation only — writes two cached scalars
+        // Step 11 : cumulative ascent with a dead band. Annotation only — writes two cached scalars
         // on the path and touches no point.
         //
         // Last, after simplification, so the figure describes the file the caller receives:

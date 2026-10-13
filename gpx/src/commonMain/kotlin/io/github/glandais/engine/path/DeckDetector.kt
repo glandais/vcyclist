@@ -116,7 +116,8 @@ data class DeckMetrics(
  *   (Python never measures a rough group)
  * @property rejection `null` when accepted
  * @property deckRanges accepted only: the stations whose road is the deck (`analyze.py`:96-101),
- *   what E3 replaces with the MNS median; the rest of the span stays on the MNT. Empty otherwise.
+ *   where [DeckProfileBuilder] takes its anchors; it replaces the whole span, the stations off the
+ *   mask included (they are filled between anchors). Empty otherwise.
  *   May include a second structure merged into the span within `mergeGapM` (a roof, a footbridge
  *   overhead) that borrows the bridge's canyon: see [DeckDetector], *known limits*.
  */
@@ -217,7 +218,8 @@ data class DeckDetection(
  * share its tall run and its deck mask while the run stays smooth enough on the whole: cutting
  * rough stations off a run's ends, or stopping the extension at them, loses two of Python's bridges
  * (`test2` 285..309 and 4858..4881), whose abutment stations read 0.86 m and 1.07 m of roughness —
- * a real abutment is as rough as a tree line. E3 owns both cases.
+ * a real abutment is as rough as a tree line. E3 ([DeckProfileBuilder]) inherits both: a smooth
+ * roof merged into a deck mask gets anchors there, and the road under it is lifted to its top.
  *
  * **Known limit of the bridged slope.** It masks only rough stations: a sag that is long *and
  * smooth* (Cheviré s 1095–1300, left by edge mixing in the z15 pixel) stays in the slope, and a
@@ -239,16 +241,10 @@ object DeckDetector {
         val mnt = profile.mntM
         val step = options.stepM
         if (n == 0) return DeckDetection(emptyList(), emptyList(), 0)
-        val mnh =
-            if (options.mntAboveMnsAsTall) {
-                val tol = options.mntAboveMnsToleranceM
-                DoubleArray(n) { if (mnt[it] > mns[it] + tol) Double.POSITIVE_INFINITY else profile.mnhM[it] }
-            } else {
-                profile.mnhM
-            }
-
-        val mf = rollingNanMedian(mns, options.surfaceMedianWindowStations / 2)
-        val rough = roughness(mns, mf, options.roughnessWindowStations / 2)
+        val state = surfaceState(profile, options)
+        val mnh = state.mnh
+        val mf = state.mf
+        val rough = state.rough
 
         val tall = BooleanArray(n) { mnh[it] > options.tallMnhM }
         val tallRuns = runs(tall)
@@ -297,10 +293,7 @@ object DeckDetector {
         }
 
         val slope = centredSlope(mf, options.slopeHalfStations, step)
-        val clean =
-            rollingMax(rough, options.roughnessWindowStations / 2).let { m ->
-                BooleanArray(n) { m[it] < options.maxRoughnessM }
-            }
+        val clean = state.clean
 
         fun classify(
             span: IntRange,
@@ -453,6 +446,48 @@ object DeckDetector {
             }
         // Union overlapping or touching windows.
         return mergeRuns(padded, 1)
+    }
+
+    /**
+     * The per-station state [detect] reads, shared with [DeckProfileBuilder] so that "clean" and
+     * the profile mean the same thing in both.
+     *
+     * @property mnh the effective MNH: [DeckProfile.mnhM], with `MNT > MNS + tolerance` read as `+∞`
+     *   when [DeckDetectorOptions.mntAboveMnsAsTall] holds
+     * @property mf rolling nan-median of the MNS over `surfaceMedianWindowM` (step 1)
+     * @property rough RMS of `MNS − mf` over `roughnessWindowM` (step 2), `NaN` where any sample is
+     * @property clean the max of [rough] over the `roughnessWindowM` window centred on the station is
+     *   below `maxRoughnessM` (step 8); `false` wherever that window holds a `NaN`
+     */
+    internal class SurfaceState(
+        val mnh: DoubleArray,
+        val mf: DoubleArray,
+        val rough: DoubleArray,
+        val clean: BooleanArray,
+    )
+
+    /** [SurfaceState] of [profile] under [options]. */
+    internal fun surfaceState(
+        profile: DeckProfile,
+        options: DeckDetectorOptions,
+    ): SurfaceState {
+        val n = profile.size
+        val mns = profile.mnsM
+        val mnt = profile.mntM
+        val mnh =
+            if (options.mntAboveMnsAsTall) {
+                val tol = options.mntAboveMnsToleranceM
+                DoubleArray(n) { if (mnt[it] > mns[it] + tol) Double.POSITIVE_INFINITY else profile.mnhM[it] }
+            } else {
+                profile.mnhM
+            }
+        val mf = rollingNanMedian(mns, options.surfaceMedianWindowStations / 2)
+        val rough = roughness(mns, mf, options.roughnessWindowStations / 2)
+        val clean =
+            rollingMax(rough, options.roughnessWindowStations / 2).let { m ->
+                BooleanArray(n) { m[it] < options.maxRoughnessM }
+            }
+        return SurfaceState(mnh, mf, rough, clean)
     }
 
     // ── Helpers, each pinned by DeckDetectorTest ────────────────────────────────────────────────

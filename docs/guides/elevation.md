@@ -386,10 +386,35 @@ download. Mapterhorn already fuses national models where they exist, which is wh
 its keep is the tail: the 26.6 m point is a road cut into a slope that a 13.5 m post averages with
 the hillside. Pick it for a route on narrow benches and in gorges, not for a valley ride.
 
-**No bridges.** A terrain model is the ground with everything standing on it removed — trees,
-buildings, and *viaducts*. A road over a deep valley samples the valley floor, and a 50 m dip is not
-something the 150 m kernel hides. The surface model (MNS) would keep the bridge, and the tree
-canopy along every forest road with it, so it is deliberately not offered.
+**No bridges — except where the surface model shows one.** A terrain model is the ground with
+everything standing on it removed — trees, buildings, and *viaducts*. A road over a deep valley
+samples the valley floor, and a 50 m dip is not something the 150 m kernel hides. The surface model
+(MNS) keeps the bridge, and the tree canopy along every forest road with it, so it is never offered
+as a DEM source. Instead, `ign-lidar-hd` at its default zoom (15) carries IGN's MNS as its
+`ElevationProvider.surfaceModel`, and the enhancer's bridge-deck step (pipeline step 3b, after the
+1–2 m refinement and before the smoother) reads it only where `DeckDetector` has found a deck:
+smooth, over a canyon of the terrain, not steep. `DeckProfileBuilder` then rides the deck's own
+profile — the MNS at clean deck stations, linear across holes and superstructure, a 25 m median, a
+slope cap at 10 % — ramped back to the terrain at both ends. On Saint-Nazaire, `sourceElevation`
+(the profile before the 150 m smoothing, which the D+ reads) is 0.54 m off its LiDAR truth at worst
+instead of 65.8 m under it, and the route's D+ (`dem` preset, on the 5 m grid) goes from 0.74 to
+1.08 of the truth. The smoothed `elevation` the physics rides is less exact: the kernel spreads each
+deck onto its approaches, up to 9.29 m above the truth on that route (5.23 m on the Nantes one) —
+a question for the smoother, not settled yet.
+
+How many decks it finds depends on which routes you ask. On the four routes the detector was
+calibrated on, 18 bridges of 21; on a held-out series judged once, **4 spans of 11, 30 % of the deck
+stations**, with no false positive on either. Three shapes are mostly missed: short bridges (≤ 60 m),
+long decks under heavy superstructure (truss, suspension), and long arches steeper than its 10 % test
+(Pont-Saint-Esprit). A missed deck is ridden on the valley floor, as before.
+
+It costs one MNS tile per terrain tile (≈ 35 MB more on a cold 130 km ride) and never fails a ride:
+a tile it cannot read leaves the terrain profile as it was — for every deck of the route, and
+without telling you, so the same command can give either profile depending on the network. Not at
+another zoom (the detector was calibrated at 15), not with Mapterhorn, and not on WASI, whose host
+serves one layer. The measurements, and what is left (tunnels, the smoother and the D+ preset,
+reporting a failed read), are in
+[`docs/tasks/elevation-bridge-decks.md`](../tasks/elevation-bridge-decks.md), E1–E3.
 
 **Rate limit.** The Géoplateforme answers HTTP 429 past 40 requests a second per IP, and
 `BatchCalculator` fetches ten tiles at once — a cold run failed on its 51st tile before pacing

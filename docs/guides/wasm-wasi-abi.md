@@ -324,6 +324,12 @@ the module does and can fill them in.
 It is validated on the spot — a tile size that is not a power of two, or a zoom outside 0..15, is
 `-3` right there rather than three calls later — and it is sticky for the instance.
 
+**No bridge decks on this door either.** On the CLI, JS and JVM, `ign-lidar-hd` at zoom 15 also
+reads IGN's surface model (MNS) and rides each bridge deck it detects instead of the valley under
+it. `fetch_tile` names no layer (decision 2026-10-13), so here the viaducts stay on the terrain
+model and the same route reads differently on bridges; see `docs/tasks/elevation-bridge-decks.md`,
+E7.
+
 Default tile URLs, attribution and coverage of the reference DEM are in
 [`elevation/README.md`](../../elevation/README.md#live-http-integration-tests). The host is what talks to that service, so
 its terms of use are the host's to respect.

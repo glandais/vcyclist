@@ -157,7 +157,9 @@ class EnhanceCommand : Callable<Int> {
         description = [
             "DEM used by --fix-elevation: mapterhorn (worldwide, ~13.5 m per pixel at 45N) or",
             "ign-lidar-hd (IGN LiDAR HD terrain model, France only, ~3.4 m per pixel; falls",
-            "back to mapterhorn wherever IGN has no data) (default: \${DEFAULT-VALUE}).",
+            "back to mapterhorn wherever IGN has no data). At its default zoom (15),",
+            "ign-lidar-hd also reads IGN's surface model and rides bridge decks instead of the",
+            "valley under them, one more tile per terrain tile (default: \${DEFAULT-VALUE}).",
         ],
     )
     var demSource: String = ElevationSource.DEFAULT.id

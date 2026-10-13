@@ -19,18 +19,31 @@ class ElevationProvider private constructor(
     val fallback: ElevationProvider?,
     /** With no [fallback]: answer `NaN` on no-data instead of 0 m. Raw IGN layers only. */
     private val keepNoData: Boolean,
+    /**
+     * A raw surface model (MNS) aligned with this terrain, or `null`. Read by one consumer only:
+     * the enhancer's bridge-deck step, which replaces each deck it detects by its LiDAR profile
+     * (`docs/tasks/elevation-bridge-decks.md`, E3). `null` means no decks: the terrain is ridden as
+     * is, viaducts included.
+     *
+     * [ElevationSource.IGN_LIDAR_HD]'s [provider] carries IGN's MNS at its default zoom (15), the
+     * only zoom the detector was calibrated at; every other provider — Mapterhorn, IGN at another
+     * zoom, any hand-built one, hence the WASI host's — carries none. Attach or detach one with
+     * [withSurfaceModel]. Never consulted for an elevation lookup: [getElevation] and
+     * [setElevations] read the terrain only.
+     */
+    val surfaceModel: ElevationProvider?,
 ) {
     constructor(
         config: ElevationProviderConfig = ElevationProviderConfig(),
         fetcher: suspend (String) -> RawTile = defaultTileFetcher(config),
-    ) : this(config, fetcher, null, false)
+    ) : this(config, fetcher, null, false, null)
 
     /** A provider whose no-data points read `NaN`: see [IgnLidarHdLayer.provider], its only caller. */
     internal constructor(
         config: ElevationProviderConfig,
         fetcher: suspend (String) -> RawTile,
         keepNoData: Boolean,
-    ) : this(config, fetcher, null, keepNoData)
+    ) : this(config, fetcher, null, keepNoData, null)
 
     init {
         require(config.zoomLevel in 0..15) {
@@ -72,7 +85,24 @@ class ElevationProvider private constructor(
      */
     fun withFallback(other: ElevationProvider): ElevationProvider {
         require(!keepNoData) { "a raw IGN LiDAR HD layer takes no fallback: its no-data must stay NaN" }
-        return ElevationProvider(config, fetcher, other, false)
+        return ElevationProvider(config, fetcher, other, false, surfaceModel)
+    }
+
+    /**
+     * This provider, carrying [surface] as its [surfaceModel] — or none, when [surface] is `null`
+     * (the bench's "without decks" column, or a caller that wants the bare terrain).
+     *
+     * A new provider with an empty cache, like [withFallback]; the fallback is kept.
+     *
+     * @throws IllegalArgumentException when [surface] is not a raw layer ([IgnLidarHdLayer.provider]):
+     *   the deck step reads its no-data as `NaN`, and a surface with a fallback would invent decks
+     *   at every coverage border; or when this provider is itself a raw layer, which is a surface,
+     *   not a terrain that carries one.
+     */
+    fun withSurfaceModel(surface: ElevationProvider?): ElevationProvider {
+        require(surface == null || surface.keepNoData) { "a surface model must keep its no-data as NaN" }
+        require(!keepNoData) { "a raw IGN LiDAR HD layer carries no surface model" }
+        return ElevationProvider(config, fetcher, fallback, false, surface)
     }
 
     val attribution: Attribution get() = config.attribution
