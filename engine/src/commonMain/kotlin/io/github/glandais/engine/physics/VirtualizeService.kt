@@ -48,6 +48,9 @@ object VirtualizeService {
         if (n == 1) {
             val singleton = Path(1)
             copyAllFields(input, 0, singleton, 0)
+            // Like every other exit of this stage: the stats (bounds, min/max elevation) are not
+            // fields, so a copy of the point without them reports a track at (0, 0), altitude 0.
+            singleton.computeDerivedData()
             return singleton
         }
 

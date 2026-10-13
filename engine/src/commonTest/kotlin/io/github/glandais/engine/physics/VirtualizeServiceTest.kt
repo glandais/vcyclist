@@ -65,6 +65,11 @@ class VirtualizeServiceTest {
         assertEquals(0.123, out.latitude(0), tolMid)
         assertEquals(0.456, out.longitude(0), tolMid)
         assertEquals(200.0, out.elevation(0), tolMid)
+        // The stats are derived too, not left at their reset values.
+        assertEquals(200.0, out.minElevation, tolMid)
+        assertEquals(200.0, out.maxElevation, tolMid)
+        assertEquals(0.123, out.boundsRad.minLat, tolMid)
+        assertEquals(0.456, out.boundsRad.maxLon, tolMid)
     }
 
     // 3 — flat 3-point path : speed(1) > MINIMAL_SPEED and < cyclist.maxSpeedMS

@@ -65,10 +65,27 @@ import kotlin.math.abs
  */
 object Enhancer {
     /**
-     * Step 1's spacing: the widest gap between two points step 2 reads the terrain at. Step 3c's
-     * `refreshM` and the benches that replay the pipeline read it here.
+     * Step 1's spacing, in metres: the widest gap between two points step 2 reads the terrain at
+     * (about a DEM cell). Step 3c's `refreshM` and the benches that replay the pipeline read it here.
      */
-    internal const val PRE_FIX_SPACING_M = 30.0
+    const val PRE_FIX_SPACING_M: Double = 30.0
+
+    /** Smallest spacing of the post-DEM refinement (step 3), in metres: closer points are merged. */
+    const val REFINE_MIN_DISTANCE_M: Double = 1.0
+
+    /** Largest spacing of the post-DEM refinement (step 3), in metres. */
+    const val REFINE_MAX_DISTANCE_M: Double = 2.0
+
+    /**
+     * An upper bound on the points the two densifications turn a path of [size] points and
+     * [distanceM] metres into — what every later step, the simulation included, then iterates
+     * over. The pipeline's cost follows the track's **length**, not its input point count: two
+     * points 100 km apart become some 50 000. A server bounds this before calling [enhanceCourse].
+     */
+    fun densifiedPointBound(
+        size: Int,
+        distanceM: Double,
+    ): Double = size + distanceM / PRE_FIX_SPACING_M + distanceM / REFINE_MAX_DISTANCE_M
 
     /** Build a [CoursePhysics] from [path] using all default-physics providers (ISA rho, no wind). */
     fun getDefaultCourse(path: Path): CoursePhysics =
@@ -157,7 +174,7 @@ object Enhancer {
         }
 
         // Step 3 : refine to 1-2 m spacing before downstream physics.
-        path = PointPerDistance.compute(path, minDistanceM = 1.0, maxDistanceM = 2.0)
+        path = PointPerDistance.compute(path, minDistanceM = REFINE_MIN_DISTANCE_M, maxDistanceM = REFINE_MAX_DISTANCE_M)
 
         // Step 3b : bridge decks — only after a DEM correction (a GPX's own <ele>, a barometer's,
         // is never overwritten), and only when the provider carries a surface model. On the dense
