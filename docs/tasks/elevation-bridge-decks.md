@@ -200,6 +200,11 @@ seuil 0), durée simulée, nombre de points dont la pente dépasse 15 %. Colonne
 
 #### Mesures de référence (E1)
 
+> **Note (2026-10-13).** Mesures à l'ancienne convention des coins. Aux centres
+> (`elevation-half-pixel`), le RMS terrain ouvert de Mapterhorn tombe de 2,63 à 0,58 m (test4) et
+> de 1,68 à 0,66 m (test3) ; IGN test3 monte de 0,59 à 0,78 m — voir `elevation-half-pixel.md` § H4.
+
+
 Banc : `ElevationBenchProbeTest` (`engine/src/jvmTest/.../path/`). La vérité est figée par
 `analysis/export_truth.py` dans `analysis/truth/` : un CSV par itinéraire au pas de 5 m, plus
 `structures.csv` (21 ponts, 4 tunnels, 6 tronçons en balcon, 15 ponts OSM non détectés dont la
@@ -332,6 +337,14 @@ culées. Le taux de faux positifs sur les témoins forestiers est le critère d'
 gain sur les ponts.
 
 #### Mesures (E2)
+
+> **Note (2026-10-13).** Chiffres mesurés à l'ancienne convention des coins (lecture bilinéaire
+> décalée d'un demi-pixel au sud-est). Aux centres (`elevation-half-pixel`) : Strava 14/21, 5 / 5
+> hors vérité, témoins 13/15 à 73 % (1 240 / 1 692), Normandie `STEEP` (P95 propre 41,1 %, 4 %),
+> Cheviré P95 7,4 %, `n13` sans candidat mesuré — voir `elevation-half-pixel.md` § Résultats. Les
+> tables ci-dessous restent valables pour la convention qu'elles décrivent : la variante (a⌐) du
+> banc les reproduit exactement.
+
 
 Livré : `IgnLidarHdLayer` (`:elevation`, couches brutes MNT / MNS / MNH du même WMS, sans id de
 catalogue ni repli : le hors-données reste `NaN`) et `DeckDetector` + `DeckDetectorOptions`
@@ -502,6 +515,14 @@ Les fenêtres couvrent 43 / 43 / 63 / 43 % des stations en z14 (59 / 61 / 64 / 7
   passe de 17,9 km (Python) à 25,2 km en z15, sans fuite en tablier.
 
 #### Témoins (E2 bis)
+
+> **Note (2026-10-13).** Chiffres mesurés à l'ancienne convention des coins (lecture bilinéaire
+> décalée d'un demi-pixel au sud-est). Aux centres (`elevation-half-pixel`) : Strava 14/21, 5 / 5
+> hors vérité, témoins 13/15 à 73 % (1 240 / 1 692), Normandie `STEEP` (P95 propre 41,1 %, 4 %),
+> Cheviré P95 7,4 %, `n13` sans candidat mesuré — voir `elevation-half-pixel.md` § Résultats. Les
+> tables ci-dessous restent valables pour la convention qu'elles décrivent : la variante (a⌐) du
+> banc les reproduit exactement.
+
 
 **Pourquoi.** Le critère d'acceptation de E2 (zéro détection sur des témoins forestiers et urbains)
 n'était pas jugé, faute de témoin. Sur la grille z15 de vcyclist, cinq ponts sont perdus à des
@@ -848,6 +869,14 @@ Les détections hors vérité de `tallMnhM` 3,0 et 2,5 (36 et 37 stations) reste
 
 #### Ponts pentus (E2 ter)
 
+> **Note (2026-10-13).** Chiffres mesurés à l'ancienne convention des coins (lecture bilinéaire
+> décalée d'un demi-pixel au sud-est). Aux centres (`elevation-half-pixel`) : Strava 14/21, 5 / 5
+> hors vérité, témoins 13/15 à 73 % (1 240 / 1 692), Normandie `STEEP` (P95 propre 41,1 %, 4 %),
+> Cheviré P95 7,4 %, `n13` sans candidat mesuré — voir `elevation-half-pixel.md` § Résultats. Les
+> tables ci-dessous restent valables pour la convention qu'elles décrivent : la variante (a⌐) du
+> banc les reproduit exactement.
+
+
 **Pourquoi.** À DEFAULT E2 bis, trois grands ouvrages tenus à l'écart échouent au test de pente :
 Cheviré (`p01`, P95 24,5 %), Normandie (`p06`, travée principale à 35,1 %, seuls les ≈ 300 derniers
 mètres acceptés) et Millau (`p07`, 34,8 %). Leurs tabliers réels ne dépassent pas quelques pour
@@ -1101,6 +1130,14 @@ l'acceptation, et ne départage aucun réglage (voir ci-dessous). Les `p09..` re
 
 #### Vallons boisés et seuils combinés (E2 quater)
 
+> **Note (2026-10-13).** Chiffres mesurés à l'ancienne convention des coins (lecture bilinéaire
+> décalée d'un demi-pixel au sud-est). Aux centres (`elevation-half-pixel`) : Strava 14/21, 5 / 5
+> hors vérité, témoins 13/15 à 73 % (1 240 / 1 692), Normandie `STEEP` (P95 propre 41,1 %, 4 %),
+> Cheviré P95 7,4 %, `n13` sans candidat mesuré — voir `elevation-half-pixel.md` § Résultats. Les
+> tables ci-dessous restent valables pour la convention qu'elles décrivent : la variante (a⌐) du
+> banc les reproduit exactement.
+
+
 **Pourquoi.** Deux questions laissées ouvertes par E2 ter : le pontage accepte-t-il une canopée de
 vallon quand le canyon passe (témoin demandé dans *Témoins E2 ter*) ; et que donnent ensemble
 `mergeGapM` 200 et `surfaceMedianWindowM` 35, les deux variations sans coût du balayage E2 bis,
@@ -1143,6 +1180,11 @@ Les trous entre stations propres touchent le sol : rien n'est ponté, le P95 pon
 (la colonne `onClean true` de la sortie dit seulement que la pente est lue sur le tablier propre).
 Avec `surfaceMedianWindowM` 35, seul ou combiné : P95 43,0 %, `STEEP`. Aucune ligne du balayage ne
 l'accepte, canyon coupé compris (les 2 FP de cette ligne restent ceux de `n04` et `n09`).
+
+> **Note (2026-10-13).** Aux centres de pixel (`elevation-half-pixel`), `n13` ne mesure plus
+> aucun candidat à DEFAULT (seul un `ROUGH` 1 / 0,72 km reste) : il reste négatif mais ne témoigne
+> plus de rien, et le banc le range dans `RAVINES_WITHOUT_WITNESS`. Le canyon coupé donne toujours
+> 2 FP, désormais `n02` et `n04`.
 
 Le candidat est **fragile** : démarré 120 m plus tôt (stations décalées de 0,4 m), le même chemin ne
 donne qu'un groupe `ROUGH` de 0,72 km, rien de mesuré. L'itinéraire commence donc exactement au

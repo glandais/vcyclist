@@ -106,9 +106,11 @@ class ElevationBridgeTest {
                 zoom,
                 tileSize,
             )
+        // Sample i stands for its pixel's centre, i + ½: the bilinear read of the ramp at continuous
+        // position p is the ramp at p − ½ (see ElevationCalculator's pixel convention).
         return rampElevation(
-            pf.tile.x * tileSize + pf.x,
-            pf.tile.y * tileSize + pf.y,
+            pf.tile.x * tileSize + pf.x - 0.5,
+            pf.tile.y * tileSize + pf.y - 0.5,
         )
     }
 

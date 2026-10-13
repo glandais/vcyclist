@@ -1164,6 +1164,16 @@ smoothness term and a `k_i²` prior toward the recorded trace. It must live in `
 and `LocalFrame` are `internal` to the `trajectory` package. Not built — R25 is the precedent for
 writing the measurement down instead.
 
+**Re-measured 2026-10-13, verdict unchanged.** `elevation-half-pixel` moved the bilinear read from
+pixel corners to pixel centres (it had read the terrain 6–7 m south-east of every point at
+Mapterhorn z12). Centre line, `stelvio` 132 m / roughness 0.681, `strava` 722 m / 0.224 — still the
+roughness minimum of the corridor on both. Two figures above no longer hold: the largest single
+change across ±15 m is now 16.5 m (15.1 m with the corner reading the same day; 14 m in the
+original measurement), and on `strava` +5 m / +10 m read slightly *less* D+ than the centre (700 /
+708 m), which was already true of the corner reading on the same day (720 against 728 m) — the
+861 m table above is not reproducible on today's code and tiles. Per-station
+rule: roughness 8.092, D+ 802. Full tables in `docs/tasks/elevation-half-pixel.md` (H4).
+
 ### R30 — DEM zoom above 12 ❌ (the door shipped anyway)
 
 `ElevationProvider` validates `zoomLevel in 0..15`; that is a validation bound, and
@@ -1188,6 +1198,17 @@ default stays at 12 and the row closes.
 The door shipped regardless (`--dem-zoom`, `demZoom`, `vcSetElevationConfig`), because without it
 this table could not have been produced from any surface — the CLI's `--zoom` is `ExportCommand`'s
 *map* zoom and `Enhancer` built its provider with defaults.
+
+**Re-measured 2026-10-13 at pixel centres** (`elevation-half-pixel`), same command, D+ as the CLI
+reports it (`dem` preset): `stelvio` 132 / 130 / 130 /
+130 m, 572 / 568 / 568 / 568 s; `strava` 714 / 728 / 735 / 736 m, 2 945 / 2 944 / 2 945 / 2 945 s.
+1.5 % and 3.0 % of spread on D+, at most 0.7 % on the clock — **verdict unchanged**. The 854 m
+below is not reproducible with today's code and tiles (the corner reading gave 726 m the same day;
+no cause was bisected); today's over-report is 714 m against the barometric stream's 637 m under the
+same preset, about 12 %. The fix itself
+matters more than the zoom: at z12, Mapterhorn's open-terrain RMS against the LiDAR truth falls from
+2.63 to 0.58 m on the Vercors route and from 1.68 to 0.66 m on the Loire one
+(`ElevationBenchProbeTest.bench`).
 
 **A finding worth more than the row.** With `--fix-elevation` on, `strava.gpx` reports **854 m**
 where its own barometric stream measures 634 m — the DEM inflates mountain climbing by **35 %**.

@@ -776,10 +776,13 @@ class ElevationBenchProbeTest {
     }
 
     /**
-     * [stations] moved half a pixel west and north at [zoom] (256 px). `ElevationCalculator`
-     * interpolates with pixel *corners* on the grid (`toPixelFloat` has no `− 0.5`), whereas a WMS
-     * GetMap pixel, and fetch.py's sampler, sit at pixel *centres*: sampling the shifted point with
-     * the corner convention reads what a centre-convention sampler reads at the station.
+     * [stations] moved half a pixel **east and south** at [zoom] (256 px). `ElevationCalculator`
+     * interpolates between pixel *centres* since `elevation-half-pixel`, like a WMS GetMap pixel and
+     * fetch.py's sampler; before it, it read the grid as if each value sat on the pixel's north-west
+     * *corner*, i.e. the terrain half a pixel south-east of the station. Sampling the shifted point
+     * with the corrected calculator reproduces that old corner reading — exactly in Mercator, within
+     * 0.005 px on IGN's EPSG:4326 tiles — so variant (a⌐) is the pre-fix (a), kept as the point of
+     * comparison.
      */
     private fun halfPixelShift(
         stations: List<io.github.glandais.elevation.LatLon>,
@@ -788,8 +791,8 @@ class ElevationBenchProbeTest {
         val world = (1 shl zoom) * 256.0
         return stations.map { p ->
             val lat = p.latitude * MathConstants.DEG_TO_RAD
-            val x = (p.longitude + 180.0) / 360.0 * world - 0.5
-            val y = (1.0 - kotlin.math.ln(kotlin.math.tan(lat) + 1.0 / cos(lat)) / Math.PI) / 2.0 * world - 0.5
+            val x = (p.longitude + 180.0) / 360.0 * world + 0.5
+            val y = (1.0 - kotlin.math.ln(kotlin.math.tan(lat) + 1.0 / cos(lat)) / Math.PI) / 2.0 * world + 0.5
             io.github.glandais.elevation.LatLon(
                 kotlin.math.atan(kotlin.math.sinh(Math.PI * (1.0 - 2.0 * y / world))) / MathConstants.DEG_TO_RAD,
                 x / world * 360.0 - 180.0,
@@ -919,7 +922,7 @@ class ElevationBenchProbeTest {
             listOf(
                 Variant("py", "python's own samples"),
                 Variant("a", "MNS-MNT z15 (parity)"),
-                Variant("a½", "idem, pixel centres"),
+                Variant("a⌐", "idem, old corner convention"),
                 Variant("b", "MNH z15"),
                 Variant("c", "MNH z14"),
                 Variant("d", "MNH z13"),
@@ -971,9 +974,9 @@ class ElevationBenchProbeTest {
             byVariant["a"] = parity
             run {
                 val shifted = halfPixelShift(stations, 15)
-                val mntC = sampleLayer(route, "MNT z15 (centres)", shifted, IgnLidarHdLayer.MNT.provider(15) { countingFetcher(it) })
-                val mnsC = sampleLayer(route, "MNS z15 (centres)", shifted, IgnLidarHdLayer.MNS.provider(15) { countingFetcher(it) })
-                byVariant["a½"] = DeckProfile.fromSurface(mnsC, mntC)
+                val mntC = sampleLayer(route, "MNT z15 (corners)", shifted, IgnLidarHdLayer.MNT.provider(15) { countingFetcher(it) })
+                val mnsC = sampleLayer(route, "MNS z15 (corners)", shifted, IgnLidarHdLayer.MNS.provider(15) { countingFetcher(it) })
+                byVariant["a⌐"] = DeckProfile.fromSurface(mnsC, mntC)
             }
             byVariant["b"] = DeckProfile(z.getValue("MNH z15"), mns, mnt)
             byVariant["c"] = DeckProfile(z.getValue("MNH z14"), mns, mnt)
@@ -1404,16 +1407,22 @@ class ElevationBenchProbeTest {
         assertEquals(0, fpByVariant.getValue("py").size, "variant (py) false positives")
         assertEquals(0, fpByVariant.getValue("a").size, "variant (a) false positives")
         // E2 on PYTHON, then E2 ter DEFAULT: no bridge lost, no FP, no new station outside the truth.
+        // Since elevation-half-pixel (pixel centres): 16 -> 14 bridges, 8 / 8 -> 5 / 5 outside the truth;
+        // (a⌐) still reads the old corners and gives the old 16 / 8 / 8. See that task's H3.
         val e2 = scoreStrava(results.getValue("a"), structures)
-        assertEquals(16, e2.found, "variant (a) PYTHON Strava bridges (E2)")
-        assertEquals(8, e2.outSpan, "variant (a) PYTHON stations outside truth, spans (E2)")
-        assertEquals(8, e2.outDeck, "variant (a) PYTHON stations outside truth, deck mask (E2)")
+        assertEquals(14, e2.found, "variant (a) PYTHON Strava bridges (E2)")
+        assertEquals(5, e2.outSpan, "variant (a) PYTHON stations outside truth, spans (E2)")
+        assertEquals(5, e2.outDeck, "variant (a) PYTHON stations outside truth, deck mask (E2)")
+        val corners = scoreStrava(results.getValue("a⌐"), structures)
+        assertEquals(16, corners.found, "variant (a⌐) old corner convention Strava bridges")
+        assertEquals(8, corners.outSpan, "variant (a⌐) old corner convention stations outside truth, spans")
+        assertEquals(8, corners.outDeck, "variant (a⌐) old corner convention stations outside truth, deck mask")
         val e2ter = scoreStrava(results.getValue("ater"), structures)
-        assertEquals(16, e2ter.found, "variant (ater) DEFAULT Strava bridges")
+        assertEquals(14, e2ter.found, "variant (ater) DEFAULT Strava bridges")
         assertEquals(e2.foundKeys, e2ter.foundKeys, "variant (ater) finds the same bridges as (a)")
         assertEquals(0, e2ter.fps.size, "variant (ater) false positives")
-        assertTrue(e2ter.outSpan <= 8, "variant (ater) stations outside truth, spans: ${e2ter.outSpan}")
-        assertTrue(e2ter.outDeck <= 8, "variant (ater) stations outside truth, deck mask: ${e2ter.outDeck}")
+        assertEquals(5, e2ter.outSpan, "variant (ater) stations outside truth, spans")
+        assertEquals(5, e2ter.outDeck, "variant (ater) stations outside truth, deck mask")
         twoPhaseSame.forEach { (key, same) -> assertTrue(same, "two-phase $key differs from the full-MNS run") }
     }
 
@@ -1847,12 +1856,15 @@ class ElevationBenchProbeTest {
      * bilinear, one layer after the other), then a one-at-a-time sensitivity sweep around
      * [DeckDetectorOptions.DEFAULT] — built here with `copy`, DEFAULT itself never changes. The sweep
      * is printed, not asserted: a probe must not go red on a finding. Asserted: data integrity, tile
-     * counts, that the extracted Strava scoring reproduces E2 on [DeckDetectorOptions.PYTHON] (16/21,
-     * FP 0, 8 / 8 stations) and that DEFAULT finds the same bridges with no more outside the truth,
+     * counts, that the extracted Strava scoring reproduces E2 on [DeckDetectorOptions.PYTHON] (14/21,
+     * FP 0, 5 / 5 stations at pixel centres — 16/21 and 8 / 8 at the old corner convention) and that
+     * DEFAULT finds the same bridges with the same 5 / 5 outside the truth,
      * and the acceptance criterion at DEFAULT: 0 FP and 0 `G`/`O`/`L` station inside a detection on
      * the 13 negatives, n04's own Pont de la Beaujoire found. E2 ter adds: nothing PYTHON finds is
-     * lost, held-out `D` coverage ≥ 90 %, 13/15 spans, p01/p06/p07 each ≥ 95 % covered, and with the
-     * canyon test off no more `G`/`O`/`L` stations than PYTHON lets through.
+     * lost but Normandie, held-out `D` coverage exactly 1 240 / 1 692 = 73 % (94 % at the corners), 13/15 spans, p01/p07
+     * each ≥ 95 % covered, and with the canyon test off no more `G`/`O`/`L` stations than PYTHON lets
+     * through. Every figure moved by the pixel-centre fix is in `docs/tasks/elevation-half-pixel.md`
+     * (H3).
      */
     @Test
     fun deckControls() {
@@ -1917,18 +1929,19 @@ class ElevationBenchProbeTest {
         val default = DeckDetectorOptions.DEFAULT
         val python = DeckDetectorOptions.PYTHON
         val pyStrava = scoreStrava(strava.mapValues { DeckDetector.detect(it.value, python) }, structures)
-        // The extraction pin: E2's numbers for variant (a), on the E2 bis detector.
-        assertEquals(16, pyStrava.found, "PYTHON Strava bridges (E2)")
+        // The extraction pin: E2's numbers for variant (a), on the E2 bis detector — re-measured at pixel
+        // centres by elevation-half-pixel (H3): 16 -> 14 bridges, 8 / 8 -> 5 / 5.
+        assertEquals(14, pyStrava.found, "PYTHON Strava bridges (E2)")
         assertEquals(0, pyStrava.fps.size, "PYTHON Strava false positives (E2)")
-        assertEquals(8, pyStrava.outSpan, "PYTHON Strava stations outside truth, spans (E2)")
-        assertEquals(8, pyStrava.outDeck, "PYTHON Strava stations outside truth, deck mask (E2)")
+        assertEquals(5, pyStrava.outSpan, "PYTHON Strava stations outside truth, spans (E2)")
+        assertEquals(5, pyStrava.outDeck, "PYTHON Strava stations outside truth, deck mask (E2)")
         // E2 ter DEFAULT: the same bridges, no FP, no new station outside the truth.
         val baseStrava = scoreStrava(strava.mapValues { DeckDetector.detect(it.value, default) }, structures)
-        assertEquals(16, baseStrava.found, "DEFAULT Strava bridges")
+        assertEquals(14, baseStrava.found, "DEFAULT Strava bridges")
         assertEquals(pyStrava.foundKeys, baseStrava.foundKeys, "DEFAULT finds the same Strava bridges as PYTHON")
         assertEquals(0, baseStrava.fps.size, "DEFAULT Strava false positives")
-        assertTrue(baseStrava.outSpan <= 8, "DEFAULT Strava stations outside truth, spans: ${baseStrava.outSpan}")
-        assertTrue(baseStrava.outDeck <= 8, "DEFAULT Strava stations outside truth, deck mask: ${baseStrava.outDeck}")
+        assertEquals(5, baseStrava.outSpan, "DEFAULT Strava stations outside truth, spans")
+        assertEquals(5, baseStrava.outDeck, "DEFAULT Strava stations outside truth, deck mask")
 
         // ── DEFAULT, per control ──────────────────────────────────────────────────────────────
         println()
@@ -2141,7 +2154,9 @@ class ElevationBenchProbeTest {
             scores.getValue("n04-nantes-periph-nord").ownFound.any { "Beaujoire" in it.name },
             "DEFAULT finds n04's own Pont de la Beaujoire",
         )
-        // E2 ter: nothing PYTHON finds is lost, and the three steep bridges are covered.
+        // E2 ter: nothing PYTHON finds is lost, and the steep bridges are covered — except Normandie,
+        // which DEFAULT loses at pixel centres (P95 6.5 -> 41.1 %, elevation-half-pixel H3). Pinned as
+        // an equality, so recovering it fails here too: that is news to write down, not a defect.
         val pyScores =
             scored.associate {
                 it.id to
@@ -2149,7 +2164,11 @@ class ElevationBenchProbeTest {
             }
         for (r in scored) {
             val lost = pyScores.getValue(r.id).dFound - scores.getValue(r.id).dFound.toSet()
-            assertTrue(lost.isEmpty(), "${r.id}: DEFAULT loses PYTHON's ${lost.map { it.name }}")
+            assertEquals(
+                LOST_AT_CENTRES[r.id].orEmpty(),
+                lost.map { it.name },
+                "${r.id}: DEFAULT loses PYTHON's ${lost.map { it.name }}",
+            )
             val ownLost = pyScores.getValue(r.id).ownFound - scores.getValue(r.id).ownFound.toSet()
             assertTrue(ownLost.isEmpty(), "${r.id}: DEFAULT loses PYTHON's own bridge ${ownLost.map { it.name }}")
         }
@@ -2181,12 +2200,19 @@ class ElevationBenchProbeTest {
                 ),
             )
         }
-        assertTrue(100.0 * dIn / dAll >= 90.0, "DEFAULT D coverage on the held-out positives: $dIn / $dAll")
+        // 94 % at the old corner convention; 73 % at pixel centres, Normandie's 2 150 m deck being the
+        // difference (elevation-half-pixel H3). An equality, so a move either way shows.
+        assertEquals(1240 to 1692, dIn to dAll, "DEFAULT D coverage on the held-out positives (73 %)")
         assertEquals(13, poss.sumOf { scores.getValue(it.id).dFound.size }, "DEFAULT held-out spans found")
-        for (id in listOf("p01-chevire", "p06-normandie", "p07-millau-a75")) {
+        for (id in listOf("p01-chevire", "p07-millau-a75")) {
             val sc = scores.getValue(id)
             assertTrue(100.0 * sc.dInSpan / sc.dStations >= 95.0, "$id D coverage: ${sc.dInSpan} / ${sc.dStations}")
         }
+        assertEquals(
+            listOf("Pont de Normandie"),
+            scores.getValue("p06-normandie").let { sc -> (sc.dSpans - sc.dFound.toSet()).map { it.name } },
+            "p06-normandie: the span DEFAULT misses at pixel centres",
+        )
 
         // ── Sensitivity: one variation at a time ──────────────────────────────────────────────
         val settings: List<Pair<String, DeckDetectorOptions>> =
@@ -2481,17 +2507,25 @@ class ElevationBenchProbeTest {
                 }
                 // A ravine negative is only a witness while DEFAULT still measures a candidate past
                 // the canyon test on it: if the candidate vanishes (it is fragile, see the task doc),
-                // 0 FP / 0 G/O/L above would pass on nothing.
+                // 0 FP / 0 G/O/L above would pass on nothing. At pixel centres n13's candidate did
+                // vanish (elevation-half-pixel H3): pinned as such, so its return is seen too.
                 if (label == "DEFAULT") {
                     val witnesses = s.measured.filter { it.metrics!!.mntDropM > o.minCanyonDropM }
-                    assertTrue(
-                        witnesses.isNotEmpty(),
-                        "${r.id}: no candidate past the canyon test at DEFAULT, the ravine negative tests nothing",
-                    )
-                    assertTrue(
-                        witnesses.any { tallRunsIn(p, it, o) >= 2 },
-                        "${r.id}: no measured candidate merges two tall runs at DEFAULT",
-                    )
+                    if (r.id in RAVINES_WITHOUT_WITNESS) {
+                        assertTrue(
+                            witnesses.isEmpty(),
+                            "${r.id}: a candidate past the canyon test is back at DEFAULT — re-read elevation-half-pixel H3",
+                        )
+                    } else {
+                        assertTrue(
+                            witnesses.isNotEmpty(),
+                            "${r.id}: no candidate past the canyon test at DEFAULT, the ravine negative tests nothing",
+                        )
+                        assertTrue(
+                            witnesses.any { tallRunsIn(p, it, o) >= 2 },
+                            "${r.id}: no measured candidate merges two tall runs at DEFAULT",
+                        )
+                    }
                 }
             }
         }
@@ -2548,6 +2582,16 @@ class ElevationBenchProbeTest {
          */
         const val RAVINE_CATEGORY = "ravine-merged-tall-runs"
         const val RAVINE_NEGATIVES = 1
+
+        /**
+         * Ravine negatives on which DEFAULT no longer measures any candidate past the canyon test since
+         * the bilinear read moved to pixel centres (elevation-half-pixel H3): still negative, but no
+         * longer a witness of anything. A new ravine witness is the way to restore the guard.
+         */
+        val RAVINES_WITHOUT_WITNESS = setOf("n13-morlaix-pennele")
+
+        /** Held-out D spans that PYTHON finds and DEFAULT loses, at pixel centres (elevation-half-pixel H3). */
+        val LOST_AT_CENTRES = mapOf("p06-normandie" to listOf("Pont de Normandie"))
 
         /** `index.csv` rows per role — the size self-check of its reader. */
         val CONTROL_ROLES = mapOf("negative" to 13, "held-out-positive" to 8)

@@ -17,10 +17,22 @@ the open work.
 vcyclist has **no barometric source and no community basemap**. Every corrected altitude is a
 lookup into a public digital elevation model — Terrarium-encoded WebP tiles, by default
 `tiles.mapterhorn.com` at zoom 12 with 512-px tiles, bilinearly interpolated
-(`ElevationCalculator.getInterpolatedElevation`). A neighbour post that falls in the next tile is
-read from that tile; at the edge of the world — within one pixel of longitude 180° or of the
-southern Web-Mercator limit — there is no next tile, and `ElevationFunctions.normalizePixel` clamps
-it to the edge post. Longitude does not wrap across the antimeridian.
+(`ElevationCalculator.getInterpolatedElevation`).
+
+**A pixel's value is the terrain at the pixel's centre**, and the interpolation runs between
+centres. Every source read here defines it that way: a WMS `GetMap` `BBOX` names the outer edges of
+the image (IGN LiDAR HD), and Mapterhorn and the historical Terrarium tiles are GDAL warps whose
+grid origin is the tile's corner and whose values are computed at cell centres. At a pixel's exact
+centre the bilinear read is that pixel alone — the same pixel `interpolation = false` returns. Until
+`elevation-half-pixel` the calculator put each value on its pixel's north-west *corner* instead, so
+every altitude was the terrain half a pixel south-east of the point: 6–7 m per axis at Mapterhorn
+z12, 1.6 m at IGN z15. The before/after figures are in that task document.
+
+A neighbour post that falls in the next tile — east or south in the eastern / southern half of a
+pixel, west or north in the other half — is read from that tile; at the edge of the world — within
+half a pixel of longitude ±180° or of either Web-Mercator latitude limit — there is no next tile, and
+`ElevationFunctions.normalizePixel` clamps it to the edge post. Longitude does not wrap across the
+antimeridian.
 
 Ground sampling at that configuration is `156543 · cos(lat) / (2¹² · 2)`:
 
@@ -31,13 +43,14 @@ Ground sampling at that configuration is `156543 · cos(lat) / (2¹² · 2)`:
 | 60° | 9.6 |
 
 One consequence worth stating before any algorithm: the elevation field is a **piecewise-bilinear
-surface over ~13.5 m posts**, so its error is *spatially correlated*, not white — consecutive
+surface over ~13.5 m posts** (one post at each pixel centre), so its error is *spatially correlated*, not white — consecutive
 trackpoints inside one cell interpolate the same four posts, and there is very little
 point-to-point jitter for a dead band to remove. That is why the `dem` preset uses 3 m rather than
 copying Strava's 10 m, which is sized for GPS-altimeter noise vcyclist does not have.
 
 It does **not** follow that a road is indistinguishable from the hillside it is cut into. Measured,
-a ±15 m lateral move changes individual elevations by up to 14 m, and the DEM does resolve the road
+a ±15 m lateral move changes individual elevations by up to 16.5 m (15.1 m with the old corner
+reading the same day), and the DEM does resolve the road
 corridor well enough that the recorded line is the smoothest place in it — see
 [Snapping to the road](#snapping-to-the-road-measured-and-it-does-not-work).
 
@@ -208,22 +221,28 @@ nothing here distinguishes them without ground truth, which is why the default h
 
 ## What the DEM costs
 
-With `--fix-elevation` on, `strava.gpx` reports **854 m** where the ride's own barometric stream
-measures 634 m. The DEM inflates mountain climbing by **35 %** — the failure mode Strava's
-documentation admits in so many words.
+With `--fix-elevation` on, `strava.gpx` reports **714 m** (z12, `dem` preset, pixel centres) where
+the ride's own barometric `<ele>` stream, measured with the same preset, gives **637 m**. The DEM
+inflates mountain climbing by about **12 %** — the failure mode Strava's documentation admits in so
+many words. When ledger row R30 was first measured, on 2026-08-18, the CLI printed 854 m against the
+barometric 634 m, a 35 % inflation; that figure is not reproducible with today's code and tiles —
+the old corner reading gave 726 m on 2026-10-13.
 
 It is not a resolution problem. `tiles.mapterhorn.com` serves z13, z14 and z15 (its `tiles.json`
 declares no `maxzoom`), and the answers barely move:
 
 | Fixture | z12 | z13 | z14 | z15 |
 |---|---|---|---|---|
-| `stelvio` D+ | 131 m | 130 m | 130 m | 130 m |
-| `stelvio` duration | 568 s | 568 s | 568 s | 568 s |
-| `strava` D+ | 854 m | — | 851 m | — |
+| `stelvio` D+ | 132 m | 130 m | 130 m | 130 m |
+| `stelvio` duration | 572 s | 568 s | 568 s | 568 s |
+| `strava` D+ | 714 m | 728 m | 735 m | 736 m |
+| `strava` duration | 2 945 s | 2 944 s | 2 945 s | 2 945 s |
 
-0.8 % of spread on D+, none on the clock. Zoom 12 is at the source's native posting in both
-regions; deeper zooms cost four times the tiles for interpolation ripple. If the 35 % is not
-sampling density, it is either the model or *where along the road it is sampled* — which is what
+Re-measured on 2026-10-13 at pixel centres (`--fix-elevation --dem-zoom Z --no-simplify`, D+ as
+the CLI reports it, `dem` preset). 1.5 % of spread on D+ on `stelvio`, 3.0 % on `strava`, at most
+0.7 % on the clock; the corner reading gave 1 % and 2 % the same day. Zoom 12 is at the source's native posting in both
+regions; deeper zooms cost four times the tiles for interpolation ripple. If the remaining
+over-report is not sampling density, it is either the model or *where along the road it is sampled* — which is what
 ledger row R29 exists to test.
 
 ## What Strava does
@@ -273,26 +292,34 @@ minimise:
 
 | offset | `stelvio` D+ | `stelvio` roughness | `strava` D+ | `strava` roughness |
 |---|---|---|---|---|
-| −15 m | 189 | 1.494 | 926 | 1.686 |
-| −5 m | 132 | 0.980 | 872 | 0.664 |
-| **0 m** | **131** | **0.873** | **861** | **0.233** |
-| +5 m | 132 | 0.897 | 861 | 0.662 |
-| +15 m | 177 | 1.266 | 899 | 1.671 |
+| −15 m | 184 | 1.369 | 830 | 1.643 |
+| −10 m | 156 | 1.042 | 796 | 1.126 |
+| −5 m | 131 | 0.808 | 759 | 0.627 |
+| **0 m** | **132** | **0.681** | **722** | **0.224** |
+| +5 m | 133 | 0.746 | 700 | 0.600 |
+| +10 m | 154 | 0.941 | 708 | 1.052 |
+| +15 m | 179 | 1.185 | 732 | 1.536 |
+
+Measured on 2026-10-13, pixel-centre reading (`elevation-half-pixel`). The first measurement is
+not reproducible on today's code and tiles: `strava` read 861 m at the centre then, 728 m with the
+old corner reading on the same day as this table.
 
 **The recorded line is already the roughness minimum of its own corridor**, on both fixtures, and
 roughness rises near-symmetrically with `|offset|`. A snapper has nowhere better to go — it would
-return the centre everywhere. D+ rises with `|offset|` too, so every lateral move makes both numbers
-worse. Ledger row **R29** closes as a measured ❌.
+return the centre everywhere. Ledger row **R29** closes as a measured ❌. D+ mostly rises with
+`|offset|` too, with one exception: on `strava`, +5 m and +10 m read a few percent *less* climbing
+than the centre (700 and 708 m against 722 m) — and they are rougher, so a snapper would not go
+there either.
 
-The corollary matters more than the row: **the 35 % over-report above is not a registration
-error.** No point in the corridor is closer to the barometric 634 m than the centre's 861 m — they
-are all further away. It is the model, or the scale at which a 30 m DEM can represent a graded road
+The corollary matters more than the row: **the over-report above is not a registration error.**
+The lowest D+ anywhere in the corridor, 700 m, is still 10 % above the file's own 637 m, and it sits
+off the smooth line. It is the model, or the scale at which a 30 m DEM can represent a graded road
 at all. Read the other way, this is a mild endorsement of the plain lookup: a road is the smooth
 thing in a landscape, and sampling at the recorded coordinate already finds it.
 
 One trap worth keeping. Choosing the locally smoothest offset *independently per station* — the
-naive shape of every "pick the best sample here" rule — gives roughness 9.325 against the centre's
-0.233 on `strava`, and D+ 957. The offset track goes jagged and the profile inherits it. Any future
+naive shape of every "pick the best sample here" rule — gives roughness 8.092 against the centre's
+0.224 on `strava`, and D+ 802. The offset track goes jagged and the profile inherits it. Any future
 attempt needs a smoothness penalty on the offsets themselves, not just on the elevations.
 
 Run it with:
@@ -307,7 +334,7 @@ INTEGRATION=1 ./gradlew :engine:jvmTest --tests '*RoadSnapProbeTest*' --rerun-ta
 upper bound is a validation limit, not a statement about the tile source, and
 `map/.../MapSpace.kt:30`'s comment that the DEM "has no deeper tiles" is simply wrong — mapterhorn
 serves z13, z14 and z15. It is still not worth using: see [what the DEM costs](#what-the-dem-costs)
-above, where four times the tiles buy 0.8 % of D+ and nothing at all on the clock. Mapterhorn is a
+above, where four times the tiles buy 1.5–3 % of D+ and under 1 % on the clock. Mapterhorn is a
 fused global product — Copernicus 30 m worldwide, national high-resolution models only where they
 exist — so above the source's native posting a deeper zoom is resampling. Ledger row **R30**.
 

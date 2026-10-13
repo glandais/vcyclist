@@ -70,6 +70,21 @@ private fun expectedPixel(
     return px to py
 }
 
+/** The coordinates of the centre of pixel ([cx], [cy]) in tile (0, 0, [z]). */
+private fun pixelCentre(
+    cx: Int,
+    cy: Int,
+    z: Int,
+    tileSize: Int,
+): LatLon {
+    val n = (1 shl z).toDouble()
+    val xFloat = (cx + 0.5) / tileSize / n
+    val yFloat = (cy + 0.5) / tileSize / n
+    val lon = xFloat * 360.0 - 180.0
+    val lat = kotlin.math.atan(kotlin.math.sinh(kotlin.math.PI * (1.0 - 2.0 * yFloat))) * 180.0 / kotlin.math.PI
+    return LatLon(lat, lon)
+}
+
 class ElevationCalculatorTest {
     @Test
     fun `getElevation interpolation=false returns the closest pixel value`() =
@@ -81,13 +96,14 @@ class ElevationCalculatorTest {
         }
 
     @Test
-    fun `getElevation interpolation=true with dx=0 dy=0 equals nearest-pixel`() =
+    fun `getElevation interpolation=true on a pixel corner averages the four pixels sharing it`() =
         runTest {
             val calc = makeCalculator { _, _, _, px, py -> px * 100 + py }
             val v = calc.getElevation(LatLon(0.0, 0.0), zoomLevel = 0, interpolation = true)
-            // At (lat=0, lon=0, z=0, tileSize=4), x=2.0 y=2.0 exact (dx=dy=0).
-            // p00 = 202, contributes weight 1.
-            assertEquals(202.0, v)
+            // At (lat=0, lon=0, z=0, tileSize=4), pf = (2.0, 2.0) exact: the corner shared by pixels
+            // (1,1), (2,1), (1,2), (2,2), whose centres sit at 1.5 / 2.5. Between centres fx = fy = 1.5,
+            // so dx = dy = 0.5: (101 + 201 + 102 + 202) / 4 = 151.5.
+            assertEquals(151.5, v, 1e-12)
         }
 
     @Test
@@ -99,10 +115,16 @@ class ElevationCalculatorTest {
             val z = 0
 
             val (px, py) = expectedPixel(coords, z, tileSize)
-            val x0 = floor(px).toInt()
-            val y0 = floor(py).toInt()
-            val dx = px - x0
-            val dy = py - y0
+            // Pixel i's value stands for its centre i + 0.5: interpolate between centres.
+            val fx = px - 0.5
+            val fy = py - 0.5
+            val x0 = floor(fx).toInt()
+            val y0 = floor(fy).toInt()
+            val dx = fx - x0
+            val dy = fy - y0
+            // (45, 22.5) at z=0, 4 px: px = 2.25, py ≈ 1.439, so all four neighbours are inside the tile.
+            assertEquals(1, x0)
+            assertEquals(0, y0)
 
             // Synthetic tile elevation at pixel (x, y) is x * 100 + y.
             val p00 = (x0 * 100 + y0).toDouble()
@@ -120,66 +142,105 @@ class ElevationCalculatorTest {
         }
 
     @Test
-    fun `dx=0_5 dy=0_5 averages all four neighbours`() =
+    fun `off-centre weights favour the nearer centres`() =
         runTest {
-            // Build a synthetic case where px and py land exactly at .5 by choosing tileSize=2 at z=0.
-            // At z=0, xFloat = (lon+180)/360, yFloat in [0,1]. With tileSize=2 the pixel is (xFloat*2, yFloat*2).
-            // Pick lon such that xFloat*2 - 0 = 0.5 → xFloat = 0.25 → lon = -90.
-            // Pick lat such that yFloat*2 - 0 = 0.5 → yFloat = 0.25 → solve ln(tan(lat)+sec(lat))/PI = 0.5 → tan(lat)+sec(lat) = exp(PI/2)
-            // exp(PI/2) ≈ 4.8105 → using (sin+1)/cos = 4.8105 → lat ≈ 66.51°.
-            // We don't need a precise number — we compute the synthetic value with the same formula and check the
-            // bilinear matches the formula. This test guards against e.g. inverted weights.
+            // tileSize=2 at z=0, pf = (0.75, 1.25): lon = 0.375 * 360 - 180 = -45, lat from yFloat = 0.625.
+            // Between centres (0.5 / 1.5) fx = 0.25, fy = 0.75: x0 = y0 = 0, dx = 0.25, dy = 0.75, all four
+            // neighbours inside the tile. Values x * 10 + y give 10 * dx + dy = 3.25; inverted weights would
+            // give 10 * 0.75 + 0.25 = 7.75.
             val tileSize = 2
             val calc = makeCalculator(tileSize = tileSize) { _, _, _, px, py -> px * 10 + py }
-            val coords = LatLon(66.51326044, -90.0)
-            val z = 0
-            val (px, py) = expectedPixel(coords, z, tileSize)
-            val x0 = floor(px).toInt()
-            val y0 = floor(py).toInt()
-            val dx = px - x0
-            val dy = py - y0
-
-            val p00 = (x0 * 10 + y0).toDouble()
-            val p10 = ((x0 + 1) * 10 + y0).toDouble()
-            val p01 = (x0 * 10 + (y0 + 1)).toDouble()
-            val p11 = ((x0 + 1) * 10 + (y0 + 1)).toDouble()
-            val expected =
-                p00 * (1 - dx) * (1 - dy) +
-                    p10 * dx * (1 - dy) +
-                    p01 * (1 - dx) * dy +
-                    p11 * dx * dy
-
-            val actual = calc.getElevation(coords, zoomLevel = z, interpolation = true)
-            assertTrue((actual - expected).absoluteValue < EPS, "px=$px py=$py expected=$expected actual=$actual")
+            val lat = kotlin.math.atan(kotlin.math.sinh(kotlin.math.PI * (1.0 - 2.0 * 0.625))) * 180.0 / kotlin.math.PI
+            val coords = LatLon(lat, -45.0)
+            val (px, py) = expectedPixel(coords, 0, tileSize)
+            assertEquals(0.75, px, 1e-9)
+            assertEquals(1.25, py, 1e-9)
+            val actual = calc.getElevation(coords, zoomLevel = 0, interpolation = true)
+            assertEquals(3.25, actual, 1e-9)
         }
 
     @Test
     fun `interpolation overflows tile via normalizePixel`() =
         runTest {
-            // Build a calculator whose elevation depends on tile coordinates as well, so we can detect a
-            // tile fetch crossing the boundary: elevation = tx * 1_000_000 + ty * 10_000 + px * 100 + py.
+            // Elevation depends on the tile as well, so a fetch crossing a tile boundary is visible:
+            // tx * 20_000 + ty * 10_000 + px * 100 + py, at most 30_303 — inside Terrarium's 16-bit range.
             val tileSize = 4
             val calc =
                 makeCalculator(tileSize = tileSize) { _, tx, ty, px, py ->
-                    tx * 1_000_000 + ty * 10_000 + px * 100 + py
+                    tx * 20_000 + ty * 10_000 + px * 100 + py
                 }
-            // Pick a coord whose tile = (0, 0, 1) and pixel-x near 3.7 so x1 = 4 → overflow to tile (1, 0, 1).
-            // At z=1, n=2, lon=22.5 → xFloat = (22.5+180)/360*2 = 1.125. tx=1, but we want tx=0...
-            // Recompute: at z=1, lon=-90 → xFloat = (-90+180)/360 * 2 = 0.5. tx=0. px = 0.5 * 4 = 2.0. dx=0.
-            // For dx>0 we want xFloat to be in (0, 1) and away from .0; e.g. lon=-22.5: xFloat = 0.875, px=3.5, dx=0.5, x1=4.
-            // Then x1 overflows; normalizePixel should redirect to tile (1, 0, 1) pixel 0.
-            val coords = LatLon(0.0, -22.5)
+            // z=1, lon=-11.25: xFloat = 168.75 / 360 * 2 = 0.9375, tile x 0, px = 3.75. Between centres
+            // fx = px - 0.5 = 3.25: x0 = 3, dx = 0.25, and x1 = 4 overflows **east** into tile x 1, pixel 0,
+            // with a real weight. lat=0: yFloat = 1.0 exactly, tile y 1, py = 0.0, fy = -0.5: y0 = -1,
+            // redirected **north** to tile y 0, pixel 3; y1 = 0 stays in tile y 1. dy = 0.5.
+            val coords = LatLon(0.0, -11.25)
             val z = 1
-            val (px, _) = expectedPixel(coords, z, tileSize)
-            val x0 = floor(px).toInt()
-            assertEquals(3, x0, "expected x0=3 for px=$px")
+            val (px, py) = expectedPixel(coords, z, tileSize)
+            val fx = px - 0.5
+            val fy = py - 0.5
+            assertEquals(3, floor(fx).toInt(), "expected x0=3 for fx=$fx")
+            assertEquals(-1, floor(fy).toInt(), "expected y0=-1 for fy=$fy")
+            assertEquals(0.25, fx - floor(fx), 1e-9)
 
             val v = calc.getElevation(coords, zoomLevel = z, interpolation = true)
-            // It should be a blend of (tile 0, pixel x=3) and (tile 1, pixel x=0) horizontally.
-            // dy = py - floor(py). For lat=0 z=1: yFloat = 1.0 exactly → py=4.0 → y0=4 → y1=5 (overflowing tile y).
-            // normalizePixel will redirect y=4 → tile (..., 1, 1), pixel y=0; y=5 → tile (..., 1, 1), pixel y=1.
-            // The point of this test is: it does not throw, and the result is finite & non-zero.
-            assertTrue(v.isFinite(), "expected finite, got $v")
+            // Row y0 (tile y 0, py 3): (0,0) px 3 = 303, (1,0) px 0 = 20_003 -> 303 * 0.75 + 20_003 * 0.25 = 5_228.
+            // Row y1 (tile y 1, py 0): (0,1) px 3 = 10_300, (1,1) px 0 = 30_000 -> 7_725 + 7_500 = 15_225.
+            // dy = 0.5 -> 10_226.5.
+            assertEquals(10_226.5, v, 1e-9)
+        }
+
+    /**
+     * A pixel's value stands for its **centre** (WMS `BBOX`, GDAL `GeoTransform`, Mapterhorn,
+     * Terrarium): at the exact centre of pixel (1, 2), the bilinear read is that pixel alone, the
+     * same pixel `interpolation = false` returns. The corner convention read `½ p(1,2) + ½ p(2,2)`
+     * (and so on in y), i.e. the terrain half a pixel south-east.
+     */
+    @Test
+    fun `interpolation=true at a pixel centre returns that pixel, like interpolation=false`() =
+        runTest {
+            val tileSize = 4
+            val calc = makeCalculator(tileSize = tileSize) { _, _, _, px, py -> px * 100 + py }
+            for ((cx, cy) in listOf(1 to 2, 2 to 1, 1 to 1, 2 to 2)) {
+                val coords = pixelCentre(cx, cy, z = 0, tileSize = tileSize)
+                val nearest = calc.getElevation(coords, zoomLevel = 0, interpolation = false)
+                val bilinear = calc.getElevation(coords, zoomLevel = 0, interpolation = true)
+                assertEquals((cx * 100 + cy).toDouble(), nearest, "nearest at centre of ($cx, $cy)")
+                assertEquals((cx * 100 + cy).toDouble(), bilinear, 1e-12, "bilinear at centre of ($cx, $cy)")
+            }
+        }
+
+    /**
+     * Bilinear interpolation reproduces a plane exactly, so on a ramp `a·gx + b·gy` over global
+     * pixel indices the read at continuous pixel position `(px, py)` is the plane at
+     * `(px − ½, py − ½)` — sample `i` sits at `i + ½`. Points straddle tile edges on purpose.
+     */
+    @Test
+    fun `a linear ramp is read without a half-pixel shift`() =
+        runTest {
+            val tileSize = 4
+            val z = 2
+            val a = 7
+            val b = 3
+            val calc =
+                makeCalculator(tileSize = tileSize) { _, tx, ty, px, py ->
+                    a * (tx * tileSize + px) + b * (ty * tileSize + py)
+                }
+            val points =
+                listOf(
+                    LatLon(10.0, 10.0),
+                    LatLon(-20.0, 47.3),
+                    LatLon(33.3, -100.0),
+                    LatLon(0.5, 0.5), // near the four-tile corner at (0, 0)
+                    LatLon(60.0, -0.4),
+                )
+            for (coords in points) {
+                val pf = ElevationFunctions.toPixelFloat(coords, z, tileSize)
+                val gx = pf.tile.x * tileSize + pf.x
+                val gy = pf.tile.y * tileSize + pf.y
+                val expected = a * (gx - 0.5) + b * (gy - 0.5)
+                val actual = calc.getElevation(coords, zoomLevel = z, interpolation = true)
+                assertEquals(expected, actual, 1e-12, "ramp at $coords (gx=$gx, gy=$gy)")
+            }
         }
 
     @Test

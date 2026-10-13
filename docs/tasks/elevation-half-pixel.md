@@ -264,6 +264,170 @@ Beaujoire perdue). Avant de toucher un seuil, les **témoins E2 ter** de
 `elevation-bridge-decks.md` (`p09..`, `n13..`) doivent exister : les sites `p01`, `p06`, `p07`,
 `p08` sont déjà des cas de réglage, ils ne prouvent plus rien.
 
+## Résultats (2026-10-13)
+
+Mesuré sur `2fb3f03` + correctif, tuiles `build/dem-cache` (0 tuile téléchargée par le banc). La
+colonne « ancien » est une **remesure du même jour** avec le calculateur d'avant (seul
+`ElevationCalculator.kt` restauré), pas une recopie : ses chiffres E2 / E2 ter retombent exactement
+sur ceux d'`elevation-bridge-decks.md`.
+
+### H1 / H2 — le défaut, puis la correction
+
+Les deux tests H1 (`ElevationCalculatorTest`) échouaient avant correction d'un demi-pixel exact :
+au centre du pixel (1, 2), le bilinéaire rendait **152,5** au lieu de 102 (la moyenne du bloc
+2 × 2 au sud-est) ; sur la rampe `7·gx + 3·gy`, **81,77** au lieu de 76,77, soit `(7 + 3) / 2 = 5`.
+Correction : `fx = pf.x − ½`, `fy = pf.y − ½` dans `getInterpolatedElevation`, rien d'autre.
+Choix 2 des *Notes* (voisin de poids nul et `NaN`) : laissé tel quel.
+
+### H3 — banc des tabliers
+
+**Contrôle de cohérence.** La variante (a½) est devenue (a⌐) « ancienne convention » :
+`halfPixelShift` inversé (+½ px sud-est) puis le calculateur corrigé. (a⌐) reproduit **exactement**
+l'ancien (a) (16/21, 8 / 8, 13 / 1, 83 / 25,18, flips 5), et le nouveau (a) reproduit **exactement**
+l'ancien (a½) (14/21, 5 / 5, 11 / 3, 66 / 21,80, flips 7). La correction est donc bien, et
+seulement, le demi-pixel qu'émulait (a½).
+
+Variantes E2 (`PYTHON` sauf `ater`) :
+
+| Variante | Ponts /21 ancien → nouveau | Hors vérité (span / tablier) | NO_CANYON / STEEP | ROUGH (n / km) | FP |
+|---|---|---|---|---|---|
+| (a) MNS − MNT z15 | 16 → **14** | 8 / 8 → **5 / 5** | 13 / 1 → 11 / 3 | 83 / 25,18 → 66 / 21,80 | 0 → 0 |
+| (a⌐) ancienne convention | — → 16 | — → 8 / 8 | — → 13 / 1 | — → 83 / 25,18 | — → 0 |
+| (b) MNH z15 | 16 → 14 | 8 / 8 → 5 / 5 | 13 / 1 → 11 / 3 | 83 / 25,18 → 66 / 21,80 | 0 → 0 |
+| (c) MNH z14 | 13 → 15 | 19 / 19 → 45 / 30 | 53 / 6 → 46 / 2 | 101 / 42,18 → 99 / 33,29 | 0 → 0 |
+| (d) MNH z13 | 9 → 11 | 866 / 729 → 254 / 220 | 88 / 4 → 84 / 3 | 94 / 46,41 → 98 / 43,11 | 2 → 1 |
+| (f-ign) MNS − DEM ign | 16 → 14 | 8 / 8 → 5 / 5 | 13 / 1 → 11 / 3 | 83 / 25,18 → 66 / 21,80 | 0 → 0 |
+| (f-mth) MNS − DEM mapterhorn | 14 → 14 | 42 / 42 → 48 / 48 | 28 / 3 → 10 / 3 | 76 / 30,13 → 63 / 20,92 | 0 → 0 |
+| (f-mthc) canyon sur mapterhorn | 10 → 13 | 4 / 4 → 4 / 4 | 19 / 1 → 12 / 3 | 83 / 25,18 → 66 / 21,80 | 0 → 0 |
+| (ater) (a) à DEFAULT | 16 → **14** | 8 / 8 → 5 / 5 | 13 / 1 → 11 / 3 | 83 / 25,18 → 66 / 21,80 | 0 → 0 |
+
+Masque de tablier (a) contre la vérité B/b : 91,0 % → **86,8 %**. Les deux ponts perdus sont dans
+`test2`, tous deux `STEEP` : *way 362043805* (fusionné avec Bellevue en un span 0,63–1,55 km,
+P95 11,7 %) et *Pont Willy-Brandt* (P95 10,8 %), contre 10 %. Aucun gagné ; Bellevue passe de
+`ROUGH` à `STEEP`, toujours manqué ; Échevis de `ROUGH` à « aucun candidat ».
+
+E2 ter, `DEFAULT`, Strava et témoins :
+
+| Critère | Ancien | Nouveau |
+|---|---|---|
+| Strava, ponts /21 (`PYTHON` = `DEFAULT`, mêmes clés) | 16 | **14** |
+| Strava, FP | 0 | 0 |
+| Strava, hors vérité (span / tablier) | 8 / 8 | 5 / 5 |
+| Négatifs : FP | 0 | 0 |
+| Négatifs : stations `G` / `O` / `L` (span et masque) | 0 / 0 / 0 | 0 / 0 / 0 |
+| Beaujoire (`n04`, ses propres ponts 1/2) | trouvé, 1,75–1,95 | trouvé, 1,74–1,94 |
+| Témoins positifs, spans trouvés | 13/15 | 13/15 (−`p06` Normandie, +`p04` D 57) |
+| Témoins positifs, couverture `D` | 1 594 / 1 692 (**94 %**) | 1 240 / 1 692 (**73 %**) |
+| `PYTHON` → `DEFAULT` (spans, couverture) | 11/15 → 13/15, 400 → 1 594 | 12/15 → 13/15, 471 → 1 240 |
+| Rien de `PYTHON` perdu | oui | **non** : `p06` perd Normandie (que `PYTHON` couvre à 17 %) |
+| `LOST_FIVE` toujours perdus à DEFAULT | oui | oui (aucun récupéré) |
+| Témoin vallon `n13` : candidat mesuré au-delà du canyon, deux suites hautes | oui (0,30–0,44, `STEEP` 45,6 %) | **non** : plus aucun candidat mesuré (seul `ROUGH` 1 / 0,72 km reste) |
+
+P95 de pente (propre / brut), couverture `D` par témoin positif, `DEFAULT` :
+
+| Témoin | Ancien | Nouveau |
+|---|---|---|
+| `p01` Cheviré | 9,7 / 24,5 %, `DECK`, 100 % | **7,4 / 13,0 %**, `DECK`, 100 % |
+| `p02` Thouaré | 6,2 / 8,0 %, 94 % | 6,4 / 6,3 %, 94 % |
+| `p03` Ancenis | 1,7 / 1,7 %, 93 % | 1,7 / 1,7 %, 93 % |
+| `p04` Langeais | non mesuré (`ROUGH`), **0 %** | 2,8 / 2,8 %, `DECK`, **94 %** |
+| `p05` Saumur | 0,3 / 2,3 et 2,3 %, 100 % | 0,2 / 1,6 et 1,6 %, 100 % |
+| `p06` Normandie | 6,5 / 53,5 %, `DECK`, **99 %** | **41,1 / 51,8 %, `STEEP`, 4 %** |
+| `p07` Millau | 4,2 / 34,8 %, `DECK`, 100 % | 3,7 / **14,3 %**, `DECK`, 100 % |
+| `p08` périph | 8,4 / 8,4 %, 100 % | 7,0 / 7,0 %, 100 % |
+
+Les P95 bruts recoupent le port Python d'E2 ter (Cheviré 24,5 → 13,0, Millau 34,8 → 14,3 : mêmes
+chiffres au dixième). Normandie diffère du port (53,5 → 51,8 ici, 35,1 → 50,6 là-bas), mais va dans
+le même sens pour la métrique qui compte : **le P95 propre passe de 6,5 à 41,1 %**, 110 stations sur
+422 au-dessus de 10 %, toutes au milieu du tablier (0 / 110 / 0), jusqu'à +154 % ; aux pires
+stations le MNT est **au-dessus** du MNS (km 1,965 : MNS 64,7, MNT 105,8) ou à 0,7 m d'altitude,
+30 à 40 m sous un MNS de 30,5–41,1 m (km 1,835–1,840) : la trace longe le haubanage et le MNS y alterne pylône / vide.
+
+Balayage E2 ter (une variation à la fois depuis `DEFAULT`), lignes qui changent de sens :
+
+| Réglage | Ancien : Strava, témoins | Nouveau : Strava, témoins |
+|---|---|---|
+| `DEFAULT` | 16, 13/15 94 % | 14, 13/15 73 % |
+| `tallMnhM` 4,0 | 13 (−3 `STEEP`), 14/15 95 % | 14, **15/15 83 %** |
+| `tallMnhM` 3,0 / 2,5 | 14 / 15, 14/15 95 % | 14 / 14 (2,5 : 1 FP Strava), 15/15 83 % |
+| `maxSlopeP95` 0,12 / 0,15 | 16, 13/15 94 % | 17 (Bellevue et les deux `STEEP` perdus), 13/15 73 %, hors vérité 110 / 33 |
+| `mergeGapM` 200 | 17 (+Haudaudine), 13/15 94 % | 15 (+Bellevue), 14/15 77 % (Normandie 3/3, 17 %) |
+| `surfaceMedianWindowM` 35 | 18, 13/15 88 % | 15, 13/15 73 % |
+| `surfaceMedianWindowM` 15 | 14, 12/15 53 % | 12 (−Tabarly, −Pirmil), 9/15 17 % |
+| `minSmoothFraction` 0,5 / 0,4 | 17, 14/15 99 %, −Beaujoire aux deux | 14, 13/15 73 %, −Beaujoire à 0,4 seulement |
+| `minCanyonDropM` −1 | 16, FP Strava 3, négatifs 2 FP (`n04`, `n09`) / 10 `O` | 14, FP Strava 0, négatifs 2 FP (`n02`, `n04`) / 10 `O` |
+
+**Constat H3.** Les critères d'acceptation des négatifs tiennent tous (0 FP, 0 `G`/`O`/`L`,
+Beaujoire trouvé) : **H5 ne se déclenche pas**, aucun seuil n'est touché. Ce qui se perd est côté
+positifs : deux ponts Strava (16 → 14, tous deux `STEEP` à 10,8–11,7 % pour un seuil de 10 %), et
+Normandie (99 % → 4 %), qui fait tomber la couverture des témoins de 94 à 73 % ; Langeais, jamais
+trouvé aux coins, l'est aux centres. Cheviré, le cas le plus exposé (9,7 % pour 10 %), s'éloigne du
+seuil (7,4 %). Le témoin vallon `n13` ne mesure plus de candidat à `DEFAULT` : il reste négatif,
+mais ne teste plus rien. Le banc est recalé sur ces valeurs, en égalités pour qu'un mouvement dans
+un sens comme dans l'autre se voie : ponts trouvés, stations hors vérité (`PYTHON` et `DEFAULT`),
+couverture `D` des témoins (1 240 / 1 692), spans perdus (`LOST_AT_CENTRES`, Normandie manquant à
+`p06`), `n13` sans témoin (`RAVINES_WITHOUT_WITNESS`) ; seuls restent des planchers les critères
+qui l'étaient déjà (0 FP, 0 `G`/`O`/`L`, couverture ≥ 95 % de `p01`/`p07`) ; décision 3 des *Notes* : accepté, pas compensé.
+
+### H4 — pipeline, deux sources
+
+E1 (`bench()`), ancien → nouveau. D+ rapporté (préréglage `dem`) et D+ dem en mètres, RMS terrain
+ouvert en mètres, « > 15 % » en stations de `sourceElevation` :
+
+| Trace | Source | med. ouvert | D+ rapporté | D+ dem (/vrai) | D+ brut | RMS ouvert | > 15 % src |
+|---|---|---|---|---|---|---|---|
+| test1 (vrai 72) | mapterhorn | +0,03 → +0,01 | 47 → 12 | 62 → 52 (0,86 → 0,73) | 117 → 107 | 0,29 → **0,24** | 19 → 26 |
+| | ign-lidar-hd | −0,01 → −0,00 | 12 → 12 | 59 → 53 (0,82 → 0,74) | 137 → 125 | 0,24 → 0,20 | 30 → 18 |
+| test2 (vrai 89) | mapterhorn | +0,03 → −0,04 | 71 → 80 | 133 → 130 (1,49 → 1,46) | 227 → 223 | 0,63 → **0,43** | 24 → 21 |
+| | ign-lidar-hd | +0,00 → −0,01 | 85 → 87 | 138 → 136 (1,56 → 1,52) | 220 → 225 | 0,29 → 0,32 | 48 → 48 |
+| test3 (vrai 18) | mapterhorn | −1,53 → **+0,32** | 7 → 7 | 20 → 24 (1,13 → 1,35) | 65 → 76 | 1,68 → **0,66** | 0 → 0 |
+| | ign-lidar-hd | −0,18 → +0,26 | 12 → 11 | 29 → 35 (1,61 → 1,94) | 92 → 109 | 0,59 → **0,78** | 0 → 0 |
+| test4 (vrai 2 414) | mapterhorn | −0,25 → +0,13 | 2 708 → 2 738 | 2 909 → 2 858 (1,21 → 1,18) | 3 322 → 3 136 | 2,63 → **0,58** | 483 → 395 |
+| | ign-lidar-hd | +0,01 → +0,01 | 2 722 → 2 732 | 2 870 → 2 872 (1,19 → 1,19) | 3 136 → 3 100 | 0,46 → 0,24 | 398 → 402 |
+
+La vérité E1 est échantillonnée par `fetch.py`, aux centres : en terrain ouvert, l'ancien RMS
+mesurait donc en partie le demi-pixel lui-même. Mapterhorn en profite le plus (test4 2,63 → 0,58 m,
+test3 1,68 → 0,66 m, biais de test3 −1,53 → +0,32 m) ; c'est l'effet *Inputs §4* annoncé, et il
+n'était pas de « plusieurs décimètres » mais de plus d'un mètre. Une régression : IGN sur test3,
+RMS 0,59 → 0,78 m et D+ dem 29 → 35 m (vrai 18). Le D+ dem de test4 en Mapterhorn baisse de 51 m
+(1,21 → 1,18 du vrai).
+
+R30 (`--fix-elevation --dem-zoom Z --no-simplify`, CLI, mapterhorn ; D+ rapporté `dem` / durée) :
+
+| Trace | Convention | z12 | z13 | z14 | z15 |
+|---|---|---|---|---|---|
+| `stelvio` | ancienne | 131 m / 568 s | 130 / 568 | 130 / 568 | 130 / 568 |
+| | nouvelle | 132 m / 572 s | 130 / 568 | 130 / 568 | 130 / 568 |
+| `strava` | ancienne | 726 m / 2 955 s | 710 / 2 945 | 718 / 2 944 | 724 / 2 944 |
+| | nouvelle | 714 m / 2 945 s | 728 / 2 944 | 735 / 2 945 | 736 / 2 945 |
+
+Écart entre zooms : 1,5 % (`stelvio`) et 3,0 % (`strava`) sur le D+, ≤ 0,7 % sur la durée.
+**Verdict R30 inchangé** (négligeable). Le 854 m du ledger (2026-08-18) n'est pas reproductible
+avec le code et les tuiles d'aujourd'hui, même à l'ancienne convention (726 m le même jour) ; la
+cause n'a pas été bissectée (le préréglage de D+ existait déjà en 1f2364e ; 235c889 a changé
+depuis le lisseur et l'étape d'ouverture d'`ElevationGain`).
+
+R29 (`RoadSnapProbeTest`, Mapterhorn z12, décalage latéral → D+ / rugosité / max |dh|) :
+
+| Décalage | `stelvio` ancien | `stelvio` nouveau | `strava` ancien | `strava` nouveau |
+|---|---|---|---|---|
+| −15 m | 189 / 1,499 / 14,0 | 184 / 1,369 / 12,9 | 834 / 1,658 / 15,1 | 830 / 1,643 / 15,6 |
+| −5 m | 132 / 0,985 / 5,0 | 131 / 0,808 / 4,1 | 747 / 0,649 / 5,4 | 759 / 0,627 / 5,4 |
+| **0 m** | **131 / 0,885** | **132 / 0,681** | **728 / 0,226** | **722 / 0,224** |
+| +5 m | 131 / 0,912 / 4,5 | 133 / 0,746 / 5,2 | 720 / 0,620 / 5,4 | 700 / 0,600 / 5,0 |
+| +15 m | 180 / 1,288 / 12,5 | 179 / 1,185 / 16,5 | 747 / 1,532 / 14,3 | 732 / 1,536 / 14,2 |
+| par station | 153 / 6,692 | 154 / 8,009 | 809 / 8,265 | 802 / 8,092 |
+
+La trace enregistrée reste le minimum de rugosité de son couloir sur les deux traces :
+**verdict R29 inchangé**. Deux chiffres d'`elevation.md` bougent : le déplacement latéral change
+une altitude isolée de jusqu'à **16,5 m** (15,1 m à l'ancienne convention le même jour ; 14 m
+dans la mesure d'origine), et, sur `strava`, `+5 m` et `+10 m` donnent
+un D+ un peu *plus bas* que le centre (700 et 708 contre 722) — c'était déjà vrai aux coins le même
+jour (720 contre 728) : la phrase « tout déplacement aggrave les deux chiffres » était fausse sur les
+tuiles d'aujourd'hui, avant ce correctif. La table d'`elevation.md` (`strava` 861 m au centre)
+n'est pas reproductible avec le code et les tuiles d'aujourd'hui (728 m aux coins le même jour) ;
+code (235c889) ou tuiles, la cause n'a pas été mesurée.
+
 ## Outputs
 
 - `ElevationCalculator.kt` corrigé, KDoc de convention.

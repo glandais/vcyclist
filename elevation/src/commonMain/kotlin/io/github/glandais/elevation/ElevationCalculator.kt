@@ -12,6 +12,24 @@ import kotlin.math.floor
  *   is load-bearing: computing `dx`/`dy` from already-floored Int coordinates would make the
  *   interpolation degenerate silently into nearest-neighbour.
  *
+ * ## Pixel convention: a value stands for the pixel's centre
+ *
+ * Pixel `i` covers `[i, i + 1)` in [ElevationFunctions.toPixelFloat] units and its value is the
+ * terrain at its **centre**, `i + ½`. Every source read here defines it that way: a WMS `GetMap`
+ * `BBOX` names the outer edges of the image (IGN LiDAR HD), and Mapterhorn and the historical
+ * Terrarium tiles are GDAL warps onto the tile's edges, whose `GeoTransform` puts the origin on the
+ * top-left *corner* and computes each value at the cell centre. The bilinear read therefore
+ * interpolates between centres, at `(pf.x − ½, pf.y − ½)`: at a pixel's exact centre it returns that
+ * pixel alone — the same pixel the nearest-pixel mode returns, unless a zero-weight neighbour is
+ * no-data (`NaN` survives a zero weight, see *No data*; left as is by `elevation-half-pixel`,
+ * decision 2) — and a plane is reproduced without offset. Treating the integer `i` as the sample's location instead (the convention before
+ * `elevation-half-pixel`) read the terrain half a pixel **south-east** of every point: 1.6 m per
+ * axis at IGN z15, 6–7 m at Mapterhorn z12.
+ *
+ * In the western / northern half of a pixel the read reaches `x0 − 1` / `y0 − 1`, i.e. the tile to
+ * the west or north at a tile edge; [ElevationFunctions.normalizePixel] crosses it, and clamps at
+ * the edge of the world.
+ *
  * ## No data
  *
  * A sample the tile marks as no-data (see [Tile]) makes the lookup `NaN` — bilinearly too, since
@@ -54,12 +72,15 @@ class ElevationCalculator(
         zoomLevel: Int,
     ): Double {
         val pf = ElevationFunctions.toPixelFloat(coords, zoomLevel, tileSize)
-        val x0i = floor(pf.x).toInt()
-        val y0i = floor(pf.y).toInt()
+        // Sample i sits at i + ½ (see the class KDoc): interpolate between centres.
+        val fx = pf.x - 0.5
+        val fy = pf.y - 0.5
+        val x0i = floor(fx).toInt()
+        val y0i = floor(fy).toInt()
         val x1i = x0i + 1
         val y1i = y0i + 1
-        val dx = pf.x - x0i
-        val dy = pf.y - y0i
+        val dx = fx - x0i
+        val dy = fy - y0i
 
         val p00 = elevationFromPixel(ElevationFunctions.normalizePixel(Pixel(pf.tile, x0i, y0i), tileSize))
         val p10 = elevationFromPixel(ElevationFunctions.normalizePixel(Pixel(pf.tile, x1i, y0i), tileSize))
