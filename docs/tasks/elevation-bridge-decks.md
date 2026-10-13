@@ -335,7 +335,8 @@ gain sur les ponts.
 
 Livré : `IgnLidarHdLayer` (`:elevation`, couches brutes MNT / MNS / MNH du même WMS, sans id de
 catalogue ni repli : le hors-données reste `NaN`) et `DeckDetector` + `DeckDetectorOptions`
-(`:gpx`, `commonMain`, port d'`analyze.py`, seuils dans `DeckDetectorOptions.DEFAULT`). Aucun
+(`:gpx`, `commonMain`, port d'`analyze.py`, seuils dans `DeckDetectorOptions.PYTHON` — le
+DEFAULT jusqu'à E2 bis ; E2 ter a changé DEFAULT, voir *Ponts pentus (E2 ter)*). Aucun
 changement de pipeline, de porte ni de `PointField`. `ElevationProvider.withFallback` refuse un
 fournisseur de couche brute : « pas de repli » est un contrat, plus une convention.
 
@@ -494,8 +495,10 @@ Les fenêtres couvrent 43 / 43 / 63 / 43 % des stations en z14 (59 / 61 / 64 / 7
   voit pas une détection étirée qui touche un pont, d'où la colonne « hors vérité ». Le critère
   d'acceptation de la spec (zéro détection sur des témoins forestiers et urbains) est **jugé en
   E2 bis : 0 FP et 0 station hors vérité (`G`/`O`/`L`) sur 12 témoins** (30,4 km) ; seule
-  détection : le pont propre de `n04` (`X`, exclu du score). C'est vrai à DEFAULT et dans 28 des 29
-  variantes du balayage (la 29ᵉ coupe le test de canyon, pour diagnostic) ; la canopée rejetée
+  détection : le pont propre de `n04` (`X`, exclu du score). C'est vrai à `PYTHON` (DEFAULT de
+  E2 bis) et dans 28 des 29 variantes du balayage E2 bis (la 29ᵉ coupe le test de canyon, pour
+  diagnostic) ; le balayage E2 ter, fait depuis le nouveau DEFAULT, est dans *Ponts pentus (E2
+  ter)* ; la canopée rejetée
   passe de 17,9 km (Python) à 25,2 km en z15, sans fuite en tablier.
 
 #### Témoins (E2 bis)
@@ -505,8 +508,12 @@ n'était pas jugé, faute de témoin. Sur la grille z15 de vcyclist, cinq ponts 
 seuils qui sont au bord (Pont écluse, Rotonde, Bellevue, Échevis, Haudaudine). Retoucher ces seuils
 demande deux choses : des **témoins négatifs** dédiés, qui montrent ce que coûte une variation, et
 des **ponts que le réglage n'a jamais vus** (témoins positifs), qui montrent si un gain se généralise.
-`DeckDetectorOptions.DEFAULT` **n'a pas changé** : le balayage ci-dessous construit ses variantes
-par `copy` dans le test. Le choix d'un nouveau DEFAULT revient à l'utilisateur.
+`DeckDetectorOptions.DEFAULT` **n'a pas changé en E2 bis** : le balayage ci-dessous construit ses
+variantes par `copy` dans le test. Il a changé en E2 ter (*Ponts pentus*), et le DEFAULT de E2 bis
+reste disponible sous le nom `DeckDetectorOptions.PYTHON` : tous les chiffres de cette section sont
+ceux de `PYTHON`. Le tableau *Sensibilité* de cette section est la sortie de `deckControls` au commit
+23c5420, avant E2 ter. Le banc actuel fait son balayage depuis le DEFAULT E2 ter : seules ses lignes
+`PYTHON (E2 bis DEFAULT)` et `PYTHON, canyon off` reproduisent E2 bis.
 
 **Sites.** Il y a 12 témoins négatifs `n01..n12` (30,4 km) et 8 témoins positifs `p01..p08`, tous
 hors des quatre itinéraires Strava. Colonnes : stations à 5 m par type. `G` = sol, `O` = ouvrage
@@ -528,16 +535,21 @@ leurs marges, exclus, `D` = tablier propre.
 | n11 | ville sous un viaduc ferroviaire en pierre | Morlaix, quai de Léon → rue de Paris | 1,53 | 251 | 7 | 0 | 49 |
 | n12 | allée urbaine sous platanes | Toulouse, allées de Brienne | 1,43 | 265 | 0 | 0 | 22 |
 
-| id | ouvrage | km | spans `D` (m) |
-|---|---|---|---|
-| p01 | Pont de Cheviré (N 844), un sens | 3,01 | 1 685 |
-| p02 | Pont de Thouaré + pont de la D 37 (deux bras de Loire) | 1,84 | 400 ; 235 ; 30 (rue des Ponts) |
-| p03 | Pont Bretagne-Anjou, Ancenis (suspendu) | 1,49 | 430 |
-| p04 | Pont de Langeais, D 57 (suspendu, étroit) | 0,96 | 390 |
-| p05 | Pont Cessart + Pont des Cadets, Saumur (arches, île) | 1,45 | 275 ; 195 ; 30 (place de la Résistance) |
-| p06 | Pont de Normandie (N 1029), un sens | 4,52 | 2 150 ; 60 ; 35 |
-| p07 | Viaduc de Millau (A 75), un sens | 4,34 | 2 465 ; 25 |
-| p08 | Passage supérieur bd Professeur-René-Auvigné sur le périphérique (tiré de n04) | 0,59 | 55 |
+| id | ouvrage | km | spans `D` (m) | statut depuis E2 ter |
+|---|---|---|---|---|
+| p01 | Pont de Cheviré (N 844), un sens | 3,01 | 1 685 | réglage (E2 ter) |
+| p02 | Pont de Thouaré + pont de la D 37 (deux bras de Loire) | 1,84 | 400 ; 235 ; 30 (rue des Ponts) | vu, non réglant |
+| p03 | Pont Bretagne-Anjou, Ancenis (suspendu) | 1,49 | 430 | vu, non réglant |
+| p04 | Pont de Langeais, D 57 (suspendu, étroit) | 0,96 | 390 | vu, non réglant |
+| p05 | Pont Cessart + Pont des Cadets, Saumur (arches, île) | 1,45 | 275 ; 195 ; 30 (place de la Résistance) | vu, non réglant |
+| p06 | Pont de Normandie (N 1029), un sens | 4,52 | 2 150 ; 60 ; 35 | réglage (E2 ter) |
+| p07 | Viaduc de Millau (A 75), un sens | 4,34 | 2 465 ; 25 | réglage (E2 ter) |
+| p08 | Passage supérieur bd Professeur-René-Auvigné sur le périphérique (tiré de n04) | 0,59 | 55 | réglage (E2 ter) |
+
+Les témoins positifs étaient tenus à l'écart du réglage en E2 bis. **Depuis E2 ter, ils ne le sont
+plus** : `p01`, `p06`, `p07` et `p08` ont fixé le correctif, et `p02` à `p05` ont été vus dans son
+balayage (voir *Ponts pentus (E2 ter)*, *Statut des témoins*). Il ne reste aucun témoin positif
+réellement tenu à l'écart pour le test de pente ; c'est l'objet de l'étape *Témoins E2 ter*.
 
 Chaque span `D` compté laisse au moins 150 m d'itinéraire avant et après lui (vérifié par
 `controls.py` et par le test non conditionné) : `DeckDetector` prend, au bout d'un itinéraire, le
@@ -647,8 +659,8 @@ Banc : deux tests de plus dans `ElevationBenchProbeTest`.
   span `D` compté. Il fige les comptes de chaque site (`CONTROL_GUARDS`), et vérifie que chaque GPX
   rééchantillonné redonne la vérité : `n` à ± 1, premières et dernières stations à 1e-6°.
 - `deckControls`, `INTEGRATION=1`, qui imprime `[controls]`. Il vérifie que l'extraction du
-  score Strava reproduit E2 (16/21, FP 0, 8 / 8 stations) et **le critère d'acceptation à
-  DEFAULT** : 0 FP et 0 station `G`/`O`/`L` dans une détection ou un masque sur les 12 négatifs, et
+  score Strava reproduit E2 à `PYTHON` (16/21, FP 0, 8 / 8 stations) et **le critère
+  d'acceptation au DEFAULT E2 ter** (en E2 bis, ce DEFAULT était `PYTHON`) : 0 FP et 0 station `G`/`O`/`L` dans une détection ou un masque sur les 12 négatifs, et
   le pont de la Beaujoire trouvé. Le balayage reste imprimé, pas vérifié.
 
 ```bash
@@ -691,14 +703,14 @@ stations `D`** (24 %) dans une détection acceptée, dont 385 dans un masque de 
 
 | témoin | détections acceptées (km) | rappel (couv.) | verdict des spans manqués | hors vérité G |
 |---|---|---|---|---|
-| p01 Cheviré | — | 0/1 (0 %) | 1 685 m `STEEP` (P95 24,5 %) | 0 |
+| p01 Cheviré, réglage (E2 ter) | — | 0/1 (0 %) | 1 685 m `STEEP` (P95 24,5 %) | 0 |
 | p02 Thouaré | 0,73–1,60 | 2/3 (94 %) | rue des Ponts (30 m) : aucune suite haute | 37 (île entre les bras, hors masque) |
 | p03 Ancenis | 0,53–0,93 | 1/1 (93 %) | — | 0 |
 | p04 Langeais | — | 0/1 (0 %) | 390 m `ROUGH` (groupe de 0,36 km) | 0 |
 | p05 Saumur | 0,38–0,66 ; 1,00–1,29 | 3/3 (100 %) | — | 0 |
-| p06 Normandie | 3,05–3,35 ; 3,68–3,86 | 3/3 (18 %) | 1,22–2,60 km du grand pont `STEEP` (P95 35,1 %) : seuls les ≈ 300 derniers mètres (côté sud, ≈ 14 % du tablier) sont acceptés | 5 |
-| p07 Millau | 0,29–0,31 (pont voisin) | 1/2 (1 %) | viaduc 2 465 m `STEEP` (P95 34,8 %) | 0 |
-| p08 passage supérieur | 0,23–0,31 | 1/1 (100 %) | — | 0 |
+| p06 Normandie, réglage (E2 ter) | 3,05–3,35 ; 3,68–3,86 | 3/3 (18 %) | 1,22–2,60 km du grand pont `STEEP` (P95 35,1 %) : seuls les ≈ 300 derniers mètres (côté sud, ≈ 14 % du tablier) sont acceptés | 5 |
+| p07 Millau, réglage (E2 ter) | 0,29–0,31 (pont voisin) | 1/2 (1 %) | viaduc 2 465 m `STEEP` (P95 34,8 %) | 0 |
+| p08 passage supérieur, réglage (E2 ter) | 0,23–0,31 | 1/1 (100 %) | — | 0 |
 
 Les trois `STEEP` ne viennent pas des culées : aucune station raide dans les 100 premiers ou derniers
 mètres des trois tabliers. Elles viennent de sauts du MNS **au milieu du tablier** :
@@ -707,10 +719,8 @@ mètres des trois tabliers. Elles viennent de sauts du MNS **au milieu du tablie
 - Normandie : ±150 % aux km 1,81–1,84, le MNS tombe à 18–29 m sur un tablier à ≈ 48 m, MNT 0,6 m ;
 - Millau : ±100 % aux km 1,71–1,79, sauts de ≈ 20 m sur un tablier à ≈ 620 m.
 
-Pour Normandie, le km 1,84 tombe à ≈ 15 m de la position attendue du pylône nord. Cette position
-est déduite, pas relevée : milieu du span `D` à 2,28 km, moins la demi-travée centrale de 428 m,
-**en supposant les viaducs d'accès symétriques**. Pour Millau et Cheviré, la cause n'est **pas
-vérifiée** : pylônes et haubans, écrans anti-vent, ou MNS qui mélange les deux sens.
+Les causes, mesurées depuis, sont trois mécanismes distincts : voir *Ponts pentus (E2 ter)*,
+*Diagnostic*.
 
 Langeais (suspendu, étroit) est perdu en `ROUGH`. Un groupe `ROUGH` n'est jamais mesuré, et la
 cause n'est pas relevée.
@@ -819,8 +829,7 @@ Les détections hors vérité de `tallMnhM` 3,0 et 2,5 (36 et 37 stations) reste
   grands ouvrages (Cheviré 1,7 km, Normandie 2,2 km, Millau 2,5 km) sont `STEEP` à P95 25 à 35 %,
   pour des sauts du MNS en milieu de tablier, et **aucun réglage du balayage ne les rattrape** :
   `maxSlopeP95` 0,15 ne suffit pas. Le rappel par span (11/15) le masque. La couverture des stations
-  `D` (24 %) le montre. C'est le premier sujet de E3 (profil filtré, quantile bas), avant toute
-  retouche de seuil.
+  `D` (24 %) le montre. Traité en E2 ter (*Ponts pentus*), dans le détecteur et non en E3.
 - **Limites du banc.** Sur 30,4 km de négatifs, 26,5 km sont `G`. Les cas difficiles sont minces :
   149 stations `O` (≈ 0,75 km en 16 spans, qui ont donné 7 candidats), 383 stations `L`
   dont 377 sur le seul métro 6 de `n01`, 30 m de chaussée couverte notée. La forêt dense tient en
@@ -829,10 +838,261 @@ Les détections hors vérité de `tallMnhM` 3,0 et 2,5 (36 et 37 stations) reste
   seulement sur `test4`, Grands Goulets et Combe Laval). Manquent : un sol qui tombe sous ou à côté
   de la route hors pont (route en corniche, bord de quai ou de berge, digue, buse sous remblai),
   une forêt en pente, une chaussée sous des immeubles.
-- Ces mesures ne choisissent pas de nouveau DEFAULT : la décision revient à l'utilisateur. Les
+- Ces mesures ne choisissent pas de nouveau DEFAULT : la décision revient à l'utilisateur. **E2
+  ter a depuis changé DEFAULT** (pontage des stations rugueuses et MNT > MNS pris pour haut), sur la
+  demande de l'utilisateur de traiter les ponts pentus ; aucune des variations ci-dessous n'y est
+  entrée, et le changement attend sa relecture avant commit. Les
   variations sans FP, sans pont Strava perdu et sans perte de la Beaujoire sont
   `surfaceMedianWindowM` 35, `mergeGapM` 200, 100 et 50, et `roughnessWindowM` 45 (hors vérité
   Strava +1 à +2). Leur combinaison n'a pas été mesurée, hors la ligne *stress*.
+
+#### Ponts pentus (E2 ter)
+
+**Pourquoi.** À DEFAULT E2 bis, trois grands ouvrages tenus à l'écart échouent au test de pente :
+Cheviré (`p01`, P95 24,5 %), Normandie (`p06`, travée principale à 35,1 %, seuls les ≈ 300 derniers
+mètres acceptés) et Millau (`p07`, 34,8 %). Leurs tabliers réels ne dépassent pas quelques pour
+cent. Les stations raides sont toutes en milieu de tablier (aucune dans les 100 m des extrémités).
+Le rappel par span (11/15) le masque ; la couverture des stations `D` (400 / 1 692, 24 %) le montre.
+Saint-Nazaire (`test1`, 3,4 km, 66 m de haut, haubané) passe à 6,1 % et sert de contraste.
+
+**Diagnostic, trois mécanismes.** Les trois ont la même signature : l'erreur porte sur des stations
+**rugueuses** (le MNS y saute), et la vraie pente reste lisible de part et d'autre du trou.
+Échantillonnage : variante (a), MNT + MNS z15, bilinéaire aux coins de pixel de vcyclist, stations à
+5 m.
+
+| site | mécanisme | origine | sens de l'erreur | z16 corrige ? |
+|---|---|---|---|---|
+| `p01` Cheviré | la trace est à ≈ 3 m du bord du tablier, avec 40 à 55 m de vide au-delà ; le pixel z15 mélange tablier et vide, et la convention des coins décale l'échantillon d'≈ 1,5 m vers le vide | échantillonnage | vers le bas seulement | oui (6,5–6,7 %) |
+| `p07` Millau | une bande de trous du MNS le long du terre-plein central, à −9..−3 m de la trace ; z15 et la convention des coins l'étalent sur la trace | échantillonnage (et trous IGN à z17) | vers le bas seulement | oui (3,7–4,5 %) |
+| `p06` Normandie | (A) pylônes et haubans, +5..+45 m sur toute la chaussée ; (B) un vrai trou du MNS à s 1815–1835, présent aussi à z17 ; (D) MNT au-dessus du MNS sur 164 stations `D`, d'où un MNH négatif qui coupe le tablier | données IGN | vers le haut et vers le bas | **non** (86 % à z16, z17 pire) |
+
+Les chiffres de ce tableau, comme tous ceux marqués « port Python » dans cette sous-section,
+viennent de scripts de diagnostic **jetables et non commités** (`build/diag-normandie/*.py` sur
+des échantillons `*.npz`, ignorés par git, et le bloc-notes de la session) ; ce n'est pas
+`analyze.py`, et rien ne les reproduit depuis le dépôt. Seuls les chiffres « banc Kotlin » sont
+reproductibles. Les pentes z16 de la dernière colonne sont des mesures sur le MNS z16, pas la pente
+de référence : celle de Cheviré est 6,3 % (*Inputs §4*), celle de Millau ≈ 3 %.
+
+**Ce qui ne marche pas.**
+
+- **Convention de pixel** (centres au lieu de coins, port Python) : Cheviré 24,5 → 13,0 %, Millau 34,8 → 14,3 %,
+  mais Normandie 35,1 → 50,6 %. Le biais dépend du sens de parcours ; seule, elle ne corrige rien.
+  Hors de ce correctif.
+- **z16 seul** (port Python) : corrige Cheviré et Millau, pas Normandie (86 % de couverture).
+- **Médiane plus large, P80, `maxSlopeP95` 0,15** : aucun ne rattrape les trois (balayage E2 bis).
+- **Sous-ensemble lisse** (P95 sur les seules stations propres) : jette les stations raides sans
+  rien mesurer à travers. Sur Haudaudine il accepte le span avec ses 240 m au-delà de la culée :
+  stations Strava hors vérité 8 → 56 (port Python).
+- **MNT > MNS seul** : nécessaire pour Normandie, mais seul il perd un span (`p06` sud) : 10/15, 20
+  % (banc Kotlin, ligne `slopeOnCleanDeck false`).
+
+**Correctif.** Dans `DeckDetector`, deux options nouvelles, actives par défaut :
+
+- `slopeOnCleanDeck` : une station est **propre** quand le max de la rugosité sur la fenêtre
+  `roughnessWindowM` centrée sur elle est `< maxRoughnessM` (seuil existant, aucun nouveau ; un
+  `NaN` dans la fenêtre = non propre). Sur un span long, le MNS est **ponté** : un trou (les
+  stations non propres entre deux stations propres consécutives du span) est remplacé par
+  l'interpolation linéaire entre ces deux stations propres, **seulement s'il est haut de bout en
+  bout** : aucune de ses stations n'a un MNH (effectif, `mntAboveMnsAsTall` appliqué) `≤ tallMnhM`
+  ; un MNH inconnu (`NaN`) ne s'y oppose pas. Un trou qui touche le sol (une clairière en lisière,
+  une route entre deux ouvrages) reste brut. Deux suites hautes distinctes étant toujours séparées
+  par une station basse, le pontage reste donc confiné à l'intérieur d'une suite haute (ou à
+  travers du sans-donnée). Les stations non propres de tête et de queue restent brutes (une queue
+  rugueuse est mesurée : Haudaudine reste `STEEP`). La médiane glissante et la pente centrée
+  s'appliquent ensuite comme avant. Repli sur le profil brut
+  quand le span a moins de `minCleanStationsCount` (5) stations propres, ou moins de
+  `minCleanFraction` (0,25) de stations propres parmi ses stations intérieures. Les spans courts ne
+  changent pas.
+- `mntAboveMnsAsTall` : `MNT > MNS + mntAboveMnsToleranceM` (0,5 m) est physiquement impossible ; le
+  MNH y est pris pour haut (`+∞`) dans les suites hautes, l'extension, le masque de tablier, la
+  rugosité médiane du span (`roughnessM`, verdict des spans courts) et la règle du trou haut
+  ci-dessus ; **jamais** dans le test de canyon ni dans la médiane glissante du MNS (`mf` dans le
+  KDoc de `DeckDetector`).
+
+Le pontage garde la marche à travers chaque trou, et c'est elle qui porte la vraie pente (port
+Python, non commité ; pente réelle : *Inputs §4* pour Cheviré, profils publiés pour les deux
+autres) :
+
+| trou | longueur | dénivelé | pente à travers | pente réelle |
+|---|---|---|---|---|
+| Cheviré | 77 stations | 23,5 m | 6,1 % | 6,3 % |
+| Millau | 99 stations | 15,2 m | 3,07 % | 3,03 % |
+| Normandie sud | 82 stations | 24,9 m | 6,1 % | ≈ 6 % |
+
+`DeckMetrics` porte désormais `rawSlopeP95` (la statistique d'analyze.py, toujours calculée),
+`cleanFraction` et `slopeOnCleanDeck` (le profil ponté a-t-il été lu). `DeckDetectorOptions.PYTHON`
+= DEFAULT sans les deux options : c'est le DEFAULT de E2 bis, et la parité exacte avec les
+échantillons de Python s'y vérifie.
+
+**Mesures.** Banc Kotlin, variante (a), `INTEGRATION=1 ./gradlew :engine:jvmTest --tests
+'*ElevationBenchProbeTest*' --rerun-tasks -i`. Les lignes en italique viennent du port Python non
+commité et ne sont pas reproductibles depuis le dépôt ; aucun test ne compare ce port au banc
+Kotlin (le test de parité non conditionné compare `analyze.py` à `PYTHON`), et le port n'a pas la
+règle du trou haut.
+
+| | couverture `D` | spans pos. | FP nég. / G·O·L | Beaujoire | Strava | hors vérité Strava (span / masque) | canyon coupé : FP / G·O·L nég. |
+|---|---|---|---|---|---|---|---|
+| `PYTHON` (DEFAULT E2 bis) | 400 / 1 692 (24 %) | 11/15 | 0 / 0 | oui | 16/21 | 8 / 8 | 2 / 10 (`n04`, `n09`) |
+| **DEFAULT E2 ter** | **1 594 / 1 692 (94 %)** | **13/15** | 0 / 0 | oui | 16/21, mêmes ponts | 8 / 8 | 2 / 10 (inchangé) |
+| pontage seul (`mntAboveMnsAsTall false`) | 89 % | 13/15 | 0 / 0 | oui | 16/21 | 8 / 8 | — |
+| MNT > MNS seul (`slopeOnCleanDeck false`) | 20 % | **10/15** | 0 / 0 | oui | 16/21 | 8 / 8 | — |
+| *sous-ensemble lisse (port Python)* | 94 % | 13/15 | 0 / 0 | oui | 17/21 | **56** | — |
+| *pontage, seuil 0,5, sans plancher (port Python, sans la règle du trou haut)* | 94 % | 13/15 | 0 / 0 | oui | 16/21 | 8 | — (note ¹) |
+
+¹ Dans cette variante, la voûte de `n05` (fraction propre 0,13) passe à 4,6 % pontée : 114 stations
+`G` dans un span accepté **une fois le test de canyon coupé** ; avec le canyon, elle reste
+`NO_CANYON` (0 / 0 dans la colonne FP / G·O·L). Non remesuré avec la règle du trou haut.
+
+Par témoin positif, `PYTHON` → DEFAULT (P95 lu par le verdict ; « brut » = `rawSlopeP95`) :
+
+| témoin | statut | spans | couverture `D` | P95 % avant → après | brut % | fraction propre |
+|---|---|---|---|---|---|---|
+| `p01` Cheviré | réglage | 0/1 → 1/1 | 0 → 100 % | 24,5 `STEEP` → **9,7** | 24,5 | 0,64 |
+| `p02` Thouaré | vu, non réglant | 2/3 → 2/3 | 94 → 94 % | 8,0 → 6,2 | 8,0 | 0,70 |
+| `p03` Ancenis | vu, non réglant | 1/1 → 1/1 | 93 → 93 % | 1,7 → 1,7 | 1,7 | 1,00 |
+| `p04` Langeais | vu, non réglant | 0/1 → 0/1 | 0 → 0 % | `ROUGH` (jamais mesuré) | — | — |
+| `p05` Saumur | vu, non réglant | 3/3 → 3/3 | 100 → 100 % | 0,3 ; 2,3 (inchangés) | idem | 1,00 |
+| `p06` Normandie | réglage | 3/3 → 3/3 | 18 → **99 %** | 35,1 `STEEP` → **6,5** (un seul span 1,22–3,35 km) | 53,5 | 0,71 |
+| `p07` Millau | réglage | 1/2 → 2/2 | 1 → **100 %** | 34,8 `STEEP` → **4,2** | 34,8 | 0,60 |
+| `p08` passage sup. | réglage | 1/1 → 1/1 | 100 → 100 % | 8,4 → 8,4 (repli brut : 2 stations propres) | 8,4 | 0,17 |
+
+Ailleurs :
+
+- **Strava** : mêmes 16 ponts, 0 FP, 8 / 8 stations hors vérité. Saint-Nazaire 6,1 % (fraction
+  propre 0,94, rien à ponter). Haudaudine reste `STEEP` à 52,6 % (fraction propre 0,49) : sa queue
+  rugueuse est mesurée brute, et ses trous intérieurs touchent le sol (19,1 % sans la règle du trou
+  haut).
+- **Négatifs** : 0 FP et 0 station `G`/`O`/`L` (span et masque), Beaujoire trouvé. Les P95 des
+  candidats qui bougent restent au-dessus du seuil et sont de toute façon `NO_CANYON` : `n05` 13,8 →
+  12,1 % (0,58) et 43,0 → 13,6 % (0,81). `n11` (0,35) reste à 39,2 %, son brut : ses trous
+  touchent le sol (21,2 % sans la règle du trou haut). `n06` (0,05) et `n08` (0,15) sont jugés
+  bruts (repli).
+- **Canyon coupé** (diagnostic) : 2 FP, 0/10/0 stations `G`/`O`/`L` sur les négatifs, exactement
+  comme `PYTHON` canyon coupé (les deux spans courts sous ouvrage de `n04` et `n09`, jugés sur la
+  rugosité, que E2 ter ne touche pas).
+- **Parité sur les échantillons de Python** (test non conditionné) : à `PYTHON`, parité exacte (21
+  ponts, 9 autres, groupes `ROUGH`). À DEFAULT, mêmes 21 spans acceptés aux mêmes bornes et mêmes 9
+  verdicts de rejet ; un seul P95 change, sur `test2` : 125..202 8,6 → 4,4 % (0,41). 285..309 reste
+  à 8,1 % (sans la règle du trou haut : 2,4 %).
+- **Coût** : aucune tuile de plus (le même MNS z15 que E2) ; le détecteur reste à 0,3–3,7 ms par
+  itinéraire (`test4`, 111 km : 3,7 ms contre 2,8 ms pour `PYTHON` dans la dernière passe, 1,9
+  contre 2,5 ms dans la précédente : bruit de mesure).
+
+**Balayage depuis le nouveau DEFAULT.** Une variation à la fois. « Hors vérité Strava » compte les
+stations des spans. Les lignes `PYTHON` et `minCanyonDropM −1` sont des diagnostics.
+
+| réglage | ponts /21 | récupérés / perdus (verdict) | rappel témoins pos. (couv. `D`) | FP nég. | hors vérité nég. G/O/L | ponts propres nég. /2 | FP Strava / hors vérité |
+|---|---|---|---|---|---|---|---|
+| DEFAULT | 16 | — / — | 13/15 (94 %) | 0 | 0/0/0 | 1 | 0 / 8 |
+| *`PYTHON` (DEFAULT E2 bis)* | 16 | — / — | 11/15 (24 %) | 0 | 0/0/0 | 1 | 0 / 8 |
+| slopeOnCleanDeck false | 16 | — / — | 10/15 (20 %) | 0 | 0/0/0 | 1 | 0 / 8 |
+| mntAboveMnsAsTall false | 16 | — / — | 13/15 (73 %) | 0 | 0/0/0 | 1 | 0 / 8 |
+| minCleanFraction 0 / 0,4 | 16 | — / — | 13/15 (94 %) | 0 | 0/0/0 | 1 | 0 / 8 |
+| minCleanStationsCount 3 / 10 | 16 | — / — | 13/15 (94 %) | 0 | 0/0/0 | 1 | 0 / 8 |
+| maxRoughnessM 0,5 (seuil propre, **et** filtre des suites) | 17 | Haudaudine / — | 12/15 (86 %, perd `p02` D 37) | 0 | 0/0/0 | 1 | 0 / 9 |
+| tallMnhM 4,0 | 13 | — / way 362043805, Willy-Brandt, Trois-Continents (`STEEP`) | 14/15 (95 %) | 0 | 0/0/0 | 1 | 0 / 6 |
+| tallMnhM 3,0 | 14 | — / Willy-Brandt, Trois-Continents (`STEEP`) | 14/15 (95 %) | 0 | 0/0/0 | 1 | 0 / **98** |
+| tallMnhM 2,5 | 15 | Haudaudine / Willy-Brandt, Trois-Continents (`STEEP`) | 14/15 (95 %) | 0 | 0/0/0 | 1 | 0 / **99** |
+| minTallRunM 10 | 16 | — / — | 14/15 (95 %) | 0 | 0/0/0 | 1 | **1** / 10 |
+| minTallRunM 5 | 15 | — / Trois-Continents (`STEEP`) | 14/15 (95 %) | 0 | 0/0/0 | 1 | **1** / 10 |
+| maxRoughnessM 1,0 | 16 | Bellevue / Pirmil (`STEEP`) | 13/15 (94 %) | 0 | 0/0/0 | 1 | 0 / 9 |
+| maxRoughnessM 1,2 | 16 | Bellevue / Pirmil (`STEEP`) | 13/15 (79 %, perd `p01`) | 0 | 0/0/0 | **0** (Beaujoire `STEEP`) | 0 / 9 |
+| maxRoughnessM 1,5 | 16 | Bellevue / Pirmil (`STEEP`) | 12/15 (53 %, perd `p01`, `p06`) | 0 | 0/0/0 | **0** (Beaujoire `STEEP`) | 0 / 9 |
+| minSmoothFraction 0,5 / 0,4 | 17 | Bellevue / — | 14/15 (99 %) | 0 | 0/0/0 | **0** (Beaujoire `STEEP`) | 0 / 9 |
+| maxShortRoughnessM 0,6 / 0,8 | 16 | — / — | 13/15 (94 %) | 0 | 0/0/0 | 1 | 0 / 8 |
+| roughnessWindowM 25 | 16 | — / — | 13/15 (79 %, perd `p01`) | 0 | 0/0/0 | **0** (Beaujoire `STEEP`) | 0 / 8 |
+| roughnessWindowM 45 | 17 | Haudaudine / — | 13/15 (94 %) | 0 | 0/0/0 | 1 | 0 / 9 |
+| surfaceMedianWindowM 15 | 14 | — / Pirmil, way 410671587 (`STEEP`) | 12/15 (53 %) | 0 | 0/0/0 | 1 | 0 / 7 |
+| surfaceMedianWindowM 35 | **18** | Bellevue, Haudaudine / — | 13/15 (**88 %**) | 0 | 0/0/0 | 1 | 0 / 10 |
+| mergeGapM 200 / 100 / 50 | 17 | Haudaudine / — | 13/15 (94 %) | 0 | 0/0/0 | 1 | 0 / 9 |
+| maxSlopeP95 0,12 / 0,15 | 16 | — / — | 13/15 (94 %) | 0 | 0/0/0 | 1 | 0 / 8 |
+| minCanyonDropM 2,0 / 1,0 / 0,3 | 16 | — / — | 13/15 (94 %) | 0 | 0/0/0 | 1 | 0 / 8 |
+| *minCanyonDropM −1, canyon coupé* | 16 | — / — | 13/15 (94 %) | **2** | 0/**10**/0 | 1 | **3** / 28 |
+| *`PYTHON`, canyon coupé* | 16 | — / — | 11/15 (24 %) | **2** | 0/**10**/0 | 1 | **3** / 28 |
+| deckMnhM 0,5 | 16 | — / — | 13/15 (94 %) | 0 | 0/0/0 | 1 | 0 / 9 |
+| deckMnhM 2,0 | 16 | — / — | 13/15 (94 %) | 0 | 0/0/0 | 1 | 0 / 2 |
+| minLengthM 20 | 16 | — / — | 13/15 (94 %) | 0 | 0/0/0 | 1 | 0 / 8 |
+| *stress* (comme en E2 bis) | 16 | Bellevue / Willy-Brandt (`STEEP`) | 14/15 (79 %, perd `p01`) | 0 | 0/0/0 | 1 | **2** / 15 |
+
+Constats du balayage :
+
+- **Les options E2 ter sont plates autour de DEFAULT** : `minCleanFraction` 0 à 0,4 et
+  `minCleanStationsCount` 3 à 10 ne changent rien sur ce banc. Le plancher de fraction ne servait
+  qu'avec un seuil de propreté plus strict (0,5 m : peu de stations propres, pontage plus étendu ;
+  voûte de `n05`, port Python, sans la règle du trou haut).
+- **`mergeGapM` 200 aide toujours** : Haudaudine récupéré (17/21), hors vérité Strava +1, témoins
+  inchangés (94 %), négatifs propres, Beaujoire gardé. En E2 bis il remontait aussi la couverture
+  des positifs (24 → 29 %) ; plus maintenant, le pontage l'a déjà fait.
+- **`surfaceMedianWindowM` 35 aide sur Strava mais coûte sur les témoins** : 18/21 (Bellevue,
+  Haudaudine), hors vérité Strava 10, mais couverture `D` 94 → 88 %. En E2 bis il ne coûtait rien
+  sur les positifs (24 % → 24 %).
+- **`maxRoughnessM` 1,2 et `roughnessWindowM` 25** : le span de la Beaujoire y fusionne avec un
+  passage supérieur voisin (1,75–2,18 km, 435 m). Sans la règle du trou haut, il passait à 8,5 %
+  ponté (13,5 % brut, fraction propre 0,87) et mettait 39 stations `G`/`O`/`L` de `n04` dans un
+  span accepté : la limite connue « un toit dans l'écart de fusion emprunte le canyon d'un pont »,
+  au DEFAULT des autres réglages. Avec la règle, le trou entre les deux ouvrages touche le sol et
+  reste brut : 0 station hors vérité, mais le span est `STEEP` et la Beaujoire perdue, comme sous
+  `PYTHON`.
+- **Relâcher les suites hautes coûte encore à 3 m et moins** : hors vérité Strava 98 et 99
+  stations pour `tallMnhM` 3,0 et 2,5 (6 à 37 en E2 bis) ; 6 à 4,0 m, 10 pour `minTallRunM` 10 / 5.
+  Abaisser `tallMnhM` rend « hauts » plus de trous, donc plus de pontage : la règle du trou haut
+  suit le seuil qu'on relâche. Sans elle, 68 (4,0 m) et 72 (`minTallRunM`).
+
+**Statut des témoins.**
+
+- `p01`, `p06`, `p07` sont devenus des **cas de réglage** : leur rappel et leur couverture ne
+  comptent plus comme généralisation.
+- `p08` aussi : il a fixé le repli (`minCleanStationsCount`, 2 stations propres ; sans repli et avec
+  un plancher, il serait perdu).
+- `p02` à `p05` sont **vus, non réglants** : aucun choix n'a dépendu d'eux (même verdict dans toutes
+  les variantes), mais ils étaient dans le balayage. Ils ne testent pas non plus le nouvel
+  estimateur : `p03` et `p05` n'ont aucune station rugueuse, `p04` est `ROUGH` avant le test de
+  pente, `p02` est accepté dans les deux cas.
+- Les négatifs `n01..n12` restent des **critères d'acceptation**. `n05` a fixé le plancher de
+  couverture (`minCleanFraction`).
+- **Conséquence : il ne reste aucun témoin positif tenu à l'écart pour le test de pente.** Voir
+  l'étape *Témoins E2 ter*.
+
+**Limites.**
+
+- **Marge de Cheviré : 9,7 %** pour une pente réelle de 6,3 % (*Inputs §4*). Le reste est un creux long et
+  **lisse** laissé par le mélange de bord (le plateau de s 1095–1300), que le masque propre ne voit
+  pas. Tout resserrement de `maxSlopeP95` ou du masque propre le reperd.
+- Le profil E3 de Cheviré reste faux jusqu'à 15 m (le même creux lisse).
+- Le pontage ne voit pas une marche cachée entre deux stations propres sur un toit entièrement
+  lisse.
+- **Un trou ponté n'a pas de longueur maximale** : la pente pontée ne lit que les deux stations
+  propres qui l'encadrent. Les ponts acceptés pontent des trous uniques de 385 m (Cheviré), 410 m
+  (Normandie) et 495 m (Millau), plus que `mergeGapM` (300 m) — mesures du port Python, non
+  commité. Seule la règle du trou haut rattache un trou à un ouvrage : tout trou resté au-dessus
+  de `tallMnhM` est aplati. Sans elle, une route de ravin boisé (pente jusqu'à 25 %, creux du MNT
+  de 20 m, donc canyon) entre deux ouvrages plats de 8 m à moins de 300 m passait, avec la canopée
+  dans le masque de tablier (cas épinglé dans `DeckDetectorTest`, avec ses clairières de lisière).
+  Une canopée haute de bout en bout ne forme pas de suite distincte, donc pas de span fusionné ;
+  le cas restant est un trou de sans-donnée entre deux suites. Aucun témoin négatif de cette forme
+  n'existe sur le banc (voir *Témoins E2 ter*).
+
+**Pour E3.**
+
+- Le profil du tablier = le profil ponté (même masque, mêmes interpolations).
+- Variante (a16), MNS z16 lu seulement dans les `surfaceWindows` des candidats z15 : **non mesurée**
+  (étape optionnelle de E2 ter, reportée). Attendu : marge de Cheviré vers 6,5 %, régression de
+  Normandie à mesurer ; coût ≈ 2× tuiles par span candidat, à ≤ 20 req/s, en cache dans
+  `build/dem-cache`.
+- Corriger la convention de pixel reste un sujet séparé.
+
+#### Témoins E2 ter (à faire avant tout nouveau réglage)
+
+Choisir 3 à 5 nouveaux sites `p09..`, figés dans `controls.py` **avant** de lancer le détecteur,
+couvrant : une trace à une seule chaussée près du bord d'un tablier large, un pont haubané ou
+suspendu, et un long viaduc à terre-plein central. Couverture LiDAR HD vérifiée par la sonde 8 × 8
+px. Candidats à vérifier : Brotonne, Tancarville, Aquitaine, Térénez, Île de Ré. Un échec y est
+**rapporté, jamais réglé**.
+
+Y ajouter un ou deux **témoins négatifs** `n13..`, figés de la même façon : une route de vallée ou
+de ravin boisé (vrai canyon du MNT) avec un ouvrage haut et lisse à chaque bout (passage supérieur,
+bâtiment, toit plat), à moins de 300 m l'un de l'autre. C'est la forme de faux positif du pontage ;
+aucun négatif actuel ne l'a (`n05` n'a pas de canyon, `n06` et `n11` pas de station propre).
 
 ### E3 — Remplacement par le profil du tablier
 
@@ -909,6 +1169,9 @@ si le coût en tuiles MNH reste raisonnable (voir *Notes*).
   jusqu'à +190 m chez Strava), sans D+ fictif ; aucune route en lacets prise pour un tunnel.
 - Banc E2 bis, témoins négatifs : **0 FP** (hors ouvrage propre `X`) et 0 station hors vérité sur la
   route forestière et la rue bâtie.
+- Banc E2 ter (asserté par `deckControls`) : rien de ce que trouve `PYTHON` n'est perdu, couverture
+  `D` ≥ 90 %, 13/15 spans, `p01`/`p06`/`p07` couverts à ≥ 95 % chacun ; ces trois-là sont des cas de
+  réglage, la généralisation se juge sur les *Témoins E2 ter*.
 - `sample.gpx` : D+ rapporté et durée simulée inchangés à 0,5 % près hors ouvrages, et l'écart
   expliqué ouvrage par ouvrage s'il y en a.
 - `./gradlew check` vert ; smoke CLI `enhance` avec `--dem-source ign-lidar-hd`.

@@ -817,6 +817,11 @@ class ElevationBenchProbeTest {
      * arrays [DeckDetector] must find exactly Python's 21 bridges, its 9 `others` with the same
      * verdict, and its canopy groups — the parity check that no live sampling can give, since
      * vcyclist's XYZ tiles are not fetch.py's grid. Runs on every `jvmTest`, no network.
+     *
+     * The exact parity runs on [DeckDetectorOptions.PYTHON]. A second check runs DEFAULT (E2 ter's
+     * bridged slope and `mntAboveMnsAsTall`) on the same samples: the same 21 accepted spans with the
+     * same ends, every P95 within `maxSlopeP95`, and the same 9 rejection verdicts — the P95s
+     * themselves may move (two `test2` spans do).
      */
     @Test
     fun deck_detector_reproduces_python_on_its_own_samples() {
@@ -828,7 +833,8 @@ class ElevationBenchProbeTest {
             val truth = readTruth(route)
             val mns = readMns(route)
             assertEquals(rows, mns.size, "${route}_mns.csv rows")
-            val d = DeckDetector.detect(DeckProfile.fromSurface(mns, truth.mnt), DeckDetectorOptions.DEFAULT)
+            val profile = DeckProfile.fromSurface(mns, truth.mnt)
+            val d = DeckDetector.detect(profile, DeckDetectorOptions.PYTHON)
             val py = python.getValue(route)
             assertEquals(py.spans.filter { it.accepted }.map { it.i0..it.i1 }, d.accepted.map { it.first..it.last }, "$route accepted")
             val measured = d.rejected.filter { it.rejection != DeckRejection.ROUGH }
@@ -852,6 +858,33 @@ class ElevationBenchProbeTest {
                 assertEquals(sp.rough, m.roughnessM, 0.05, "$route ${sp.i0} roughness")
                 assertEquals(sp.canyon, m.canyonM, 0.05, "$route ${sp.i0} canyon")
             }
+            // E2 ter DEFAULT on the same samples: same spans, same verdicts.
+            val e = DeckDetector.detect(profile, DeckDetectorOptions.DEFAULT)
+            assertEquals(d.accepted.map { it.first..it.last }, e.accepted.map { it.first..it.last }, "$route accepted (DEFAULT)")
+            e.accepted.forEach {
+                assertTrue(it.metrics!!.slopeP95.isNaN() || it.metrics!!.slopeP95 <= DeckDetectorOptions.DEFAULT.maxSlopeP95)
+            }
+            assertEquals(
+                measured.map { "${it.first}..${it.last} ${it.rejection}" },
+                e.rejected.filter { it.rejection != DeckRejection.ROUGH }.map { "${it.first}..${it.last} ${it.rejection}" },
+                "$route others (DEFAULT)",
+            )
+            for (c in e.accepted) {
+                val before = d.accepted.single { it.first == c.first }.metrics!!
+                val m = c.metrics!!
+                if (abs(m.slopeP95 - before.slopeP95) > 1e-9) {
+                    println(
+                        "[decks] python samples, %s %d..%d: P95 %.1f %% (PYTHON) -> %.1f %% (DEFAULT), clean %.2f".fmt(
+                            route,
+                            c.first,
+                            c.last,
+                            before.slopeP95 * 100,
+                            m.slopeP95 * 100,
+                            m.cleanFraction,
+                        ),
+                    )
+                }
+            }
         }
     }
 
@@ -866,7 +899,9 @@ class ElevationBenchProbeTest {
         val python = readPython()
         assertEquals(21, python.values.sumOf { r -> r.spans.count { it.accepted } }, "results.json bridges")
         assertEquals(9, python.values.sumOf { r -> r.spans.count { !it.accepted } }, "results.json others")
-        val opts = DeckDetectorOptions.DEFAULT
+        // E2's variants are reproduced on the E2 bis detector (PYTHON); E2 ter's DEFAULT is row (ater).
+        val opts = DeckDetectorOptions.PYTHON
+        val ter = DeckDetectorOptions.DEFAULT
         println("[decks] tile cache: ${cacheDir.absolutePath}")
         println("[decks] options: ${opts.toString().substringAfter('(').dropLast(1)}")
 
@@ -893,6 +928,7 @@ class ElevationBenchProbeTest {
                 Variant("f-ign", "MNS - DEM ign"),
                 Variant("f-mth", "MNS - DEM mapterhorn"),
                 Variant("f-mthc", "canyon on mapterhorn"),
+                Variant("ater", "(a), E2 ter DEFAULT"),
             )
         // variant -> route -> detection
         val results = variants.associate { it.id to LinkedHashMap<String, DeckDetection>() }
@@ -959,11 +995,15 @@ class ElevationBenchProbeTest {
             // MNH from the LiDAR MNT, canyon test on Mapterhorn's: isolates what the canyon alone loses.
             byVariant["f-mthc"] = DeckProfile(parity.mnhM, mns, z.getValue("DEM mapterhorn"))
             for ((id, p) in byVariant) results.getValue(id)[route] = DeckDetector.detect(p, opts)
+            results.getValue("ater")[route] = DeckDetector.detect(parity, ter)
             twoPhaseSame["e14|$route"] = results.getValue("e14")[route].toString() == results.getValue("c")[route].toString()
             twoPhaseSame["e13|$route"] = results.getValue("e13")[route].toString() == results.getValue("d")[route].toString()
             val t0 = System.nanoTime()
             repeat(5) { DeckDetector.detect(parity, opts) }
             wallMs[route] = (System.nanoTime() - t0) / 5e6
+            val t1 = System.nanoTime()
+            repeat(5) { DeckDetector.detect(parity, ter) }
+            wallMs["ater|$route"] = (System.nanoTime() - t1) / 5e6
             // (e) must equal the full-MNS run on the same MNH; printed below, asserted here.
         }
 
@@ -1000,19 +1040,27 @@ class ElevationBenchProbeTest {
 
         // ── Detections of the parity variant, route by route ──────────────────────────────────
         val a = results.getValue("a")
-        for (route in ROUTES.keys) {
-            val d = a.getValue(route)
+        for ((route, id) in ROUTES.keys.flatMap { r -> listOf(r to "a", r to "ater") }) {
+            val d = results.getValue(id).getValue(route)
             val p = profiles.getValue(route)
             val spans = structures.filter { it.route == route }
             println()
-            println("[decks] ═══ $route — variant (a) MNS−MNT z15, detector %.1f ms".fmt(wallMs.getValue(route)))
             println(
-                "[decks] %-13s | %5s | %6s | %6s | %6s | %6s | %6s | %-11s | %s".fmt(
+                "[decks] ═══ $route — variant (%s) MNS−MNT z15, %s, detector %.1f ms".fmt(
+                    id,
+                    if (id == "a") "PYTHON" else "DEFAULT (E2 ter)",
+                    wallMs.getValue(if (id == "a") route else "ater|$route"),
+                ),
+            )
+            println(
+                "[decks] %-13s | %5s | %6s | %6s | %6s | %6s | %5s | %6s | %6s | %-11s | %s".fmt(
                     "km",
                     "L m",
                     "MNHmax",
                     "rough",
                     "P95 %",
+                    "raw %",
+                    "clean",
                     "canyon",
                     "drop",
                     "verdict",
@@ -1024,13 +1072,15 @@ class ElevationBenchProbeTest {
                 val mnhMax = (c.first..c.last).maxOf { k -> p.mnhM[k].takeUnless { it.isNaN() } ?: Double.NEGATIVE_INFINITY }
                 val st = spans.filter { attributable(c, it, p) }.joinToString("; ") { "${it.kind} ${it.label}" }.ifEmpty { "—" }
                 println(
-                    "[decks] %6.2f–%6.2f | %5.0f | %6.1f | %6.2f | %6.1f | %6.1f | %6.1f | %-11s | %s".fmt(
+                    "[decks] %6.2f–%6.2f | %5.0f | %6.1f | %6.2f | %6.1f | %6.1f | %5.2f | %6.1f | %6.1f | %-11s | %s".fmt(
                         c.startM / 1000,
                         c.endM / 1000,
                         m.lengthM,
                         mnhMax,
                         m.roughnessM,
                         m.slopeP95 * 100,
+                        m.rawSlopeP95 * 100,
+                        m.cleanFraction,
                         m.canyonM,
                         m.mntDropM,
                         c.rejection?.name ?: "DECK",
@@ -1353,6 +1403,17 @@ class ElevationBenchProbeTest {
         assertEquals(21, pyFound, "variant (py) recall on the 21 python bridges")
         assertEquals(0, fpByVariant.getValue("py").size, "variant (py) false positives")
         assertEquals(0, fpByVariant.getValue("a").size, "variant (a) false positives")
+        // E2 on PYTHON, then E2 ter DEFAULT: no bridge lost, no FP, no new station outside the truth.
+        val e2 = scoreStrava(results.getValue("a"), structures)
+        assertEquals(16, e2.found, "variant (a) PYTHON Strava bridges (E2)")
+        assertEquals(8, e2.outSpan, "variant (a) PYTHON stations outside truth, spans (E2)")
+        assertEquals(8, e2.outDeck, "variant (a) PYTHON stations outside truth, deck mask (E2)")
+        val e2ter = scoreStrava(results.getValue("ater"), structures)
+        assertEquals(16, e2ter.found, "variant (ater) DEFAULT Strava bridges")
+        assertEquals(e2.foundKeys, e2ter.foundKeys, "variant (ater) finds the same bridges as (a)")
+        assertEquals(0, e2ter.fps.size, "variant (ater) false positives")
+        assertTrue(e2ter.outSpan <= 8, "variant (ater) stations outside truth, spans: ${e2ter.outSpan}")
+        assertTrue(e2ter.outDeck <= 8, "variant (ater) stations outside truth, deck mask: ${e2ter.outDeck}")
         twoPhaseSame.forEach { (key, same) -> assertTrue(same, "two-phase $key differs from the full-MNS run") }
     }
 
@@ -1766,9 +1827,12 @@ class ElevationBenchProbeTest {
      * bilinear, one layer after the other), then a one-at-a-time sensitivity sweep around
      * [DeckDetectorOptions.DEFAULT] — built here with `copy`, DEFAULT itself never changes. The sweep
      * is printed, not asserted: a probe must not go red on a finding. Asserted: data integrity, tile
-     * counts, that the extracted Strava scoring reproduces E2 (16/21, FP 0, 8 / 8 stations), and the
-     * acceptance criterion at DEFAULT: 0 FP and 0 `G`/`O`/`L` station inside a detection on the 12
-     * negatives, n04's own Pont de la Beaujoire found.
+     * counts, that the extracted Strava scoring reproduces E2 on [DeckDetectorOptions.PYTHON] (16/21,
+     * FP 0, 8 / 8 stations) and that DEFAULT finds the same bridges with no more outside the truth,
+     * and the acceptance criterion at DEFAULT: 0 FP and 0 `G`/`O`/`L` station inside a detection on
+     * the 12 negatives, n04's own Pont de la Beaujoire found. E2 ter adds: nothing PYTHON finds is
+     * lost, held-out `D` coverage ≥ 90 %, 13/15 spans, p01/p06/p07 each ≥ 95 % covered, and with the
+     * canyon test off no more `G`/`O`/`L` stations than PYTHON lets through.
      */
     @Test
     fun deckControls() {
@@ -1831,12 +1895,20 @@ class ElevationBenchProbeTest {
         }
 
         val default = DeckDetectorOptions.DEFAULT
+        val python = DeckDetectorOptions.PYTHON
+        val pyStrava = scoreStrava(strava.mapValues { DeckDetector.detect(it.value, python) }, structures)
+        // The extraction pin: E2's numbers for variant (a), on the E2 bis detector.
+        assertEquals(16, pyStrava.found, "PYTHON Strava bridges (E2)")
+        assertEquals(0, pyStrava.fps.size, "PYTHON Strava false positives (E2)")
+        assertEquals(8, pyStrava.outSpan, "PYTHON Strava stations outside truth, spans (E2)")
+        assertEquals(8, pyStrava.outDeck, "PYTHON Strava stations outside truth, deck mask (E2)")
+        // E2 ter DEFAULT: the same bridges, no FP, no new station outside the truth.
         val baseStrava = scoreStrava(strava.mapValues { DeckDetector.detect(it.value, default) }, structures)
-        // The extraction pin: E2's numbers for variant (a).
-        assertEquals(16, baseStrava.found, "DEFAULT Strava bridges (E2)")
-        assertEquals(0, baseStrava.fps.size, "DEFAULT Strava false positives (E2)")
-        assertEquals(8, baseStrava.outSpan, "DEFAULT Strava stations outside truth, spans (E2)")
-        assertEquals(8, baseStrava.outDeck, "DEFAULT Strava stations outside truth, deck mask (E2)")
+        assertEquals(16, baseStrava.found, "DEFAULT Strava bridges")
+        assertEquals(pyStrava.foundKeys, baseStrava.foundKeys, "DEFAULT finds the same Strava bridges as PYTHON")
+        assertEquals(0, baseStrava.fps.size, "DEFAULT Strava false positives")
+        assertTrue(baseStrava.outSpan <= 8, "DEFAULT Strava stations outside truth, spans: ${baseStrava.outSpan}")
+        assertTrue(baseStrava.outDeck <= 8, "DEFAULT Strava stations outside truth, deck mask: ${baseStrava.outDeck}")
 
         // ── DEFAULT, per control ──────────────────────────────────────────────────────────────
         println()
@@ -1888,13 +1960,15 @@ class ElevationBenchProbeTest {
             "$tag DEFAULT, every candidate the detector measured on the controls (ROUGH groups are never measured); tall = kinds of the MNH > tallMnhM stations",
         )
         println(
-            "$tag %-30s | %-13s | %5s | %6s | %5s | %6s | %6s | %6s | %-11s | %-12s | %s".fmt(
+            "$tag %-30s | %-13s | %5s | %6s | %5s | %6s | %6s | %5s | %6s | %6s | %-11s | %-12s | %s".fmt(
                 "control",
                 "km",
                 "L m",
                 "MNHmax",
                 "rough",
                 "P95 %",
+                "raw %",
+                "clean",
                 "canyon",
                 "drop",
                 "verdict",
@@ -1915,7 +1989,7 @@ class ElevationBenchProbeTest {
                         .joinToString("; ") { "${it.kind} ${it.name.take(40)}" }
                         .ifEmpty { "—" }
                 println(
-                    "$tag %-30s | %6.2f–%6.2f | %5.0f | %6.1f | %5.2f | %6.1f | %6.1f | %6.1f | %-11s | %-12s | %s".fmt(
+                    "$tag %-30s | %6.2f–%6.2f | %5.0f | %6.1f | %5.2f | %6.1f | %6.1f | %5.2f | %6.1f | %6.1f | %-11s | %-12s | %s".fmt(
                         row.id,
                         cand.startM / 1000,
                         cand.endM / 1000,
@@ -1923,6 +1997,8 @@ class ElevationBenchProbeTest {
                         mnhMax,
                         m.roughnessM,
                         m.slopeP95 * 100,
+                        m.rawSlopeP95 * 100,
+                        m.cleanFraction,
                         m.canyonM,
                         m.mntDropM,
                         cand.rejection?.name ?: (if (cand in sc.fps) "DECK (FP)" else "DECK"),
@@ -2045,11 +2121,64 @@ class ElevationBenchProbeTest {
             scores.getValue("n04-nantes-periph-nord").ownFound.any { "Beaujoire" in it.name },
             "DEFAULT finds n04's own Pont de la Beaujoire",
         )
+        // E2 ter: nothing PYTHON finds is lost, and the three steep bridges are covered.
+        val pyScores =
+            scored.associate {
+                it.id to
+                    scoreControl(controls.getValue(it.id), spans, DeckDetector.detect(profiles.getValue(it.id), python), python)
+            }
+        for (r in scored) {
+            val lost = pyScores.getValue(r.id).dFound - scores.getValue(r.id).dFound.toSet()
+            assertTrue(lost.isEmpty(), "${r.id}: DEFAULT loses PYTHON's ${lost.map { it.name }}")
+            val ownLost = pyScores.getValue(r.id).ownFound - scores.getValue(r.id).ownFound.toSet()
+            assertTrue(ownLost.isEmpty(), "${r.id}: DEFAULT loses PYTHON's own bridge ${ownLost.map { it.name }}")
+        }
+        val dIn = poss.sumOf { scores.getValue(it.id).dInSpan }
+        val dAll = poss.sumOf { scores.getValue(it.id).dStations }
+        println(
+            "$tag E2 ter against PYTHON: held-out spans %d/%d -> %d/%d, D stations in accepted spans %d -> %d / %d".fmt(
+                poss.sumOf { pyScores.getValue(it.id).dFound.size },
+                poss.sumOf { pyScores.getValue(it.id).dSpans.size },
+                poss.sumOf { scores.getValue(it.id).dFound.size },
+                poss.sumOf { scores.getValue(it.id).dSpans.size },
+                poss.sumOf { pyScores.getValue(it.id).dInSpan },
+                dIn,
+                dAll,
+            ),
+        )
+        for (r in poss) {
+            val sc = scores.getValue(r.id)
+            val py = pyScores.getValue(r.id)
+            println(
+                "$tag   %-22s spans %d/%d -> %d/%d, D coverage %d %% -> %d %%".fmt(
+                    r.id,
+                    py.dFound.size,
+                    py.dSpans.size,
+                    sc.dFound.size,
+                    sc.dSpans.size,
+                    py.coveragePct(),
+                    sc.coveragePct(),
+                ),
+            )
+        }
+        assertTrue(100.0 * dIn / dAll >= 90.0, "DEFAULT D coverage on the held-out positives: $dIn / $dAll")
+        assertEquals(13, poss.sumOf { scores.getValue(it.id).dFound.size }, "DEFAULT held-out spans found")
+        for (id in listOf("p01-chevire", "p06-normandie", "p07-millau-a75")) {
+            val sc = scores.getValue(id)
+            assertTrue(100.0 * sc.dInSpan / sc.dStations >= 95.0, "$id D coverage: ${sc.dInSpan} / ${sc.dStations}")
+        }
 
         // ── Sensitivity: one variation at a time ──────────────────────────────────────────────
         val settings: List<Pair<String, DeckDetectorOptions>> =
             listOf(
                 "DEFAULT" to default,
+                "PYTHON (E2 bis DEFAULT)" to python,
+                "slopeOnCleanDeck false" to default.copy(slopeOnCleanDeck = false),
+                "mntAboveMnsAsTall false" to default.copy(mntAboveMnsAsTall = false),
+                "minCleanFraction 0" to default.copy(minCleanFraction = 0.0),
+                "minCleanFraction 0.4" to default.copy(minCleanFraction = 0.4),
+                "minCleanStationsCount 3" to default.copy(minCleanStationsCount = 3),
+                "minCleanStationsCount 10" to default.copy(minCleanStationsCount = 10),
                 "tallMnhM 4.0" to default.copy(tallMnhM = 4.0),
                 "tallMnhM 3.0" to default.copy(tallMnhM = 3.0),
                 "tallMnhM 2.5" to default.copy(tallMnhM = 2.5),
@@ -2058,6 +2187,8 @@ class ElevationBenchProbeTest {
                 "maxRoughnessM 1.0" to default.copy(maxRoughnessM = 1.0),
                 "maxRoughnessM 1.2" to default.copy(maxRoughnessM = 1.2),
                 "maxRoughnessM 1.5" to default.copy(maxRoughnessM = 1.5),
+                // Also the clean threshold of the bridged slope: moves the run filter too.
+                "maxRoughnessM 0.5 (+runs)" to default.copy(maxRoughnessM = 0.5),
                 "minSmoothFraction 0.5" to default.copy(minSmoothFraction = 0.5),
                 "minSmoothFraction 0.4" to default.copy(minSmoothFraction = 0.4),
                 "maxShortRoughnessM 0.6" to default.copy(maxShortRoughnessM = 0.6),
@@ -2078,13 +2209,15 @@ class ElevationBenchProbeTest {
                 // every measured drop on the controls is above −1 m).
                 "minCanyonDropM 0.3" to default.copy(minCanyonDropM = 0.3),
                 "minCanyonDropM -1 (off)" to default.copy(minCanyonDropM = -1.0),
+                "PYTHON, canyon off" to python.copy(minCanyonDropM = -1.0),
                 "deckMnhM 0.5" to default.copy(deckMnhM = 0.5),
                 "deckMnhM 2.0" to default.copy(deckMnhM = 2.0),
                 "minLengthM 20" to default.copy(minLengthM = 20.0),
                 "stress, not a proposal" to
                     default.copy(tallMnhM = 3.0, minTallRunM = 10.0, maxRoughnessM = 1.2, maxShortRoughnessM = 0.8, mergeGapM = 100.0),
             )
-        assertEquals(30, settings.size, "DEFAULT + 29 variants")
+        assertEquals(39, settings.size, "DEFAULT + 38 variants")
+        val negGol = HashMap<String, Int>()
         val bridges = structures.filter { it.kind == "bridge" }
         val lostFive = LOST_FIVE.mapValues { (_, needle) -> bridges.single { needle in it.name }.key }
         assertEquals(5, lostFive.size)
@@ -2148,6 +2281,7 @@ class ElevationBenchProbeTest {
                 }
             val dIn = poss.sumOf { sc.getValue(it.id).dInSpan }
             val dAll = poss.sumOf { sc.getValue(it.id).dStations }
+            negGol[label] = negs.sumOf { r -> "GOL".sumOf { sc.getValue(r.id).out(it) } }
             println(
                 "$tag | %-24s | %2d (%s) | %-30s | %-40s | %d / %d/%d | %-30s | %-6s | %-11s | %s |".fmt(
                     label,
@@ -2197,6 +2331,27 @@ class ElevationBenchProbeTest {
                         ),
                     )
                 }
+                for (r in negs) {
+                    val ctl = controls.getValue(r.id)
+                    for (cand in sc.getValue(r.id).accepted - sc.getValue(r.id).fps.toSet()) {
+                        val gol = (cand.first..cand.last).count { ctl.kind[it] in "GOL" }
+                        if (gol == 0) continue
+                        val m = cand.metrics!!
+                        println(
+                            "$tag     G/O/L in %s km %.2f–%.2f (on its own structure): %d stations, L %.0f m, P95 %.1f %% (raw %.1f, clean %.2f)"
+                                .fmt(
+                                    r.id,
+                                    cand.startM / 1000,
+                                    cand.endM / 1000,
+                                    gol,
+                                    m.lengthM,
+                                    m.slopeP95 * 100,
+                                    m.rawSlopeP95 * 100,
+                                    m.cleanFraction,
+                                ),
+                        )
+                    }
+                }
                 for (r in scored) {
                     for (cand in sc.getValue(r.id).fps) {
                         val p = profiles.getValue(r.id)
@@ -2218,6 +2373,12 @@ class ElevationBenchProbeTest {
                 }
             }
         }
+        // Diagnostic guard: with the canyon test off, the bridged slope lets no more canopy or
+        // buildings through than the E2 bis detector did (10 G/O/L stations, n04 and n09).
+        assertTrue(
+            negGol.getValue("minCanyonDropM -1 (off)") <= negGol.getValue("PYTHON, canyon off"),
+            "canyon off: DEFAULT G/O/L ${negGol["minCanyonDropM -1 (off)"]} > PYTHON ${negGol["PYTHON, canyon off"]}",
+        )
         println()
         println(
             "$tag tiles: %d from disk, %d fetched (%.1f MB) in this test".fmt(tileHits.get(), tileMisses.get(), bytesFetched.get() / 1e6),

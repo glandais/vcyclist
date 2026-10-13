@@ -53,7 +53,10 @@ enum class DeckRejection {
     /** The MNT under the span does not drop more than `minCanyonDropM` below its ends: a roof. */
     NO_CANYON,
 
-    /** Long span whose deck slope P95 exceeds `maxSlopeP95` (or shorter than `minLengthM`). */
+    /**
+     * Long span whose deck slope P95 exceeds `maxSlopeP95` (or shorter than `minLengthM`); the slope
+     * is read on the bridged profile when `slopeOnCleanDeck` holds and enough stations are clean.
+     */
     STEEP,
 
     /** Short span whose median roughness is not below `maxShortRoughnessM`. */
@@ -71,9 +74,16 @@ enum class DeckRejection {
  * What [DeckDetector] measured on a candidate span. Slopes are fractions, not percents.
  *
  * @property lengthM `(last − first + 1) × step`, Python's `L`
- * @property slopeP95 P95 of |slope| of the MNS median, inner stations; `NaN` on a short span (Python
- *   prints 99)
+ * @property slopeP95 P95 of |slope| over the inner stations of the profile the verdict read: the MNS
+ *   median with its rough stations bridged when [slopeOnCleanDeck], the raw MNS median otherwise;
+ *   `NaN` on a short span (Python prints 99)
  * @property slopeMax max of the same, `NaN` on a short span
+ * @property rawSlopeP95 P95 of |slope| of the raw MNS median (analyze.py's statistic), always
+ *   computed on a long span, `NaN` on a short one
+ * @property cleanFraction share of clean stations (window-max roughness below `maxRoughnessM`) among
+ *   the inner stations of a long span; `NaN` on a short span
+ * @property slopeOnCleanDeck whether [slopeP95] was read on the bridged profile: `false` when the
+ *   option is off, on a short span, or on the fallback (too few clean stations)
  * @property roughnessM median roughness over the span's tall stations
  * @property smoothFraction the smallest smooth share among the tall runs that make the candidate
  * @property canyonM max of `median MNS − MNT` on the span, `NaN` samples skipped (diagnostic)
@@ -84,6 +94,9 @@ data class DeckMetrics(
     val lengthM: Double,
     val slopeP95: Double,
     val slopeMax: Double,
+    val rawSlopeP95: Double,
+    val cleanFraction: Double,
+    val slopeOnCleanDeck: Boolean,
     val roughnessM: Double,
     val smoothFraction: Double,
     val canyonM: Double,
@@ -157,7 +170,13 @@ data class DeckDetection(
  *    when that one is lower).
  * 8. A long span is a deck when the P95 of its |slope| (MNS median, `slopeHalfWindowM`) is at most
  *    `maxSlopeP95`; a short one (`shortSpanM`) when its median roughness is below
- *    `maxShortRoughnessM`.
+ *    `maxShortRoughnessM`. With `slopeOnCleanDeck` (E2 ter, [cleanDeckSlopes]) the MNS is first
+ *    bridged across its rough stations — a station is *clean* when the max roughness over the
+ *    `roughnessWindowM` window centred on it is below `maxRoughnessM` — linearly between the clean
+ *    stations around each gap, leading and trailing rough stations left raw; with fewer than
+ *    `minCleanStationsCount` clean stations, or a clean share under `minCleanFraction`, the raw
+ *    profile is read. A gap is bridged only when every station in it is tall (`MNH > tallMnhM`):
+ *    one that reaches the ground keeps its raw MNS.
  * 9. Deck mask of an accepted span: its `MNH > deckMnhM` runs of at least `deckMinRunM`, or all of
  *    them on a span of at most `smallSpanM` — after closing holes of at most `maxDeckGapStations`
  *    (`NaN` or low MNH) where `mf` is finite, so one no-data pixel does not drop the road into the
@@ -173,6 +192,12 @@ data class DeckDetection(
  * - the extension is bounded by `maxAbutmentM` (step 6): Python's unbounded `MNH > 1` walk lifts a
  *   raised field or a hedge row touching a deck into its span and its deck mask.
  *
+ * **E2 ter divergences**, off in [DeckDetectorOptions.PYTHON]: the bridged slope (step 8), and
+ * `mntAboveMnsAsTall` — an MNT above the MNS (impossible, IGN data under Pont de Normandie) reads as
+ * a tall MNH for steps 3, 6 and 9, for the median roughness of step 8 (`roughnessM`, which reads the
+ * tall stations) and for the tall-gap rule of the bridged slope — never for the canyon test (step 7)
+ * nor the profile `mf`.
+ *
  * **Known limits, kept from Python.** Kept runs merge across up to `mergeGapM` *before* the canyon
  * and slope tests, so a smooth structure with no canyon of its own (a roof, a canopy over the road)
  * within 300 m of a bridge joins its span and its deck mask, and two bridges that close come out as
@@ -183,6 +208,13 @@ data class DeckDetection(
  * extension at them, loses two of Python's bridges (`test2` 285..309 and 4858..4881), whose
  * abutment stations read 0.86 m and 1.07 m of roughness — a real abutment is as rough as a tree
  * line. E3 owns both cases.
+ *
+ * **Known limit of the bridged slope.** It masks only rough stations: a sag that is long *and
+ * smooth* (Cheviré s 1095–1300, left by edge mixing in the z15 pixel) stays in the slope, and a
+ * step hidden between two clean stations of a fully smooth roof is not seen either. A bridged gap
+ * has no length limit (385 m on Cheviré, 410 m on Normandie, 495 m on Millau): only the tall-gap
+ * rule ties it to a structure, so a canopy that stays tall from one smooth structure to the next
+ * (no clearing, within `mergeGapM`) is still read along the line between their tops.
  */
 object DeckDetector {
     /** Detect decks on [profile]. */
@@ -191,11 +223,17 @@ object DeckDetector {
         options: DeckDetectorOptions = DeckDetectorOptions.DEFAULT,
     ): DeckDetection {
         val n = profile.size
-        val mnh = profile.mnhM
         val mns = profile.mnsM
         val mnt = profile.mntM
         val step = options.stepM
         if (n == 0) return DeckDetection(emptyList(), emptyList(), 0)
+        val mnh =
+            if (options.mntAboveMnsAsTall) {
+                val tol = options.mntAboveMnsToleranceM
+                DoubleArray(n) { if (mnt[it] > mns[it] + tol) Double.POSITIVE_INFINITY else profile.mnhM[it] }
+            } else {
+                profile.mnhM
+            }
 
         val mf = rollingNanMedian(mns, options.surfaceMedianWindowStations / 2)
         val rough = roughness(mns, mf, options.roughnessWindowStations / 2)
@@ -247,6 +285,10 @@ object DeckDetector {
         }
 
         val slope = centredSlope(mf, options.slopeHalfStations, step)
+        val clean =
+            rollingMax(rough, options.roughnessWindowStations / 2).let { m ->
+                BooleanArray(n) { m[it] < options.maxRoughnessM }
+            }
 
         val classified = ArrayList<Triple<IntRange, DeckMetrics, DeckRejection?>>()
         for ((span, fraction) in spans) {
@@ -254,13 +296,17 @@ object DeckDetector {
             val b = span.last
             val short = b - a <= options.shortSpanIntervals
             val h = options.slopeHalfStations
-            val slopes =
+            val rawSlopes =
                 if (short) {
                     DoubleArray(0)
                 } else {
                     DoubleArray(maxOf(0, (b - h) - (a + h) + 1)) { abs(slope[a + h + it]) }
                 }
-            val slopeP95 = if (slopes.isEmpty() || slopes.any { it.isNaN() }) Double.NaN else percentileLinear(slopes, 0.95)
+            val cleanFraction = if (short) Double.NaN else innerCleanFraction(clean, a, b, h)
+            val cleanSlopes =
+                if (!short && options.slopeOnCleanDeck) cleanDeckSlopes(mns, mnh, clean, cleanFraction, a, b, options) else null
+            val slopes = cleanSlopes ?: rawSlopes
+            val slopeP95 = p95OrNaN(slopes)
             val slopeMax = if (slopes.isEmpty()) Double.NaN else maxOrNaN(slopes)
             val roughOnTall = span.filter { mnh[it] > options.tallMnhM }.map { rough[it] }
             val roughness = if (roughOnTall.isEmpty() || roughOnTall.any { it.isNaN() }) Double.NaN else median(roughOnTall)
@@ -275,6 +321,9 @@ object DeckDetector {
                     lengthM = (b - a + 1) * step,
                     slopeP95 = slopeP95,
                     slopeMax = slopeMax,
+                    rawSlopeP95 = p95OrNaN(rawSlopes),
+                    cleanFraction = cleanFraction,
+                    slopeOnCleanDeck = cleanSlopes != null,
                     roughnessM = roughness,
                     smoothFraction = fraction,
                     canyonM = span.map { mf[it] - mnt[it] }.filter { !it.isNaN() }.maxOrNull() ?: Double.NaN,
@@ -363,6 +412,72 @@ object DeckDetector {
     }
 
     // ── Helpers, each pinned by DeckDetectorTest ────────────────────────────────────────────────
+
+    /**
+     * Share of [clean] stations among the inner stations `a + h .. b − h` of the span `[a, b]`, `NaN`
+     * when there is none. The single site of [DeckMetrics.cleanFraction] and of the
+     * `minCleanFraction` gate of [cleanDeckSlopes].
+     */
+    internal fun innerCleanFraction(
+        clean: BooleanArray,
+        a: Int,
+        b: Int,
+        h: Int,
+    ): Double = if (b - h < a + h) Double.NaN else (a + h..b - h).count { clean[it] }.toDouble() / ((b - h) - (a + h) + 1)
+
+    /**
+     * |slope| over the inner stations `a + h .. b − h` of the span `[a, b]`, read on the MNS with its
+     * non-[clean] stations bridged (step 8, E2 ter), or `null` when the span has fewer than
+     * `minCleanStationsCount` clean stations or a [cleanFraction] (from [innerCleanFraction]) below
+     * `minCleanFraction` — the caller then reads the raw profile.
+     *
+     * A gap — the non-clean stations strictly between two consecutive clean stations of the span — is
+     * replaced by the linear interpolation between those two clean stations **only when it is tall
+     * throughout**: no station of the gap has an [mnh] (the effective one, `mntAboveMnsAsTall`
+     * applied) at or below `tallMnhM`; a no-data MNH does not veto, its MNS is `NaN` and the
+     * nan-median skips it anyway. A gap that touches the ground — a clearing at a forest edge, a
+     * road between two structures — keeps its raw MNS, so the slope test still sees a canopy that
+     * follows a ravine between two flat roofs. Leading and trailing non-clean stations keep their
+     * raw MNS, so a rough tail (a tree line past an abutment) is still measured. The bridged MNS then
+     * goes through the same nan-median and centred slope as the raw one. A clean station has a
+     * finite MNS: its roughness, which reads it, is finite.
+     */
+    internal fun cleanDeckSlopes(
+        mns: DoubleArray,
+        mnh: DoubleArray,
+        clean: BooleanArray,
+        cleanFraction: Double,
+        a: Int,
+        b: Int,
+        options: DeckDetectorOptions,
+    ): DoubleArray? {
+        val n = mns.size
+        val h = options.slopeHalfStations
+        if (b - h < a + h) return null
+        val inSpan = (a..b).filter { clean[it] }
+        if (inSpan.size < options.minCleanStationsCount) return null
+        if (!(cleanFraction >= options.minCleanFraction)) return null
+        val medianHalf = options.surfaceMedianWindowStations / 2
+        // mf on [a, b] reads x on [a − medianHalf, b + medianHalf] (clamped like the full array).
+        val lo = maxOf(0, a - medianHalf)
+        val hi = minOf(n - 1, b + medianHalf)
+        val x = mns.copyOfRange(lo, hi + 1)
+        for (j in 0 until inSpan.size - 1) {
+            val c0 = inSpan[j]
+            val c1 = inSpan[j + 1]
+            if ((c0 + 1 until c1).any { mnh[it] <= options.tallMnhM }) continue
+            for (k in c0 + 1 until c1) {
+                x[k - lo] = mns[c0] + (mns[c1] - mns[c0]) * (k - c0) / (c1 - c0)
+            }
+        }
+        // Clamping at lo / hi only differs from the full array's where the window leaves [lo, hi],
+        // which no station of [a, b] does unless lo = 0 or hi = n − 1, the array's own clamp.
+        val mfClean = rollingNanMedian(x, medianHalf)
+        return DoubleArray((b - h) - (a + h) + 1) {
+            val k = a + h + it
+            abs((mfClean[k + h - lo] - mfClean[k - h - lo]) / (2 * h * options.stepM))
+        }
+    }
 
     /**
      * Walk from [from] in direction [dir] (±1) while the next station's MNH is above [threshold]
@@ -469,6 +584,23 @@ object DeckDetector {
         }
     }
 
+    /** Centred rolling max over `2·half + 1` stations, indices clamped, `NaN` propagates. */
+    internal fun rollingMax(
+        x: DoubleArray,
+        half: Int,
+    ): DoubleArray {
+        val n = x.size
+        return DoubleArray(n) { k ->
+            var m = Double.NEGATIVE_INFINITY
+            for (j in k - half..k + half) {
+                val v = x[j.coerceIn(0, n - 1)]
+                if (v.isNaN()) return@DoubleArray Double.NaN
+                if (v > m) m = v
+            }
+            m
+        }
+    }
+
     /** `(x[k+h] − x[k−h]) / (2h·step)`, indices clamped, as a fraction (`common.py` `slope`). */
     internal fun centredSlope(
         x: DoubleArray,
@@ -531,6 +663,9 @@ object DeckDetector {
         val m = s.size
         return if (m % 2 == 1) s[m / 2] else (s[m / 2 - 1] + s[m / 2]) / 2
     }
+
+    private fun p95OrNaN(values: DoubleArray): Double =
+        if (values.isEmpty() || values.any { it.isNaN() }) Double.NaN else percentileLinear(values, 0.95)
 
     private fun maxOrNaN(values: DoubleArray): Double = if (values.any { it.isNaN() }) Double.NaN else values.max()
 }

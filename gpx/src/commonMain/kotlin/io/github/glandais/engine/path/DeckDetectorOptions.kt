@@ -6,7 +6,9 @@ import kotlin.math.roundToInt
 /**
  * Thresholds of [DeckDetector], in metres on the along-track grid.
  *
- * Every default but [maxAbutmentM] is the value of the reference detector,
+ * Every default but [maxAbutmentM] and the E2 ter options ([slopeOnCleanDeck], [minCleanFraction],
+ * [minCleanStationsCount], [mntAboveMnsAsTall], [mntAboveMnsToleranceM]; [PYTHON] turns them off) is
+ * the value of the reference detector,
  * `docs/deck-strava-data/analysis/analyze.py` (bridges block) and `common.py`, measured on the four
  * Strava routes of
  * `docs/tasks/elevation-bridge-decks.md` (*Input 5*): 21 bridges found, 14 km of canopy and
@@ -90,6 +92,37 @@ data class DeckDetectorOptions(
      * Python's 21 bridges: 7 stations (35 m) at most, Saint-Nazaire's south end; 100 m leaves room.
      */
     val maxAbutmentM: Double = 100.0,
+    /**
+     * E2 ter: a long span's slope test reads the deck profile with its *rough* stations bridged —
+     * linear across every non-clean gap between the first and the last clean station of the span
+     * whose stations are all tall (`MNH > tallMnhM`), leading and trailing ones left raw. A station
+     * is clean when the max roughness over the [roughnessWindowM] window centred on it is below
+     * [maxRoughnessM]. Edge mixing (Cheviré), a hole band (Millau) and pylons (Normandie) put their
+     * error on rough stations; the step across a bridged gap still carries the real grade. `false`: the raw MNS median, as analyze.py.
+     */
+    val slopeOnCleanDeck: Boolean = true,
+    /**
+     * Below this share of clean stations among a long span's inner ones (`first + h .. last − h`),
+     * the span is judged on its raw profile, as before E2 ter: a canopy whose few clean stations
+     * would bridge into a flat line (n05, clean share 0.13) is not read as a deck.
+     */
+    val minCleanFraction: Double = 0.25,
+    /**
+     * Below this many clean stations in the span, same fallback to the raw profile (p08 has 2).
+     * At least 2: interpolation needs two clean stations.
+     */
+    val minCleanStationsCount: Int = 5,
+    /**
+     * E2 ter: `MNT > MNS + mntAboveMnsToleranceM` is physically impossible (the surface model is
+     * the top of everything); IGN's data does it under Pont de Normandie (164 stations), where it
+     * reads as a negative MNH and splits the deck. Such a station's MNH is taken as tall (`+∞`) for
+     * the tall runs, the extension, the deck mask, the span's median roughness (`roughnessM`, the
+     * short-span verdict) and the tall-gap rule of [slopeOnCleanDeck] — never for the canyon test,
+     * which reads the raw MNT. `false`: the MNH as given.
+     */
+    val mntAboveMnsAsTall: Boolean = true,
+    /** See [mntAboveMnsAsTall]. */
+    val mntAboveMnsToleranceM: Double = 0.5,
 ) {
     init {
         require(stepM > 0.0 && stepM.isFinite()) { "stepM must be positive, got $stepM" }
@@ -112,6 +145,8 @@ data class DeckDetectorOptions(
                 "deckMinRunM" to deckMinRunM,
                 "smallSpanM" to smallSpanM,
                 "maxAbutmentM" to maxAbutmentM,
+                "minCleanFraction" to minCleanFraction,
+                "mntAboveMnsToleranceM" to mntAboveMnsToleranceM,
             )
         // A NaN threshold fails every comparison silently: maxSlopeP95 = NaN makes every span STEEP.
         thresholds.forEach { (name, v) -> require(v.isFinite()) { "$name must be finite, got $v" } }
@@ -123,6 +158,9 @@ data class DeckDetectorOptions(
         // The span thresholds are read in intervals; they must be integral too.
         require(shortSpanIntervals >= 0 && smallSpanIntervals >= 0) { "negative span threshold" }
         require(maxAbutmentStations >= 0) { "negative maxAbutmentM" }
+        require(minCleanFraction in 0.0..1.0) { "minCleanFraction must be in 0..1, got $minCleanFraction" }
+        require(mntAboveMnsToleranceM >= 0.0) { "mntAboveMnsToleranceM must be non-negative, got $mntAboveMnsToleranceM" }
+        require(minCleanStationsCount >= 2) { "minCleanStationsCount must be at least 2, got $minCleanStationsCount" }
         // A long span (last − first > shortSpanIntervals) needs at least one inner slope sample,
         // last − first ≥ 2h; below this a valid long span would read NO_DATA.
         require(shortSpanIntervals >= 2 * slopeHalfStations - 1) {
@@ -175,7 +213,18 @@ data class DeckDetectorOptions(
     internal val smallSpanIntervals: Int get() = stations(smallSpanM, "smallSpanM")
 
     companion object {
-        /** The reference detector's thresholds on a 5 m grid. */
+        /**
+         * The reference detector's thresholds on a 5 m grid, with the E2 ter slope estimator
+         * ([slopeOnCleanDeck]) and [mntAboveMnsAsTall].
+         */
         val DEFAULT: DeckDetectorOptions = DeckDetectorOptions()
+
+        /**
+         * `analyze.py` plus the bounded abutment and the NaN-island bridging: the E2 bis DEFAULT,
+         * without [slopeOnCleanDeck] nor [mntAboveMnsAsTall]. The exact parity with Python's own
+         * samples is pinned on this set — E2 ter changes one of their P95s (`test2` 125..202), no
+         * verdict.
+         */
+        val PYTHON: DeckDetectorOptions = DeckDetectorOptions(slopeOnCleanDeck = false, mntAboveMnsAsTall = false)
     }
 }

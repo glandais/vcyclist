@@ -1,8 +1,13 @@
 package io.github.glandais.engine.path
 
+import kotlin.math.PI
+import kotlin.math.abs
+import kotlin.math.cos
+import kotlin.math.sin
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFailsWith
+import kotlin.test.assertFalse
 import kotlin.test.assertNotNull
 import kotlin.test.assertNull
 import kotlin.test.assertTrue
@@ -474,6 +479,250 @@ class DeckDetectorTest {
         val r = Route(500).deck(100..299, under = 2.0) { 12.0 }
         for (k in 300..315) r.mns[k] = 22.0 + crown(k)
         assertEquals(100..315, detect(r).accepted.single().let { it.first..it.last })
+    }
+
+    // ── E2 ter: steep bridges ──────────────────────────────────────────────────────────────────
+
+    /**
+     * Ground at 0 m over 150 m on each side, a deck over [deckStations] stations from station 30,
+     * the ground under it at [under]: E2 ter's synthetic bridge. [top] gives the deck MNS by station
+     * offset from the deck's first station; [right] is the ground level past the deck.
+     */
+    private fun steepBridge(
+        deckStations: Int = 300,
+        under: (Int) -> Double = { -8.0 },
+        right: Double = 0.0,
+        top: (Int) -> Double = { j -> 45.0 - 0.3 * abs(j - 150) },
+    ): Route {
+        val r = Route(deckStations + 60, ground = 0.0)
+        for (k in 30 + deckStations until r.mns.size) {
+            r.mns[k] = right
+            r.mnt[k] = right
+        }
+        return r.deck(30 until 30 + deckStations, under = 0.0) { k -> top(k - 30) }.also { d ->
+            for (k in 30 until 30 + deckStations) d.mnt[k] = under(k - 30)
+        }
+    }
+
+    /**
+     * Deterministic noise in `[0, 1)`, Knuth's multiplicative hash: neighbours are uncorrelated, so
+     * the nan-median does not follow it and the MNS is rough ([crown]'s `2k mod 13` is a sawtooth).
+     */
+    private fun noise(k: Int): Double = (k.toLong() * 2654435761L % 4294967296L) / 4294967296.0
+
+    @Test
+    fun `edge mixing sag is bridged`() {
+        // Cheviré: three runs where the MNS alternates the deck and 5–15 m below it.
+        val r = steepBridge()
+        for (run in listOf(80..99, 140..164, 210..234)) {
+            for (k in run) if (k % 2 == 1) r.mns[k] -= 5.0 + 10.0 * noise(k)
+        }
+        val python = detect(r, DeckDetectorOptions.PYTHON)
+        assertEquals(DeckRejection.STEEP, python.rejected.single().rejection)
+        val c =
+            detect(r).let {
+                assertTrue(it.rejected.isEmpty(), "${it.rejected}")
+                it.accepted.single()
+            }
+        assertEquals(30..329, c.first..c.last)
+        val m = assertNotNull(c.metrics)
+        assertTrue(m.slopeOnCleanDeck)
+        assertTrue(m.slopeP95 <= 0.07, "bridged P95 ${m.slopeP95}")
+        assertTrue(m.rawSlopeP95 > 0.10, "raw P95 ${m.rawSlopeP95}")
+        assertTrue(m.cleanFraction in 0.25..1.0, "clean ${m.cleanFraction}")
+    }
+
+    @Test
+    fun `one-sided hole band is bridged`() {
+        // Millau: a straight 3 % deck 80 m above the valley, every other MNS 10–60 m low over 100 stations.
+        val r = steepBridge(under = { -80.0 }, right = 44.85) { j -> 0.15 * j }
+        for (k in 150..249) if (k % 2 == 0) r.mns[k] -= 10.0 + 50.0 * noise(k)
+        val c = detect(r).accepted.single()
+        val m = assertNotNull(c.metrics)
+        assertTrue(m.slopeOnCleanDeck)
+        assertEquals(0.03, m.slopeP95, 0.005)
+        assertTrue(m.rawSlopeP95 > 0.10, "raw P95 ${m.rawSlopeP95}")
+    }
+
+    @Test
+    fun `pylon spikes and an impossible MNT`() {
+        // Normandie: a 2 km deck at ±3 %, two 40-station pylon zones 10–45 m above it, a 6-station
+        // hole 25 m below it, and 80 stations where the MNT lies 40 m above the MNS.
+        val r = steepBridge(deckStations = 400, right = 0.0) { j -> 30.0 - 0.15 * abs(j - 200) }
+        for (k in (100..139) + (160..199)) r.mns[k] += 10.0 + 35.0 * noise(k)
+        for (k in 225..230) r.mns[k] -= 25.0
+        for (k in 330..409) r.mnt[k] = r.mns[k] + 40.0
+        val python = detect(r, DeckDetectorOptions.PYTHON)
+        assertEquals(listOf(DeckRejection.STEEP), python.rejected.map { it.rejection }, "PYTHON: the pylon side is steep")
+        assertEquals(410..429, python.accepted.single().let { it.first..it.last }, "PYTHON: the far end is a separate span")
+        val split = detect(r, DeckDetectorOptions.DEFAULT.copy(mntAboveMnsAsTall = false))
+        assertEquals(listOf(30..329, 410..429), split.accepted.map { it.first..it.last }, "bridged, but split")
+        val d = detect(r)
+        assertTrue(d.rejected.isEmpty(), "${d.rejected}")
+        val c = d.accepted.single()
+        assertEquals(30..429, c.first..c.last)
+        assertEquals(listOf(30..429), c.deckRanges)
+        assertTrue(assertNotNull(c.metrics).slopeP95 <= 0.035, "P95 ${c.metrics?.slopeP95}")
+    }
+
+    @Test
+    fun `bridging measures the step across a rough gap`() {
+        // Two smooth plateaus at 10 m and 30 m, 10 rough stations between: the bridged profile keeps
+        // the 20 m step, so the span is steep — not a percentile over the clean subset.
+        val r =
+            steepBridge(deckStations = 130, right = 30.0) { j ->
+                when {
+                    j < 60 -> 10.0
+                    j < 70 -> 15.0 + 10.0 * noise(j)
+                    else -> 30.0
+                }
+            }
+        val c = only(detect(r))
+        assertEquals(DeckRejection.STEEP, c.rejection)
+        val m = assertNotNull(c.metrics)
+        assertTrue(m.slopeOnCleanDeck)
+        assertTrue(m.slopeP95 > 0.10, "P95 ${m.slopeP95}")
+    }
+
+    @Test
+    fun `a rough tail is not bridged`() {
+        // Haudaudine: a flat deck whose last 40 stations, up to the end of the span, are canopy.
+        val r = steepBridge(deckStations = 240) { j -> if (j < 200) 10.0 else 18.0 + 15.0 * noise(j) }
+        val c = only(detect(r))
+        assertEquals(DeckRejection.STEEP, c.rejection, "$c")
+        val m = assertNotNull(c.metrics)
+        assertTrue(m.slopeOnCleanDeck, "the bridged estimator ran, and kept the tail raw")
+        assertTrue(m.slopeP95 > 0.10, "P95 ${m.slopeP95}")
+    }
+
+    @Test
+    fun `too few clean stations falls back to the raw profile`() {
+        // Canopy: two 10-station smooth tall runs at 0 m merged across 50 rough stations under 5 m
+        // MNH. Bridged, the span would be flat; it has too few clean stations to be read that way.
+        val r = steepBridge(deckStations = 70) { j -> if (j < 10 || j >= 60) 0.0 else -7.5 + 4.0 * noise(j) }
+        val c = only(detect(r))
+        val m = assertNotNull(c.metrics)
+        assertTrue(m.cleanFraction < 0.25, "clean ${m.cleanFraction}")
+        assertFalse(m.slopeOnCleanDeck)
+        assertEquals(m.rawSlopeP95, m.slopeP95, 1e-12)
+        assertEquals(DeckRejection.STEEP, c.rejection)
+        val floorless = only(detect(r, DeckDetectorOptions.DEFAULT.copy(minCleanFraction = 0.0)))
+        // Without the floor the estimator runs, but the gap's MNH is under tallMnhM: it stays raw
+        // (the tall-gap rule), so the canopy is still steep. Before that rule it passed, flat.
+        val fm = assertNotNull(floorless.metrics)
+        assertTrue(fm.slopeOnCleanDeck)
+        assertEquals(fm.rawSlopeP95, fm.slopeP95, 1e-12)
+        assertEquals(DeckRejection.STEEP, floorless.rejection)
+
+        // p08: a tall 8-station core and an 8-station abutment whose MNS cycles 10 ± 1.8 m (rough,
+        // but flat under the median): 4 clean stations, judged on the raw profile, and it passes.
+        val cycle = doubleArrayOf(1.8, 0.0, -1.8)
+        val s =
+            steepBridge(deckStations = 16, under = { j -> if (j < 8) -8.0 else 7.0 }, right = 10.0) { j ->
+                if (j < 8) 10.0 else 10.0 + cycle[(j - 8) % 3]
+            }
+        val p = only(detect(s))
+        val pm = assertNotNull(p.metrics)
+        assertFalse(pm.slopeOnCleanDeck, "$p")
+        assertNull(p.rejection, "$pm")
+    }
+
+    @Test
+    fun `known limit - a smooth long sag stays in the slope`() {
+        // Cheviré's plateau: a smooth 10 m sag over 200 m is no rough station, so nothing is bridged.
+        val r = steepBridge { j -> if (j in 100 until 140) 30.0 - 5.0 * (1 - cos(PI * (j - 100) / 20.0)) else 30.0 }
+        val m = assertNotNull(only(detect(r)).metrics)
+        assertEquals(1.0, m.cleanFraction, 1e-12)
+        assertEquals(m.rawSlopeP95, m.slopeP95, 1e-12)
+    }
+
+    /**
+     * A wooded ravine road between two flat 8 m structures 275 m apart (within `mergeGapM`): the
+     * canopy follows a 20 m MNT dip (grade up to ~23 %), the canyon test passes, and the bridged
+     * line between the two flat roofs would be flat. A low-MNH clearing at each forest edge splits
+     * the roofs and the canopy into three tall runs, the canopy one rough.
+     */
+    private fun woodedRavine(): Route {
+        val r = Route(260, ground = 10.0)
+        for (k in 60..89) r.deck(k..k, under = 10.0) { 18.0 }
+        for (k in 145..174) r.deck(k..k, under = 10.0) { 18.0 }
+        for (k in 90..144) {
+            val t = 10.0 - 20.0 * sin(PI * (k - 90) / 55.0)
+            r.mnt[k] = t
+            r.mns[k] = t + 15.0 + 4.0 * noise(k)
+        }
+        for (k in (91..93) + (141..143)) r.mns[k] = r.mnt[k]
+        return r
+    }
+
+    @Test
+    fun `a canopy reaching the ground between two flat roofs is not bridged`() {
+        val r = woodedRavine()
+
+        fun span(d: DeckDetection) = (d.accepted + d.rejected).single { it.metrics != null }
+        assertEquals(DeckRejection.STEEP, span(detect(r, DeckDetectorOptions.PYTHON)).rejection)
+        val c = span(detect(r))
+        assertEquals(60..174, c.first..c.last)
+        val m = assertNotNull(c.metrics)
+        assertTrue(m.slopeOnCleanDeck, "$m")
+        assertTrue(m.cleanFraction >= 0.25, "clean ${m.cleanFraction}")
+        assertEquals(DeckRejection.STEEP, c.rejection, "the gap holds the clearings: read raw, $m")
+        assertTrue(m.slopeP95 > 0.10, "P95 ${m.slopeP95}")
+        // Two distinct tall runs are always split by a station at or under tallMnhM, so the rule
+        // confines bridging to gaps inside one tall run (or across no-data only): the two roofs at
+        // the same height would otherwise bridge into a flat line.
+        assertEquals(m.rawSlopeP95, m.slopeP95, 1e-12)
+    }
+
+    @Test
+    fun `PYTHON is DEFAULT without the E2 ter options, which are validated`() {
+        assertEquals(DeckDetectorOptions.DEFAULT.copy(slopeOnCleanDeck = false, mntAboveMnsAsTall = false), DeckDetectorOptions.PYTHON)
+        assertFailsWith<IllegalArgumentException> { DeckDetectorOptions.DEFAULT.copy(minCleanFraction = 1.5) }
+        assertFailsWith<IllegalArgumentException> { DeckDetectorOptions.DEFAULT.copy(minCleanFraction = Double.NaN) }
+        assertFailsWith<IllegalArgumentException> { DeckDetectorOptions.DEFAULT.copy(minCleanStationsCount = 1) }
+        assertFailsWith<IllegalArgumentException> { DeckDetectorOptions.DEFAULT.copy(mntAboveMnsToleranceM = Double.NaN) }
+        // A negative tolerance would read every MNH under |tol| as an impossible MNT, i.e. tall.
+        assertFailsWith<IllegalArgumentException> { DeckDetectorOptions.DEFAULT.copy(mntAboveMnsToleranceM = -5.0) }
+    }
+
+    @Test
+    fun `the rolling max clamps and propagates NaN`() {
+        val m = DeckDetector.rollingMax(doubleArrayOf(1.0, 3.0, 2.0, 0.0, 0.0, Double.NaN), 1)
+        assertEquals(listOf(3.0, 3.0, 3.0, 2.0), m.take(4))
+        assertTrue(m[4].isNaN())
+        assertTrue(m[5].isNaN())
+    }
+
+    @Test
+    fun `cleanDeckSlopes interpolates between clean stations and keeps raw ends`() {
+        // Clean stations 2..5 and 12..17 on a 0.5 m/station line; everything else is garbage (100 m).
+        val clean = BooleanArray(20) { it in 2..5 || it in 12..17 }
+        val mns = DoubleArray(20) { if (clean[it]) 0.5 * it else 100.0 }
+        val o = DeckDetectorOptions.DEFAULT
+        val tall = DoubleArray(20) { 10.0 }
+        val fraction = DeckDetector.innerCleanFraction(clean, 0, 19, o.slopeHalfStations)
+        assertEquals(10.0 / 16.0, fraction, 1e-12)
+
+        fun slopes(
+            opts: DeckDetectorOptions = o,
+            mnh: DoubleArray = tall,
+        ) = DeckDetector.cleanDeckSlopes(mns, mnh, clean, fraction, 0, 19, opts)
+        val s = assertNotNull(slopes())
+        assertEquals(16, s.size) // inner stations 2..17
+        // Station 8 reads mf over 4..12: all clean or bridged, so the line's 10 %.
+        for (k in 6..13) assertEquals(0.1, s[k - 2], 1e-12, "station $k")
+        // Station 2 reads mf[0], the median of the raw garbage at 0 and 1: the leading end stays raw.
+        assertTrue(s[0] > 1.0, "raw leading end: ${s[0]}")
+        assertTrue(s[15] > 1.0, "raw trailing end: ${s[15]}")
+        // Too few clean stations, or too small a share of them: null, the caller reads raw.
+        assertNull(slopes(o.copy(minCleanStationsCount = 11)))
+        assertNull(slopes(o.copy(minCleanFraction = 0.7)))
+        // One station of the gap at ground level (MNH 0): the gap is not tall, it stays raw.
+        val grounded = assertNotNull(slopes(mnh = tall.copyOf().also { it[9] = 0.0 }))
+        assertTrue(grounded[6 - 2] > 1.0, "raw gap: ${grounded[6 - 2]}")
+        // A no-data MNH does not veto.
+        val unknown = assertNotNull(slopes(mnh = tall.copyOf().also { it[9] = Double.NaN }))
+        for (k in 6..13) assertEquals(0.1, unknown[k - 2], 1e-12, "station $k")
     }
 
     // ── 15–16. Windows, determinism ────────────────────────────────────────────────────────────
