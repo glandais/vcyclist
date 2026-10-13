@@ -260,66 +260,67 @@ choses sont apparues, et elles valent plus que la ligne elle-même :
 
 Une ligne par **option d'entrée** cataloguée, une colonne par porte fil. C'est la moitié
 dérivable du tableau ci-dessus : chaque cellule vient d'`OptionCatalog` et est vérifiée contre
-les sources par `DoorParityTest` et `CliSurfaceTest`. Les colonnes JVM/Java et Démo n'y sont
-pas — elles ne se dérivent pas, et restent écrites à la main dans l'État.
+les sources par `DoorParityTest` et `CliSurfaceTest`, et côté HTTP par `HttpDoorParityTest` et
+`HttpForwardingTest` (dans `:api`, qui lit ce catalogue par réflexion). Les colonnes JVM/Java et
+Démo n'y sont pas — elles ne se dérivent pas, et restent écrites à la main dans l'État.
 
 ### `ClimbOptions`
 
 > CLI : The CLI has no climb command at all — `grep -ri climb cli/src/main` is empty.
 
-| Option (nom fil) | Champ du cœur | CLI | JS | WASI |
-|---|---|---|---|---|
-| `booster` | `booster` | ❌ | ✅ | ✅ |
-| `maxAnalysisPoints` | `maxAnalysisPoints` | ❌ | ✅ | ✅ |
-| `maxDiffRealGrade` | `maxDiffRealGradeRatio` | ❌ | ✅ | ✅ |
-| `maxMinClimbElevationM` | `maxMinClimbElevationM` | ❌ | ✅ | ✅ |
-| `minClimbElevationRatio` | `minClimbElevationRatio` | ❌ | ✅ | ✅ |
-| `minGradePercent` | `minGradePercent` | ❌ | ✅ | ✅ |
-| `minMinClimbElevationM` | `minMinClimbElevationM` | ❌ | ✅ | ✅ |
+| Option (nom fil) | Champ du cœur | CLI | JS | WASI | HTTP |
+|---|---|---|---|---|---|
+| `booster` | `booster` | ❌ | ✅ | ✅ | ✅ |
+| `maxAnalysisPoints` | `maxAnalysisPoints` | ❌ | ✅ | ✅ | ✅ |
+| `maxDiffRealGrade` | `maxDiffRealGradeRatio` | ❌ | ✅ | ✅ | ✅ |
+| `maxMinClimbElevationM` | `maxMinClimbElevationM` | ❌ | ✅ | ✅ | ✅ |
+| `minClimbElevationRatio` | `minClimbElevationRatio` | ❌ | ✅ | ✅ | ✅ |
+| `minGradePercent` | `minGradePercent` | ❌ | ✅ | ✅ | ✅ |
+| `minMinClimbElevationM` | `minMinClimbElevationM` | ❌ | ✅ | ✅ | ✅ |
 
 ### `CsvOptions`
 
 > CLI : `enhance --csv` and `export --csv` pass no CsvOptions at all.
 
-| Option (nom fil) | Champ du cœur | CLI | JS | WASI |
-|---|---|---|---|---|
-| `decimals` | `decimals` | ❌ | ✅ | ✅ |
-| `lineSeparator` | `lineSeparator` | ❌ | ✅ | ✅ |
-| `separator` | `separator` | ❌ | ✅ | ✅ |
-| `unitsInHeader` | `unitsInHeader` | ❌ | ✅ | ✅ |
+| Option (nom fil) | Champ du cœur | CLI | JS | WASI | HTTP |
+|---|---|---|---|---|---|
+| `decimals` | `decimals` | ❌ | ✅ | ✅ | ✅ |
+| `fields` | `fields` | ❌ | ❌ | ❌ | ✅ |
+| `lineSeparator` | `lineSeparator` | ❌ | ✅ | ✅ | ✅ |
+| `separator` | `separator` | ❌ | ✅ | ✅ | ✅ |
+| `unitsInHeader` | `unitsInHeader` | ❌ | ✅ | ✅ | ✅ |
 
 Sans porte CLI, avec la raison :
 
+- `fields` — Column selection is a List<PointField>. The HTTP door spells it as a list of PointField names resolved through PointField.byProp (an unknown name is a 400 with its own pointer); the JS and WASI readers still have no way to parse a name back — a gap, recorded. The CLI passes no writer options at all.
 - `lineSeparator` — Neither --csv command passes CsvOptions; a gap, recorded.
-
-**Cœur seulement** (1 champ) : `fields`. Column selection is a List<PointField>, and no door has a way to spell a PointField on the wire yet — fieldDefinitions() publishes names, but nothing parses one back. Give it a door by adding a name list to the readers, not by widening this entry.
 
 ### `EnhanceOptions`
 
 > CLI : Checked from S9 on; the CLI spells these as --simplify, --no-fix-elevation, etc.
 
-| Option (nom fil) | Champ du cœur | CLI | JS | WASI |
-|---|---|---|---|---|
-| `computeMaxSpeeds` | `computeMaxSpeeds` | ❌ | ✅ | ✅ |
-| `computeOnePointPerSecond` | `computeOnePointPerSecond` | ✅ `--one-point-per-second` | ✅ | ✅ |
-| `curvatureEnabled` | `curvature.enabled` | ✅ `--curvature` | ✅ | ✅ |
-| `elevationGainEnabled` | `elevationGain.enabled` | ❌ | ✅ | ✅ |
-| `elevationGainPreset` | `elevationGain.preset` | ✅ `--elevation-gain-preset` | ✅ | ✅ |
-| `elevationGainThresholdM` | `elevationGain.thresholdM` | ✅ `--elevation-gain-threshold` | ✅ | ✅ |
-| `elevationSmoothWindowM` | `elevationSmoothWindowM` | ✅ `--elevation-smooth-window` | ✅ | ✅ |
-| `fixElevation` | `fixElevation` | ✅ `--fix-elevation` | ✅ | ✅ |
-| `racingLineCorridor` | `racingLine.corridor` | ✅ `--corridor` | ✅ | ✅ |
-| `racingLineEnabled` | `racingLine.enabled` | ✅ `--racing-line` | ✅ | ✅ |
-| `racingLineRoadWidthM` | `racingLine.defaultRoadWidthM` | ✅ `--road-width` | ✅ | ✅ |
-| `simplifyEnabled` | `simplifyPath.enabled` | ✅ `--simplify` | ✅ | ✅ |
-| `simplifyToleranceM` | `simplifyPath.toleranceM` | ✅ `--simplify-tolerance` | ✅ | ✅ |
-| `simplifyZExaggeration` | `simplifyPath.zExaggeration` | ❌ | ✅ | ✅ |
-| `virtualizeTrack` | `virtualizeTrack` | ✅ `--virtualize` | ✅ | ✅ |
-| `wPrimeBalanceCriticalPower` | `wPrimeBalance.criticalPowerW` | ❌ | ✅ | ✅ |
-| `wPrimeBalanceEnabled` | `wPrimeBalance.enabled` | ❌ | ✅ | ✅ |
-| `wPrimeBalanceWPrime` | `wPrimeBalance.wPrimeJ` | ❌ | ✅ | ✅ |
-| `demSource` | *(préréglage, aucun champ)* | ✅ | ✅ | ✅ |
-| `demZoom` | *(préréglage, aucun champ)* | ✅ | ✅ | ✅ |
+| Option (nom fil) | Champ du cœur | CLI | JS | WASI | HTTP |
+|---|---|---|---|---|---|
+| `computeMaxSpeeds` | `computeMaxSpeeds` | ❌ | ✅ | ✅ | ✅ |
+| `computeOnePointPerSecond` | `computeOnePointPerSecond` | ✅ `--one-point-per-second` | ✅ | ✅ | ✅ |
+| `curvatureEnabled` | `curvature.enabled` | ✅ `--curvature` | ✅ | ✅ | ✅ |
+| `elevationGainEnabled` | `elevationGain.enabled` | ❌ | ✅ | ✅ | ✅ |
+| `elevationGainPreset` | `elevationGain.preset` | ✅ `--elevation-gain-preset` | ✅ | ✅ | ✅ |
+| `elevationGainThresholdM` | `elevationGain.thresholdM` | ✅ `--elevation-gain-threshold` | ✅ | ✅ | ✅ |
+| `elevationSmoothWindowM` | `elevationSmoothWindowM` | ✅ `--elevation-smooth-window` | ✅ | ✅ | ✅ |
+| `fixElevation` | `fixElevation` | ✅ `--fix-elevation` | ✅ | ✅ | ✅ |
+| `racingLineCorridor` | `racingLine.corridor` | ✅ `--corridor` | ✅ | ✅ | ✅ |
+| `racingLineEnabled` | `racingLine.enabled` | ✅ `--racing-line` | ✅ | ✅ | ✅ |
+| `racingLineRoadWidthM` | `racingLine.defaultRoadWidthM` | ✅ `--road-width` | ✅ | ✅ | ✅ |
+| `simplifyEnabled` | `simplifyPath.enabled` | ✅ `--simplify` | ✅ | ✅ | ✅ |
+| `simplifyToleranceM` | `simplifyPath.toleranceM` | ✅ `--simplify-tolerance` | ✅ | ✅ | ✅ |
+| `simplifyZExaggeration` | `simplifyPath.zExaggeration` | ❌ | ✅ | ✅ | ✅ |
+| `virtualizeTrack` | `virtualizeTrack` | ✅ `--virtualize` | ✅ | ✅ | ✅ |
+| `wPrimeBalanceCriticalPower` | `wPrimeBalance.criticalPowerW` | ❌ | ✅ | ✅ | ✅ |
+| `wPrimeBalanceEnabled` | `wPrimeBalance.enabled` | ❌ | ✅ | ✅ | ✅ |
+| `wPrimeBalanceWPrime` | `wPrimeBalance.wPrimeJ` | ❌ | ✅ | ✅ | ✅ |
+| `demSource` | *(préréglage, aucun champ)* | ✅ | ✅ | ✅ | ✅ |
+| `demZoom` | *(préréglage, aucun champ)* | ✅ | ✅ | ✅ | ✅ |
 
 Sans porte CLI, avec la raison :
 
@@ -336,54 +337,57 @@ Sans porte CLI, avec la raison :
 
 > CLI : Checked from S9 on; --cyclist-weight, --cyclist-cd and friends.
 
-| Option (nom fil) | Champ du cœur | CLI | JS | WASI |
-|---|---|---|---|---|
-| `cd` | `cd` | ✅ `--cyclist-cd` | ✅ | ✅ |
-| `frontalAreaM2` | `frontalAreaM2` | ✅ `--cyclist-a` | ✅ | ✅ |
-| `massKg` | `massKg` | ✅ `--cyclist-weight` | ✅ | ✅ |
-| `maxBrakeG` | `maxBrakeG` | ✅ `--cyclist-max-brake` | ✅ | ✅ |
-| `maxLeanAngleDeg` | `maxLeanAngleDeg` | ✅ `--cyclist-max-angle` | ✅ | ✅ |
-| `maxSpeedKmH` | `maxSpeedKmH` | ✅ `--cyclist-max-speed` | ✅ | ✅ |
-| `roadCondition` | *(préréglage, aucun champ)* | ✅ | ✅ | ✅ |
+| Option (nom fil) | Champ du cœur | CLI | JS | WASI | HTTP |
+|---|---|---|---|---|---|
+| `cd` | `cd` | ✅ `--cyclist-cd` | ✅ | ✅ | ✅ |
+| `frontalAreaM2` | `frontalAreaM2` | ✅ `--cyclist-a` | ✅ | ✅ | ✅ |
+| `massKg` | `massKg` | ✅ `--cyclist-weight` | ✅ | ✅ | ✅ |
+| `maxBrakeG` | `maxBrakeG` | ✅ `--cyclist-max-brake` | ✅ | ✅ | ✅ |
+| `maxLeanAngleDeg` | `maxLeanAngleDeg` | ✅ `--cyclist-max-angle` | ✅ | ✅ | ✅ |
+| `maxSpeedKmH` | `maxSpeedKmH` | ✅ `--cyclist-max-speed` | ✅ | ✅ | ✅ |
+| `roadCondition` | *(préréglage, aucun champ)* | ✅ | ✅ | ✅ | ✅ |
 
 ### `Bike`
 
 > CLI : Checked from S9 on; --bike-crr and friends.
 
-| Option (nom fil) | Champ du cœur | CLI | JS | WASI |
-|---|---|---|---|---|
-| `crr` | `crr` | ✅ `--bike-crr` | ✅ | ✅ |
-| `efficiency` | `efficiency` | ✅ `--bike-efficiency` | ✅ | ✅ |
-| `inertiaFront` | `inertiaFront` | ✅ `--bike-inertia-front` | ✅ | ✅ |
-| `inertiaRear` | `inertiaRear` | ✅ `--bike-inertia-rear` | ✅ | ✅ |
-| `maxPedalingLeanAngleDeg` | `maxPedalingLeanAngleDeg` | ✅ `--bike-max-pedal-angle` | ✅ | ✅ |
-| `wheelRadiusM` | `wheelRadiusM` | ✅ `--bike-wheel-radius` | ✅ | ✅ |
+| Option (nom fil) | Champ du cœur | CLI | JS | WASI | HTTP |
+|---|---|---|---|---|---|
+| `crr` | `crr` | ✅ `--bike-crr` | ✅ | ✅ | ✅ |
+| `efficiency` | `efficiency` | ✅ `--bike-efficiency` | ✅ | ✅ | ✅ |
+| `inertiaFront` | `inertiaFront` | ✅ `--bike-inertia-front` | ✅ | ✅ | ✅ |
+| `inertiaRear` | `inertiaRear` | ✅ `--bike-inertia-rear` | ✅ | ✅ | ✅ |
+| `maxPedalingLeanAngleDeg` | `maxPedalingLeanAngleDeg` | ✅ `--bike-max-pedal-angle` | ✅ | ✅ | ✅ |
+| `wheelRadiusM` | `wheelRadiusM` | ✅ `--bike-wheel-radius` | ✅ | ✅ | ✅ |
 
 ### `CyclistPowerSpec`
 
 > CLI : Checked from S9 on; --cyclist-model, --cyclist-power and friends.
 
-| Option (nom fil) | Champ du cœur | CLI | JS | WASI |
-|---|---|---|---|---|
-| `criticalPower` | `criticalPowerW` | ✅ `--cyclist-cp` | ✅ | ✅ |
-| `maxSlewWPerS` | `maxSlewWPerS` | ✅ `--cyclist-slew` | ✅ | ✅ |
-| `pacing` | `pacing` | ✅ `--cyclist-pacing` | ✅ | ✅ |
-| `power` | `powerW` | ✅ `--cyclist-power` | ✅ | ✅ |
-| `type` | `model` | ✅ `--cyclist-model` | ✅ | ✅ |
-| `useHarmonics` | `useHarmonics` | ✅ `--cyclist-harmonics` | ✅ | ✅ |
-| `wPrime` | `wPrimeJ` | ✅ `--cyclist-wprime` | ✅ | ✅ |
+| Option (nom fil) | Champ du cœur | CLI | JS | WASI | HTTP |
+|---|---|---|---|---|---|
+| `criticalPower` | `criticalPowerW` | ✅ `--cyclist-cp` | ✅ | ✅ | ✅ |
+| `maxSlewWPerS` | `maxSlewWPerS` | ✅ `--cyclist-slew` | ✅ | ✅ | ✅ |
+| `pacing` | `pacing` | ✅ `--cyclist-pacing` | ✅ | ✅ | ✅ |
+| `power` | `powerW` | ✅ `--cyclist-power` | ✅ | ✅ | ✅ |
+| `type` | `model` | ✅ `--cyclist-model` | ✅ | ✅ | ✅ |
+| `useHarmonics` | `useHarmonics` | ✅ `--cyclist-harmonics` | ✅ | ✅ | ✅ |
+| `wPrime` | `wPrimeJ` | ✅ `--cyclist-wprime` | ✅ | ✅ | ✅ |
 
 ### `JsonOptions`
 
 > CLI : `--json` passes no JsonOptions at all.
 
-| Option (nom fil) | Champ du cœur | CLI | JS | WASI |
-|---|---|---|---|---|
-| `decimals` | `decimals` | ❌ | ✅ | ✅ |
-| `includeMeta` | `includeMeta` | ❌ | ✅ | ✅ |
-| `pretty` | `pretty` | ❌ | ✅ | ✅ |
+| Option (nom fil) | Champ du cœur | CLI | JS | WASI | HTTP |
+|---|---|---|---|---|---|
+| `decimals` | `decimals` | ❌ | ✅ | ✅ | ✅ |
+| `fields` | `fields` | ❌ | ❌ | ❌ | ✅ |
+| `includeMeta` | `includeMeta` | ❌ | ✅ | ✅ | ✅ |
+| `pretty` | `pretty` | ❌ | ✅ | ✅ | ✅ |
 
-**Cœur seulement** (1 champ) : `fields`. Same as CsvOptions.fields.
+Sans porte CLI, avec la raison :
+
+- `fields` — Column selection is a List<PointField>. The HTTP door spells it as a list of PointField names resolved through PointField.byProp (an unknown name is a 400 with its own pointer); the JS and WASI readers still have no way to parse a name back — a gap, recorded. The CLI passes no writer options at all.
 
 <!-- END GENERATED: options-par-porte -->
 

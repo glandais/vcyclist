@@ -57,5 +57,6 @@ class SurfaceLedgerTest {
             assertTrue("### `${group.name}`" in rendered, "${group.name} is missing from the rendered table")
         }
         assertTrue(rendered.count { it == '\n' } > 60, "the render is too short to be the real table")
+        assertTrue("| CLI | JS | WASI | HTTP |" in rendered, "the HTTP column is missing from the header")
     }
 }

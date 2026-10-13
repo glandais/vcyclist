@@ -49,16 +49,17 @@ object SurfaceLedger {
         sb.append("<!-- Ne pas éditer à la main : `SurfaceLedgerTest` compare cette section à ce que le catalogue rend. -->\n\n")
         sb.append("Une ligne par **option d'entrée** cataloguée, une colonne par porte fil. C'est la moitié\n")
         sb.append("dérivable du tableau ci-dessus : chaque cellule vient d'`OptionCatalog` et est vérifiée contre\n")
-        sb.append("les sources par `DoorParityTest` et `CliSurfaceTest`. Les colonnes JVM/Java et Démo n'y sont\n")
-        sb.append("pas — elles ne se dérivent pas, et restent écrites à la main dans l'État.\n\n")
+        sb.append("les sources par `DoorParityTest` et `CliSurfaceTest`, et côté HTTP par `HttpDoorParityTest` et\n")
+        sb.append("`HttpForwardingTest` (dans `:api`, qui lit ce catalogue par réflexion). Les colonnes JVM/Java et\n")
+        sb.append("Démo n'y sont pas — elles ne se dérivent pas, et restent écrites à la main dans l'État.\n\n")
 
         for (group in OptionCatalog.groups) {
             sb.append("### `").append(group.name).append("`\n\n")
             if (group.cliNote.isNotBlank()) {
                 sb.append("> CLI : ").append(group.cliNote).append("\n\n")
             }
-            sb.append("| Option (nom fil) | Champ du cœur | CLI | JS | WASI |\n")
-            sb.append("|---|---|---|---|---|\n")
+            sb.append("| Option (nom fil) | Champ du cœur | CLI | JS | WASI | HTTP |\n")
+            sb.append("|---|---|---|---|---|---|\n")
             for (option in group.options.sortedBy { it.wireName }) {
                 val cli = if (Door.CLI in option.doors) "✅ `${option.cliFlag}`" else "❌"
                 sb
@@ -72,6 +73,8 @@ object SurfaceLedger {
                     .append(cell(Door.JS in option.doors, null))
                     .append(" | ")
                     .append(cell(Door.WASI in option.doors, null))
+                    .append(" | ")
+                    .append(cell(Door.HTTP in option.doors, null))
                     .append(" |\n")
             }
             for (wire in group.wireOnly.sortedBy { it.wireName }) {
@@ -84,6 +87,8 @@ object SurfaceLedger {
                     .append(if (Door.JS in wire.doors) "✅" else "❌")
                     .append(" | ")
                     .append(if (Door.WASI in wire.doors) "✅" else "❌")
+                    .append(" | ")
+                    .append(if (Door.HTTP in wire.doors) "✅" else "❌")
                     .append(" |\n")
             }
             sb.append('\n')

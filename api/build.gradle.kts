@@ -33,6 +33,10 @@ dependencies {
     implementation(libs.kotlinx.serialization.json)
     runtimeOnly(libs.logback.classic)
     testImplementation(kotlin("test"))
+    // HttpDoorParityTest / HttpForwardingTest read OptionCatalog by reflection. Test scope only,
+    // and no cycle: `:codegen` does not depend on `:api` (nothing does).
+    testImplementation(project(":codegen"))
+    testImplementation(kotlin("reflect"))
     testImplementation(libs.ktor.server.test.host)
     testImplementation(libs.ktor.client.content.negotiation)
 }

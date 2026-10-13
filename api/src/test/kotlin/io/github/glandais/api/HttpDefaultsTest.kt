@@ -29,6 +29,7 @@ import io.github.glandais.api.mapping.toGpxWrite
 import io.github.glandais.api.mapping.toJsonOptions
 import io.github.glandais.api.mapping.toPowerSpec
 import io.github.glandais.api.mapping.toSmoothingOptions
+import io.github.glandais.codegen.surface.OptionCatalog
 import io.github.glandais.elevation.ElevationDefaults
 import io.github.glandais.elevation.FilterOptions
 import io.github.glandais.elevation.SmoothingOptions
@@ -48,6 +49,33 @@ import kotlin.test.assertNull
 
 /** What the door applies when nothing is said, and that `GET /defaults` publishes exactly that. */
 class HttpDefaultsTest {
+    @Test
+    fun `every catalogued group maps an empty object to HttpDefaults`() {
+        assertEquals(OptionCatalog.groups.size, HTTP_DOOR.size)
+        for ((name, binding) in HTTP_DOOR) {
+            assertEquals(binding.defaults, binding.decodeAndMap("{}"), "$name: `{}` must map to HttpDefaults")
+        }
+    }
+
+    @Test
+    fun `HttpDefaults agrees with the core class on every catalogued path but the three named ones`() {
+        // The three JS / WASI pipeline defaults (see HttpDefaults' KDoc), by wire name.
+        val overridden = setOf("EnhanceOptions.fixElevation", "EnhanceOptions.computeOnePointPerSecond", "EnhanceOptions.simplifyEnabled")
+        val differing = mutableSetOf<String>()
+        var checked = 0
+        for (group in OptionCatalog.groups) {
+            val defaults = HTTP_DOOR.getValue(group.httpDto!!).defaults
+            for (option in group.options) {
+                if (group.defaultOf(option.path) != resolvePath(defaults, option.path)) {
+                    differing += "${group.name}.${option.wireName}"
+                }
+                checked++
+            }
+        }
+        assertEquals(overridden, differing)
+        assertEquals(OptionCatalog.groups.sumOf { it.options.size }, checked)
+    }
+
     @Test
     fun `an absent or empty options object maps to HttpDefaults`() {
         val absent: EnhanceOptionsDto? = null

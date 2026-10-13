@@ -185,6 +185,15 @@ class DoorParityTest {
             if (group.options.any { Door.WASI in it.doors }) {
                 assertTrue(group.wasiKeySet != null, "${group.name} claims a WASI door with no key set to read")
             }
+            // The HTTP door's checker lives in `:api` (HttpDoorParityTest), which can see the DTOs and
+            // this catalog both; `:codegen` cannot see `:api`. What this side can demand is the name
+            // that checker looks the DTO up by — without it, the claim would be checked by nothing.
+            if (group.options.any { Door.HTTP in it.doors } || group.wireOnly.any { Door.HTTP in it.doors }) {
+                assertTrue(
+                    !group.httpDto.isNullOrBlank(),
+                    "${group.name} claims the HTTP door without naming its :api DTO (httpDto)",
+                )
+            }
             for (option in group.options.filter { Door.CLI in it.doors }) {
                 assertTrue(
                     option.cliFlag != null,

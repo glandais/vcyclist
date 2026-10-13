@@ -93,7 +93,12 @@ object OptionCatalog {
         val reason: String,
     )
 
-    enum class Door { CLI, JS, WASI }
+    /**
+     * A door an option can cross. [HTTP] is the Ktor API (`:api`): its DTOs live in `:api`, which
+     * `:codegen` may not depend on, so its claims are checked from the other side — `:api`'s
+     * `HttpDoorParityTest` reads this catalog by reflection (`testImplementation(project(":codegen"))`).
+     */
+    enum class Door { CLI, JS, WASI, HTTP }
 
     /**
      * One options class and its entries.
@@ -136,6 +141,14 @@ object OptionCatalog {
          * until then this is the honest record of a gap rather than a silent omission.
          */
         val cliNote: String = "",
+        /**
+         * The `@SerialName` of the `:api` DTO that is this group's [Door.HTTP] door, e.g.
+         * `"EnhanceOptions"`. `null` when no option claims HTTP. `:codegen` cannot see `:api` (the
+         * dependency runs the other way, test scope only), so this is checked by `:api`'s
+         * `HttpDoorParityTest`: the DTO's descriptor `elementNames` must equal
+         * [wireNames]`(Door.HTTP)`.
+         */
+        val httpDto: String? = null,
     ) {
         val name: String get() = optionsClass.simpleName!!
 
@@ -184,10 +197,20 @@ object OptionCatalog {
         }
     }
 
-    private val ALL_WIRE = setOf(Door.CLI, Door.JS, Door.WASI)
+    private val ALL_WIRE = setOf(Door.CLI, Door.JS, Door.WASI, Door.HTTP)
 
-    /** The two wire doors, for an option the CLI does not expose. Each such entry states why. */
-    private val WIRE_NO_CLI = setOf(Door.JS, Door.WASI)
+    /**
+     * The three wire doors (JS, WASI, HTTP), for an option the CLI does not expose. Each such
+     * entry states why.
+     */
+    private val WIRE_NO_CLI = setOf(Door.JS, Door.WASI, Door.HTTP)
+
+    /** Why `fields` reaches the HTTP door only. */
+    private const val FIELDS_HTTP_ONLY =
+        "Column selection is a List<PointField>. The HTTP door spells it as a list of PointField names " +
+            "resolved through PointField.byProp (an unknown name is a 400 with its own pointer); the JS and " +
+            "WASI readers still have no way to parse a name back — a gap, recorded. The CLI passes no " +
+            "writer options at all."
 
     /** The twenty `RacingLineOptions` fields that deliberately reach no door. See [groups]. */
     private val RACING_LINE_CORE_ONLY_REASON =
@@ -236,6 +259,7 @@ object OptionCatalog {
                 optionsClass = ClimbOptions::class,
                 jsFunction = "detectClimbsWithOptions",
                 wasiKeySet = "CLIMB_KEYS",
+                httpDto = "ClimbOptions",
                 cliNote = "The CLI has no climb command at all — `grep -ri climb cli/src/main` is empty.",
                 options =
                     listOf(
@@ -253,6 +277,7 @@ object OptionCatalog {
                 optionsClass = CsvOptions::class,
                 jsFunction = "pathToCsv",
                 wasiKeySet = "CSV_KEYS",
+                httpDto = "CsvOptions",
                 cliNote = "`enhance --csv` and `export --csv` pass no CsvOptions at all.",
                 options =
                     listOf(
@@ -264,21 +289,13 @@ object OptionCatalog {
                             doors = WIRE_NO_CLI,
                             cliExempt = "Neither --csv command passes CsvOptions; a gap, recorded.",
                         ),
-                    ),
-                coreOnly =
-                    listOf(
-                        CoreOnly(
-                            "fields",
-                            "Column selection is a List<PointField>, and no door has a way to spell a " +
-                                "PointField on the wire yet — fieldDefinitions() publishes names, but " +
-                                "nothing parses one back. Give it a door by adding a name list to the " +
-                                "readers, not by widening this entry.",
-                        ),
+                        Opt("fields", doors = setOf(Door.HTTP), cliExempt = FIELDS_HTTP_ONLY),
                     ),
             ),
             OptionGroup(
                 optionsClass = EnhanceOptions::class,
                 jsDto = "EnhanceOptionsDto",
+                httpDto = "EnhanceOptions",
                 wasiKeySet = "ENHANCE_KEYS",
                 wasiDefaultsBinding = "defaults",
                 cliNote = "Checked from S9 on; the CLI spells these as --simplify, --no-fix-elevation, etc.",
@@ -398,6 +415,7 @@ object OptionCatalog {
             OptionGroup(
                 optionsClass = Cyclist::class,
                 jsDto = "CyclistDto",
+                httpDto = "Cyclist",
                 wasiKeySet = "CYCLIST_KEYS",
                 cliNote = "Checked from S9 on; --cyclist-weight, --cyclist-cd and friends.",
                 options =
@@ -423,6 +441,7 @@ object OptionCatalog {
             OptionGroup(
                 optionsClass = Bike::class,
                 jsDto = "BikeDto",
+                httpDto = "Bike",
                 wasiKeySet = "BIKE_KEYS",
                 cliNote = "Checked from S9 on; --bike-crr and friends.",
                 options =
@@ -438,6 +457,7 @@ object OptionCatalog {
             OptionGroup(
                 optionsClass = CyclistPowerSpec::class,
                 jsDto = "PowerProviderDto",
+                httpDto = "PowerProvider",
                 wasiKeySet = "POWER_KEYS",
                 wasiReader = "toPowerSpec",
                 cliNote = "Checked from S9 on; --cyclist-model, --cyclist-power and friends.",
@@ -457,14 +477,15 @@ object OptionCatalog {
                 optionsClass = JsonOptions::class,
                 jsFunction = "pathToJson",
                 wasiKeySet = "JSON_KEYS",
+                httpDto = "JsonOptions",
                 cliNote = "`--json` passes no JsonOptions at all.",
                 options =
                     listOf(
                         Opt("pretty", doors = WIRE_NO_CLI),
                         Opt("decimals", doors = WIRE_NO_CLI),
                         Opt("includeMeta", doors = WIRE_NO_CLI),
+                        Opt("fields", doors = setOf(Door.HTTP), cliExempt = FIELDS_HTTP_ONLY),
                     ),
-                coreOnly = listOf(CoreOnly("fields", "Same as CsvOptions.fields.")),
             ),
         )
 

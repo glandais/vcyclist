@@ -87,7 +87,9 @@ class DoorDefaultsTest {
             val body = wasiReaderBody(group)
             val binding = group.wasiDefaults()
 
-            for (option in group.options) {
+            // Only the options the WASI reader reads: `fields` crosses the HTTP door alone, and
+            // `:api`'s HttpDefaultsTest checks that door's defaults by value, not by text.
+            for (option in group.options.filter { OptionCatalog.Door.WASI in it.doors }) {
                 // The FULL path, not its last segment: the reader spells
                 // `defaults.simplifyPath.toleranceM`, and looking for `defaults.toleranceM` found
                 // nothing and reported every nested option as restated. Wrong check, not a finding.
