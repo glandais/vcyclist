@@ -7,6 +7,12 @@ import kotlin.math.ln
 import kotlin.math.tan
 
 object ElevationFunctions {
+    /** Lowest DEM zoom level a provider accepts. */
+    const val MIN_ZOOM_LEVEL: Int = 0
+
+    /** Highest DEM zoom level a provider accepts. */
+    const val MAX_ZOOM_LEVEL: Int = 15
+
     fun degToRad(degrees: Double): Double = degrees * MathConstants.DEG_TO_RAD
 
     fun isValidLatitude(lat: Double): Boolean =
@@ -14,7 +20,7 @@ object ElevationFunctions {
 
     fun isValidLongitude(lon: Double): Boolean = lon in -180.0..180.0
 
-    fun isValidZoomLevel(zoom: Int): Boolean = zoom in 0..15
+    fun isValidZoomLevel(zoom: Int): Boolean = zoom in MIN_ZOOM_LEVEL..MAX_ZOOM_LEVEL
 
     /**
      * Moves a pixel that overflows its tile by less than one tile into the neighbouring tile.
@@ -84,7 +90,7 @@ object ElevationFunctions {
             "Invalid longitude: ${formatNumber(coords.longitude)}. Must be between -180 and 180"
         }
         require(isValidZoomLevel(z)) {
-            "Invalid zoom level: $z. Must be between 0 and 15"
+            "Invalid zoom level: $z. Must be between $MIN_ZOOM_LEVEL and $MAX_ZOOM_LEVEL"
         }
 
         val lat = degToRad(coords.latitude)

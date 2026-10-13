@@ -46,8 +46,9 @@ class ElevationProvider private constructor(
     ) : this(config, fetcher, null, keepNoData, null)
 
     init {
-        require(config.zoomLevel in 0..15) {
-            "Invalid zoom level: ${config.zoomLevel}. Must be an integer between 0 and 15"
+        require(ElevationFunctions.isValidZoomLevel(config.zoomLevel)) {
+            "Invalid zoom level: ${config.zoomLevel}. Must be an integer between " +
+                "${ElevationFunctions.MIN_ZOOM_LEVEL} and ${ElevationFunctions.MAX_ZOOM_LEVEL}"
         }
         require(config.cacheSize > 0) {
             "Invalid cache size: ${config.cacheSize}. Must be a positive integer"
