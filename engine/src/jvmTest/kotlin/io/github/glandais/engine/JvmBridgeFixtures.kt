@@ -1,6 +1,9 @@
 package io.github.glandais.engine
 
+import io.github.glandais.elevation.ElevationProvider
+import io.github.glandais.engine.path.DeckWorld
 import io.github.glandais.engine.path.Path
+import io.github.glandais.engine.path.TunnelWorld
 
 /**
  * What the Java pin tests cannot express themselves.
@@ -18,4 +21,21 @@ object JvmBridgeFixtures {
     /** `Course(path)` with the default cyclist and bike. */
     @JvmStatic
     fun defaultCourse(path: Path): Course = Course(path)
+
+    /** [TunnelWorld]'s route through a mountain (its default members are out of Java's reach). */
+    @JvmStatic
+    fun tunnelWorldPath(): Path = TunnelWorld.path(stepM = 25.0)
+
+    /** [TunnelWorld]'s terrain model, no surface model: a tunnel, and bridge decks unavailable. */
+    @JvmStatic
+    fun tunnelWorldTerrain(): ElevationProvider = TunnelWorld.terrain()
+
+    /** [DeckWorld]'s route over a bridge. */
+    @JvmStatic
+    fun deckWorldPath(): Path = DeckWorld.path(stepM = 25.0)
+
+    /** [DeckWorld]'s terrain carrying a surface model whose every tile read fails. */
+    @JvmStatic
+    fun deckWorldTerrainWithFailingSurface(): ElevationProvider =
+        DeckWorld.terrain().withSurfaceModel(DeckWorld.surface { error("HTTP 429") })
 }

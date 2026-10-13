@@ -100,11 +100,19 @@ fun Route.enhanceRoutes() {
                         name = input.names[i],
                         summary = enhanced.toSummary(),
                         dominantHeadwindAzimuth = enhanced.dominantHeadwindAzimuthDeg().finiteOrNull(),
+                        // Every path out of the enhancer carries one; `!!` would be a pipeline bug.
+                        elevationCorrections = checkNotNull(enhanced.elevationCorrections) { "no elevation-corrections report" }.toDto(),
                         points = if (withPoints) enhanced.toPoints() else null,
                     )
                 }
             }
-        call.respond(EnhanceResponse(tracks = tracks, warnings = input.warnings + settings.warnings))
+        // The engine's sentences, unreworded, prefixed with the track they are about.
+        val correctionWarnings =
+            tracks.flatMapIndexed { i, track ->
+                val label = "track ${i + 1}" + (track.name?.let { " ($it)" } ?: "")
+                track.elevationCorrections.warnings.map { "$label: $it" }
+            }
+        call.respond(EnhanceResponse(tracks = tracks, warnings = input.warnings + settings.warnings + correctionWarnings))
     }.describe {
         operationId = "enhance"
         summary = "Simulate a ride on a GPX"
@@ -115,7 +123,9 @@ fun Route.enhanceRoutes() {
             "wind and power strategy of the `request` part. Every absent option takes the default published " +
             "by `GET /api/v1/defaults`. Unknown keys and invalid values are rejected before any computation. " +
             "The answer is a JSON summary, or the enhanced paths as GPX, FIT, CSV or column JSON (`format`, or " +
-            "`Accept`); a file format carries no `warnings`."
+            "`Accept`); a file format carries no `warnings`. Each summary track reports what the bridge-deck and " +
+            "tunnel corrections did (`elevationCorrections`: status, counts); a correction that failed on a tile " +
+            "read or left a detected deck on the valley floor is also a line of `warnings`, prefixed with its track."
         tag(TAG)
         parameters {
             gpxQueryParameters()

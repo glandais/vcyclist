@@ -46,6 +46,7 @@ module.exports = {
     pathElevationLossFiltered: ns.pathElevationLossFiltered,
     pathReportedElevationGain: ns.pathReportedElevationGain,
     pathReportedElevationLoss: ns.pathReportedElevationLoss,
+    pathElevationCorrections: ns.pathElevationCorrections,
     pointAt: ns.pointAt,
     writeGpx: ns.writeGpx,
     writeGpxAt: ns.writeGpxAt,

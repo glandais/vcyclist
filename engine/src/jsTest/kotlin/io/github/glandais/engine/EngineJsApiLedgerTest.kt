@@ -209,8 +209,8 @@ class EngineJsApiLedgerTest {
         runTest {
             // The R17 spelling, kept as a case because it is the one that broke the demo.
             val bogus = js("({ type: 'constant_tiring', power: 250 })").unsafeCast<PowerProviderDto>()
-            // The error surfaces as a rejected Promise, not a synchronous throw: enhanceWithCourse
-            // builds the provider inside the coroutine.
+            // A synchronous throw since E7: enhanceWithCourse parses every DTO before its promise,
+            // so a bad model is the call's error, not a rejection an `await`-less caller drops.
             assertFailsWith<IllegalStateException> {
                 enhanceWithCourse(parseGpx(spiral()), null, null, null, bogus, null).await()
             }

@@ -10,6 +10,7 @@ import io.github.glandais.elevation.ElevationProvider
 import io.github.glandais.elevation.ElevationSource
 import io.github.glandais.engine.Course
 import io.github.glandais.engine.CoursePhysics
+import io.github.glandais.engine.ElevationCorrectionOptions
 import io.github.glandais.engine.EngineConstants
 import io.github.glandais.engine.EnhanceOptions
 import io.github.glandais.engine.Enhancer
@@ -21,6 +22,7 @@ import io.github.glandais.engine.gpx.pathsToGpxDocument
 import io.github.glandais.engine.gpx.tracksAsPaths
 import io.github.glandais.engine.io.CsvWriter
 import io.github.glandais.engine.io.JsonWriter
+import io.github.glandais.engine.path.ElevationCorrectionStatus
 import io.github.glandais.engine.path.ElevationGainOptions
 import io.github.glandais.engine.path.ElevationGainPreset
 import io.github.glandais.engine.path.ElevationStep
@@ -141,6 +143,28 @@ class EnhanceCommand : Callable<Int> {
         ],
     )
     var fixElevation: Boolean? = null
+
+    @field:CommandLine.Option(
+        names = ["--bridge-decks"],
+        negatable = true,
+        description = [
+            "Ride bridge decks read from IGN's surface model; effective only with",
+            "--fix-elevation and --dem-source ign-lidar-hd at its default zoom (15).",
+            "--no-bridge-decks also skips the surface-model downloads. (default: on)",
+        ],
+    )
+    var bridgeDecks: Boolean? = null
+
+    @field:CommandLine.Option(
+        names = ["--tunnels"],
+        negatable = true,
+        description = [
+            "Flatten detected tunnels between their portals, on any DEM (needs",
+            "--fix-elevation). Turn off on trails with steep real knolls, or outside",
+            "IGN/Mapterhorn-LiDAR coverage where it is unmeasured. (default: on)",
+        ],
+    )
+    var tunnels: Boolean? = null
 
     /**
      * Builds the provider used when `--fix-elevation` is on. A settable seam so the offline test
@@ -400,6 +424,11 @@ class EnhanceCommand : Callable<Int> {
                 ),
             elevationGain = elevationGainOptions(),
             elevationSmoothWindowM = elevationSmoothWindowM,
+            elevationCorrections =
+                ElevationCorrectionOptions(
+                    bridgeDecks = bridgeDecks ?: ElevationCorrectionOptions.DEFAULT.bridgeDecks,
+                    tunnels = tunnels ?: ElevationCorrectionOptions.DEFAULT.tunnels,
+                ),
         )
 
     /** The preset, with `--elevation-gain-threshold` overriding its dead band when given. */
@@ -498,6 +527,38 @@ class EnhanceCommand : Callable<Int> {
         }
     }
 
+    /**
+     * Relay what the elevation corrections did. Each warning goes to stderr **even with
+     * `--quiet`** — it says the output is knowingly wrong or depends on the network — and the exit
+     * code stays 0: the ride was produced. The wording is the engine's; only the file and track are
+     * prefixed. With `--fix-elevation` and not `--quiet`, one status line per track on stdout.
+     */
+    private fun reportElevationCorrections(
+        input: File,
+        enhanced: List<Path>,
+        options: EnhanceOptions,
+    ) {
+        val err = spec.commandLine().err
+        enhanced.forEachIndexed { i, path ->
+            path.elevationCorrections?.warnings?.forEach { err.println("warning: ${input.path} track ${i + 1}: $it") }
+        }
+        if (quiet || !options.fixElevation) return
+        val out = spec.commandLine().out
+        enhanced.forEachIndexed { i, path ->
+            val c = path.elevationCorrections ?: return@forEachIndexed
+            val track = if (enhanced.size == 1) "" else " (track ${i + 1})"
+            out.println(
+                "  -> elevation corrections$track: bridge decks ${status(c.bridgeDecks, c.bridgeDecksApplied)}, " +
+                    "tunnels ${status(c.tunnels, c.tunnelsApplied)}",
+            )
+        }
+    }
+
+    private fun status(
+        s: ElevationCorrectionStatus,
+        applied: Int,
+    ): String = if (s == ElevationCorrectionStatus.APPLIED) "${s.id} ($applied)" else s.id
+
     private fun processOne(
         input: File,
         inputCount: Int,
@@ -538,6 +599,7 @@ class EnhanceCommand : Callable<Int> {
                 ),
             )
         }
+        reportElevationCorrections(input, enhanced, options)
 
         val naming = OutputNaming(input, inputCount)
         gpxOut?.let { target ->

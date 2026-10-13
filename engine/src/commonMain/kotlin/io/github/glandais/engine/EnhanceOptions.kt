@@ -54,6 +54,31 @@ data class WPrimeBalanceOptions(
 }
 
 /**
+ * Switches for the enhancer's elevation corrections, steps 3b and 3c. Both apply only after a DEM
+ * correction (`EnhanceOptions.fixElevation`); what each actually did is reported on the returned
+ * path as `Path.elevationCorrections`.
+ *
+ * @param bridgeDecks **allow** step 3b, which rides each bridge deck the LiDAR surface model shows
+ *   instead of the valley floor the terrain model reads under it. A permission, not a promise: the
+ *   step runs only when the elevation provider carries a surface model — IGN LiDAR HD at its
+ *   default zoom — and reports `unavailable` otherwise (Mapterhorn, every WASI host). Turning it off
+ *   also saves the surface-model fetches, and makes the profile independent of the network.
+ * @param tunnels allow step 3c, which flattens each tunnel the terrain model betrays onto the line
+ *   between its portals, on any DEM. Its precision is unmeasured on tracks with steep real knolls
+ *   and in regions only GLO-30 covers, where a false tunnel flattens a real climb: the switch is
+ *   for those.
+ */
+data class ElevationCorrectionOptions(
+    val bridgeDecks: Boolean = true,
+    val tunnels: Boolean = true,
+) {
+    companion object {
+        /** Both corrections allowed. */
+        val DEFAULT = ElevationCorrectionOptions()
+    }
+}
+
+/**
  * Options controlling the `Enhancer` pipeline (introduced in task 25). By default every step is
  * enabled and simplification is on with `tolerance=10`, `zExag=3`.
  *
@@ -77,6 +102,10 @@ data class WPrimeBalanceOptions(
  *   `stelvio.gpx`'s switchbacks between 10 and 300 m, about 1 % elsewhere — and it had never been
  *   measured because no caller could reach it. The reported D+ reads the profile *before* this
  *   smoothing, so the window barely moves it. Ledger row R28.
+ * @param elevationCorrections which elevation corrections (bridge decks, tunnels) are allowed after
+ *   [fixElevation]; they never run without it. Bridge decks additionally need a provider with a
+ *   surface model, so the effective value is derived in `Enhancer`. The outcome is stamped on the
+ *   returned path as `Path.elevationCorrections`.
  */
 data class EnhanceOptions(
     val fixElevation: Boolean = true,
@@ -91,6 +120,8 @@ data class EnhanceOptions(
     val racingLine: RacingLineOptions = RacingLineOptions(),
     val elevationGain: ElevationGainOptions = ElevationGainOptions(preset = EngineConstants.DEFAULT_ELEVATION_GAIN_PRESET),
     val elevationSmoothWindowM: Double = ElevationStep.DEFAULT_SMOOTH_WINDOW_M,
+    // Last, like `wPrimeBalance`: `EngineModelJvm` passes these positionally.
+    val elevationCorrections: ElevationCorrectionOptions = ElevationCorrectionOptions.DEFAULT,
 ) {
     init {
         require(elevationSmoothWindowM > 0.0 && elevationSmoothWindowM.isFinite()) {

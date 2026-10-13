@@ -329,6 +329,22 @@ class PipelineParityTest(HostTestCase):
             places=6,
         )
 
+    def test_the_elevation_corrections_report_crosses_the_abi(self):
+        """E7. Without a DEM correction neither step runs, and the report still says so; a parsed
+        path that was never enhanced has none. Both keys are accepted for wire parity."""
+        handle = self.host.parse_gpx(fixtures.gpx_fixture("SAMPLE_GPX"))
+        self.assertIsNone(self.host.elevation_corrections(handle))
+
+        options = dict(fixtures.PARITY_OPTIONS)
+        options["bridgeDecksEnabled"] = True
+        options["tunnelsEnabled"] = False
+        report = self.host.elevation_corrections(self.host.enhance(handle, options))
+
+        self.assertEqual("not-run", report["bridgeDecks"])
+        self.assertEqual("not-run", report["tunnels"])
+        self.assertEqual(0, report["bridgeDecksApplied"])
+        self.assertEqual([], report["warnings"])
+
     def test_an_unknown_gain_preset_is_refused(self):
         handle = self.host.parse_gpx(fixtures.gpx_fixture("SAMPLE_GPX"))
         options = dict(fixtures.PARITY_OPTIONS)

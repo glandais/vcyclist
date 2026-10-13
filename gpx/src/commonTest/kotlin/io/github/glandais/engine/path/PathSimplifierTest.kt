@@ -4,6 +4,7 @@ import io.github.glandais.elevation.MathConstants
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertNotSame
+import kotlin.test.assertNull
 import kotlin.test.assertTrue
 
 class PathSimplifierTest {
@@ -296,5 +297,30 @@ class PathSimplifierTest {
         val out = PathSimplifier.simplify(flatWithHump(), toleranceM = 1.0)
         assertTrue(out.elevationGainFiltered.isNaN())
         assertTrue(out.elevationLossFiltered.isNaN())
+    }
+
+    @Test
+    fun simplify_carries_the_elevation_corrections_report() {
+        val src = flatWithHump()
+        val report =
+            ElevationCorrections(
+                ElevationCorrectionStatus.APPLIED,
+                1,
+                0,
+                ElevationCorrectionStatus.NONE_FOUND,
+                0,
+                0,
+                listOf("w"),
+            )
+        src.elevationCorrections = report
+        assertEquals(report, PathSimplifier.simplify(src, toleranceM = 20.0).elevationCorrections)
+        // The size <= 2 shortcut returns a copy, which carries it too.
+        val two = Path(2).also { it.elevationCorrections = report }
+        assertEquals(report, PathSimplifier.simplify(two, toleranceM = 20.0).elevationCorrections)
+    }
+
+    @Test
+    fun simplify_leaves_an_absent_report_absent() {
+        assertNull(PathSimplifier.simplify(flatWithHump(), toleranceM = 20.0).elevationCorrections)
     }
 }

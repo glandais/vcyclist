@@ -3,6 +3,7 @@ package io.github.glandais.engine.wasi
 import io.github.glandais.engine.Bike
 import io.github.glandais.engine.Course
 import io.github.glandais.engine.Cyclist
+import io.github.glandais.engine.ElevationCorrectionOptions
 import io.github.glandais.engine.EngineConstants
 import io.github.glandais.engine.RoadCondition
 import io.github.glandais.engine.climb.ClimbOptions
@@ -62,6 +63,15 @@ class WasiOptionsTest {
             o.simplifyPath.toleranceM,
             "the tolerance default must come from SimplifyPathOptions, not from this reader",
         )
+    }
+
+    @Test
+    fun `both elevation-correction keys are forwarded, and absent they are the engine default`() {
+        val off = json("""{"bridgeDecksEnabled":false,"tunnelsEnabled":false}""").toEnhanceOptions()
+        assertEquals(false, off.elevationCorrections.bridgeDecks)
+        assertEquals(false, off.elevationCorrections.tunnels)
+        assertEquals(ElevationCorrectionOptions.DEFAULT, json("{}").toEnhanceOptions().elevationCorrections)
+        assertEquals(ElevationCorrectionOptions.DEFAULT, null.toEnhanceOptions().elevationCorrections)
     }
 
     @Test

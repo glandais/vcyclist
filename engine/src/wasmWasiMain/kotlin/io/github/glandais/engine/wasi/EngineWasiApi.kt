@@ -6,6 +6,7 @@ import io.github.glandais.elevation.ElevationProvider
 import io.github.glandais.elevation.ElevationProviderConfig
 import io.github.glandais.elevation.ElevationSource
 import io.github.glandais.elevation.HostTileSource
+import io.github.glandais.elevation.RawTile
 import io.github.glandais.elevation.TileEncoding
 import io.github.glandais.elevation.hostTileFetcher
 import io.github.glandais.engine.Course
@@ -376,6 +377,19 @@ fun vcPathReportedElevationGain(handle: Int): Double = guardedDouble { requirePa
 @WasmExport
 fun vcPathReportedElevationLoss(handle: Int): Double = guardedDouble { requirePath(handle).reportedElevationLoss }
 
+/**
+ * What the enhancer's elevation corrections (bridge decks, tunnels) did to the path, as JSON —
+ * the same keys and status ids as the JS façade's `pathElevationCorrections` — or the literal
+ * `null` for a path that never went through [vcEnhance] / [vcEnhanceWithCourse]. Returns the
+ * byte length, like every text export.
+ *
+ * On this door `bridgeDecks` is always `"unavailable"` once a DEM correction ran: `fetch_tile`
+ * names no layer, so no surface model reaches the guest.
+ */
+@WasmExport
+fun vcPathElevationCorrectionsJson(handle: Int): Int =
+    guarded { writeTextToHost(requirePath(handle).elevationCorrections?.let(::elevationCorrectionsJson) ?: "null") }
+
 /** Latitude of point [i] in **degrees** (the path stores radians). */
 @WasmExport
 fun vcPathLatitudeDeg(
@@ -488,19 +502,32 @@ fun vcEnhance(
     optionsJsonLen: Int,
 ): Int =
     guarded {
-        val path = requirePath(handle)
         val json = readOptions(optionsJsonLen)
-        val options = json.toEnhanceOptions()
         WasiAbi.register(
-            runSynchronously {
-                Enhancer.enhanceCourseDefault(
-                    path,
-                    elevationProvider = elevationProviderFor(options, json.demZoomOrNull(), json.demSourceOrNull()),
-                    options = options,
-                )
-            },
+            enhanceFromJson(requirePath(handle), json) { elevationProviderFor(it, json.demZoomOrNull(), json.demSourceOrNull()) },
         )
     }
+
+/**
+ * The body of [vcEnhance], extracted so it can be pinned without the ABI (the w03 idiom): an
+ * accepted key is not a used key, and only running the pipeline proves the options object it
+ * parsed is the one the enhancer saw. [providerFor] is the seam a test replaces with a fixture
+ * DEM; the export passes the host-served provider.
+ *
+ * [providerFor] has **no default** on purpose: on Kotlin/Wasm a defaulted parameter keeps its
+ * default reachable from every call site, and a default reaching `hostTileFetcher` puts the
+ * `fetch_tile` import into the test binary, which the KGP runner then cannot instantiate.
+ */
+internal fun enhanceFromJson(
+    path: Path,
+    json: JsonObj?,
+    providerFor: (EnhanceOptions) -> ElevationProvider?,
+): Path {
+    val options = json.toEnhanceOptions()
+    return runSynchronously {
+        Enhancer.enhanceCourseDefault(path, elevationProvider = providerFor(options), options = options)
+    }
+}
 
 /**
  * [vcEnhance] with a full physics course. The payload is one JSON object with up to five
@@ -520,34 +547,39 @@ fun vcEnhanceWithCourse(
     payloadJsonLen: Int,
 ): Int =
     guarded {
-        val path = requirePath(handle)
         val payload = readOptions(payloadJsonLen)
-        payload?.requireOnly(setOf("cyclist", "bike", "wind", "power", "options"))
-        val optionsJson = payload?.obj("options")
-        val options = optionsJson.toEnhanceOptions()
-        val course =
-            CoursePhysics(
-                course =
-                    Course(
-                        path = path,
-                        cyclist = payload?.obj("cyclist").toCyclist(),
-                        bike = payload?.obj("bike").toBike(),
-                    ),
-                rhoProvider = RhoProviderEstimate,
-                aeroProvider = AeroProviderConstant,
-                windProvider = payload?.obj("wind").toWindProvider(),
-                cyclistPowerProvider = payload?.obj("power").toCyclistPowerProvider(),
-            )
         WasiAbi.register(
-            runSynchronously {
-                Enhancer.enhanceCourse(
-                    course,
-                    options,
-                    elevationProviderFor(options, optionsJson.demZoomOrNull(), optionsJson.demSourceOrNull()),
-                )
+            enhanceCourseFromJson(requirePath(handle), payload) {
+                val optionsJson = payload?.obj("options")
+                elevationProviderFor(it, optionsJson.demZoomOrNull(), optionsJson.demSourceOrNull())
             },
         )
     }
+
+/** The body of [vcEnhanceWithCourse], extracted, with no default, for the reasons given on [enhanceFromJson]. */
+internal fun enhanceCourseFromJson(
+    path: Path,
+    payload: JsonObj?,
+    providerFor: (EnhanceOptions) -> ElevationProvider?,
+): Path {
+    payload?.requireOnly(setOf("cyclist", "bike", "wind", "power", "options"))
+    val optionsJson = payload?.obj("options")
+    val options = optionsJson.toEnhanceOptions()
+    val course =
+        CoursePhysics(
+            course =
+                Course(
+                    path = path,
+                    cyclist = payload?.obj("cyclist").toCyclist(),
+                    bike = payload?.obj("bike").toBike(),
+                ),
+            rhoProvider = RhoProviderEstimate,
+            aeroProvider = AeroProviderConstant,
+            windProvider = payload?.obj("wind").toWindProvider(),
+            cyclistPowerProvider = payload?.obj("power").toCyclistPowerProvider(),
+        )
+    return runSynchronously { Enhancer.enhanceCourse(course, options, providerFor(options)) }
+}
 
 /**
  * The provider `fixElevation` runs on, or `null` when the caller did not ask for it.
@@ -564,8 +596,22 @@ private fun elevationProviderFor(
     options: EnhanceOptions,
     demZoom: Int? = null,
     demSource: String? = null,
-): ElevationProvider? =
-    if (options.fixElevation) ElevationProvider(elevationConfigFor(demZoom, demSource), fetcher = hostTileFetcher()) else null
+): ElevationProvider? = if (options.fixElevation) wasiElevationProvider(elevationConfigFor(demZoom, demSource), hostTileFetcher()) else null
+
+/**
+ * **The one place this door builds an [ElevationProvider]**, and why bridge decks are
+ * `unavailable` here: a bare provider, never [ElevationSource]'s `provider()` — which would attach
+ * IGN's surface model at z15 and have it read through `fetch_tile`, an import that names no layer,
+ * so MNT bytes would be decoded as the MNS (decision of 2026-10-13: no ABI change).
+ *
+ * The fetcher is a parameter with **no default** so that a test can pin this without reaching
+ * `hostTileFetcher`: on Kotlin/Wasm that would pull the `fetch_tile` import into the test binary,
+ * which the KGP runner cannot instantiate.
+ */
+internal fun wasiElevationProvider(
+    config: ElevationProviderConfig,
+    fetcher: suspend (String) -> RawTile,
+): ElevationProvider = ElevationProvider(config, fetcher = fetcher)
 
 /**
  * [elevationConfig], with `demZoom` overriding its zoom for one call.
@@ -661,7 +707,7 @@ fun vcSetElevationConfig(jsonLen: Int): Int =
         // `ElevationProvider`'s init block is the one place that validates zoom / cache / size,
         // so build one now: a host must learn about a bad configuration here, not three calls
         // later from inside `vcEnhance`.
-        ElevationProvider(config, fetcher = hostTileFetcher())
+        wasiElevationProvider(config, hostTileFetcher())
         elevationConfig = config
         elevationSource = source
         HostTileSource.tileSize = config.tileSize

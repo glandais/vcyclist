@@ -2750,12 +2750,92 @@ en-tête R27–R33. Ledger : note datée sous R30, l'historique intact. KDoc de
 et 3c, R31–R33). Laissé en l'état : le commentaire de `MapSpace.kt:30` (« no deeper tiles »), que
 le guide et R30 citent déjà comme faux.
 
-### E7 — Les six surfaces
+### E7 — Les sept surfaces (six à l'écriture de la tâche, HTTP depuis)
 
 Si E3 devient une option (`bridgeDecks` ou équivalent) : cœur → CLI → JS → WASI → JVM/Java →
 contrôle dans la démo → ligne de `surface-coverage.md`, selon la checklist de `CLAUDE.md`.
 Défaut à décider après E1 : activé avec `ign-lidar-hd`, sans doute ; avec `mapterhorn`, seulement
 si le coût en tuiles MNH reste raisonnable (voir *Notes*).
+
+#### Mesures (E7)
+
+**Fait (2026-10-13).** Deux options et un rapport, sur les sept portes (la septième, HTTP, est
+`:api`).
+
+*Options.* `ElevationCorrectionOptions(bridgeDecks, tunnels)`, toutes deux `true`, ajoutée en
+**dernier** paramètre d'`EnhanceOptions` (`elevationCorrections`) parce que `EngineModelJvm` passe
+ses arguments par position. Imbriquée plutôt que deux booléens à plat : même forme que `curvature`
+/ `racingLine`, un seul site de défaut par porte (`ElevationCorrectionOptions.DEFAULT`, lu comme
+`d.elevationCorrections.*`), et de la place pour un réglage du détecteur sans élargir
+`EnhanceOptions`. Clés filaires `bridgeDecksEnabled` / `tunnelsEnabled` (convention
+`<étape>Enabled`) ; CLI `--[no-]bridge-decks` / `--[no-]tunnels`. Le `true` des tabliers est une
+**permission**, pas une promesse : l'étape 3b ne tourne que si `fixElevation`, l'option et un
+`surfaceModel` sont réunis — le défaut effectif est donc dérivé de `provider.surfaceModel != null`
+dans `Enhancer`, jamais d'un littéral de porte (point (1)). La désactivation des tabliers sert la
+reproductibilité (sans elle, la même commande rend deux profils selon le réseau), le coût (une tuile
+MNS de plus par tuile MNT, sous les 20 req/s de l'IGN) et la comparaison. Celle des tunnels sert
+les deux risques non bornés de *Limites* (E4) : les buttes réelles ≥ 30 % des chemins (la butte
+ariégeoise de `sports-tracker.gpx` n'est protégée que d'un critère) et les régions GLO-30, non
+mesurées. Elle remplace le surchargement `internal enhanceCourse(…, tunnels)` des bancs, qui
+disparaît.
+
+*Rapport (points (3) et (4)).* `ElevationCorrections` (statut par étape, comptes appliqués et
+écartés, avertissements) et `ElevationCorrectionStatus` (`not-run`, `unavailable`, `no-coverage`,
+`none-found`, `applied`, `fetch-failed`), dans `:gpx` puisque `Path` les porte. Le rapport est posé
+**une fois**, après l'étape 11, sur `Path.elevationCorrections` — même canal que
+`elevationGainFiltered`, donc aucun nouveau point d'entrée, aucun type de retour changé ; `copy()` et
+`PathSimplifier` le portent, `computeDerivedData` ne l'efface pas. Écarté : un
+`enhanceCourseWithReport(): EnhanceResult`, qui coûtait un export JS, une table par handle côté WASI
+et quatre ponts JVM. Le texte des avertissements n'existe que dans `ElevationCorrectionReport`
+(`engine/…/path/`) ; un avertissement seulement quand la sortie est sciemment fausse ou dépend du
+réseau : lecture MNS échouée, tablier détecté laissé au fond (avec son km sur l'axe de l'étape 3),
+lecture MNT échouée pendant l'étape tunnels. Rien pour `unavailable` / `not-run` (le cas normal sur
+Mapterhorn) ni pour un tunnel écarté (comportement voulu, compté seulement).
+
+*Portes.* CLI : chaque avertissement sur stderr (`warning: <fichier> track <n>: …`), même avec
+`--quiet`, code de sortie 0, et une ligne d'état sur stdout avec `--fix-elevation`. JVM :
+`getElevationCorrections()` gratuit, fabrique `EngineModelJvm.elevationCorrectionOptions(…)`. JS :
+les deux clés (DTO, `ENHANCE_OPTIONS_KEYS`, lues sur `defaultJsOptions()`), et l'export
+`pathElevationCorrections(path)` ; `enhance` et `enhanceWithCourse` analysent désormais leurs DTO
+et construisent leur fournisseur de MNT **avant** `GlobalScope.promise` (une clé inconnue, un DTO de
+cycliste, de vélo, de vent ou de puissance invalide, une `demSource` inconnue ou un `demZoom` hors
+bornes lèvent à l'appel, plus en promesse rejetée — changement de comportement public, à signaler
+dans le message de commit, documenté dans `using-from-javascript.md`). WASI :
+les deux clés acceptées, l'export `vcPathElevationCorrectionsJson(handle)` ; les corps de
+`vcEnhance` / `vcEnhanceWithCourse` extraits en `enhanceFromJson` / `enhanceCourseFromJson`
+(idiome w03), **sans valeur par défaut** pour le fournisseur — sur Kotlin/Wasm un paramètre par
+défaut garde sa valeur atteignable de tout appel, et `hostTileFetcher` amenait l'import `fetch_tile`
+dans le binaire de test, que le lanceur KGP ne sait pas instancier. HTTP : les deux clés (22 clés
+pour `EnhanceOptions`, `/defaults` les publie), `TrackResult.elevationCorrections` dans le résumé,
+chaque avertissement ajouté à `EnhanceResponse.warnings` préfixé `track <n> (<nom>)`, et
+`GET /catalog` liste `elevationCorrectionStatuses`. Démo : deux cases sous la source du MNT (le
+libellé des tabliers grisé hors `ign-lidar-hd`, sans désactiver la case — c'est une permission),
+une ligne d'état sous les statistiques du fichier et une alerte pour les avertissements ; le
+libellé IGN de `DEM_SOURCES` ne dit plus « No bridges ».
+
+*WASI (point (2)).* Clé `bridgeDecksEnabled` **acceptée**, rapport `unavailable` dès que l'étape
+est permise (`not-run` si `false` ou sans `fixElevation`) : les deux
+portes filaires acceptent les mêmes clés, et contrairement à `demSource` rien ne peut y être mal
+appliqué. `tunnelsEnabled` y est pleinement effectif (l'étape 3c ne lit que le MNT). Ligne R31 du
+ledger : WASI ❌ avec note ; table par option (engendrée) : ✅ pour la clé.
+
+*Fichiers et artefacts.* Catalogue `OptionCatalog` (deux entrées `ALL_WIRE`), `DoorKeyParityTest`
+20 → 22, `TsFacade` 12 → 13 DTO et 34 → 35 fonctions, `StringUnions` lie les deux statuts du DTO JS
+à `ElevationCorrectionStatus` (union fermée dans `index.d.ts`), `WasiExportCatalog` (une ligne
+`RESHAPED`), `tools/wasi/host.py` (`elevation_corrections`) et un test Python. Régénérés :
+`index.d.ts` / `.mjs` / `.cjs` (`:codegen:generateTsFacade`), la table par option de
+`surface-coverage.md` (`:codegen:generateSurfaceLedger`), `api/contract/openapi.yaml`
+(`:api:generateOpenApi`). Tests : `EnhancerElevationCorrectionsTest` (cœur, 18 cas),
+`EnhanceCommandTest` 33–36, `ElevationCorrectionsJavaTest`, `EngineJsApiElevationCorrectionsTest`,
+`ElevationCorrectionsWasiTest` (passe par `enhanceFromJson`), `WasiOptionsTest`,
+`WasiJsonOutputTest`, et trois cas d'`EnhanceRoutesTest` (MNS injoignable → `fetch-failed` et un
+avertissement `track 1 …` ; `bridgeDecksEnabled: false` → `not-run`, MNS jamais lu).
+
+*Non fait.* Les tronçons (point (3), et `TunnelResult.spans` côté tunnels) ne sont pas exposés — voir
+*Notes*. Point (5) sans objet : aucun fournisseur JS n'entre dans `enhance`, la façade construit le
+sien par `ElevationSource.provider()`, qui attache le MNS. Un échec MNT pendant l'étape tunnels n'a
+pas pu être provoqué à travers le pipeline (l'étape 2 a déjà mis les tuiles en cache) : il est
+épinglé au niveau de `ElevationCorrectionReport.of`, comme le tablier écarté.
 
 ## Outputs
 
@@ -2784,7 +2864,8 @@ si le coût en tuiles MNH reste raisonnable (voir *Notes*).
 ## Done when
 
 E1 à E4 livrés et mesurés, E6 fait, R31 et R32 remplis avec leurs chiffres ; E5 soit livré, soit
-consigné dans le ledger comme mesuré et écarté.
+consigné dans le ledger comme mesuré et écarté ; E7 : options et rapport sur les sept portes,
+lignes de `surface-coverage.md`.
 
 ## Notes
 
@@ -2797,6 +2878,15 @@ consigné dans le ledger comme mesuré et écarté.
   pas ce problème. **Tranché le 2026-10-13 : pas de changement d'ABI.** Sous WASI, les ponts restent
   au MNT (E4 s'applique) ; E7 inscrit ce manque dans `surface-coverage.md` et dans
   `wasm-wasi-abi.md`, au lieu d'ajouter une couche à `fetch_tile`.
+- **Tronçons non exposés (E7).** Le rapport donne des comptes et, pour un tablier écarté, son km —
+  pas les tronçons corrigés. Raison : leurs distances sont sur l'axe densifié de l'étape 3, que la
+  ligne de course, le rééchantillonnage à 1 Hz et la simplification déplacent ; une superposition
+  juste demanderait un `PointField` de provenance (ordinal 45, codegen, indices de champs CSV / JSON
+  / WASI : un changement de format), et E5 l'a mesuré inutile (« pas de crochet de provenance »).
+  Le km d'un tablier écarté, lui, reste fiable : ce décalage de quelques mètres disparaît dans un
+  libellé à 0,1 km, pas dans une superposition point par point.
+  Côté HTTP, ⚠️ dans le ledger : seul le format `summary` porte le rapport ; les formats fichier
+  (GPX, FIT, CSV, JSON en colonnes) n'ont pas de canal d'avertissement.
 - **Pourquoi pas les tags OSM.** vcyclist ne lit pas OSM, et l'étude montre que les tags `bridge`
   ratent des ouvrages entiers (Saint-Nazaire). Le MNH est une détection *physique*, indépendante de
   la qualité des tags. Un GPX issu d'un routeur peut porter `bridge` dans ses extensions ; c'est un

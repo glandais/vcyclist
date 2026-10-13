@@ -80,8 +80,8 @@ class EnhancerBridgeDeckTest {
     @Test
     fun a_surface_tile_that_cannot_be_read_leaves_the_valley_bit_for_bit() =
         runTest {
-            // FETCH_FAILED is all or nothing, and the enhancer does not report it (E7's to surface):
-            // the ride must at least be exactly the one without a surface model.
+            // FETCH_FAILED is all or nothing: the report says `fetch-failed` with a warning
+            // (EnhancerElevationCorrectionsTest), and the ride is exactly the one without a surface model.
             val input = DeckWorld.path(stepM = 25.0)
             val broken = DeckWorld.terrain().withSurfaceModel(DeckWorld.surface { error("HTTP 429") })
             val failed = Enhancer.enhanceCourse(Enhancer.getDefaultCourse(input), noPhysics, broken)

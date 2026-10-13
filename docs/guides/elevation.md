@@ -63,9 +63,14 @@ From [`Enhancer.kt`](../../engine/src/commonMain/kotlin/io/github/glandais/engin
 3. `PointPerDistance(1, 2)` — refine to 1–2 m spacing for the physics.
    - **3b.** `BridgeDeckStep` — after step 2 only, when the provider carries a surface model
      (`ign-lidar-hd` at z15): rides each detected bridge deck on the LiDAR surface model instead of
-     the valley floor. See [No bridges](#choosing-the-dem-source-ign-lidar-hd), ledger R31.
+     the valley floor. Off with `elevationCorrections.bridgeDecks` (`--no-bridge-decks`,
+     `bridgeDecksEnabled: false`). See [No bridges](#choosing-the-dem-source-ign-lidar-hd), ledger
+     R31.
    - **3c.** `TunnelStep` — after step 2 only, on any source: replaces the mountain over each
-     detected tunnel with the line between its portals. Ledger R32.
+     detected tunnel with the line between its portals. Off with `elevationCorrections.tunnels`
+     (`--no-tunnels`, `tunnelsEnabled: false`). Ledger R32.
+   - What 3b and 3c did is stamped on the returned path as `Path.elevationCorrections`: see
+     [What the corrections report](#what-the-corrections-report).
 4. `smoothElevation` — a **triangular kernel of 150 m half-width, always, unconditionally**. The
    pre-smoothing altitude of every point is kept in `PointField.SOURCE_ELEVATION`, the way the
    racing line keeps `sourceLatitude`/`sourceLongitude`.
@@ -501,12 +506,16 @@ long decks under heavy superstructure (truss, suspension), and long arches steep
 (Pont-Saint-Esprit). A missed deck is ridden on the valley floor, as before.
 
 It costs one MNS tile per terrain tile (≈ 35 MB more on a cold 130 km ride) and never fails a ride:
-a tile it cannot read leaves the terrain profile as it was — for every deck of the route, and
-without telling you, so the same command can give either profile depending on the network. Not at
-another zoom (the detector was calibrated at 15), not with Mapterhorn, and not on WASI, whose host
-serves one layer. The measurements, and what is left (reporting a failed read), are in
-[`docs/tasks/elevation-bridge-decks.md`](../tasks/elevation-bridge-decks.md), E1–E3 and E5;
-ledger rows **R31** (decks) and **R33** (the D+ they feed).
+a tile it cannot read leaves the terrain profile as it was — for every deck of the route — so the
+same command can give either profile depending on the network. That outcome is no longer silent:
+the path's report says `fetch-failed` and carries a warning (see
+[What the corrections report](#what-the-corrections-report)), and `--no-bridge-decks` /
+`bridgeDecksEnabled: false` turns the step off for a reproducible, network-independent profile and
+skips the MNS downloads. The option is a permission: on by default, it takes effect only where the
+provider has a surface model — not at another zoom (the detector was calibrated at 15), not with
+Mapterhorn, and not on WASI, whose host serves one layer; there the report says `unavailable`. The
+measurements are in [`docs/tasks/elevation-bridge-decks.md`](../tasks/elevation-bridge-decks.md),
+E1–E3, E5 and E7; ledger rows **R31** (decks) and **R33** (the D+ they feed).
 
 **Tunnels — on every source.** No LiDAR sees into a tunnel: every terrain model, IGN's and
 Mapterhorn's alike, is the mountain above it. Read at the point, the Grands Goulets tunnel (Vercors,
@@ -538,11 +547,11 @@ of 7 tunnels found; missed, a former rail tunnel under a low rounded hill whose 
 than 30 % over 50 m. The face criterion and two step guards came after that judgement.
 
 Two limits matter more than the misses. A **real** knoll that climbs and falls 30 % over 50 m — not
-a paved road, but a gravel, MTB or hiking track — is flattened, and there is no option to turn the
-step off yet. And precision has only been measured on LiDAR-derived terrain (IGN, and Mapterhorn in
-France and Finland): Mapterhorn's worldwide GLO-30 base (30 m, a surface model) is **unmeasured**; a
-probe on the Dadès gorge road in Morocco found three "tunnels" there. Details in E4 of the task;
-ledger row **R32**.
+a paved road, but a gravel, MTB or hiking track — is flattened; turn the step off there with
+`--no-tunnels` / `tunnelsEnabled: false` (on by default). And precision has only been measured on
+LiDAR-derived terrain (IGN, and Mapterhorn in France and Finland): Mapterhorn's worldwide GLO-30
+base (30 m, a surface model) is **unmeasured**; a probe on the Dadès gorge road in Morocco found
+three "tunnels" there. Details in E4 of the task; ledger row **R32**.
 
 **Rate limit.** The Géoplateforme answers HTTP 429 past 40 requests a second per IP, and
 `BatchCalculator` fetches ten tiles at once — a cold run failed on its 51st tile before pacing
@@ -553,3 +562,37 @@ it is not readable, as in a browser). See `pacedTileBytesFetcher`.
 ```bash
 INTEGRATION=1 ./gradlew :elevation:jvmTest --tests '*IgnLidarHdIntegrationTest*' --rerun-tasks
 ```
+
+### What the corrections report
+
+Every path the enhancer returns carries `Path.elevationCorrections` (`null` only on a path that
+never went through it): a status per correction, counts and warnings, carried by `copy()` and the
+simplifier.
+
+| Status | Means |
+|---|---|
+| `not-run` | the option is off, or there was no DEM correction (`fixElevation` off, no provider) |
+| `unavailable` | decks only: allowed, but the provider has no surface model (Mapterhorn, IGN at another zoom, WASI) |
+| `no-coverage` | decks only: every surface sample is no-data, the route is outside the LiDAR |
+| `none-found` | the step ran and found nothing |
+| `applied` | at least one stretch was corrected (`bridgeDecksApplied`, `tunnelsApplied` count them) |
+| `fetch-failed` | a tile could not be read; the path keeps the elevations it had before the step |
+
+`bridgeDecksDropped` counts deck regions the detector found but left on the valley floor (fewer
+than two surface anchors); `tunnelsDropped` counts tunnels refused because a deck lies between their
+portals (a bridge's pylons), which is the intended behaviour. A warning is raised only when the
+output is knowingly wrong or depends on the network — a failed read on either step, or a dropped
+deck (located by km on the 1–2 m path, to 0.1 km); `unavailable` and `not-run` are the normal case
+on most sources and raise none. The wording lives in `ElevationCorrectionReport` alone; the CLI
+prints each warning to stderr even with `--quiet` and exits 0.
+
+The other doors read the same report through one accessor each: `path.getElevationCorrections()`
+from Java, `pathElevationCorrections(path)` from JavaScript (a plain object, statuses typed as a
+closed union in `index.d.ts`), `vcPathElevationCorrectionsJson(handle)` on WASI (the same JSON, or
+`null`), and `TrackResult.elevationCorrections` in the HTTP summary, whose warnings are also
+appended to the response's `warnings` as `track <n> (<name>): …` — the HTTP file formats carry
+none. The demo shows a status line under the file's statistics and the warnings in an alert. The
+corrected stretches themselves are not exposed on any door. Their distances are on step 3's
+densified axis, which the racing line, 1 Hz resampling and simplification shift by metres: a
+warning's 0.1 km label absorbs that, a per-point overlay would not. Exposing them faithfully needs
+a provenance `PointField`, which is a wire-format change (field indices in CSV, JSON and WASI).

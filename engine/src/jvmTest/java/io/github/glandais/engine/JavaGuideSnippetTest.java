@@ -8,6 +8,8 @@ import io.github.glandais.engine.gpx.GpxParserJvm;
 import io.github.glandais.engine.gpx.GpxToPathJvm;
 import io.github.glandais.engine.gpx.GpxWriterJvm;
 import io.github.glandais.engine.io.TabularWritersJvm;
+import io.github.glandais.engine.path.ElevationCorrectionStatus;
+import io.github.glandais.engine.path.ElevationCorrections;
 import io.github.glandais.engine.path.Path;
 import io.github.glandais.engine.path.PathSimplifierJvm;
 import io.github.glandais.engine.trajectory.CorridorMode;
@@ -106,5 +108,23 @@ public class JavaGuideSnippetTest {
         assertTrue(json.length() > 0);
         assertTrue(smaller.getSize() > 0);
         assertNotNull(ClimbDetectorJvm.detect(enhanced));
+    }
+
+    /** The guide's elevation-corrections snippet, under "Building the inputs". */
+    @Test
+    public void elevationCorrectionsSnippetCompilesAndRuns() {
+        Path enhanced = EnhancerJvm.enhanceCourseDefaultBlocking(GpxToPathJvm.firstTrackAsPath(GpxParserJvm.parse(XML)));
+
+        ElevationCorrectionOptions noTunnels = EngineModelJvm.elevationCorrectionOptions(true, false);
+
+        ElevationCorrections report = enhanced.getElevationCorrections(); // null if never enhanced
+        if (report.getBridgeDecks() == ElevationCorrectionStatus.FETCH_FAILED) {
+            /* network-dependent */
+        }
+        report.getWarnings().forEach(System.err::println);
+        String wireId = report.getTunnels().getId(); // "applied", "not-run", ...
+
+        assertTrue(!noTunnels.getTunnels());
+        assertTrue(wireId.equals("not-run"));
     }
 }

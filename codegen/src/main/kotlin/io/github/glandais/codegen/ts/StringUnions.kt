@@ -42,6 +42,8 @@ object StringUnions {
             Bound("ElevationProviderConfigDto.source", "ElevationSource"),
             Bound("PowerProviderDto.type", "PowerModel"),
             Bound("CornerDto.kind", "CornerKind", EnumCatalog.Style.NAME),
+            Bound("ElevationCorrectionsDto.bridgeDecks", "ElevationCorrectionStatus"),
+            Bound("ElevationCorrectionsDto.tunnels", "ElevationCorrectionStatus"),
             Bound("writeGpx.powerSource", "GpxPowerSource"),
             Bound("writeGpxAt.powerSource", "GpxPowerSource"),
             Bound("writeGpxTracks.powerSource", "GpxPowerSource"),

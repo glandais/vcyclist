@@ -3,6 +3,7 @@ import { computed, ref, watch } from 'vue';
 import { gpxSamples } from '~/config/gpxSamples';
 import {
     getField,
+    pathElevationCorrections,
     pathElevationGain,
     pathElevationLoss,
     pathReportedElevationGain,
@@ -83,6 +84,29 @@ const fileInfo = computed(() => {
     };
 });
 
+/** A status id as a human reads it: `none-found` → `none found`. */
+const statusLabel = (id: string, applied: number): string =>
+    id === 'applied' ? `applied (${applied})` : id.replace(/-/g, ' ');
+
+/**
+ * What the bridge-deck and tunnel corrections did, once the pipeline has run. Hidden on a parsed
+ * file (no report) and when neither step ran (no DEM lookup): a line saying "not run" twice for
+ * every ride without `fixElevation` would be noise.
+ */
+const elevationCorrections = computed(() => {
+    const path = props.currentPath;
+    const report = path ? pathElevationCorrections(path) : null;
+    if (!report || (report.bridgeDecks === 'not-run' && report.tunnels === 'not-run')) {
+        return null;
+    }
+    return {
+        line:
+            `Bridge decks: ${statusLabel(report.bridgeDecks, report.bridgeDecksApplied)}` +
+            ` · Tunnels: ${statusLabel(report.tunnels, report.tunnelsApplied)}`,
+        warnings: report.warnings,
+    };
+});
+
 watch(
     () => props.currentPath,
     () => {
@@ -160,8 +184,32 @@ watch(
                             {{ fileInfo.maxElevation.toFixed(0) }}]m
                         </div>
                     </div>
+                    <div
+                        v-if="elevationCorrections"
+                        class="bg-white p-2 rounded text-center md:col-span-2"
+                    >
+                        <div class="text-sm text-gray-600">Elevation corrections</div>
+                        <div class="text-base font-semibold text-blue-900">
+                            {{ elevationCorrections.line }}
+                        </div>
+                    </div>
                 </div>
             </template>
         </UCollapsible>
+        <UAlert
+            v-if="elevationCorrections && elevationCorrections.warnings.length > 0"
+            class="mt-4"
+            color="warning"
+            variant="subtle"
+            title="Elevation corrections"
+        >
+            <template #description>
+                <ul class="list-disc pl-4">
+                    <li v-for="warning in elevationCorrections.warnings" :key="warning">
+                        {{ warning }}
+                    </li>
+                </ul>
+            </template>
+        </UAlert>
     </section>
 </template>

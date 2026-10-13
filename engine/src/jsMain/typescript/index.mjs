@@ -27,6 +27,7 @@ export const pathElevationGainFiltered = ns.pathElevationGainFiltered;
 export const pathElevationLossFiltered = ns.pathElevationLossFiltered;
 export const pathReportedElevationGain = ns.pathReportedElevationGain;
 export const pathReportedElevationLoss = ns.pathReportedElevationLoss;
+export const pathElevationCorrections = ns.pathElevationCorrections;
 export const pointAt = ns.pointAt;
 export const writeGpx = ns.writeGpx;
 export const writeGpxAt = ns.writeGpxAt;

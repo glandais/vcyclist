@@ -2,6 +2,7 @@ package io.github.glandais.engine.wasi
 
 import io.github.glandais.engine.Bike
 import io.github.glandais.engine.Cyclist
+import io.github.glandais.engine.ElevationCorrectionOptions
 import io.github.glandais.engine.EnhanceOptions
 import io.github.glandais.engine.RoadCondition
 import io.github.glandais.engine.SimplifyPathOptions
@@ -61,6 +62,12 @@ private val ENHANCE_KEYS =
         "elevationGainPreset",
         "elevationGainThresholdM",
         "elevationSmoothWindowM",
+        // Accepted for wire parity with JS and HTTP. `bridgeDecksEnabled` can never take effect
+        // here — `fetch_tile` names no layer, so the provider carries no surface model and the
+        // report says `unavailable` — but a host sharing one options object across doors must not
+        // fail on WASI for it. `tunnelsEnabled` is fully effective: step 3c reads the terrain only.
+        "bridgeDecksEnabled",
+        "tunnelsEnabled",
         "demZoom",
         "demSource",
     )
@@ -118,6 +125,11 @@ internal fun JsonObj?.toEnhanceOptions(): EnhanceOptions {
                 )
             },
         elevationSmoothWindowM = double("elevationSmoothWindowM", defaults.elevationSmoothWindowM),
+        elevationCorrections =
+            ElevationCorrectionOptions(
+                bridgeDecks = bool("bridgeDecksEnabled", defaults.elevationCorrections.bridgeDecks),
+                tunnels = bool("tunnelsEnabled", defaults.elevationCorrections.tunnels),
+            ),
     )
 }
 

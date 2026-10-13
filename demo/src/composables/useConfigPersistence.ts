@@ -69,6 +69,11 @@ const migrateConfig = (data: SerializableConfig): SerializableConfig => {
             elevationSmoothWindowM:
                 data.enhance.elevationSmoothWindowM ??
                 DEFAULT_CONFIG.enhance.elevationSmoothWindowM,
+            // Saved before E7: both corrections take the engine's default.
+            elevationCorrections: {
+                ...DEFAULT_CONFIG.enhance.elevationCorrections,
+                ...(data.enhance.elevationCorrections ?? {}),
+            },
         };
     }
 

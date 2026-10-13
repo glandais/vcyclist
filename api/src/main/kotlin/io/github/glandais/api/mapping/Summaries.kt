@@ -1,9 +1,11 @@
 package io.github.glandais.api.mapping
 
 import io.github.glandais.api.dto.BoundsDto
+import io.github.glandais.api.dto.ElevationCorrectionsDto
 import io.github.glandais.api.dto.PathSummaryDto
 import io.github.glandais.api.dto.PointDto
 import io.github.glandais.elevation.MathConstants
+import io.github.glandais.engine.path.ElevationCorrections
 import io.github.glandais.engine.path.Path
 
 /** `this`, or `null` when it is `NaN` or infinite: kotlinx refuses `NaN`, the WASI ABI writes `null`. */
@@ -34,6 +36,18 @@ fun Path.toSummary(): PathSummaryDto =
                     maxLongitude = boundsRad.maxLon * MathConstants.RAD_TO_DEG,
                 )
             },
+    )
+
+/** The JS / WASI shape of an elevation-corrections report; statuses by their wire id. */
+fun ElevationCorrections.toDto(): ElevationCorrectionsDto =
+    ElevationCorrectionsDto(
+        bridgeDecks = bridgeDecks.id,
+        bridgeDecksApplied = bridgeDecksApplied,
+        bridgeDecksDropped = bridgeDecksDropped,
+        tunnels = tunnels.id,
+        tunnelsApplied = tunnelsApplied,
+        tunnelsDropped = tunnelsDropped,
+        warnings = warnings,
     )
 
 /** Every point, in the shape of the JS / WASI `PointDto`. */

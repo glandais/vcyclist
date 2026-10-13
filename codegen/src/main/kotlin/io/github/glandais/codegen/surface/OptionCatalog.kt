@@ -363,6 +363,18 @@ object OptionCatalog {
                             cliFlag = "--elevation-gain-threshold",
                         ),
                         Opt(
+                            "bridgeDecksEnabled",
+                            path = "elevationCorrections.bridgeDecks",
+                            doors = ALL_WIRE,
+                            cliFlag = "--bridge-decks",
+                        ),
+                        Opt(
+                            "tunnelsEnabled",
+                            path = "elevationCorrections.tunnels",
+                            doors = ALL_WIRE,
+                            cliFlag = "--tunnels",
+                        ),
+                        Opt(
                             "elevationGainEnabled",
                             path = "elevationGain.enabled",
                             doors = WIRE_NO_CLI,

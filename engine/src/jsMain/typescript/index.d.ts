@@ -89,6 +89,15 @@ export type PointFieldProp =
     | 'sourceLongitude'
     | 'sourceElevation';
 
+/** The spellings every door parses, derived from the `ElevationCorrectionStatus` catalogue in `commonMain`. */
+export type ElevationCorrectionStatus =
+    | 'not-run'
+    | 'unavailable'
+    | 'no-coverage'
+    | 'none-found'
+    | 'applied'
+    | 'fetch-failed';
+
 /** The spellings every door parses, derived from the `CornerKind` catalogue in `commonMain`. */
 export type CornerKind =
     | 'GENTLE'
@@ -206,6 +215,22 @@ export interface EnhanceOptionsDto {
      * this smoothing, so the window barely moves it.
      */
     readonly elevationSmoothWindowM?: number | null;
+    /**
+     * **Allow** the bridge-deck correction after `fixElevation`: ride each bridge deck the LiDAR
+     * surface model shows instead of the valley floor the terrain model reads under it. A
+     * permission, not a promise — it runs only with `demSource: "ign-lidar-hd"` at that source's
+     * default zoom, the one provider carrying a surface model, and reports `"unavailable"`
+     * otherwise. `false` saves the surface-model fetches and makes the profile independent of the
+     * network. Defaults to `true`. What it did is read back with `pathElevationCorrections`.
+     */
+    readonly bridgeDecksEnabled?: boolean | null;
+    /**
+     * Allow the tunnel correction after `fixElevation`, on any DEM: flatten each tunnel the terrain
+     * model betrays onto the line between its portals. Its precision is unmeasured on tracks with
+     * steep real knolls (≥ 30 %) and in regions only GLO-30 covers, where a false tunnel flattens a
+     * real climb — turn it off there. Defaults to `true`.
+     */
+    readonly tunnelsEnabled?: boolean | null;
     /**
      * Web-Mercator zoom for the DEM lookup, `0..15`, used only when `fixElevation` is on.
      *
@@ -335,6 +360,20 @@ export interface FieldDefinitionDto {
     readonly categoryName: string;
     readonly notSelectable: boolean;
     readonly anglesInRadians: boolean;
+}
+
+/**
+ * JS view of `ElevationCorrections`. Statuses are `ElevationCorrectionStatus` ids: `"not-run"`,
+ * `"unavailable"`, `"no-coverage"`, `"none-found"`, `"applied"`, `"fetch-failed"`.
+ */
+export interface ElevationCorrectionsDto {
+    readonly bridgeDecks: ElevationCorrectionStatus;
+    readonly bridgeDecksApplied: number;
+    readonly bridgeDecksDropped: number;
+    readonly tunnels: ElevationCorrectionStatus;
+    readonly tunnelsApplied: number;
+    readonly tunnelsDropped: number;
+    readonly warnings: string[];
 }
 
 /**
@@ -524,6 +563,15 @@ export declare function pathReportedElevationGain(path: Path): number;
  * Counterpart of `pathReportedElevationGain`. NEGATIVE by convention.
  */
 export declare function pathReportedElevationLoss(path: Path): number;
+
+/**
+ * What the enhancer's elevation corrections (bridge decks, tunnels) did to `path`, as a plain JS
+ * object; `null` when `path` never went through `enhance` / `enhanceWithCourse`.
+ *
+ * `warnings` holds one sentence per outcome that is knowingly wrong or depends on the network (a
+ * tile that could not be read, a detected deck left on the valley floor) and is empty otherwise.
+ */
+export declare function pathElevationCorrections(path: Path): ElevationCorrectionsDto | null;
 
 export declare function pointAt(path: Path, i: number): PointDto;
 

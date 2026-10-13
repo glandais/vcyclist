@@ -25,6 +25,7 @@ import io.github.glandais.engine.io.CsvOptions
 import io.github.glandais.engine.io.CsvWriter
 import io.github.glandais.engine.io.JsonOptions
 import io.github.glandais.engine.io.JsonWriter
+import io.github.glandais.engine.path.ElevationCorrections
 import io.github.glandais.engine.path.ElevationGainOptions
 import io.github.glandais.engine.path.ElevationGainPreset
 import io.github.glandais.engine.path.Path
@@ -181,6 +182,24 @@ external interface EnhanceOptionsDto {
      * this smoothing, so the window barely moves it.
      */
     val elevationSmoothWindowM: Double?
+
+    /**
+     * **Allow** the bridge-deck correction after [fixElevation]: ride each bridge deck the LiDAR
+     * surface model shows instead of the valley floor the terrain model reads under it. A
+     * permission, not a promise — it runs only with `demSource: "ign-lidar-hd"` at that source's
+     * default zoom, the one provider carrying a surface model, and reports `"unavailable"`
+     * otherwise. `false` saves the surface-model fetches and makes the profile independent of the
+     * network. Defaults to `true`. What it did is read back with [pathElevationCorrections].
+     */
+    val bridgeDecksEnabled: Boolean?
+
+    /**
+     * Allow the tunnel correction after [fixElevation], on any DEM: flatten each tunnel the terrain
+     * model betrays onto the line between its portals. Its precision is unmeasured on tracks with
+     * steep real knolls (≥ 30 %) and in regions only GLO-30 covers, where a false tunnel flattens a
+     * real climb — turn it off there. Defaults to `true`.
+     */
+    val tunnelsEnabled: Boolean?
 
     /**
      * Web-Mercator zoom for the DEM lookup, `0..15`, used only when [fixElevation] is on.
@@ -493,6 +512,42 @@ fun pathReportedElevationGain(path: Path): Double = path.reportedElevationGain
 @JsExport
 fun pathReportedElevationLoss(path: Path): Double = path.reportedElevationLoss
 
+/**
+ * What the enhancer's elevation corrections (bridge decks, tunnels) did to [path], as a plain JS
+ * object; `null` when [path] never went through [enhance] / [enhanceWithCourse].
+ *
+ * `warnings` holds one sentence per outcome that is knowingly wrong or depends on the network (a
+ * tile that could not be read, a detected deck left on the valley floor) and is empty otherwise.
+ */
+@JsExport
+fun pathElevationCorrections(path: Path): ElevationCorrectionsDto? = path.elevationCorrections?.let(::elevationCorrectionsObj)
+
+/**
+ * JS view of [ElevationCorrections]. Statuses are `ElevationCorrectionStatus` ids: `"not-run"`,
+ * `"unavailable"`, `"no-coverage"`, `"none-found"`, `"applied"`, `"fetch-failed"`.
+ */
+external interface ElevationCorrectionsDto {
+    val bridgeDecks: String
+    val bridgeDecksApplied: Int
+    val bridgeDecksDropped: Int
+    val tunnels: String
+    val tunnelsApplied: Int
+    val tunnelsDropped: Int
+    val warnings: Array<String>
+}
+
+internal fun elevationCorrectionsObj(c: ElevationCorrections): ElevationCorrectionsDto {
+    val o = js("({})")
+    o.bridgeDecks = c.bridgeDecks.id
+    o.bridgeDecksApplied = c.bridgeDecksApplied
+    o.bridgeDecksDropped = c.bridgeDecksDropped
+    o.tunnels = c.tunnels.id
+    o.tunnelsApplied = c.tunnelsApplied
+    o.tunnelsDropped = c.tunnelsDropped
+    o.warnings = c.warnings.toTypedArray()
+    return o.unsafeCast<ElevationCorrectionsDto>()
+}
+
 @JsExport
 fun pointAt(
     path: Path,
@@ -569,16 +624,21 @@ fun writeGpxAt(
 fun enhance(
     path: Path,
     options: EnhanceOptionsDto?,
-): Promise<Path> =
-    GlobalScope.promise {
-        val opts = options.toEnhanceOptions()
-        // Auto-instantiate a default ElevationProvider when the caller asked for fixElevation.
-        // This makes `enhance(path, { fixElevation: true })` work end-to-end on Node (and browser
-        // when network policy allows) without requiring callers to thread a provider through the
-        // free-function façade. Skips allocation when fixElevation is off.
-        val provider = if (opts.fixElevation) elevationProviderFor(options) else null
+): Promise<Path> {
+    // Parsed before the promise: a misspelled key, an unknown `demSource` or an out-of-range
+    // `demZoom` is the caller's programming error, and inside the promise it would become a
+    // rejection an `await`-less caller drops on the floor.
+    val opts = options.toEnhanceOptions()
+    // Auto-instantiate a default ElevationProvider when the caller asked for fixElevation. This
+    // makes `enhance(path, { fixElevation: true })` work end-to-end on Node (and browser when
+    // network policy allows) without requiring callers to thread a provider through the
+    // free-function façade. Construction is synchronous and fetches nothing; skipped when
+    // fixElevation is off.
+    val provider = if (opts.fixElevation) elevationProviderFor(options) else null
+    return GlobalScope.promise {
         Enhancer.enhanceCourseDefault(path, elevationProvider = provider, options = opts)
     }
+}
 
 /**
  * **Every fallback here is read off [defaultJsOptions] or off the stage's own options object.**
@@ -633,6 +693,11 @@ internal fun EnhanceOptionsDto?.toEnhanceOptions(): EnhanceOptions {
                 )
             },
         elevationSmoothWindowM = elevationSmoothWindowM ?: d.elevationSmoothWindowM,
+        elevationCorrections =
+            ElevationCorrectionOptions(
+                bridgeDecks = bridgeDecksEnabled ?: d.elevationCorrections.bridgeDecks,
+                tunnels = tunnelsEnabled ?: d.elevationCorrections.tunnels,
+            ),
     )
 }
 
@@ -798,6 +863,8 @@ private val ENHANCE_OPTIONS_KEYS =
         "elevationGainThresholdM",
         "elevationGainEnabled",
         "elevationSmoothWindowM",
+        "bridgeDecksEnabled",
+        "tunnelsEnabled",
         "demZoom",
         "demSource",
     )
@@ -844,20 +911,23 @@ fun enhanceWithCourse(
     wind: WindDto?,
     power: PowerProviderDto?,
     options: EnhanceOptionsDto?,
-): Promise<Path> =
-    GlobalScope.promise {
-        val opts = options.toEnhanceOptions()
-        val provider = if (opts.fixElevation) elevationProviderFor(options) else null
-        val course =
-            CoursePhysics(
-                course = Course(path = path, cyclist = cyclist.toCyclist(), bike = bike.toBike()),
-                rhoProvider = RhoProviderEstimate,
-                aeroProvider = AeroProviderConstant,
-                windProvider = wind.toWindProvider(),
-                cyclistPowerProvider = power.toCyclistPowerProvider(),
-            )
+): Promise<Path> {
+    // Every DTO, and the DEM provider, is built before the promise, for the reason given in
+    // [enhance].
+    val opts = options.toEnhanceOptions()
+    val course =
+        CoursePhysics(
+            course = Course(path = path, cyclist = cyclist.toCyclist(), bike = bike.toBike()),
+            rhoProvider = RhoProviderEstimate,
+            aeroProvider = AeroProviderConstant,
+            windProvider = wind.toWindProvider(),
+            cyclistPowerProvider = power.toCyclistPowerProvider(),
+        )
+    val provider = if (opts.fixElevation) elevationProviderFor(options) else null
+    return GlobalScope.promise {
         Enhancer.enhanceCourse(course, opts, elevationProvider = provider)
     }
+}
 
 /**
  * Read field [fieldProp] (camelCase, e.g. `"elevation"` / `"speed"`) at point [i]. Throws if

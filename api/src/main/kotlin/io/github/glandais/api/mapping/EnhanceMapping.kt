@@ -118,6 +118,11 @@ fun EnhanceOptionsDto?.toEnhanceOptions(at: String = "/options"): EnhanceOptions
                 )
             },
         elevationSmoothWindowM = elevationSmoothWindowM ?: d.elevationSmoothWindowM,
+        elevationCorrections =
+            d.elevationCorrections.copy(
+                bridgeDecks = bridgeDecksEnabled ?: d.elevationCorrections.bridgeDecks,
+                tunnels = tunnelsEnabled ?: d.elevationCorrections.tunnels,
+            ),
     )
 }
 
@@ -287,6 +292,8 @@ fun EnhanceOptions.toDto(
         elevationGainThresholdM = elevationGain.thresholdM,
         elevationGainEnabled = elevationGain.enabled,
         elevationSmoothWindowM = elevationSmoothWindowM,
+        bridgeDecksEnabled = elevationCorrections.bridgeDecks,
+        tunnelsEnabled = elevationCorrections.tunnels,
         demZoom = zoom,
         demSource = source.id,
     )

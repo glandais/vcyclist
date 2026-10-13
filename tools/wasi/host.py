@@ -248,6 +248,12 @@ class VcyclistHost:
         """Negative by convention."""
         return float(self._call("vcPathReportedElevationLoss", handle))
 
+    def elevation_corrections(self, handle: int) -> Optional[dict]:
+        """What the elevation corrections did (bridge decks, tunnels), or None for a path that
+        never went through an enhance. `bridgeDecks` is always "unavailable" on this door once a
+        DEM correction ran: `fetch_tile` names no layer, so no surface model reaches the guest."""
+        return json.loads(self._text("vcPathElevationCorrectionsJson", handle))
+
     def latitude_deg(self, handle: int, i: int) -> float:
         return float(self._call("vcPathLatitudeDeg", handle, i))
 

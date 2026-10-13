@@ -206,6 +206,68 @@ class EnhanceRoutesTest {
         }
 
     @Test
+    fun `without fixElevation both corrections report not-run and warn nothing`() =
+        apiTest { client ->
+            val result = enhanced(client.enhance("{}"))
+            val corrections = result.tracks.single().elevationCorrections
+            assertEquals("not-run", corrections.bridgeDecks)
+            assertEquals("not-run", corrections.tunnels)
+            assertEquals(emptyList(), corrections.warnings)
+            assertEquals(emptyList(), result.warnings)
+        }
+
+    /** IGN's terrain served flat, its surface model (the MNS layer) unreachable. */
+    private fun unreachableSurfaceModel(surfaceFetches: java.util.concurrent.atomic.AtomicInteger): ApiDependencies =
+        ApiDependencies(
+            elevation =
+                ElevationGateway { config: ElevationProviderConfig ->
+                    if ("MNS" in config.tileUrlTemplate) {
+                        { url: String ->
+                            surfaceFetches.incrementAndGet()
+                            throw TileFetchException(url, 500, null)
+                        }
+                    } else {
+                        FlatTerrariumTiles.fetcherFor(config)
+                    }
+                },
+        )
+
+    @Test
+    fun `a failed surface-model read is reported on the track and relayed as a warning`() {
+        val fetches =
+            java.util.concurrent.atomic
+                .AtomicInteger()
+        apiTest(deps = unreachableSurfaceModel(fetches)) { client ->
+            val result = enhanced(client.enhance("""{"options":{"fixElevation":true,"demSource":"ign-lidar-hd"}}"""))
+            val corrections = result.tracks.single().elevationCorrections
+            assertEquals("fetch-failed", corrections.bridgeDecks)
+            assertEquals(1, corrections.warnings.size)
+            assertTrue(fetches.get() > 0, "the surface model was never asked")
+            val relayed = result.warnings.filter { "bridge decks" in it }
+            assertEquals(1, relayed.size, result.warnings.toString())
+            assertTrue(relayed.single().startsWith("track 1"), relayed.single())
+            assertTrue(relayed.single().endsWith(corrections.warnings.single()), "relayed unreworded")
+        }
+    }
+
+    @Test
+    fun `bridgeDecksEnabled false never reads the surface model`() {
+        val fetches =
+            java.util.concurrent.atomic
+                .AtomicInteger()
+        apiTest(deps = unreachableSurfaceModel(fetches)) { client ->
+            val result =
+                enhanced(
+                    client.enhance("""{"options":{"fixElevation":true,"demSource":"ign-lidar-hd","bridgeDecksEnabled":false}}"""),
+                )
+            val corrections = result.tracks.single().elevationCorrections
+            assertEquals("not-run", corrections.bridgeDecks)
+            assertEquals(0, fetches.get())
+            assertEquals(emptyList(), result.warnings)
+        }
+    }
+
+    @Test
     fun `a failing tile server is 502, a rate-limiting one 503 with Retry-After`() {
         fun failing(retryAfter: Long?): ApiDependencies =
             ApiDependencies(

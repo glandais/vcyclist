@@ -94,6 +94,10 @@ class EngineModelJvmCoverageTest {
     fun wPrimeBalanceOptionsFactoryCoversEveryField() = assertCovers("wPrimeBalanceOptions", WPrimeBalanceOptions::class.java)
 
     @Test
+    fun elevationCorrectionOptionsFactoryCoversEveryField() =
+        assertCovers("elevationCorrectionOptions", ElevationCorrectionOptions::class.java)
+
+    @Test
     fun curvatureOptionsFactoryCoversEveryField() = assertCovers("curvatureOptions", CurvatureOptions::class.java)
 
     /**
@@ -158,6 +162,7 @@ class EngineModelJvmCoverageTest {
         assertEquals(SimplifyPathOptions(), simplifyPathOptions(), "EngineModelJvm.simplifyPathOptions")
         assertEquals(WPrimeBalanceOptions(), wPrimeBalanceOptions(), "EngineModelJvm.wPrimeBalanceOptions")
         assertEquals(CurvatureOptions(), curvatureOptions(), "EngineModelJvm.curvatureOptions")
+        assertEquals(ElevationCorrectionOptions(), elevationCorrectionOptions(), "EngineModelJvm.elevationCorrectionOptions")
         assertEquals(RacingLineOptions(), racingLineOptions(), "EngineModelJvm.racingLineOptions")
         assertEquals(CyclistPowerSpec(), cyclistPowerSpec(), "EngineModelJvm.cyclistPowerSpec")
         assertEquals(ClimbOptions(), climbOptions(), "ClimbDetectorJvm.climbOptions")

@@ -3,6 +3,7 @@ package io.github.glandais.engine.wasi
 import io.github.glandais.engine.climb.Climb
 import io.github.glandais.engine.climb.ClimbPart
 import io.github.glandais.engine.gpx.GpxWaypoint
+import io.github.glandais.engine.path.ElevationCorrections
 import io.github.glandais.engine.path.Path
 import io.github.glandais.engine.path.PointField
 import io.github.glandais.engine.trajectory.CornerSpan
@@ -145,6 +146,21 @@ internal fun racingLineReportJson(r: RacingLineReport): String =
         "relativeGradient" to jsonNumber(r.relativeGradient),
         "converged" to r.converged.toString(),
         "activeConstraints" to r.activeConstraints.toString(),
+    )
+
+/**
+ * Mirror of `ElevationCorrectionsDto`: the statuses are `ElevationCorrectionStatus` ids, the
+ * warnings the core's sentences, unreworded.
+ */
+internal fun elevationCorrectionsJson(c: ElevationCorrections): String =
+    jsonObject(
+        "bridgeDecks" to jsonString(c.bridgeDecks.id),
+        "bridgeDecksApplied" to c.bridgeDecksApplied.toString(),
+        "bridgeDecksDropped" to c.bridgeDecksDropped.toString(),
+        "tunnels" to jsonString(c.tunnels.id),
+        "tunnelsApplied" to c.tunnelsApplied.toString(),
+        "tunnelsDropped" to c.tunnelsDropped.toString(),
+        "warnings" to jsonArray(c.warnings.map(::jsonString)),
     )
 
 /** `[…]` of numbers, non-finite slots becoming `null` — see [racingLineReportJson]. */

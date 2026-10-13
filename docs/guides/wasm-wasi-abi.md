@@ -203,6 +203,7 @@ length.
 | `vcPathElevationLossFiltered` | `(handle) -> f64` | meters, **negative**, or **NaN** |
 | `vcPathReportedElevationGain` | `(handle) -> f64` | the filtered figure, falling back to the raw sum |
 | `vcPathReportedElevationLoss` | `(handle) -> f64` | meters, **negative** |
+| `vcPathElevationCorrectionsJson` | `(handle) -> i32` | → what the bridge-deck and tunnel corrections did (JSON), or `null` for a path never enhanced. See §9 |
 | `vcPathLatitudeDeg` | `(handle, i) -> f64` | degrees |
 | `vcPathLongitudeDeg` | `(handle, i) -> f64` | degrees |
 | `vcDominantHeadwindAzimuth` | `(handle) -> f64` | degrees, or NaN. See §6 |
@@ -324,13 +325,18 @@ the module does and can fill them in.
 It is validated on the spot — a tile size that is not a power of two, or a zoom outside 0..15, is
 `-3` right there rather than three calls later — and it is sticky for the instance.
 
-**No bridge decks on this door either.** On the CLI, JS and JVM, `ign-lidar-hd` at zoom 15 also
-reads IGN's surface model (MNS) and rides each bridge deck it detects instead of the valley under
-it. `fetch_tile` names no layer (decision 2026-10-13), so here the viaducts stay on the terrain
-model and the same route reads differently on bridges; see `docs/tasks/elevation-bridge-decks.md`,
-E7. **Tunnels**, by contrast, are flattened here as on every door: the tunnel step (E4) reads the
-terrain model only. One caveat of this door's missing fallback: a stretch of IGN coverage between two
-`-9999` stretches read as 0 m looks like a mountain over a tunnel. The detector refuses a portal
+**No bridge decks on this door either.** On the CLI, JS, JVM and HTTP, `ign-lidar-hd` at zoom 15
+also reads IGN's surface model (MNS) and rides each bridge deck it detects instead of the valley
+under it. `fetch_tile` names no layer (decision 2026-10-13), so here the viaducts stay on the
+terrain model and the same route reads differently on bridges. The `bridgeDecksEnabled` key is
+still **accepted**, for wire parity: a host sharing one options object with the JS door must not
+fail here. `true` is only a permission, so nothing can be misapplied:
+`vcPathElevationCorrectionsJson` reports `"bridgeDecks": "unavailable"` whenever a DEM correction
+ran with `bridgeDecksEnabled` left on (the default), and `"not-run"` when it is `false` or without
+`fixElevation`. **Tunnels**, by contrast, are flattened here as on every door, and
+`tunnelsEnabled` is fully effective: the tunnel step (E4) reads the terrain model only. One caveat
+of this door's missing fallback: a stretch of IGN coverage between two `-9999` stretches read as
+0 m looks like a mountain over a tunnel. The detector refuses a portal
 whose road side reads exactly 0 m within 50 m, which covers this door's substitute tile; a host that
 fills a hole with any other value is not covered.
 
@@ -402,6 +408,25 @@ Up to five optional sub-objects; each is the matching JS DTO, field for field.
 - `options.elevationSmoothWindowM` (default 150) is the elevation smoother's triangular-kernel
   half-width. It decides the gradients the simulation rides, and so the duration; the reported
   climbing is measured before smoothing and barely moves. See [`elevation.md`](elevation.md).
+- `options.bridgeDecksEnabled` and `options.tunnelsEnabled` (both default `true`, from
+  `ElevationCorrectionOptions.DEFAULT`) allow the two elevation corrections that follow
+  `fixElevation`. Bridge decks never run on this door (see `vcSetElevationConfig` above): the key
+  is accepted, and the report says `unavailable` when the step was allowed (`fixElevation` with
+  the key left on) and `not-run` otherwise. `tunnelsEnabled: false` keeps the terrain model's
+  profile through tunnels — for trails with steep real knolls, or regions only GLO-30 covers, where
+  the detector's precision is unmeasured. What each step did is read back with
+  `vcPathElevationCorrectionsJson`:
+
+  ```json
+  {"bridgeDecks":"unavailable","bridgeDecksApplied":0,"bridgeDecksDropped":0,
+   "tunnels":"applied","tunnelsApplied":2,"tunnelsDropped":0,"warnings":[]}
+  ```
+
+  Statuses are `not-run`, `unavailable`, `no-coverage`, `none-found`, `applied` and `fetch-failed`.
+  `warnings` holds one English sentence per outcome that is knowingly wrong or depends on the
+  network (here: a terrain tile that could not be read during the tunnel step), the same
+  sentences every door relays. The export writes `null` for a path that never went through
+  `vcEnhance` / `vcEnhanceWithCourse`.
 - `options.demZoom` overrides the DEM zoom **for that call only**, leaving whatever
   `vcSetElevationConfig` last set in place. It exists here because the two wire doors accept the
   same keys or neither does; a host wanting one call at a different zoom should not have to mutate
@@ -543,6 +568,7 @@ and a JVM test fails the build if a JS export ever appears without a decision he
 | `writeGpxTracks` | `vcWriteGpxTracks` | **waypoints are not written** — the ABI has no waypoint handle. JS takes a `trackNames` array, this ABI one `trackName` for every track |
 | `pathSize`, `pathTotalDistance`, `pathDurationMs`, `pathElevationGain`, `pathElevationLoss` | `vcPathSize`, `vcPathTotalDistance`, `vcPathDurationMs`, `vcPathElevationGain`, `vcPathElevationLoss` | ported |
 | `pathElevationGainFiltered`, `pathElevationLossFiltered`, `pathReportedElevationGain`, `pathReportedElevationLoss` | `vcPathElevationGainFiltered`, `vcPathElevationLossFiltered`, `vcPathReportedElevationGain`, `vcPathReportedElevationLoss` | ported |
+| `pathElevationCorrections` | `vcPathElevationCorrectionsJson` | JSON object or `null` |
 | `pathLatitudeDeg`, `pathLongitudeDeg` | `vcPathLatitudeDeg`, `vcPathLongitudeDeg` | ported |
 | `pointAt` | `vcPointJson` | `PointDto` as JSON |
 | `getField` | `vcGetField` | by field **index**, not by name |

@@ -66,6 +66,7 @@ internal val PARITY_TABLE: List<ParityEntry> =
         ParityEntry("pathElevationLossFiltered", "vcPathElevationLossFiltered", ParityDecision.PORTED, ""),
         ParityEntry("pathReportedElevationGain", "vcPathReportedElevationGain", ParityDecision.PORTED, ""),
         ParityEntry("pathReportedElevationLoss", "vcPathReportedElevationLoss", ParityDecision.PORTED, ""),
+        ParityEntry("pathElevationCorrections", "vcPathElevationCorrectionsJson", ParityDecision.RESHAPED, "JSON object or null"),
         ParityEntry("pointAt", "vcPointJson", ParityDecision.RESHAPED, "PointDto as JSON"),
         ParityEntry("writeGpx", "vcWriteGpx", ParityDecision.RESHAPED, "writeExtensions moved into the options object"),
         ParityEntry(

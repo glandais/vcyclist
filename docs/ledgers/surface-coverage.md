@@ -115,6 +115,9 @@ Légende : ✅ atteignable · ⚠️ partiel (la note dit en quoi) · ❌ absent
 | R28 fenêtre de lissage d'altitude (`elevationSmoothWindowM`) | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
 | R30 zoom du MNT pour le pipeline (`--dem-zoom`, `demZoom`, `vcSetElevationConfig`) | ✅ | ✅ | ✅ | ✅ | ⚠️ [^demzoom] | ❌ [^demzoom] | ✅ |
 | Source du MNT, IGN LiDAR HD (`ElevationSource` : `--dem-source`, `demSource`, `source`) | ✅ | ✅ | ✅ | ⚠️ [^demsource] | ✅ [^demsource] | ✅ [^demsource] | ✅ |
+| R31 tabliers de pont (`bridgeDecksEnabled`, `--bridge-decks`) | ✅ | ✅ | ✅ | ❌ [^decks] | ✅ | ✅ | ✅ |
+| R32 tunnels (`tunnelsEnabled`, `--tunnels`) | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
+| Rapport des corrections d'altitude (`elevationCorrections` : statut, comptes, avertissements) | ✅ | ✅ stderr + ligne d'état | ✅ `pathElevationCorrections` | ✅ `vcPathElevationCorrectionsJson` | ✅ `getElevationCorrections()` | ✅ | ⚠️ [^corr] |
 
 [^prec]: **Refermé en S8, avec un changement de comportement du CLI.** Les trois portes résolvaient
     le préréglage elles-mêmes et ne s'accordaient pas : l'explicite gagnait au CLI, le préréglage
@@ -198,9 +201,31 @@ Légende : ✅ atteignable · ⚠️ partiel (la note dit en quoi) · ❌ absent
     attribution affichée (`elevationAttribution`). **Tabliers de pont** (`elevation-bridge-decks`,
     E3) : `ign-lidar-hd` au zoom 15 porte le MNS comme `surfaceModel`, et le pipeline y remplace
     chaque tablier détecté — sur toutes les portes sauf WASI, dont l'hôte ne sert qu'une couche
-    (ligne propre : E7 ; l'écart est écrit dans `wasm-wasi-abi.md`, § `vcSetElevationConfig`).
+    (ligne propre R31 ci-dessus, avec son option depuis E7).
     **Tunnels** (E4) : sur toutes les portes, WASI comprise, et toute source — l'étape ne lit que
-    le MNT ; aucune clé, aucune option (E7 décidera).
+    le MNT ; option et rapport depuis E7 (ligne R32).
+
+[^decks]: La clé `bridgeDecksEnabled` est **acceptée** par le lecteur WASI et transmise au cœur
+    (d'où ✅ WASI dans la table par option ci-dessous) : les deux portes filaires acceptent les mêmes
+    clés, et un hôte qui partage un objet d'options entre JS et WASI ne doit pas échouer sur WASI.
+    Mais la capacité est ❌ : `fetch_tile` ne nomme pas de couche, le fournisseur WASI n'a donc
+    jamais de `surfaceModel`, et le rapport dit `unavailable` dès que l'étape est permise
+    (`not-run` si `false` ou sans `fixElevation`) — décision du 2026-10-13, pas de changement
+    d'ABI. Rien ne peut y être mal appliqué, à la différence de `demSource` : `true` est une
+    permission, `false` est trivialement honoré. Voir `wasm-wasi-abi.md`.
+
+[^corr]: Le rapport est stampé une fois sur le `Path` final (`Path.elevationCorrections`), et
+    chaque porte le lit par un seul accesseur ; les textes d'avertissement n'existent que dans
+    `ElevationCorrectionReport`, les portes ne font que les préfixer (fichier et trace pour le CLI,
+    `track <n> (<nom>)` pour HTTP). **HTTP ⚠️** : seul le format `summary` porte le rapport
+    (`TrackResult.elevationCorrections`) et ses avertissements (`EnhanceResponse.warnings`) ; les
+    formats fichier (GPX, FIT, CSV, JSON en colonnes) n'ont pas de canal d'avertissement, comme
+    pour tous les autres avertissements de cette porte. Sur **toutes** les portes, les tronçons
+    corrigés eux-mêmes ne sont pas exposés — seulement les comptes, et le km des tabliers laissés
+    au fond de la vallée : leurs distances sont sur l'axe densifié de l'étape 3, que la ligne de
+    course, le 1 Hz et la simplification décalent de quelques mètres — assez peu pour un km à
+    0,1 près, trop pour une superposition point par point, qui demanderait un `PointField` de
+    provenance (changement de format filaire ; différé, voir `elevation-bridge-decks.md`, Notes).
 
 [^http]: Ce que la porte HTTP ne fait **pas** passer, par décision : aucune
     `tileUrlTemplate`, `tileSize` ni `cacheSize` client (MNT comme carte) — ce serait une SSRF, le
@@ -338,6 +363,7 @@ Sans porte CLI, avec la raison :
 
 | Option (nom fil) | Champ du cœur | CLI | JS | WASI | HTTP |
 |---|---|---|---|---|---|
+| `bridgeDecksEnabled` | `elevationCorrections.bridgeDecks` | ✅ `--bridge-decks` | ✅ | ✅ | ✅ |
 | `computeMaxSpeeds` | `computeMaxSpeeds` | ❌ | ✅ | ✅ | ✅ |
 | `computeOnePointPerSecond` | `computeOnePointPerSecond` | ✅ `--one-point-per-second` | ✅ | ✅ | ✅ |
 | `curvatureEnabled` | `curvature.enabled` | ✅ `--curvature` | ✅ | ✅ | ✅ |
@@ -352,6 +378,7 @@ Sans porte CLI, avec la raison :
 | `simplifyEnabled` | `simplifyPath.enabled` | ✅ `--simplify` | ✅ | ✅ | ✅ |
 | `simplifyToleranceM` | `simplifyPath.toleranceM` | ✅ `--simplify-tolerance` | ✅ | ✅ | ✅ |
 | `simplifyZExaggeration` | `simplifyPath.zExaggeration` | ❌ | ✅ | ✅ | ✅ |
+| `tunnelsEnabled` | `elevationCorrections.tunnels` | ✅ `--tunnels` | ✅ | ✅ | ✅ |
 | `virtualizeTrack` | `virtualizeTrack` | ✅ `--virtualize` | ✅ | ✅ | ✅ |
 | `wPrimeBalanceCriticalPower` | `wPrimeBalance.criticalPowerW` | ❌ | ✅ | ✅ | ✅ |
 | `wPrimeBalanceEnabled` | `wPrimeBalance.enabled` | ❌ | ✅ | ✅ | ✅ |

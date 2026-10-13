@@ -366,4 +366,24 @@ class PathTest {
             }
         }
     }
+
+    @Test
+    fun elevation_corrections_report_survives_copy_and_derived_data() {
+        val p = pathFromLatLonEle(Triple(48.0, 2.0, 10.0), Triple(48.001, 2.0, 12.0))
+        assertEquals(null, p.elevationCorrections, "a path never enhanced carries no report")
+        val report =
+            ElevationCorrections(
+                ElevationCorrectionStatus.UNAVAILABLE,
+                0,
+                0,
+                ElevationCorrectionStatus.APPLIED,
+                2,
+                1,
+                emptyList(),
+            )
+        p.elevationCorrections = report
+        p.computeDerivedData()
+        assertEquals(report, p.elevationCorrections, "computeDerivedData does not clear it")
+        assertEquals(report, p.copy().elevationCorrections, "copy() carries it")
+    }
 }

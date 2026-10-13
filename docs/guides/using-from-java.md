@@ -107,6 +107,21 @@ EnhanceOptions tuned =
 `RacingLineOptions` — the other twenty were tuned by measurement and are not part of any door's
 public surface. Reach for Kotlin if you need one.
 
+The elevation corrections (bridge decks, tunnels) are switched by `elevationCorrectionOptions`,
+the last argument of `enhanceOptions`; what they did is on the enhanced path:
+
+```java
+import io.github.glandais.engine.path.ElevationCorrectionStatus;
+import io.github.glandais.engine.path.ElevationCorrections;
+
+ElevationCorrectionOptions noTunnels = EngineModelJvm.elevationCorrectionOptions(true, false);
+
+ElevationCorrections report = enhanced.getElevationCorrections();   // null if never enhanced
+if (report.getBridgeDecks() == ElevationCorrectionStatus.FETCH_FAILED) { /* network-dependent */ }
+report.getWarnings().forEach(System.err::println);
+String wireId = report.getTunnels().getId();                        // "applied", "not-run", ...
+```
+
 `GpxModelJvm` does the same for the GPX model (`trackPoint`, `waypoint`, `track`, `document`),
 `TabularWritersJvm` for the export options (`csvOptions`, `jsonOptions`), and
 `ClimbDetectorJvm.climbOptions` for climb detection.

@@ -13,6 +13,7 @@ import io.github.glandais.elevation.decodeTileBytes
 import io.github.glandais.elevation.fetchTileBytes
 import io.github.glandais.elevation.pacedTileBytesFetcher
 import io.github.glandais.elevation.provider
+import io.github.glandais.engine.ElevationCorrectionOptions
 import io.github.glandais.engine.EnhanceOptions
 import io.github.glandais.engine.Enhancer
 import io.github.glandais.engine.gpx.GpxParser
@@ -525,8 +526,22 @@ class TunnelBenchProbeTest {
                         assertTrue(!near(TunnelDetector.detect(profile, guard)), "$name $source: ${miss.what} passes $guard")
                     }
                 }
-                val off = runBlocking { Enhancer.enhanceCourse(Enhancer.getDefaultCourse(input), EnhanceOptions.DEFAULT, provider, false) }
-                val on = runBlocking { Enhancer.enhanceCourse(Enhancer.getDefaultCourse(input), EnhanceOptions.DEFAULT, provider, true) }
+                val off =
+                    runBlocking {
+                        Enhancer.enhanceCourse(
+                            Enhancer.getDefaultCourse(input),
+                            EnhanceOptions.DEFAULT.copy(elevationCorrections = ElevationCorrectionOptions(tunnels = false)),
+                            provider,
+                        )
+                    }
+                val on =
+                    runBlocking {
+                        Enhancer.enhanceCourse(
+                            Enhancer.getDefaultCourse(input),
+                            EnhanceOptions.DEFAULT.copy(elevationCorrections = ElevationCorrectionOptions(tunnels = true)),
+                            provider,
+                        )
+                    }
                 println(
                     "$tag %-15s %-12s %6.1f km | %s, %d tunnel(s) | reported D+ %.1f -> %.1f m | duration %.0f -> %.0f s".fmt(
                         name,

@@ -123,8 +123,9 @@ internal fun elevationAt(
  * building and writing run outside the `catch`, so a defect in them throws instead of passing for
  * a failed fetch. All or nothing: one missing surface tile drops every deck of the route, not just
  * its own (IGN answered transient HTTP 400s during E2 quinquies). [Enhancer][io.github.glandais.engine.Enhancer]
- * discards the status today; reporting it to the user is E7's. The same input instance comes back
- * whenever nothing is replaced.
+ * maps the status onto `Path.elevationCorrections` ([ElevationCorrectionReport]); a FETCH_FAILED
+ * becomes a warning every door relays. The same input instance comes back whenever nothing is
+ * replaced.
  */
 internal object BridgeDeckStep {
     /**

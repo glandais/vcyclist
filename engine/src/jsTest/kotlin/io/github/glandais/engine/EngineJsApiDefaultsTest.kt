@@ -49,6 +49,12 @@ class EngineJsApiDefaultsTest {
     }
 
     @Test
+    fun `unnamed elevation corrections are ElevationCorrectionOptions DEFAULT's`() {
+        assertEquals(ElevationCorrectionOptions.DEFAULT, optionsOf().elevationCorrections)
+        assertEquals(ElevationCorrectionOptions.DEFAULT, null.toEnhanceOptions().elevationCorrections)
+    }
+
+    @Test
     fun `curvature is on by default here because CurvatureOptions says so`() {
         assertEquals(CurvatureOptions().enabled, optionsOf().curvature.enabled)
     }

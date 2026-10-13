@@ -8,6 +8,7 @@ import io.github.glandais.api.http.OutputFormat
 import io.github.glandais.elevation.ElevationSource
 import io.github.glandais.engine.RoadCondition
 import io.github.glandais.engine.gpx.GpxPowerSource
+import io.github.glandais.engine.path.ElevationCorrectionStatus
 import io.github.glandais.engine.path.ElevationGainPreset
 import io.github.glandais.engine.path.PointField
 import io.github.glandais.engine.physics.PowerModel
@@ -51,6 +52,7 @@ class MetaRoutesTest {
             assertEquals(PowerModel.ids, catalog.powerModels)
             assertEquals(RoadCondition.wireNames, catalog.roadConditions)
             assertEquals(CorridorMode.entries.map { it.id }, catalog.corridorModes)
+            assertEquals(ElevationCorrectionStatus.ids, catalog.elevationCorrectionStatuses)
             assertEquals(ElevationGainPreset.entries.map { it.id }, catalog.elevationGainPresets)
             assertEquals(GpxPowerSource.wireNames, catalog.gpxPowerSources)
             assertEquals(ElevationSource.ids, catalog.elevationSources)

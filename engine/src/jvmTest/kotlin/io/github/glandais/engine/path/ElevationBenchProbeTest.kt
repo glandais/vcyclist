@@ -690,7 +690,12 @@ class ElevationBenchProbeTest {
         provider: io.github.glandais.elevation.ElevationProvider,
         options: EnhanceOptions,
         tunnels: Boolean,
-    ): Path = Enhancer.enhanceCourse(Enhancer.getDefaultCourse(input), options, provider, tunnels)
+    ): Path =
+        Enhancer.enhanceCourse(
+            Enhancer.getDefaultCourse(input),
+            options.copy(elevationCorrections = options.elevationCorrections.copy(tunnels = tunnels)),
+            provider,
+        )
 
     /** E4's block: each tunnel step 3c wrote, and the truth structure it lies on. */
     private fun reportTunnels(

@@ -119,8 +119,27 @@ several tracks without `?trackIndex=` is 422 `multiple-tracks`, never the first 
 Only the `output` member matching the format is read; another one is 400 (`output.csv given but
 format is gpx`). `fields` (CSV and JSON) is a list of names from `GET /fields`.
 
-The warnings (XML repairs, a road-condition preset overriding explicit grip values) are only
-carried by the `summary` format and the analysis responses; a file has no room for them.
+The warnings (XML repairs, a road-condition preset overriding explicit grip values, an elevation
+correction that failed or was dropped) are only carried by the `summary` format and the analysis
+responses; a file has no room for them.
+
+### Elevation corrections
+
+After `fixElevation`, two corrections run unless `options.bridgeDecksEnabled` /
+`options.tunnelsEnabled` turn them off (both default `true`, published by `GET /defaults`):
+bridge decks ridden from IGN's surface model, which only `demSource: "ign-lidar-hd"` at its
+default zoom provides, and tunnels flattened between their portals on any source. Each summary
+track says what they did:
+
+```json
+"elevationCorrections": {"bridgeDecks": "fetch-failed", "bridgeDecksApplied": 0, "bridgeDecksDropped": 0,
+                         "tunnels": "none-found", "tunnelsApplied": 0, "tunnelsDropped": 0,
+                         "warnings": ["bridge decks: a terrain- or surface-model tile could not be read; …"]}
+```
+
+The statuses are listed by `GET /catalog` (`elevationCorrectionStatuses`). Each warning is also
+appended to the response's `warnings`, prefixed `track <n> (<name>): `. A failed surface-model read
+is not an error: the bridges keep the valley floor and the answer is 200.
 
 ## Errors
 

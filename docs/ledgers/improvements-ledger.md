@@ -80,8 +80,8 @@ deliberately skipped. The matrix lives in
 | R28 | **Elevation smoothing scale as an option** | **High (measured, 17 % on a switchback climb)** | Low | ✅ (default unchanged) |
 | R29 | DEM road-snapping corridor (Strava's basemap idea) | **None (measured)** | High | ❌ |
 | R30 | DEM zoom above 12 | Negligible (measured) | Very low | ❌ (door shipped) |
-| R31 | **Bridge decks from the LiDAR HD surface model** | **High (measured: Saint-Nazaire 65.8 → 0.5 m)** | Medium | ✅ (`ign-lidar-hd` z15, automatic; no door option) |
-| R32 | **Tunnels from the terrain model alone** (canyon fallback measured, deferred) | **High (measured: Grands Goulets +220 → +0.9 m)** | Medium | ✅ (every DEM source, automatic; no door option) |
+| R31 | **Bridge decks from the LiDAR HD surface model** | **High (measured: Saint-Nazaire 65.8 → 0.5 m)** | Medium | ✅ (`ign-lidar-hd` z15, automatic; `bridgeDecksEnabled` / `--bridge-decks`, status on `Path.elevationCorrections`) |
+| R32 | **Tunnels from the terrain model alone** (canyon fallback measured, deferred) | **High (measured: Grands Goulets +220 → +0.9 m)** | Medium | ✅ (every DEM source, automatic; `tunnelsEnabled` / `--tunnels`, status on `Path.elevationCorrections`) |
 | R33 | **D+ measured before simplification**; kernel and LiDAR D+ preset measured | **High on flat routes, IGN (measured: Nantes reported D+ 0.49 → 0.95 × true); on Mapterhorn, the default, Nantes 0.90 → 1.46, mean error over the bench 0.38 → 0.28** | Very low | ✅ (D+ before `PathSimplifier`); ❌ kernel < 150 m and LiDAR preset, measured and rejected |
 
 Recommended order if acted on: ~~R15 → R12 → R9 → R17 → R10 → R18 → R16 → R11 → R19 → R23 → R24~~ —
@@ -1279,6 +1279,12 @@ tunnels (R32). `sample.gpx`: reported D+ +0.04 % before R33, −0.27 % since (4 
 (`FETCH_FAILED`) and the enhancer does not report it: the same command can ride the decks or the
 valley depending on the network and the cache. Surfacing it is E7's.
 
+*2026-10-13, E7:* surfaced. The outcome is stamped on the enhanced path as
+`Path.elevationCorrections` (`fetch-failed` plus a warning the CLI prints to stderr even with
+`--quiet`), and the step has an off-switch, `elevationCorrections.bridgeDecks` (`--no-bridge-decks`,
+`bridgeDecksEnabled: false`), for a network-independent profile. On by default as a permission: it
+takes effect only where the provider has a surface model, `unavailable` elsewhere.
+
 Full tables, the profile variants that were compared and the held-out run in
 [`../tasks/elevation-bridge-decks.md`](../tasks/elevation-bridge-decks.md), *Mesures (E3)*.
 
@@ -1327,6 +1333,10 @@ a deck between its portals — none of them judged out of sample, none moving a 
 2.19 fails one criterion only), and Mapterhorn's GLO-30 regions are unmeasured. Full tables in
 [`../tasks/elevation-bridge-decks.md`](../tasks/elevation-bridge-decks.md), *Mesures (E4)*,
 *Jugement tunnels* and *Revue d'E4*.
+
+*2026-10-13, E7:* the step got its off-switch for those risks, `elevationCorrections.tunnels`
+(`--no-tunnels`, `tunnelsEnabled: false`), on by default; its status, counts and a warning on a
+failed read are on `Path.elevationCorrections`.
 
 ### R33 — D+ before simplification ✅; kernel and LiDAR D+ preset measured, rejected ❌
 

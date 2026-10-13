@@ -30,7 +30,12 @@ class EnhancerTunnelTest {
         options: EnhanceOptions,
         tunnels: Boolean,
         provider: io.github.glandais.elevation.ElevationProvider = TunnelWorld.terrain(),
-    ): Path = Enhancer.enhanceCourse(Enhancer.getDefaultCourse(path), options, provider, tunnels)
+    ): Path =
+        Enhancer.enhanceCourse(
+            Enhancer.getDefaultCourse(path),
+            options.copy(elevationCorrections = ElevationCorrectionOptions(tunnels = tunnels)),
+            provider,
+        )
 
     /** Every slot of every point, as raw bits. */
     private fun dump(p: Path): List<Long> = (0 until p.size).flatMap { i -> PointField.entries.map { p.get(i, it).toRawBits() } }

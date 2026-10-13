@@ -131,17 +131,47 @@ The options object (`EnhanceOptionsDto`) is entirely optional, field by field:
 | `racingLineEnabled` / `racingLineCorridor` / `racingLineRoadWidthM` | `false` / `"lane"` / 6 m | optimal line through corners |
 | `elevationGainEnabled` / `elevationGainPreset` / `elevationGainThresholdM` | `true` / `"dem"` / preset's | how the reported climbing is measured — `"raw"`, `"barometric"`, `"dem"`, `"gps"` |
 | `elevationSmoothWindowM` | 150 m | elevation-smoother half-width; decides the gradients ridden, and so the duration (the reported climbing is measured before it) |
+| `bridgeDecksEnabled` | `true` | **allow** riding bridge decks read from IGN's surface model after `fixElevation`; effective only with `demSource: "ign-lidar-hd"` at its default zoom, `"unavailable"` otherwise. `false` saves the surface-model fetches |
+| `tunnelsEnabled` | `true` | allow flattening detected tunnels between their portals, on any DEM; turn off on trails with steep real knolls, or where only GLO-30 covers the route |
 | `demZoom` | the source's (12, or 15 for IGN) | Web-Mercator zoom for the DEM lookup, only used with `fixElevation` |
 | `demSource` | `"mapterhorn"` | DEM `fixElevation` reads: `"mapterhorn"` or `"ign-lidar-hd"` (France, Mapterhorn elsewhere) |
 
 Three of those defaults — no DEM fetch, no 1 Hz resample, no simplify — are the **JavaScript
 façade's**, not the engine's. Ask for them explicitly if you want the full pipeline.
 
+Invalid input **throws synchronously**, at the call, not as a rejected promise: an unknown options
+key, an unknown `demSource` or an out-of-range `demZoom` (with `fixElevation`), and for
+`enhanceWithCourse` an invalid cyclist, bike, wind or power DTO too. A `.catch(...)` alone does
+not see these; wrap the call in `try`, or `await` it inside one. Only the run itself — a tile the
+server refuses, say — rejects the promise.
+
 `racingLineEnabled` **moves every coordinate** of the result; the originals stay in
 `sourceLatitude` / `sourceLongitude`. Corridor modes are `"lane"`, `"lane-left"` and
 `"full-road"` — the last is for closed roads and time trials only. Read
 [`racing-line.md`](racing-line.md) before turning it on: it is off by default because the measured
 benefit is small.
+
+### What the elevation corrections did
+
+`pathElevationCorrections(out)` returns a plain object once `out` went through `enhance` or
+`enhanceWithCourse` (`null` on a path that never did):
+
+```js
+import { pathElevationCorrections } from '@glandais/vcyclist-engine';
+
+const report = pathElevationCorrections(out);
+// { bridgeDecks: 'applied', bridgeDecksApplied: 2, bridgeDecksDropped: 0,
+//   tunnels: 'none-found', tunnelsApplied: 0, tunnelsDropped: 0, warnings: [] }
+```
+
+Each status is `'not-run'` (option off, or no `fixElevation`), `'unavailable'` (decks only: the
+source has no surface model), `'no-coverage'`, `'none-found'`, `'applied'` or `'fetch-failed'` —
+`index.d.ts` types them as a closed union. `warnings` holds one sentence per outcome that is
+knowingly wrong or depends on the network: a tile that could not be read during the bridge-deck
+step, terrain or surface model (the bridges keep the valley floor, and the same call may give
+another profile later), a detected deck left on
+the valley floor (with its km), a terrain tile lost during the tunnel step. It is empty otherwise;
+the enhancement itself never fails over these.
 
 ### `enhanceWithCourse` — the configurable door
 

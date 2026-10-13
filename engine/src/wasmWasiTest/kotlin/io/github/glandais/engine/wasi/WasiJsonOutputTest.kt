@@ -2,6 +2,8 @@ package io.github.glandais.engine.wasi
 
 import io.github.glandais.elevation.MathConstants
 import io.github.glandais.engine.climb.ClimbDetector
+import io.github.glandais.engine.path.ElevationCorrectionStatus
+import io.github.glandais.engine.path.ElevationCorrections
 import io.github.glandais.engine.path.Path
 import io.github.glandais.engine.path.PointField
 import io.github.glandais.engine.trajectory.RacingLine
@@ -78,6 +80,25 @@ class WasiJsonOutputTest {
             assertTrue(text.contains(""""parts":["""), "a climb must carry its parts")
             assertTrue(text.contains(""""averageGrade":"""), text.take(120))
         }
+    }
+
+    @Test
+    fun `the elevation-corrections report is ElevationCorrectionsDto, ids and all`() {
+        val report =
+            ElevationCorrections(
+                bridgeDecks = ElevationCorrectionStatus.FETCH_FAILED,
+                bridgeDecksApplied = 0,
+                bridgeDecksDropped = 2,
+                tunnels = ElevationCorrectionStatus.NONE_FOUND,
+                tunnelsApplied = 0,
+                tunnelsDropped = 1,
+                warnings = listOf("bridge decks: \"quoted\""),
+            )
+        assertEquals(
+            """{"bridgeDecks":"fetch-failed","bridgeDecksApplied":0,"bridgeDecksDropped":2,"tunnels":"none-found",""" +
+                """"tunnelsApplied":0,"tunnelsDropped":1,"warnings":["bridge decks: \"quoted\""]}""",
+            elevationCorrectionsJson(report),
+        )
     }
 
     @Test

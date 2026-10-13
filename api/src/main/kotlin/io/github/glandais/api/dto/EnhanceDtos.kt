@@ -9,7 +9,7 @@ import kotlinx.serialization.Serializable
 const val SEE_DEFAULTS: String = "Absent or null: the default published by `GET /api/v1/defaults`."
 
 /**
- * Pipeline options of `POST /enhance` — the 20 keys of the JS `EnhanceOptionsDto`
+ * Pipeline options of `POST /enhance` — the 22 keys of the JS `EnhanceOptionsDto`
  * (`ENHANCE_OPTIONS_KEYS`) and of the WASI reader (`ENHANCE_KEYS`), spelled the same.
  *
  * Every field is nullable: absent means the door's default ([io.github.glandais.api.mapping.HttpDefaults]).
@@ -56,6 +56,19 @@ data class EnhanceOptionsDto(
     val elevationGainEnabled: Boolean? = null,
     @JsonSchema.Description("Half-width of the elevation smoothing kernel, metres. $SEE_DEFAULTS")
     val elevationSmoothWindowM: Double? = null,
+    @JsonSchema.Description(
+        "Allow the bridge-deck correction after `fixElevation`: ride each deck IGN's surface model shows instead " +
+            "of the valley floor under it. A permission: it runs only with `demSource` `ign-lidar-hd` at its " +
+            "default zoom, and the track's `elevationCorrections.bridgeDecks` says `unavailable` otherwise. " +
+            "`false` saves the surface-model fetches. $SEE_DEFAULTS",
+    )
+    val bridgeDecksEnabled: Boolean? = null,
+    @JsonSchema.Description(
+        "Allow the tunnel correction after `fixElevation`, on any DEM: flatten each detected tunnel between its " +
+            "portals. Turn it off on trails with steep real knolls, or where only GLO-30 covers the route — its " +
+            "precision is unmeasured there. $SEE_DEFAULTS",
+    )
+    val tunnelsEnabled: Boolean? = null,
     @JsonSchema.Description(
         "DEM zoom level, ${ElevationFunctions.MIN_ZOOM_LEVEL}..${ElevationFunctions.MAX_ZOOM_LEVEL}. Absent or null: the DEM source's own default zoom.",
     )
@@ -165,11 +178,39 @@ data class EnhanceRequest(
 )
 
 /**
+ * What the elevation corrections (bridge decks, tunnels) did to one track — the keys of the JS
+ * `ElevationCorrectionsDto` and of WASI's `vcPathElevationCorrectionsJson`.
+ *
+ * @property warnings the engine's sentences, unreworded; also relayed, prefixed with the track, in
+ *   [EnhanceResponse.warnings]
+ */
+@Serializable
+@SerialName("ElevationCorrections")
+data class ElevationCorrectionsDto(
+    @JsonSchema.Description("What the bridge-deck step did, one of `GET /api/v1/catalog` `elevationCorrectionStatuses`.")
+    val bridgeDecks: String,
+    @JsonSchema.Description("Bridge-deck regions ridden from the surface model.")
+    val bridgeDecksApplied: Int,
+    @JsonSchema.Description("Bridge decks detected but left on the valley floor (fewer than two surface anchors).")
+    val bridgeDecksDropped: Int,
+    @JsonSchema.Description("What the tunnel step did, one of `GET /api/v1/catalog` `elevationCorrectionStatuses`.")
+    val tunnels: String,
+    @JsonSchema.Description("Tunnels flattened between their portals.")
+    val tunnelsApplied: Int,
+    @JsonSchema.Description("Tunnels refused because a bridge deck lies between their portals.")
+    val tunnelsDropped: Int,
+    @JsonSchema.Description("One sentence per outcome that is knowingly wrong or depends on the network; usually empty.")
+    val warnings: List<String>,
+)
+
+/**
  * One enhanced path.
  *
  * @property name the `<trk>` / `<rte>` name, `null` when absent
  * @property dominantHeadwindAzimuth the wind direction (degrees, blowing toward, clockwise from
  *   north) that would be a headwind over most of the ride; `null` when undefined
+ * @property elevationCorrections what the bridge-deck and tunnel corrections did; both `not-run`
+ *   without `fixElevation`
  * @property points every point, only when `?points=true`
  */
 @Serializable
@@ -178,14 +219,16 @@ data class TrackResultDto(
     val name: String?,
     val summary: PathSummaryDto,
     val dominantHeadwindAzimuth: Double?,
+    val elevationCorrections: ElevationCorrectionsDto,
     val points: List<PointDto>?,
 )
 
 /**
  * `POST /enhance` in `summary` format.
  *
- * @property warnings the repairs applied to the XML, and every option the request gave that
- *   another one overrode (a road-condition preset over explicit grip values)
+ * @property warnings the repairs applied to the XML, every option the request gave that another
+ *   one overrode (a road-condition preset over explicit grip values), and the elevation
+ *   corrections that failed or were dropped, per track (`track <n> (<name>): <sentence>`)
  */
 @Serializable
 @SerialName("EnhanceResponse")

@@ -50,6 +50,18 @@ const updateElevationGainField = <K extends keyof DemoEnhanceOptions['elevationG
     });
 };
 
+const updateElevationCorrectionsField = <
+    K extends keyof DemoEnhanceOptions['elevationCorrections'],
+>(
+    field: K,
+    value: DemoEnhanceOptions['elevationCorrections'][K]
+) => {
+    emit('update:modelValue', {
+        ...props.modelValue,
+        elevationCorrections: { ...props.modelValue.elevationCorrections, [field]: value },
+    });
+};
+
 const elevationGainItems = [
     {
         value: 'dem',
@@ -146,6 +158,53 @@ const updateWPrimeField = <K extends keyof DemoEnhanceOptions['wPrimeBalance']>(
                         :modelValue="modelValue.demSource"
                         @update:modelValue="updateField('demSource', $event as DemSource)"
                     />
+
+                    <label class="flex items-start gap-3 mt-3 cursor-pointer">
+                        <UCheckbox
+                            :modelValue="modelValue.elevationCorrections.bridgeDecks"
+                            @update:modelValue="
+                                updateElevationCorrectionsField(
+                                    'bridgeDecks',
+                                    !modelValue.elevationCorrections.bridgeDecks
+                                )
+                            "
+                            class="mt-1"
+                        />
+                        <span class="flex flex-col gap-1">
+                            <strong class="text-gray-800">Bridge decks</strong>
+                            <small
+                                class="text-sm"
+                                :class="
+                                    modelValue.demSource === 'ign-lidar-hd'
+                                        ? 'text-gray-600'
+                                        : 'text-gray-400'
+                                "
+                                >IGN LiDAR HD only: ride each deck its surface model shows instead
+                                of the valley floor under it. Other sources report it
+                                unavailable.</small
+                            >
+                        </span>
+                    </label>
+
+                    <label class="flex items-start gap-3 mt-3 cursor-pointer">
+                        <UCheckbox
+                            :modelValue="modelValue.elevationCorrections.tunnels"
+                            @update:modelValue="
+                                updateElevationCorrectionsField(
+                                    'tunnels',
+                                    !modelValue.elevationCorrections.tunnels
+                                )
+                            "
+                            class="mt-1"
+                        />
+                        <span class="flex flex-col gap-1">
+                            <strong class="text-gray-800">Tunnels</strong>
+                            <small class="text-gray-600 text-sm"
+                                >Flattens detected tunnels between their portals, on any source.
+                                Turn off on trails with steep real knolls.</small
+                            >
+                        </span>
+                    </label>
                 </div>
 
                 <label

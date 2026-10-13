@@ -71,7 +71,7 @@ export const DEM_SOURCES: { value: DemSource; label: string; description: string
         value: 'ign-lidar-hd',
         label: 'IGN LiDAR HD',
         description:
-            'France only, ~3.4 m per pixel from a 1 m LiDAR terrain model. Falls back to Mapterhorn abroad and at sea. No bridges: a viaduct reads the valley floor.',
+            'France only, ~3.4 m per pixel from a 1 m LiDAR terrain model. Falls back to Mapterhorn abroad and at sea. Bridge decks are ridden from IGN’s surface model at zoom 15.',
     },
 ];
 
@@ -120,6 +120,13 @@ export interface DemoEnhanceOptions {
     // The catalog lists `elevationGain.smoothWindowM` as core-only for exactly this reason, and
     // nesting this one under the same name would read as that field.
     elevationSmoothWindowM: number;
+    // E7 — the elevation corrections after a DEM lookup. Permissions, not promises: bridge decks
+    // run only on IGN LiDAR HD (the one source with a surface model); what each step actually did
+    // comes back from `pathElevationCorrections`.
+    elevationCorrections: {
+        bridgeDecks: boolean;
+        tunnels: boolean;
+    };
 }
 
 /** Scale the reported climbing is measured at. Mirrors the engine's `ElevationGainPreset` ids. */
@@ -246,6 +253,8 @@ export const DEFAULT_CONFIG: Config = {
         // ElevationStep.DEFAULT_SMOOTH_WINDOW_M. Neither is a demo-local guess.
         elevationGain: { enabled: true, preset: 'dem' },
         elevationSmoothWindowM: 150,
+        // ElevationCorrectionOptions.DEFAULT, not a demo-local guess.
+        elevationCorrections: { bridgeDecks: true, tunnels: true },
     },
     power: {
         type: PowerSourceType.constant,

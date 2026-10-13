@@ -47,8 +47,8 @@ object TsFacade {
                 bundle = "vcyclist-engine.js",
                 outputDirectory = File(root, "engine/src/jsMain/typescript"),
                 handles = setOf("Path"),
-                expectedDtoCount = 12,
-                expectedFunctionCount = 34,
+                expectedDtoCount = 13,
+                expectedFunctionCount = 35,
             ),
             Module(
                 name = "elevation",

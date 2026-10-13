@@ -225,14 +225,18 @@ paths:
       tags:
       - enhance
       summary: Simulate a ride on a GPX
-      description: Runs the vcyclist pipeline — densify, optional DEM elevations,
+      description: 'Runs the vcyclist pipeline — densify, optional DEM elevations,
         smoothing, curvature or racing line, cornering and braking limits, the time-stepping
-        physics simulation, then the optional 1 Hz resample, W' balance and simplification
+        physics simulation, then the optional 1 Hz resample, W'' balance and simplification
         — on each selected path, with the rider, bike, wind and power strategy of
         the `request` part. Every absent option takes the default published by `GET
         /api/v1/defaults`. Unknown keys and invalid values are rejected before any
         computation. The answer is a JSON summary, or the enhanced paths as GPX, FIT,
         CSV or column JSON (`format`, or `Accept`); a file format carries no `warnings`.
+        Each summary track reports what the bridge-deck and tunnel corrections did
+        (`elevationCorrections`: status, counts); a correction that failed on a tile
+        read or left a detected deck on the valley floor is also a line of `warnings`,
+        prefixed with its track.'
       parameters:
       - name: kinds
         in: query
@@ -1527,6 +1531,7 @@ components:
       - gpxPowerSources
       - elevationSources
       - cornerKinds
+      - elevationCorrectionStatuses
       - outputFormats
       properties:
         powerModels:
@@ -1554,6 +1559,10 @@ components:
           items:
             type: string
         cornerKinds:
+          type: array
+          items:
+            type: string
+        elevationCorrectionStatuses:
           type: array
           items:
             type: string
@@ -1888,6 +1897,24 @@ components:
           - "null"
           description: 'Half-width of the elevation smoothing kernel, metres. Absent
             or null: the default published by `GET /api/v1/defaults`.'
+        bridgeDecksEnabled:
+          type:
+          - boolean
+          - "null"
+          description: 'Allow the bridge-deck correction after `fixElevation`: ride
+            each deck IGN''s surface model shows instead of the valley floor under
+            it. A permission: it runs only with `demSource` `ign-lidar-hd` at its
+            default zoom, and the track''s `elevationCorrections.bridgeDecks` says
+            `unavailable` otherwise. `false` saves the surface-model fetches. Absent
+            or null: the default published by `GET /api/v1/defaults`.'
+        tunnelsEnabled:
+          type:
+          - boolean
+          - "null"
+          description: 'Allow the tunnel correction after `fixElevation`, on any DEM:
+            flatten each detected tunnel between its portals. Turn it off on trails
+            with steep real knolls, or where only GLO-30 covers the route — its precision
+            is unmeasured there. Absent or null: the default published by `GET /api/v1/defaults`.'
         demZoom:
           type:
           - integer
@@ -2240,11 +2267,50 @@ components:
             OSM inference. Absent or null: the GPX''s widths.'
         output:
           $ref: "#/components/schemas/Output"
+    ElevationCorrections:
+      type: object
+      title: ElevationCorrections
+      required:
+      - bridgeDecks
+      - bridgeDecksApplied
+      - bridgeDecksDropped
+      - tunnels
+      - tunnelsApplied
+      - tunnelsDropped
+      - warnings
+      properties:
+        bridgeDecks:
+          type: string
+          description: What the bridge-deck step did, one of `GET /api/v1/catalog`
+            `elevationCorrectionStatuses`.
+        bridgeDecksApplied:
+          type: integer
+          description: Bridge-deck regions ridden from the surface model.
+        bridgeDecksDropped:
+          type: integer
+          description: Bridge decks detected but left on the valley floor (fewer than
+            two surface anchors).
+        tunnels:
+          type: string
+          description: What the tunnel step did, one of `GET /api/v1/catalog` `elevationCorrectionStatuses`.
+        tunnelsApplied:
+          type: integer
+          description: Tunnels flattened between their portals.
+        tunnelsDropped:
+          type: integer
+          description: Tunnels refused because a bridge deck lies between their portals.
+        warnings:
+          type: array
+          description: One sentence per outcome that is knowingly wrong or depends
+            on the network; usually empty.
+          items:
+            type: string
     TrackResult:
       type: object
       title: TrackResult
       required:
       - summary
+      - elevationCorrections
       properties:
         name:
           type:
@@ -2256,6 +2322,8 @@ components:
           type:
           - number
           - "null"
+        elevationCorrections:
+          $ref: "#/components/schemas/ElevationCorrections"
         points:
           type:
           - array

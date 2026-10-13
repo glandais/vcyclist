@@ -10,6 +10,7 @@ import io.github.glandais.elevation.IgnLidarHdLayer
 import io.github.glandais.elevation.RawTile
 import io.github.glandais.elevation.decodeBil32Tile
 import io.github.glandais.elevation.provider
+import io.github.glandais.engine.ElevationCorrectionOptions
 import io.github.glandais.engine.EngineConstants
 import io.github.glandais.engine.gpx.GpxParser
 import io.github.glandais.engine.gpx.tracksAsPaths
@@ -757,20 +758,21 @@ class EnhanceCommandTest {
         return decodeBil32Tile(bytes.array(), 256, url)
     }
 
-    @Test
-    fun `case 32 — a provider carrying a surface model rides the bridge deck, not the river`() {
-        // A 400 m bridge 1 km east of the start: banks at 10 m, the river at 0 m, the deck at 18 m.
-        val mnt: (Double) -> Double = { x ->
-            if (x < 1_000 || x > 1_400) {
-                10.0
-            } else if (x < 1_025 || x > 1_375) {
-                8.0
-            } else {
-                0.0
-            }
+    /** A 400 m bridge 1 km east of the start: banks at 10 m, the river at 0 m, the deck at 18 m. */
+    private val bridgeMnt: (Double) -> Double = { x ->
+        if (x < 1_000 || x > 1_400) {
+            10.0
+        } else if (x < 1_025 || x > 1_375) {
+            8.0
+        } else {
+            0.0
         }
-        val mns: (Double) -> Double = { x -> if (x < 1_000 || x > 1_400) 10.0 else 18.0 }
-        val terrain = ElevationProvider(IgnLidarHdLayer.MNT.config(15)) { url -> lonTile(url, mnt) }
+    }
+    private val bridgeMns: (Double) -> Double = { x -> if (x < 1_000 || x > 1_400) 10.0 else 18.0 }
+
+    private fun bridgeTerrain(): ElevationProvider = ElevationProvider(IgnLidarHdLayer.MNT.config(15)) { url -> lonTile(url, bridgeMnt) }
+
+    private fun bridgeGpx(): File {
         val input = File(work, "bridge.gpx")
         input.writeText(
             """<?xml version="1.0" encoding="UTF-8"?>
@@ -782,6 +784,13 @@ class EnhanceCommandTest {
 </gpx>
 """,
         )
+        return input
+    }
+
+    @Test
+    fun `case 32 — a provider carrying a surface model rides the bridge deck, not the river`() {
+        val terrain = bridgeTerrain()
+        val input = bridgeGpx()
 
         fun maxEle(provider: ElevationProvider): Double {
             val command = EnhanceCommand().also { it.elevationProviderFactory = { provider } }
@@ -791,9 +800,80 @@ class EnhanceCommandTest {
             val path = GpxParser.parse(output.readText()).tracksAsPaths().single()
             return (0 until path.size).maxOf { path.elevation(it) }
         }
-        val surface = IgnLidarHdLayer.MNS.provider(15) { { url -> lonTile(url, mns) } }
+        val surface = IgnLidarHdLayer.MNS.provider(15) { { url -> lonTile(url, bridgeMns) } }
         assertEquals(18.0, maxEle(terrain.withSurfaceModel(surface)), 0.1, "the deck")
         assertEquals(10.0, maxEle(terrain), 0.1, "without a surface model, the banks are the highest point")
+    }
+
+    // ---- elevation corrections: switches and report (E7) -------------------------------------
+
+    @Test
+    fun `case 33 — the elevation-correction flags resolve to the engine's own defaults`() {
+        fun parsed(vararg args: String): EnhanceCommand = EnhanceCommand().also { CommandLine(it).parseArgs("in.gpx", *args) }
+
+        assertEquals(ElevationCorrectionOptions.DEFAULT, parsed().pipelineOptions().elevationCorrections)
+        assertEquals(false, parsed("--no-bridge-decks").pipelineOptions().elevationCorrections.bridgeDecks)
+        assertEquals(ElevationCorrectionOptions.DEFAULT.tunnels, parsed("--no-bridge-decks").pipelineOptions().elevationCorrections.tunnels)
+        assertEquals(false, parsed("--no-tunnels").pipelineOptions().elevationCorrections.tunnels)
+        assertEquals(true, parsed("--tunnels").pipelineOptions().elevationCorrections.tunnels)
+        assertEquals(true, parsed("--bridge-decks").pipelineOptions().elevationCorrections.bridgeDecks)
+    }
+
+    /** [bridgeTerrain] with a surface model whose every fetch throws, counted in [fetches]. */
+    private fun offlineSurfaceProvider(fetches: IntArray): ElevationProvider =
+        bridgeTerrain().withSurfaceModel(
+            IgnLidarHdLayer.MNS.provider(15) {
+                { _ ->
+                    fetches[0]++
+                    throw java.io.IOException("offline")
+                }
+            },
+        )
+
+    @Test
+    fun `case 34 — an unreadable surface tile is a warning on stderr, even with --quiet, and exits 0`() {
+        val input = bridgeGpx()
+        for (quiet in listOf(false, true)) {
+            val fetches = IntArray(1)
+            val command = EnhanceCommand().also { it.elevationProviderFactory = { offlineSurfaceProvider(fetches) } }
+            val args = listOfNotNull(input.path, "--gpx", File(work, "offline.gpx").path, "--fix-elevation", if (quiet) "--quiet" else null)
+            val result = runCommand(command, *args.toTypedArray())
+
+            assertEquals(0, result.code, result.err)
+            assertTrue(fetches[0] > 0, "the surface model was read")
+            assertContains(result.err, "warning: ${input.path} track 1: bridge decks")
+            if (quiet) {
+                assertEquals("", result.out)
+            } else {
+                assertContains(result.out, "elevation corrections: bridge decks fetch-failed, tunnels none-found")
+            }
+        }
+    }
+
+    @Test
+    fun `case 35 — with --no-bridge-decks the surface model is never read and nothing is reported`() {
+        val fetches = IntArray(1)
+        val command = EnhanceCommand().also { it.elevationProviderFactory = { offlineSurfaceProvider(fetches) } }
+        val result = runCommand(command, bridgeGpx().path, "--gpx", File(work, "nodecks.gpx").path, "--fix-elevation", "--no-bridge-decks")
+
+        assertEquals(0, result.code, result.err)
+        assertEquals(0, fetches[0], "the surface model must not be read")
+        assertTrue("warning" !in result.err, result.err)
+        assertContains(result.out, "elevation corrections: bridge decks not-run, tunnels none-found")
+    }
+
+    @Test
+    fun `case 36 — the status line names the deck it rode, and is absent without --fix-elevation`() {
+        val surface = IgnLidarHdLayer.MNS.provider(15) { { url -> lonTile(url, bridgeMns) } }
+        val command = EnhanceCommand().also { it.elevationProviderFactory = { bridgeTerrain().withSurfaceModel(surface) } }
+        val input = bridgeGpx()
+        val result = runCommand(command, input.path, "--gpx", File(work, "deck.gpx").path, "--fix-elevation")
+        assertEquals(0, result.code, result.err)
+        assertContains(result.out, "elevation corrections: bridge decks applied (1), tunnels none-found")
+
+        val plain = run("enhance", input.path, "--gpx", File(work, "plain.gpx").path)
+        assertEquals(0, plain.code, plain.err)
+        assertTrue("elevation corrections" !in plain.out, plain.out)
     }
 
     @Test

@@ -15,7 +15,8 @@ import io.github.glandais.elevation.MathConstants
  * 3. Walk the source path with a single pointer ; copy every retained point's full slot
  *    set into the output path.
  * 4. Run [Path.computeDerivedData] on the output, then carry the source's
- *    [Path.elevationGainFiltered] / [Path.elevationLossFiltered] over to it.
+ *    [Path.elevationGainFiltered] / [Path.elevationLossFiltered] over to it, and the
+ *    [Path.elevationCorrections] report.
  *
  * The filtered D+ is carried, not recomputed: it is a measurement of the route, taken on the full
  * trace, and Douglas-Peucker keeps about one point in twenty — on a flat route that crosses bridges
@@ -37,7 +38,7 @@ object PathSimplifier {
      * @param zExaggeration vertical exaggeration factor passed to the ECEF conversion. Higher
      *   values amplify altitude differences so that small bumps are more likely to be retained.
      * @return a new [Path] containing the retained points with [Path.computeDerivedData] applied,
-     *   and the source's filtered D+ / D− carried over unchanged.
+     *   and the source's filtered D+ / D− and elevation-correction report carried over unchanged.
      *   For paths of size ≤ 2 a defensive [Path.copy] of the source is returned.
      */
     fun simplify(
@@ -83,6 +84,7 @@ object PathSimplifier {
         // After computeDerivedData, whose resetStats clears both.
         out.elevationGainFiltered = path.elevationGainFiltered
         out.elevationLossFiltered = path.elevationLossFiltered
+        out.elevationCorrections = path.elevationCorrections
         return out
     }
 }

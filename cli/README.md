@@ -27,6 +27,8 @@ vcyclist enhance route.gpx --gpx out.gpx --csv out.csv --start-time 2026-08-01T0
 | `--gpx-power-source <input\|computed\|computed-or-input>` | which power the written GPX carries (default `input`) |
 | `--[no-]fix-elevation` | DEM elevation correction (off by default; downloads the missing tiles) |
 | `--dem-source <mapterhorn\|ign-lidar-hd>` | DEM `--fix-elevation` reads (default `mapterhorn`; see below) |
+| `--[no-]bridge-decks` | ride bridge decks from IGN's surface model (on; effective only with `--fix-elevation --dem-source ign-lidar-hd` at zoom 15) |
+| `--[no-]tunnels` | flatten detected tunnels between their portals, on any DEM (on; needs `--fix-elevation`) |
 | `--dem-zoom <0-15>` | DEM zoom (default: the source's own — 12 for Mapterhorn, 15 for IGN) |
 | `--cache <folder>` | where DEM and map tiles persist between runs (default `~/.vcyclist/cache`) |
 | `--[no-]virtualize` | physics simulation (on) |
@@ -51,8 +53,30 @@ under `--cache` as `data.geopf.fr/wms-r/wms/{sha256 of the query}.bil` — the t
 string, so the path alone would not tell two apart. A cold 130 km ride is ~130 tiles and ~33 MB,
 paced under IGN's rate limit; the second run is offline. At its default zoom (15) it also reads
 IGN's surface model, one more tile per terrain tile, and rides each bridge deck it detects instead
-of the valley under it (`--dem-zoom 14` turns that off). What it is worth, and the bridges a
-terrain model does not have: [`docs/guides/elevation.md`](../docs/guides/elevation.md#choosing-the-dem-source-ign-lidar-hd).
+of the valley under it (`--no-bridge-decks` or `--dem-zoom 14` turns that off). What it is worth,
+and the bridges a terrain model does not have:
+[`docs/guides/elevation.md`](../docs/guides/elevation.md#choosing-the-dem-source-ign-lidar-hd).
+
+On every source, `--fix-elevation` also flattens the tunnels the terrain model betrays onto the
+line between their portals. `--no-tunnels` turns that off: do so on gravel, MTB or hiking tracks
+with steep real knolls, which it can take for a tunnel, or outside the LiDAR-derived regions where
+its precision is unmeasured.
+
+With `--fix-elevation`, each track prints what the two corrections did on stdout, unless
+`--quiet`; in a multi-track file each line is marked `elevation corrections (track n):`.
+
+```
+  -> elevation corrections: bridge decks applied (3), tunnels none-found
+```
+
+A status is one of `not-run`, `unavailable` (decks without a surface model), `no-coverage`,
+`none-found`, `applied` or `fetch-failed`. A correction that is knowingly wrong or depends on the
+network — a surface or terrain tile that could not be read, a detected deck left on the valley
+floor — is a warning on stderr, **even under `--quiet`**, and the exit code stays 0:
+
+```
+warning: ride.gpx track 1: bridge decks: a terrain- or surface-model tile could not be read; every bridge on this path keeps ...
+```
 
 ### `export` — derived outputs, no physics
 

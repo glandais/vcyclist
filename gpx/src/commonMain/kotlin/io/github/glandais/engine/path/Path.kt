@@ -66,6 +66,17 @@ class Path(
     var elevationLossFiltered: Double = Double.NaN
         internal set
 
+    /**
+     * What the enhancer's elevation corrections (bridge decks, tunnels) did to this path: a status
+     * per correction, counts and warnings. `null` when the path never went through the enhancer.
+     *
+     * Written by `Enhancer`, once, on the path it returns — the setter is public only because
+     * `:engine` cannot reach an `internal` one. It describes what was done to the elevations, not a
+     * statistic of them, so [copy] carries it, [PathSimplifier] carries it, and [computeDerivedData]
+     * does not clear it.
+     */
+    var elevationCorrections: ElevationCorrections? = null
+
     /** [elevationGainFiltered] when it has been computed, the raw sum otherwise. */
     val reportedElevationGain: Double
         get() = if (elevationGainFiltered.isNaN()) elevationGain else elevationGainFiltered
@@ -187,6 +198,7 @@ class Path(
         elevationLoss = other.elevationLoss
         elevationGainFiltered = other.elevationGainFiltered
         elevationLossFiltered = other.elevationLossFiltered
+        elevationCorrections = other.elevationCorrections
         durationMs = other.durationMs
         boundsRad = other.boundsRad
     }

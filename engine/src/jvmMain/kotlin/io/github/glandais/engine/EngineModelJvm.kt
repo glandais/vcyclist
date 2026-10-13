@@ -71,6 +71,7 @@ fun enhanceOptions(
     elevationGain: ElevationGainOptions =
         ElevationGainOptions(preset = EngineConstants.DEFAULT_ELEVATION_GAIN_PRESET),
     elevationSmoothWindowM: Double = ElevationStep.DEFAULT_SMOOTH_WINDOW_M,
+    elevationCorrections: ElevationCorrectionOptions = ElevationCorrectionOptions.DEFAULT,
 ): EnhanceOptions =
     EnhanceOptions(
         fixElevation,
@@ -83,7 +84,18 @@ fun enhanceOptions(
         racingLine,
         elevationGain,
         elevationSmoothWindowM,
+        elevationCorrections,
     )
+
+/**
+ * Factory for [ElevationCorrectionOptions]: which of the enhancer's elevation corrections (bridge
+ * decks, tunnels) are allowed. What each did is on the enhanced path, `getElevationCorrections()`.
+ */
+@JvmOverloads
+fun elevationCorrectionOptions(
+    bridgeDecks: Boolean = ElevationCorrectionOptions.DEFAULT.bridgeDecks,
+    tunnels: Boolean = ElevationCorrectionOptions.DEFAULT.tunnels,
+): ElevationCorrectionOptions = ElevationCorrectionOptions(bridgeDecks, tunnels)
 
 /**
  * Factory for [ElevationGainOptions]. `preset` is spelled as its [ElevationGainPreset], not as a

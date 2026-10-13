@@ -64,16 +64,18 @@ cd demo && npm run dev                   # browser demo, hot reload (rebuilds th
 3. `PointPerDistance(1, 2)`
    - **3b.** `BridgeDeckStep` — only after `fixElevation`, and only when the provider carries a
      surface model (`ign-lidar-hd` at z15): `DeckDetector` + `DeckProfileBuilder` replace each
-     accepted deck by its LiDAR profile; skipped on WASI (one-layer host). A tile read that fails
-     leaves the path as it was (`FETCH_FAILED`, not reported to the user until E7); a defect in
-     detection or building throws
+     accepted deck by its LiDAR profile; skipped on WASI (one-layer host) and when
+     `elevationCorrections.bridgeDecks` is off. A tile read that fails leaves the path as it was —
+     reported, not silent; a defect in detection or building throws
    - **3c.** `TunnelStep` — only after `fixElevation`, on **any** source (no surface model, so
      Mapterhorn and WASI too): `TunnelDetector` finds the terrain bumps a road cannot climb (steep
      on both sides, a mountain face at each portal, straight, road-grade chord) and lays the line
      between the portals; reuses 3b's terrain samples, never writes over a deck, and drops a
      "tunnel" with a deck between its portals (bridge pylons). Tuned for precision: a false tunnel
      flattens a real climb — a real ≥ 30 % knoll on a track still is, and GLO-30 regions are
-     unmeasured. Same failure rule as 3b
+     unmeasured. Off with `elevationCorrections.tunnels`; a failed read is reported, not silent.
+   - The outcome of 3b and 3c is stamped on `Path.elevationCorrections` (a status per step, counts,
+     warnings) after step 11; `ElevationCorrectionReport` is the one wording site of the warnings
 4. `smoothElevation` (150 m kernel, always) — keeps the pre-smoothing profile in
    `sourceElevation`
 5. `PathCurvature` (writes `trajectoryCurvature`) **or** `RacingLine.compute` when
@@ -113,7 +115,8 @@ diagram, and run a CLI smoke.
   `radius` is absent — failing closed would zero a whole ride.
 - `ElevationProvider.surfaceModel` (a raw MNS layer) is what turns bridge decks on: only
   `ElevationSource.IGN_LIDAR_HD.provider()` at its own zoom attaches one; `withSurfaceModel(null)`
-  detaches it. There is no door option yet — `elevation-bridge-decks` E7 decides whether there is.
+  detaches it. Whether step 3b may use it is `EnhanceOptions.elevationCorrections.bridgeDecks`
+  (`bridgeDecksEnabled` / `--bridge-decks`); what it did is on `Path.elevationCorrections`.
 - Curvature estimation and the racing line are subtle and were tuned by measurement, not reasoning.
   Read [`docs/guides/racing-line.md`](docs/guides/racing-line.md) and ledger rows R23–R26 before
   touching `engine`'s `trajectory` package or `RacingLine`.
@@ -308,6 +311,9 @@ Never compare `Double` with `==`.
 - Nothing JVM-only in `commonMain` — it must compile on JVM, JS Node, JS browser and wasmWasi.
 - Don't disable the timestamp-monotonicity invariant in `VirtualizeService`: letting the input epoch
   leak into `time(n-1)` made `PointPerSecond` OOM. The fix is to simulate every point, last included.
+- A w03-extracted WASI body (`enhanceFromJson`, …) takes its `fetch_tile`-backed provider as a
+  parameter **with no default**: on Kotlin/Wasm a defaulted parameter stays reachable from a test
+  that passes it, the import lands in the test binary, and wasmtime refuses to instantiate it.
 - Don't add the JVM `application { mainClass }` plugin to a KMP module — register a `JavaExec` task
   against the `jvm` target's classpath (see `engine/build.gradle.kts`).
 
