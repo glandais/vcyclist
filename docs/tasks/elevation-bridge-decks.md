@@ -2740,6 +2740,16 @@ déterminant du D+ rapporté ; ordre du pipeline dans `using-from-javascript.md`
 - KDoc de `ElevationSource.IGN_LIDAR_HD` et section *No bridges* d'`elevation.md` : renvoyer à
   cette tâche une fois E3 livrée.
 
+**Fait (2026-10-13).** `elevation.md` : *What the DEM costs* — la raison « z12 = résolution native »
+remplacée par la mesure de l'*Input 2* (Mapterhorn = LiDAR HD sous-échantillonné en France, z17
+servi), conclusion inchangée (1,5–3 % de D+, < 1 % de durée) ; *Raising the DEM zoom* — z17 en
+France, GLO-30 seulement hors modèles nationaux ; section IGN — « ses tuiles *sont* du LiDAR HD » ;
+pipeline — étapes 3b et 3c ajoutées ; renvois R31/R32/R33 en fin de *No bridges* et de *Tunnels* ;
+en-tête R27–R33. Ledger : note datée sous R30, l'historique intact. KDoc de
+`ElevationSource.MAPTERHORN` (source fusionnée, LiDAR HD en France) et `IGN_LIDAR_HD` (étapes 3b
+et 3c, R31–R33). Laissé en l'état : le commentaire de `MapSpace.kt:30` (« no deeper tiles »), que
+le guide et R30 citent déjà comme faux.
+
 ### E7 — Les six surfaces
 
 Si E3 devient une option (`bridgeDecks` ou équivalent) : cœur → CLI → JS → WASI → JVM/Java →

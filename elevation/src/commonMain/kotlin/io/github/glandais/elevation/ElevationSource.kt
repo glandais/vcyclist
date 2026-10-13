@@ -21,6 +21,11 @@ enum class ElevationSource(
     /**
      * Mapterhorn's Terrarium WebP tiles, worldwide. The default, and what every door used before
      * there was a choice.
+     *
+     * A fused product: Copernicus GLO-30 worldwide, national models where they exist. In France
+     * that is IGN LiDAR HD itself, subsampled to the zoom asked for (served up to z17, which
+     * [ElevationProvider] refuses), so its default z12 is not the native resolution there — see
+     * `docs/guides/elevation.md`, *What the DEM costs*, and ledger row R30.
      */
     MAPTERHORN("mapterhorn"),
 
@@ -32,10 +37,13 @@ enum class ElevationSource(
      * ground, trees and roofs included, and a cyclist rides under the canopy, not over it. A terrain
      * model has **no bridges** — a viaduct samples the valley floor below it — so at its default
      * zoom (15) this source's [provider] also carries IGN's MNS as its
-     * [ElevationProvider.surfaceModel]: the enhancer detects each deck on it and rides the deck's
-     * LiDAR profile instead of the valley (`docs/tasks/elevation-bridge-decks.md`, E3). At any other
-     * zoom, and on WASI, whose host serves one layer only, the viaducts stay on the valley floor;
-     * see `docs/guides/elevation.md`.
+     * [ElevationProvider.surfaceModel]: the enhancer's bridge-deck step (pipeline step 3b) detects
+     * each deck on it and rides the deck's LiDAR profile instead of the valley. At any other zoom,
+     * and on WASI, whose host serves one layer only, the viaducts stay on the valley floor. Nor does
+     * it see into tunnels: the tunnel step (3c) replaces the mountain with the line between the
+     * portals, on every source and needing no surface model. See `docs/guides/elevation.md`,
+     * `docs/tasks/elevation-bridge-decks.md` (E3, E4) and ledger rows R31 (decks), R32 (tunnels)
+     * and R33 (the reported D+ they feed).
      *
      * Falls back to [MAPTERHORN] wherever IGN has no data — abroad, at sea, in a survey gap — so a
      * ride crossing a border is not flattened to 0 m on the far side.

@@ -1180,7 +1180,8 @@ rule: roughness 8.092, D+ 802. Full tables in `docs/tasks/elevation-half-pixel.m
 ### R30 — DEM zoom above 12 ❌ (the door shipped anyway)
 
 `ElevationProvider` validates `zoomLevel in 0..15`; that is a validation bound, and
-`map/.../MapSpace.kt:30`'s comment that the DEM source "has no deeper tiles" is unsourced. Both are
+`map/.../MapSpace.kt:30`'s comment that the DEM source "has no deeper tiles" is unsourced (comment
+corrected 2026-10-13, E6). Both are
 wrong about mapterhorn: `tiles.mapterhorn.com` serves 200s at z13, z14 **and** z15, and its
 `tiles.json` declares neither `minzoom` nor `maxzoom`. Availability is not resolution, though —
 mapterhorn is a fused global product (Copernicus 30 m worldwide, national high-resolution models
@@ -1212,6 +1213,17 @@ same preset, about 12 %. The fix itself
 matters more than the zoom: at z12, Mapterhorn's open-terrain RMS against the LiDAR truth falls from
 2.63 to 0.58 m on the Vercors route and from 1.68 to 0.66 m on the Loire one
 (`ElevationBenchProbeTest.bench`).
+
+**Correction 2026-10-13 (`elevation-bridge-decks`, E6): the reason above is wrong, the verdict
+stands.** "Zoom 12 is at the source's native resolution" does not hold in France: there Mapterhorn
+serves IGN LiDAR HD itself, subsampled. Measured on the Loire estuary (task *Inputs* §2), its z12
+tile is 0.46 m RMS from the LiDAR terrain model (GLO-30: 2.8 m), z14 is LiDAR HD at 3.2 m pixels, and
+z17 (0.41 m pixels, refused by the `0..15` validator) matches the LiDAR with a median offset of
+0.00 m. `strava.gpx` (Pyrenees, 42.9° N) lies in that coverage; `stelvio.gpx` (Italy) is unmeasured.
+So a deeper zoom does add detail there — none the D+ or the clock can see: the 150 m kernel and the
+`dem` dead band already work above a 13 m post, and the large errors (the canyon under a bridge, the
+mountain over a tunnel) are the same at every zoom and in every source tested, GLO-30 included.
+Those went to R31 and R32, not to the zoom; the 1.5–3 % / < 1 % figures above are unchanged.
 
 **A finding worth more than the row.** With `--fix-elevation` on, `strava.gpx` reports **854 m**
 where its own barometric stream measures 634 m — the DEM inflates mountain climbing by **35 %**.

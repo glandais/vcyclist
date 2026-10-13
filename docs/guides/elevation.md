@@ -4,8 +4,8 @@ Where vcyclist's altitudes come from, what the pipeline does to them, and why th
 will never equal the D+ Strava reports for the same file.
 
 Related: [`elevation/README.md`](../../elevation/README.md) for the tile transport and per-target
-decoding, [`ledgers/improvements-ledger.md`](../ledgers/improvements-ledger.md) rows **R27–R30** for
-the open work.
+decoding, [`ledgers/improvements-ledger.md`](../ledgers/improvements-ledger.md) rows **R27–R33** for
+the measured and open work.
 
 ## Where altitudes come from
 
@@ -61,6 +61,11 @@ From [`Enhancer.kt`](../../engine/src/commonMain/kotlin/io/github/glandais/engin
 1. `PointPerDistance(-1, 30)` — densify to ~30 m so the DEM lookup has granularity.
 2. `fixElevation` — optional, replaces every altitude from the DEM.
 3. `PointPerDistance(1, 2)` — refine to 1–2 m spacing for the physics.
+   - **3b.** `BridgeDeckStep` — after step 2 only, when the provider carries a surface model
+     (`ign-lidar-hd` at z15): rides each detected bridge deck on the LiDAR surface model instead of
+     the valley floor. See [No bridges](#choosing-the-dem-source-ign-lidar-hd), ledger R31.
+   - **3c.** `TunnelStep` — after step 2 only, on any source: replaces the mountain over each
+     detected tunnel with the line between its portals. Ledger R32.
 4. `smoothElevation` — a **triangular kernel of 150 m half-width, always, unconditionally**. The
    pre-smoothing altitude of every point is kept in `PointField.SOURCE_ELEVATION`, the way the
    racing line keeps `sourceLatitude`/`sourceLongitude`.
@@ -310,10 +315,20 @@ declares no `maxzoom`), and the answers barely move:
 
 Re-measured on 2026-10-13 at pixel centres (`--fix-elevation --dem-zoom Z --no-simplify`, D+ as
 the CLI reports it, `dem` preset). 1.5 % of spread on D+ on `stelvio`, 3.0 % on `strava`, at most
-0.7 % on the clock; the corner reading gave 1 % and 2 % the same day. Zoom 12 is at the source's native posting in both
-regions; deeper zooms cost four times the tiles for interpolation ripple. If the remaining
-over-report is not sampling density, it is either the model or *where along the road it is sampled* — which is what
-ledger row R29 exists to test.
+0.7 % on the clock; the corner reading gave 1 % and 2 % the same day. Each zoom step costs four
+times the tiles for that.
+
+The reason is **not** that z12 is the source's native posting — in France it is not. There
+Mapterhorn serves IGN's LiDAR HD itself, subsampled: measured on the Loire estuary
+(`elevation-bridge-decks`, *Inputs* §2), its z12 tile is 0.46 m RMS from the LiDAR terrain model
+(Copernicus GLO-30 is 2.8 m), and its z17 tile, 0.41 m pixels, matches it with a median offset of
+0.00 m. `strava.gpx` (Pyrenees, 42.9° N 1.0° E) is in that coverage; `stelvio.gpx` (Italy) is in a
+region nobody measured. Deeper zooms do not help because what is left is not sampling density: the
+150 m kernel and the `dem` preset's 3 m / 30 m dead band already work at scales above a 13 m post,
+and the large errors are in the model at every zoom — the terrain under a bridge, the mountain over
+a tunnel, the same canyon in every source tested, GLO-30 included. Those are what the deck and
+tunnel steps fix (see [Choosing the DEM source](#choosing-the-dem-source-ign-lidar-hd)); the rest is
+either the model or *where along the road it is sampled* — which is what ledger row R29 tested.
 
 ## What Strava does
 
@@ -401,12 +416,15 @@ INTEGRATION=1 ./gradlew :engine:jvmTest --tests '*RoadSnapProbeTest*' --rerun-ta
 ## Raising the DEM zoom
 
 `ElevationProviderConfig.zoomLevel` defaults to 12 and `ElevationProvider` validates `0..15`. That
-upper bound is a validation limit, not a statement about the tile source, and
-`map/.../MapSpace.kt:30`'s comment that the DEM "has no deeper tiles" is simply wrong — mapterhorn
-serves z13, z14 and z15. It is still not worth using: see [what the DEM costs](#what-the-dem-costs)
-above, where four times the tiles buy 1.5–3 % of D+ and under 1 % on the clock. Mapterhorn is a
-fused global product — Copernicus 30 m worldwide, national high-resolution models only where they
-exist — so above the source's native posting a deeper zoom is resampling. Ledger row **R30**.
+upper bound is a validation limit, not a statement about the tile source (`map/.../MapSpace.kt`
+said otherwise until 2026-10-13) — mapterhorn
+serves z13, z14 and z15, and in France z17 (which the validator refuses). It is still not worth
+using: see [what the DEM costs](#what-the-dem-costs) above, where four times the tiles buy 1.5–3 %
+of D+ and under 1 % on the clock. Mapterhorn is a fused global product — Copernicus GLO-30 worldwide,
+national high-resolution models where they exist. Where they do not, a zoom above the 30 m posting is
+resampling; in France the national model is LiDAR HD and z12 is a subsample of it, not its native
+resolution, so a deeper zoom does add detail — just not detail the D+ or the clock can see. Ledger
+row **R30**.
 
 Reach it with `--dem-zoom` on the CLI, `demZoom` on the JS enhance options, or
 `vcSetElevationConfig` over WASI. Note that the CLI's `--zoom` is a *different* option:
@@ -452,7 +470,8 @@ otherwise), each point against its nearest neighbour in the other run:
 | \|Δ elevation\| mean / p95 / max | — | 2.0 m / 4.6 m / 26.6 m |
 
 So on this ride the two agree to within the 150 m smoother's reach, and IGN costs fifteen times the
-download. Mapterhorn already fuses national models where they exist, which is why. Where IGN earns
+download. Mapterhorn already fuses national models where they exist — in France its tiles *are*
+LiDAR HD, subsampled to the zoom asked for — which is why. Where IGN earns
 its keep is the tail: the 26.6 m point is a road cut into a slope that a 13.5 m post averages with
 the hillside. Pick it for a route on narrow benches and in gorges, not for a valley ride.
 
@@ -486,7 +505,8 @@ a tile it cannot read leaves the terrain profile as it was — for every deck of
 without telling you, so the same command can give either profile depending on the network. Not at
 another zoom (the detector was calibrated at 15), not with Mapterhorn, and not on WASI, whose host
 serves one layer. The measurements, and what is left (reporting a failed read), are in
-[`docs/tasks/elevation-bridge-decks.md`](../tasks/elevation-bridge-decks.md), E1–E3 and E5.
+[`docs/tasks/elevation-bridge-decks.md`](../tasks/elevation-bridge-decks.md), E1–E3 and E5;
+ledger rows **R31** (decks) and **R33** (the D+ they feed).
 
 **Tunnels — on every source.** No LiDAR sees into a tunnel: every terrain model, IGN's and
 Mapterhorn's alike, is the mountain above it. Read at the point, the Grands Goulets tunnel (Vercors,
@@ -521,7 +541,8 @@ Two limits matter more than the misses. A **real** knoll that climbs and falls 3
 a paved road, but a gravel, MTB or hiking track — is flattened, and there is no option to turn the
 step off yet. And precision has only been measured on LiDAR-derived terrain (IGN, and Mapterhorn in
 France and Finland): Mapterhorn's worldwide GLO-30 base (30 m, a surface model) is **unmeasured**; a
-probe on the Dadès gorge road in Morocco found three "tunnels" there. Details in E4 of the task.
+probe on the Dadès gorge road in Morocco found three "tunnels" there. Details in E4 of the task;
+ledger row **R32**.
 
 **Rate limit.** The Géoplateforme answers HTTP 429 past 40 requests a second per IP, and
 `BatchCalculator` fetches ten tiles at once — a cold run failed on its 51st tile before pacing

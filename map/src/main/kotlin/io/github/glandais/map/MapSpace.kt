@@ -27,8 +27,9 @@ import kotlin.math.sin
  *
  * 1. **Units.** `:elevation` returns *tile* coordinates; map rendering wants *pixels*. They
  *    differ by a factor of [tileSize].
- * 2. **Zoom range.** `:elevation` rejects zoom above 15 — its DEM source has no deeper tiles.
- *    Map rendering routinely goes to 16-18, and this class supports up to 22.
+ * 2. **Zoom range.** `:elevation` validates zoom `0..15` — a validation bound, not a limit of
+ *    the DEM sources (Mapterhorn serves z17 in France). Map rendering routinely goes to 16-18,
+ *    and this class supports up to 22.
  * 3. **Out-of-range behaviour.** `:elevation` *throws* outside ±85.0511°, which is right for a
  *    lookup. A renderer must not: it clamps, so a stray point near the pole yields an edge
  *    pixel instead of failing the whole image.

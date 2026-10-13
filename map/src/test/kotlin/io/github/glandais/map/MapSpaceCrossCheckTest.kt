@@ -34,7 +34,7 @@ class MapSpaceCrossCheckTest {
                 84.9 to 170.0,
                 -84.9 to -179.0,
             )
-        // `:elevation` caps zoom at 15 (its DEM source has no deeper tiles), so the comparison
+        // `:elevation` validates zoom 0..15 (a validation bound, not a tile limit), so the comparison
         // runs over the range they share. Longitudes stop at 170 deg: `:map` clamps the last
         // pixel column, which at zoom 0 is a full 1.4 deg wide, and that difference is
         // deliberate — the next test characterises it rather than hiding it here.
