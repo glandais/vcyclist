@@ -55,6 +55,7 @@ enum class ProblemKind(
     MISSING_START_TIME("missing-start-time", HttpStatusCode.UnprocessableEntity, "Missing start time"),
     TRACK_INDEX_OUT_OF_RANGE("track-index-out-of-range", HttpStatusCode.UnprocessableEntity, "Track index out of range"),
     TRACK_NAMES_MISMATCH("track-names-mismatch", HttpStatusCode.UnprocessableEntity, "Track names mismatch"),
+    NOT_ENCODABLE("not-encodable", HttpStatusCode.UnprocessableEntity, "Not encodable"),
     DEM_UNAVAILABLE("dem-unavailable", HttpStatusCode.BadGateway, "Elevation data unavailable"),
     DEM_RATE_LIMITED("dem-rate-limited", HttpStatusCode.ServiceUnavailable, "Elevation data rate limited"),
     BUSY("busy", HttpStatusCode.ServiceUnavailable, "Busy"),

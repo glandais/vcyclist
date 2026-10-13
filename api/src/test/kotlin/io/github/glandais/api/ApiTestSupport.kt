@@ -9,9 +9,16 @@ import io.github.glandais.elevation.ElevationProviderConfig
 import io.github.glandais.elevation.RawTile
 import io.ktor.client.HttpClient
 import io.ktor.client.plugins.contentnegotiation.ContentNegotiation
+import io.ktor.client.request.HttpRequestBuilder
+import io.ktor.client.request.forms.formData
+import io.ktor.client.request.forms.submitFormWithBinaryData
+import io.ktor.client.request.post
+import io.ktor.client.request.setBody
 import io.ktor.client.statement.HttpResponse
 import io.ktor.client.statement.bodyAsText
 import io.ktor.http.ContentType
+import io.ktor.http.Headers
+import io.ktor.http.HttpHeaders
 import io.ktor.http.HttpStatusCode
 import io.ktor.http.contentType
 import io.ktor.serialization.kotlinx.json.json
@@ -123,3 +130,42 @@ fun repositoryRoot(): File {
     }
     fail("no repository root above ${File(".").absolutePath}")
 }
+
+/**
+ * Posts [gpx] to [url]: as a raw `application/gpx+xml` body when [request] is `null`, else as a
+ * multipart upload with [request] as the `request` JSON part. [configure] sets headers.
+ */
+suspend fun HttpClient.postGpx(
+    url: String,
+    gpx: String,
+    request: String? = null,
+    configure: HttpRequestBuilder.() -> Unit = {},
+): HttpResponse =
+    if (request == null) {
+        post(url) {
+            contentType(MediaTypes.Gpx)
+            setBody(gpx)
+            configure()
+        }
+    } else {
+        submitFormWithBinaryData(
+            url = url,
+            formData =
+                formData {
+                    append(
+                        "gpx",
+                        gpx.encodeToByteArray(),
+                        Headers.build {
+                            append(HttpHeaders.ContentType, MediaTypes.Gpx.toString())
+                            append(HttpHeaders.ContentDisposition, "filename=\"in.gpx\"")
+                        },
+                    )
+                    append(
+                        "request",
+                        request,
+                        Headers.build { append(HttpHeaders.ContentType, ContentType.Application.Json.toString()) },
+                    )
+                },
+            block = configure,
+        )
+    }

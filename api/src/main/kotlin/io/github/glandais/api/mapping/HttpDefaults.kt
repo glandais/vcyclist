@@ -49,4 +49,24 @@ object HttpDefaults {
 
     /** The one door default the engine does not carry: JS and WASI each write it as a literal. */
     const val TRACK_NAME: String = "virtualized"
+
+    /**
+     * `GpxWriter.write(document, writeExtensions = true)`: the engine spells this default in a
+     * signature, where no caller can read it, and carries no constant. Written once here, like
+     * [TRACK_NAME], and published by `GET /defaults`.
+     */
+    const val GPX_WRITE_EXTENSIONS: Boolean = true
+
+    /**
+     * `List<Path>.toFitBytes(…, interPathGap = Duration.ZERO)`: same situation as
+     * [GPX_WRITE_EXTENSIONS] — a signature default, no constant. Paths run straight on.
+     */
+    const val FIT_INTER_PATH_GAP_MS: Long = 0L
+
+    /**
+     * Whether GPX output copies the input's `<wpt>`: a door choice with no engine counterpart
+     * (`pathsToGpxDocument` takes the waypoints as data). On, so a round trip does not silently
+     * drop the points of interest — the lesson of F2.
+     */
+    const val GPX_INCLUDE_WAYPOINTS: Boolean = true
 }

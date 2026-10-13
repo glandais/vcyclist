@@ -231,7 +231,8 @@ paths:
         — on each selected path, with the rider, bike, wind and power strategy of
         the `request` part. Every absent option takes the default published by `GET
         /api/v1/defaults`. Unknown keys and invalid values are rejected before any
-        computation.
+        computation. The answer is a JSON summary, or the enhanced paths as GPX, FIT,
+        CSV or column JSON (`format`, or `Accept`); a file format carries no `warnings`.
       parameters:
       - name: kinds
         in: query
@@ -271,9 +272,30 @@ paths:
         schema:
           type: boolean
           default: true
+      - name: format
+        in: query
+        description: 'Response format; wins over `Accept`. `summary` (`Accept: application/json`):
+          a JSON summary per path; `gpx` (`Accept: application/gpx+xml`): a GPX 1.1
+          document, one `<trk>` per path (`output.gpx`); `fit` (`Accept: application/vnd.ant.fit`):
+          a FIT course, one lap per path (`output.fit`, `startTimeEpochMs` required);
+          `csv` (`Accept: text/csv`): one row per point of the single path (`output.csv`);
+          `json` (`Accept: application/vnd.vcyclist.columns+json`): the column document
+          of the single path, one array per field (`output.json`). Absent: from `Accept`,
+          then `summary`. An `Accept` naming none of these is 406. `csv` and `json`
+          carry one path: with several, 422 `multiple-tracks` (use `trackIndex`).'
+        schema:
+          type: string
+          default: summary
+          enum:
+          - summary
+          - gpx
+          - fit
+          - csv
+          - json
       - name: points
         in: query
-        description: Include every point of each enhanced path. Default `false`.
+        description: Include every point of each enhanced path (`format=summary` only).
+          Default `false`.
         schema:
           type: boolean
           default: false
@@ -313,14 +335,46 @@ paths:
         required: true
       responses:
         "200":
-          description: One result per selected path, and the warnings
+          description: 'The rendered result. Files (gpx, fit, csv, json) come with
+            `Content-Disposition: attachment`.'
+          headers:
+            Content-Disposition:
+              description: '`attachment; filename="<name>.<ext>"` for a file format;
+                absent for `summary`.'
+              required: false
+              deprecated: false
+              schema:
+                type: string
           content:
+            application/gpx+xml:
+              schema:
+                type: string
+            application/vnd.ant.fit:
+              schema:
+                type: string
+                format: binary
+            text/csv:
+              schema:
+                type: string
             application/json:
               schema:
-                $ref: "#/components/schemas/EnhanceResponse"
+                description: '`summary` (the default) or `json` (the column document)'
+                oneOf:
+                - $ref: "#/components/schemas/EnhanceResponse"
+                - type: object
+                  description: 'Column document (`format=json`): `fields` maps each
+                    selected field''s `prop` to one array of numbers (null where absent),
+                    and `meta` carries aggregates and units unless `output.json.includeMeta`
+                    is false.'
         "400":
           description: 'Problem: `urn:vcyclist:problem:invalid-body`, `urn:vcyclist:problem:unknown-key`,
             `urn:vcyclist:problem:invalid-option`, `urn:vcyclist:problem:invalid-gpx`'
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Problem"
+        "406":
+          description: 'Problem: `urn:vcyclist:problem:not-acceptable`'
           content:
             application/problem+json:
               schema:
@@ -338,7 +392,9 @@ paths:
               schema:
                 $ref: "#/components/schemas/Problem"
         "422":
-          description: 'Problem: `urn:vcyclist:problem:empty-gpx`, `urn:vcyclist:problem:track-index-out-of-range`'
+          description: 'Problem: `urn:vcyclist:problem:empty-gpx`, `urn:vcyclist:problem:track-index-out-of-range`,
+            `urn:vcyclist:problem:multiple-tracks`, `urn:vcyclist:problem:missing-start-time`,
+            `urn:vcyclist:problem:track-names-mismatch`, `urn:vcyclist:problem:not-encodable`'
           content:
             application/problem+json:
               schema:
@@ -364,7 +420,9 @@ paths:
       description: 'The value every absent option takes, in the request shapes themselves:
         any member can be sent back as is and gives the same computation. Read from
         the engine, never restated. `demZoom` is null: each DEM source uses its own
-        default zoom. `limits` are this server''s.'
+        default zoom. `gpx.trackName` is the name `/enhance` gives; `/export` keeps
+        the input''s names. `fit.startTimeEpochMs` has no default: it is required.
+        `limits` are this server''s.'
       responses:
         "200":
           description: The defaults
@@ -374,6 +432,177 @@ paths:
                 $ref: "#/components/schemas/Defaults"
         "400":
           description: 'Problem: `urn:vcyclist:problem:unknown-key`'
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Problem"
+  /api/v1/export:
+    post:
+      operationId: export
+      tags:
+      - export
+      summary: Convert a GPX
+      description: Writes the selected paths of a GPX as GPX, FIT, CSV or column JSON,
+        as they are in the file — no densification, no DEM, no simulation. GPX output
+        keeps the input's track names and waypoints unless `output.gpx` says otherwise.
+        Format from `format`, else `Accept`, else `gpx`.
+      parameters:
+      - name: kinds
+        in: query
+        description: 'Which containers to read: `all` (`<trk>` and `<rte>`), `tracks`
+          (`<trk>` only), `routes` (`<rte>` only). Default `all`.'
+        schema:
+          type: string
+          default: all
+          enum:
+          - all
+          - tracks
+          - routes
+      - name: split
+        in: query
+        description: '`tracks`: one path per `<trk>` / `<rte>`, segments concatenated
+          (the gap between two segments counts as distance). `segments`: one path
+          per `<trkseg>`. Default `tracks`.'
+        schema:
+          type: string
+          default: tracks
+          enum:
+          - tracks
+          - segments
+      - name: trackIndex
+        in: query
+        description: 'Keep only the path at this index of the selection (after `kinds`
+          and `split`, empty paths dropped). Absent: every path. Out of range: 422
+          `track-index-out-of-range`.'
+        schema:
+          type: integer
+          minimum: 0.0
+      - name: repair
+        in: query
+        description: When the XML does not parse, repair it (BOM, control characters,
+          bare `&`, split surrogate references) and parse again; each repair is reported
+          in `warnings`. Default `true`.
+        schema:
+          type: boolean
+          default: true
+      - name: format
+        in: query
+        description: 'Response format; wins over `Accept`. `gpx` (`Accept: application/gpx+xml`):
+          a GPX 1.1 document, one `<trk>` per path (`output.gpx`); `fit` (`Accept:
+          application/vnd.ant.fit`): a FIT course, one lap per path (`output.fit`,
+          `startTimeEpochMs` required); `csv` (`Accept: text/csv`): one row per point
+          of the single path (`output.csv`); `json` (`Accept: application/vnd.vcyclist.columns+json`):
+          the column document of the single path, one array per field (`output.json`).
+          Absent: from `Accept`, then `gpx`. An `Accept` naming none of these is 406.
+          `csv` and `json` carry one path: with several, 422 `multiple-tracks` (use
+          `trackIndex`).'
+        schema:
+          type: string
+          default: gpx
+          enum:
+          - gpx
+          - fit
+          - csv
+          - json
+      requestBody:
+        description: The GPX, as a multipart upload (part `gpx`) or as the raw body.
+          Options travel in the multipart part `request`; a raw body takes every default.
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required:
+              - gpx
+              properties:
+                gpx:
+                  type: string
+                  description: The GPX document
+                  format: binary
+                request:
+                  $ref: "#/components/schemas/ExportRequest"
+            encoding:
+              gpx:
+                contentType: application/gpx+xml
+              request:
+                contentType: application/json
+          application/gpx+xml:
+            schema:
+              type: string
+              format: binary
+          application/xml:
+            schema:
+              type: string
+              format: binary
+          text/xml:
+            schema:
+              type: string
+              format: binary
+        required: true
+      responses:
+        "200":
+          description: 'The rendered result. Files (gpx, fit, csv, json) come with
+            `Content-Disposition: attachment`.'
+          headers:
+            Content-Disposition:
+              description: '`attachment; filename="<name>.<ext>"` for a file format;
+                absent for `summary`.'
+              required: false
+              deprecated: false
+              schema:
+                type: string
+          content:
+            application/gpx+xml:
+              schema:
+                type: string
+            application/vnd.ant.fit:
+              schema:
+                type: string
+                format: binary
+            text/csv:
+              schema:
+                type: string
+            application/json:
+              schema:
+                type: object
+                description: 'Column document (`format=json`): `fields` maps each
+                  selected field''s `prop` to one array of numbers (null where absent),
+                  and `meta` carries aggregates and units unless `output.json.includeMeta`
+                  is false.'
+        "400":
+          description: 'Problem: `urn:vcyclist:problem:invalid-body`, `urn:vcyclist:problem:unknown-key`,
+            `urn:vcyclist:problem:invalid-option`, `urn:vcyclist:problem:invalid-gpx`'
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Problem"
+        "406":
+          description: 'Problem: `urn:vcyclist:problem:not-acceptable`'
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Problem"
+        "413":
+          description: 'Problem: `urn:vcyclist:problem:payload-too-large`, `urn:vcyclist:problem:too-many-points`'
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Problem"
+        "415":
+          description: 'Problem: `urn:vcyclist:problem:unsupported-media-type`'
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Problem"
+        "422":
+          description: 'Problem: `urn:vcyclist:problem:empty-gpx`, `urn:vcyclist:problem:track-index-out-of-range`,
+            `urn:vcyclist:problem:multiple-tracks`, `urn:vcyclist:problem:missing-start-time`,
+            `urn:vcyclist:problem:track-names-mismatch`, `urn:vcyclist:problem:not-encodable`'
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Problem"
+        "503":
+          description: 'Problem: `urn:vcyclist:problem:timeout`'
           content:
             application/problem+json:
               schema:
@@ -986,11 +1215,169 @@ components:
           - "null"
           description: 'Maximum power change rate, W/s; 0 disables. Absent or null:
             the default published by `GET /api/v1/defaults`.'
+    GpxWriteOptions:
+      type:
+      - object
+      - "null"
+      title: GpxWriteOptions
+      properties:
+        writeExtensions:
+          type:
+          - boolean
+          - "null"
+          description: 'Write `<extensions>` (power, heart rate, cadence, temperature,
+            road width). `false` keeps plain GPX 1.1. Absent or null: the default
+            published by `GET /api/v1/defaults`.'
+        startTimeEpochMs:
+          type:
+          - integer
+          - "null"
+          description: 'Instant of point 0, epoch milliseconds: every point gets an
+            absolute `<time>`. Absent or null: times are written as the path carries
+            them.'
+        trackName:
+          type:
+          - string
+          - "null"
+          description: '`<trk><name>` of every track: `name`, `name-2`, `name-3`…
+            when there are several. Exclusive with `trackNames`. Absent or null: on
+            `/enhance`, the default published by `GET /api/v1/defaults`; on `/export`,
+            the input''s own names.'
+        trackNames:
+          type:
+          - array
+          - "null"
+          description: One `<trk><name>` per written track, in order; its size must
+            be the number of tracks (else 422 `track-names-mismatch`). Exclusive with
+            `trackName`.
+          items:
+            type: string
+        powerSource:
+          type:
+          - string
+          - "null"
+          description: 'Which power `<power>` carries, one of `GET /api/v1/catalog`
+            `gpxPowerSources`. Absent or null: the default published by `GET /api/v1/defaults`.'
+        includeWaypoints:
+          type:
+          - boolean
+          - "null"
+          description: 'Copy the input document''s `<wpt>` waypoints. Absent or null:
+            the default published by `GET /api/v1/defaults`.'
+    CsvOptions:
+      type:
+      - object
+      - "null"
+      title: CsvOptions
+      properties:
+        separator:
+          type:
+          - string
+          - "null"
+          description: 'Field separator, exactly one character. Absent or null: the
+            default published by `GET /api/v1/defaults`.'
+        unitsInHeader:
+          type:
+          - boolean
+          - "null"
+          description: 'Append each column''s unit to its header, `elevation (meters)`.
+            Absent or null: the default published by `GET /api/v1/defaults`.'
+        decimals:
+          type:
+          - integer
+          - "null"
+          description: 'Fractional digits of every number. Absent or null: the shortest
+            exact form.'
+        lineSeparator:
+          type:
+          - string
+          - "null"
+          description: 'Row terminator, not empty. Absent or null: the default published
+            by `GET /api/v1/defaults`.'
+        fields:
+          type:
+          - array
+          - "null"
+          description: 'Columns, in order, by `prop` of `GET /api/v1/fields`; not
+            empty. Absent or null: every field.'
+          items:
+            type: string
+    JsonOptions:
+      type:
+      - object
+      - "null"
+      title: JsonOptions
+      properties:
+        pretty:
+          type:
+          - boolean
+          - "null"
+          description: 'Indent the document. Absent or null: the default published
+            by `GET /api/v1/defaults`.'
+        decimals:
+          type:
+          - integer
+          - "null"
+          description: 'Fractional digits of every number. Absent or null: the shortest
+            exact form.'
+        includeMeta:
+          type:
+          - boolean
+          - "null"
+          description: 'Include the `meta` block (aggregates and units). Absent or
+            null: the default published by `GET /api/v1/defaults`.'
+        fields:
+          type:
+          - array
+          - "null"
+          description: 'Columns, in order, by `prop` of `GET /api/v1/fields`; not
+            empty. Absent or null: every field.'
+          items:
+            type: string
+    FitOptions:
+      type:
+      - object
+      - "null"
+      title: FitOptions
+      properties:
+        name:
+          type:
+          - string
+          - "null"
+          description: 'Course name. Absent or null: the default published by `GET
+            /api/v1/defaults`.'
+        startTimeEpochMs:
+          type:
+          - integer
+          - "null"
+          description: 'Instant of the first point, epoch milliseconds. **Required**
+            for `format=fit`: FIT has no relative clock (else 422 `missing-start-time`).'
+        interPathGapMs:
+          type:
+          - integer
+          - "null"
+          description: 'Clock shift between two consecutive paths, milliseconds, >=
+            0. Absent or null: the default published by `GET /api/v1/defaults`.'
+    Output:
+      type:
+      - object
+      - "null"
+      title: Output
+      properties:
+        gpx:
+          $ref: "#/components/schemas/GpxWriteOptions"
+        csv:
+          $ref: "#/components/schemas/CsvOptions"
+        json:
+          $ref: "#/components/schemas/JsonOptions"
+        fit:
+          $ref: "#/components/schemas/FitOptions"
     EnhanceRequest:
       type: object
       title: EnhanceRequest
       description: 'The simulation settings: pipeline options, cyclist, bike, wind,
-        power strategy and road-width override.'
+        power strategy, road-width override and the writer settings of the chosen
+        format.'
       properties:
         options:
           $ref: "#/components/schemas/EnhanceOptions"
@@ -1009,6 +1396,8 @@ components:
           description: 'Road width written on EVERY point, metres, finite and > 0
             — like the CLI''s `--road-width`, it beats the GPX''s own widths and the
             OSM inference. Absent or null: the GPX''s widths.'
+        output:
+          $ref: "#/components/schemas/Output"
     TrackResult:
       type: object
       title: TrackResult
@@ -1080,5 +1469,20 @@ components:
           $ref: "#/components/schemas/Bike"
         power:
           $ref: "#/components/schemas/PowerProvider"
+        csv:
+          $ref: "#/components/schemas/CsvOptions"
+        json:
+          $ref: "#/components/schemas/JsonOptions"
+        gpx:
+          $ref: "#/components/schemas/GpxWriteOptions"
+        fit:
+          $ref: "#/components/schemas/FitOptions"
         limits:
           $ref: "#/components/schemas/Limits"
+    ExportRequest:
+      type: object
+      title: ExportRequest
+      description: The writer settings of the chosen format.
+      properties:
+        output:
+          $ref: "#/components/schemas/Output"

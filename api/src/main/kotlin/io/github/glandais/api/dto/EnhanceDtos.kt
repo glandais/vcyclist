@@ -158,6 +158,7 @@ data class EnhanceRequest(
             "the GPX's own widths and the OSM inference. Absent or null: the GPX's widths.",
     )
     val roadWidthOverrideM: Double? = null,
+    val output: OutputDto? = null,
 )
 
 /**

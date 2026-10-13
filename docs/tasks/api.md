@@ -420,6 +420,7 @@ Toute erreur est `application/problem+json` :
 | `too-many-points` | 413 | > `maxTrackPoints` / `maxElevationPoints` |
 | `unsupported-media-type` | 415 | |
 | `empty-gpx`, `multiple-tracks`, `missing-start-time`, `track-index-out-of-range`, `track-names-mismatch` | 422 | requête bien formée, sémantiquement impossible |
+| `not-encodable` | 422 | `toFitBytes` refuse la trace (temps qui recule) — ajouté à A4 |
 | `dem-unavailable` | 502 | `TileFetchException` sans `retryAfterSeconds` |
 | `dem-rate-limited` | 503 + `Retry-After` | `TileFetchException` avec `retryAfterSeconds` |
 | `busy` / `timeout` | 503 | `ComputeGate` : file pleine / délai dépassé |
@@ -629,6 +630,31 @@ curl -s -X POST -H 'Content-Type: application/gpx+xml' --data-binary @in.gpx 'lo
   des causes. Le verrou de l'`ElevationGateway` est tenu pendant **tout** le pipeline du chemin
   (`Enhancer` ne sépare pas l'étape MNT) : deux `/enhance` avec `fixElevation` sur la même source
   et le même zoom se suivent. Les descriptions de champs passent par `@JsonSchema.Description`.
+- **Constaté à A4.** Le cœur ne porte **aucune** constante pour trois défauts d'écriture, écrits
+  seulement dans des signatures (`GpxWriter.write(…, writeExtensions = true)`,
+  `toFitBytes(…, interPathGap = Duration.ZERO)`) ou nulle part (recopier les `<wpt>`) : ils sont
+  écrits une fois dans `HttpDefaults` (`GPX_WRITE_EXTENSIONS`, `FIT_INTER_PATH_GAP_MS`,
+  `GPX_INCLUDE_WAYPOINTS`), comme `TRACK_NAME`, et publiés par `/defaults` (membres `csv`, `json`,
+  `gpx`, `fit`). Une constante dans le cœur les supprimerait. `OutputFormat` porte `acceptType`
+  (ce qu'un `Accept` nomme) **et** `mediaType` (ce qui est servi) : `json` se demande en
+  `application/vnd.vcyclist.columns+json` et se sert en `application/json`, qu'il partage avec
+  `summary` — dans le contrat, `/enhance` décrit donc `application/json` par un `oneOf`
+  (`EnhanceResponse` | document colonnes). Négociation : `format` gagne ; sinon `Accept` par
+  qualité décroissante, une plage qui couvre le défaut donne le défaut (`*/*`, `application/*`
+  sur `/enhance`) ; `Accept: application/json` sur `/export` est 406 (le résumé n'y est pas servi)
+  — or le client Ktor avec `ContentNegotiation` l'envoie d'office : un tel client passe `format`.
+  Ajouts au domaine, tous en 400 `invalid-option` avant calcul : `trackName` **et** `trackNames`
+  ensemble ; `lineSeparator` vide ; `fields` vide ; `decimals` hors du domaine du formateur du
+  cœur (vérifié en formatant un nombre, pour ne pas recopier la borne `0..12`) ; `?points=true`
+  avec un autre format que `summary` ; `interPathGapMs < 0`. `powerSource` passe par
+  `fromWire(lowercase)`. Le compte de traces (`multiple-tracks`, `track-names-mismatch`) se
+  vérifie après le parsing et **avant** la simulation. Les avertissements (réparations XML,
+  préréglage de route) ne sont portés que par `summary` : un fichier n'a pas de place pour eux.
+  `/export` garde les noms d'entrée (une trace sans nom reste sans nom) ; `/enhance` nomme
+  `virtualized`, `virtualized-2`… ; le nom de fichier de `Content-Disposition` est assaini en
+  `[A-Za-z0-9._-]`. Une description `@JsonSchema.Description` sur une propriété de type objet
+  fait émettre par Ktor une seconde copie du schéma (`CsvOptions2`…) : les membres d'`OutputDto`
+  et `EnhanceRequest.output` n'en portent pas.
 - Le DSL OpenAPI natif de Ktor est `@ExperimentalKtorApi` ; si une montée de Ktor le casse, le repli
   est smiley4 `ktor-openapi` (voir *Bibliothèques*), sans changer le contrat committé autrement que
   par la régénération.

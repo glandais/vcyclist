@@ -21,14 +21,14 @@ import io.github.glandais.engine.physics.CyclistPowerSpec
 import io.github.glandais.engine.physics.RhoProviderEstimate
 import io.github.glandais.engine.physics.WindProviderNone
 import io.ktor.client.HttpClient
-import io.ktor.client.request.forms.formData
-import io.ktor.client.request.forms.submitFormWithBinaryData
+import io.ktor.client.request.header
 import io.ktor.client.request.post
 import io.ktor.client.request.setBody
 import io.ktor.client.statement.HttpResponse
+import io.ktor.client.statement.bodyAsBytes
 import io.ktor.client.statement.bodyAsText
+import io.ktor.http.ContentDisposition
 import io.ktor.http.ContentType
-import io.ktor.http.Headers
 import io.ktor.http.HttpHeaders
 import io.ktor.http.HttpStatusCode
 import io.ktor.http.contentType
@@ -48,33 +48,8 @@ class EnhanceRoutesTest {
         request: String? = null,
         query: String = "",
         gpx: String = GpxFixtures.SAMPLE_GPX,
-    ): HttpResponse =
-        if (request == null) {
-            post("/api/v1/enhance$query") {
-                contentType(MediaTypes.Gpx)
-                setBody(gpx)
-            }
-        } else {
-            submitFormWithBinaryData(
-                url = "/api/v1/enhance$query",
-                formData =
-                    formData {
-                        append(
-                            "gpx",
-                            gpx.encodeToByteArray(),
-                            Headers.build {
-                                append(HttpHeaders.ContentType, MediaTypes.Gpx.toString())
-                                append(HttpHeaders.ContentDisposition, "filename=\"in.gpx\"")
-                            },
-                        )
-                        append(
-                            "request",
-                            request,
-                            Headers.build { append(HttpHeaders.ContentType, ContentType.Application.Json.toString()) },
-                        )
-                    },
-            )
-        }
+        configure: io.ktor.client.request.HttpRequestBuilder.() -> Unit = {},
+    ): HttpResponse = postGpx("/api/v1/enhance$query", gpx, request, configure)
 
     private suspend fun enhanced(response: HttpResponse): EnhanceResponse {
         val body = response.bodyAsText()
@@ -253,7 +228,7 @@ class EnhanceRoutesTest {
     @Test
     fun `query and media type are checked like every GPX route`() =
         apiTest { client ->
-            assertProblem(client.enhance(query = "?format=gpx"), HttpStatusCode.BadRequest, "unknown-key")
+            assertProblem(client.enhance(query = "?formt=gpx"), HttpStatusCode.BadRequest, "unknown-key")
             assertProblem(client.enhance(query = "?points=maybe"), HttpStatusCode.BadRequest, "invalid-option")
             val json =
                 client.post("/api/v1/enhance") {
@@ -261,6 +236,109 @@ class EnhanceRoutesTest {
                     setBody("{}")
                 }
             assertProblem(json, HttpStatusCode.UnsupportedMediaType, "unsupported-media-type")
+        }
+
+    @Test
+    fun `format=gpx writes the virtualized track, its power source as asked`() =
+        apiTest { client ->
+            val response = client.enhance(query = "?format=gpx")
+            val body = response.bodyAsText()
+            assertEquals(HttpStatusCode.OK, response.status, body)
+            assertTrue(response.contentType()?.match(MediaTypes.Gpx) == true, "was ${response.contentType()}")
+            assertEquals(
+                "${HttpDefaults.TRACK_NAME}.gpx",
+                ContentDisposition
+                    .parse(
+                        response.headers[HttpHeaders.ContentDisposition]!!,
+                    ).parameter(ContentDisposition.Parameters.FileName),
+            )
+            val input = GpxParser.parse(body)
+            assertEquals(listOf(HttpDefaults.TRACK_NAME), input.tracks.map { it.name })
+            val inputPower =
+                input.tracks
+                    .single()
+                    .points
+                    .mapNotNull { it.powerW }
+
+            val computed =
+                GpxParser.parse(
+                    client.enhance("""{"output":{"gpx":{"powerSource":"computed"}}}""", query = "?format=gpx").bodyAsText(),
+                )
+            val computedPower =
+                computed.tracks
+                    .single()
+                    .points
+                    .mapNotNull { it.powerW }
+            assertTrue(computedPower.isNotEmpty(), "powerSource=computed writes the simulated power")
+            assertNotEquals(inputPower, computedPower)
+        }
+
+    @Test
+    fun `Accept negotiates the format when the query does not`() =
+        apiTest {
+            val plain = createClient {}
+            val gpx = plain.enhance { header(HttpHeaders.Accept, MediaTypes.Gpx.toString()) }
+            assertEquals(HttpStatusCode.OK, gpx.status, gpx.bodyAsText())
+            assertTrue(gpx.contentType()?.match(MediaTypes.Gpx) == true)
+            val summary = plain.enhance { header(HttpHeaders.Accept, "application/json") }
+            enhanced(summary)
+            val any = plain.enhance { header(HttpHeaders.Accept, "*/*") }
+            enhanced(any)
+            val none = plain.enhance()
+            enhanced(none)
+            assertProblem(plain.enhance { header(HttpHeaders.Accept, "image/png") }, HttpStatusCode.NotAcceptable, "not-acceptable")
+        }
+
+    @Test
+    fun `FIT needs a start time, checked before any computation`() =
+        withApp { app, client ->
+            val before = app.admitted()
+            assertProblem(client.enhance(query = "?format=fit"), HttpStatusCode.UnprocessableEntity, "missing-start-time")
+            assertEquals(before, app.admitted(), "a missing start time computed nothing")
+            val ok = client.enhance("""{"output":{"fit":{"startTimeEpochMs":1730643922000}}}""", query = "?format=fit")
+            assertEquals(HttpStatusCode.OK, ok.status, ok.bodyAsText())
+            assertTrue(ok.contentType()?.match(MediaTypes.Fit) == true)
+            assertEquals(".FIT", ok.bodyAsBytes().copyOfRange(8, 12).decodeToString())
+        }
+
+    @Test
+    fun `CSV honours fields and separator, and carries a single path`() =
+        withApp { app, client ->
+            val response =
+                client.enhance("""{"output":{"csv":{"fields":["distance","speed"],"separator":";"}}}""", query = "?format=csv")
+            val body = response.bodyAsText()
+            assertEquals(HttpStatusCode.OK, response.status, body)
+            assertTrue(response.contentType()?.match(ContentType.Text.CSV) == true)
+            assertEquals("distance (meters);speed (m/s)", body.lines().first())
+
+            assertProblem(
+                client.enhance("""{"output":{"csv":{"separator":";;"}}}""", query = "?format=csv"),
+                HttpStatusCode.BadRequest,
+                "invalid-option",
+            )
+            val before = app.admitted()
+            val many = client.enhance(query = "?format=csv", gpx = GpxFixtures.MULTI_TRACK_GPX)
+            assertProblem(many, HttpStatusCode.UnprocessableEntity, "multiple-tracks")
+            assertEquals(before + 1, app.admitted(), "multiple-tracks costs the parse, never the simulation")
+            val one = client.enhance(query = "?format=csv&trackIndex=0", gpx = GpxFixtures.MULTI_TRACK_GPX)
+            assertEquals(HttpStatusCode.OK, one.status, one.bodyAsText())
+        }
+
+    @Test
+    fun `column JSON without meta, and output members of another format refused`() =
+        apiTest { client ->
+            val response = client.enhance("""{"output":{"json":{"includeMeta":false}}}""", query = "?format=json")
+            val body = response.bodyAsText()
+            assertEquals(HttpStatusCode.OK, response.status, body)
+            val json = ApiJson.parseToJsonElement(body) as kotlinx.serialization.json.JsonObject
+            assertTrue("meta" !in json && "fields" in json, body)
+
+            val mismatch = client.enhance("""{"output":{"csv":{"separator":";"}}}""", query = "?format=gpx")
+            val problem = assertProblem(mismatch, HttpStatusCode.BadRequest, "invalid-option")
+            assertTrue(problem.detail!!.contains("output.csv given but format is gpx"), problem.detail)
+            // ?points only means something to the summary.
+            assertProblem(client.enhance(query = "?format=gpx&points=true"), HttpStatusCode.BadRequest, "invalid-option")
+            assertProblem(client.enhance(query = "?format=kml"), HttpStatusCode.BadRequest, "invalid-option")
         }
 
     private fun assertClose(

@@ -1,9 +1,13 @@
 package io.github.glandais.api
 
 import io.github.glandais.api.dto.BikeDto
+import io.github.glandais.api.dto.CsvOptionsDto
 import io.github.glandais.api.dto.CyclistDto
 import io.github.glandais.api.dto.DefaultsDto
 import io.github.glandais.api.dto.EnhanceOptionsDto
+import io.github.glandais.api.dto.FitOptionsDto
+import io.github.glandais.api.dto.GpxWriteOptionsDto
+import io.github.glandais.api.dto.JsonOptionsDto
 import io.github.glandais.api.dto.LimitsDto
 import io.github.glandais.api.dto.PowerProviderDto
 import io.github.glandais.api.http.ApiJson
@@ -11,8 +15,12 @@ import io.github.glandais.api.mapping.HttpDefaults
 import io.github.glandais.api.mapping.demSource
 import io.github.glandais.api.mapping.demZoom
 import io.github.glandais.api.mapping.toBike
+import io.github.glandais.api.mapping.toCsvOptions
 import io.github.glandais.api.mapping.toCyclist
 import io.github.glandais.api.mapping.toEnhanceOptions
+import io.github.glandais.api.mapping.toFit
+import io.github.glandais.api.mapping.toGpxWrite
+import io.github.glandais.api.mapping.toJsonOptions
 import io.github.glandais.api.mapping.toPowerSpec
 import io.github.glandais.engine.Bike
 import io.github.glandais.engine.Cyclist
@@ -36,6 +44,21 @@ class HttpDefaultsTest {
         assertEquals(HttpDefaults.enhance, EnhanceOptionsDto().toEnhanceOptions())
         assertEquals(HttpDefaults.elevationSource, absent.demSource())
         assertNull(EnhanceOptionsDto().demZoom())
+    }
+
+    @Test
+    fun `absent writer settings map to HttpDefaults`() {
+        val csv: CsvOptionsDto? = null
+        val json: JsonOptionsDto? = null
+        assertEquals(HttpDefaults.csv, csv.toCsvOptions())
+        assertEquals(HttpDefaults.csv, CsvOptionsDto().toCsvOptions())
+        assertEquals(HttpDefaults.json, json.toJsonOptions())
+        assertEquals(HttpDefaults.json, JsonOptionsDto().toJsonOptions())
+        val gpx: GpxWriteOptionsDto? = null
+        val settings = gpx.toGpxWrite()
+        assertEquals(HttpDefaults.gpxPowerSource, settings.powerSource)
+        assertNull(settings.trackName, "the route picks the name")
+        assertNull(settings.startTime)
     }
 
     @Test
@@ -88,6 +111,19 @@ class HttpDefaultsTest {
             assertEquals(HttpDefaults.cyclist to null, cyclist.toCyclist())
             assertEquals(HttpDefaults.bike, bike.toBike())
             assertEquals(HttpDefaults.power, power.toPowerSpec())
+            assertEquals(HttpDefaults.csv, assertNotNull(published.csv).toCsvOptions())
+            assertEquals(HttpDefaults.json, assertNotNull(published.json).toJsonOptions())
+            val gpx = assertNotNull(published.gpx).toGpxWrite()
+            assertEquals(HttpDefaults.GPX_WRITE_EXTENSIONS, gpx.writeExtensions)
+            assertEquals(HttpDefaults.gpxPowerSource, gpx.powerSource)
+            assertEquals(HttpDefaults.GPX_INCLUDE_WAYPOINTS, gpx.includeWaypoints)
+            assertEquals(HttpDefaults.TRACK_NAME, gpx.trackName)
+            assertEquals(GpxWriteOptionsDto(trackName = HttpDefaults.TRACK_NAME).toGpxWrite(), gpx)
+            // The FIT defaults with the one value that has none, the start time.
+            val fit = assertNotNull(published.fit).copy(startTimeEpochMs = 0L).toFit()
+            assertEquals(FitOptionsDto(startTimeEpochMs = 0L).toFit(), fit)
+            assertEquals(HttpDefaults.TRACK_NAME, fit.name)
+            assertEquals(HttpDefaults.FIT_INTER_PATH_GAP_MS, fit.interPathGap.inWholeMilliseconds)
             assertEquals(
                 LimitsDto(
                     maxBodyBytes = config.maxBodyBytes,
@@ -110,7 +146,23 @@ class HttpDefaultsTest {
                             .keys
                             .map { "$group.$it" }
                     }.toSet()
-            assertEquals(setOf("enhance.demZoom", "cyclist.roadCondition"), nulls)
+            assertEquals(
+                setOf(
+                    "enhance.demZoom",
+                    "cyclist.roadCondition",
+                    // `null` is the engine's own default for these: every field, the shortest exact form…
+                    "csv.decimals",
+                    "csv.fields",
+                    "json.decimals",
+                    "json.fields",
+                    // …relative times, the single trackName…
+                    "gpx.startTimeEpochMs",
+                    "gpx.trackNames",
+                    // …and the one value with no default: FIT requires it.
+                    "fit.startTimeEpochMs",
+                ),
+                nulls,
+            )
         }
     }
 }
