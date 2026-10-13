@@ -1,3 +1,22 @@
+# [6.3.0](https://github.com/glandais/vcyclist/compare/v6.2.0...v6.3.0) (2026-10-13)
+
+
+### Bug Fixes
+
+* **api:** bound densified size, refuse quoted scalars, take the DEM lock before a permit ([6228b8c](https://github.com/glandais/vcyclist/commit/6228b8c089ff53cbc3b69645ee797c11fd24c2b1))
+* **engine:** derive a one-point ride's stats and name the densification spacings ([68767f5](https://github.com/glandais/vcyclist/commit/68767f5ac8cc2609cec30c9e9bc8145981088434))
+* **gpx:** date point 0 at startTime when writing a path with an absolute clock ([d071faf](https://github.com/glandais/vcyclist/commit/d071fafb3b630d386c0580ddab069668d6997bb0))
+
+
+### Features
+
+* **api:** add the Ktor :api module with meta routes and a generated OpenAPI contract ([f48b3ea](https://github.com/glandais/vcyclist/commit/f48b3eab4bbdd3e8dd72eacba1b07e6c65559677))
+* **api:** detect climbs, analyse the racing line and query the DEM over HTTP ([8dc29c0](https://github.com/glandais/vcyclist/commit/8dc29c09b22dc3fa0538befc979b1d5a55fe6fb7))
+* **api:** enhance GPX tracks over HTTP and publish the door's defaults ([c9f4f57](https://github.com/glandais/vcyclist/commit/c9f4f57220048f2009318252ab36d0b4e56efebf))
+* **api:** export enhanced or parsed tracks as GPX, FIT, CSV or JSON ([dbea37c](https://github.com/glandais/vcyclist/commit/dbea37c2a1bf66f709ce9f14a44951989d3e8484))
+* **api:** parse GPX uploads (multipart or raw) at /api/v1/gpx/parse ([c656f60](https://github.com/glandais/vcyclist/commit/c656f602fe87c30e6ebc01f18bc07b18477c78a9))
+* **api:** render static tile and terrain maps over HTTP ([8991e72](https://github.com/glandais/vcyclist/commit/8991e725175f10c8b5afd5709c35fa7fd3436fdf)), closes [#rrggbb](https://github.com/glandais/vcyclist/issues/rrggbb)
+
 # [6.2.0](https://github.com/glandais/vcyclist/compare/v6.1.0...v6.2.0) (2026-10-13)
 
 
