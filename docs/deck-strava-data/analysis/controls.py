@@ -36,6 +36,8 @@ OVERHEAD_SLACK_M = 10.0    # O: +-(w/2 + 10 m) around a crossing
 TOLL_M = 25.0
 SNAP_M = 60.0
 END_MARGIN_M = 150.0       # held-out D spans: ground before and after, so the route ends never clamp the canyon
+APPROACH_M = 400.0         # holdout2: road kept beyond each end of the deck (E2 quinquies, rule 4)
+POSITIVE_ROLES = {'held-out-positive', 'holdout2'}   # holdout2: judged only by deckHoldoutJudge (DECK_JUDGE=1)
 UTURN_DEG = 120.0          # no heading change above this over 2 x 15 m
 UTURN_NEAR_M = 15.0        # no station within this of another one more than UTURN_ALONG_M away along the route
 UTURN_ALONG_M = 60.0
@@ -132,6 +134,24 @@ SITES = [
          # one 15 m flight of steps (way 183631737) joins the two named path sections
          classes=CYCLE | STREETS | {'service', 'footway', 'steps'},
          checks=[('name_frac', r'Penn[ée]l[ée]', 0.6)]),
+    # E2 quinquies negatives, same date and same rule-before-measure: they join deckControls' acceptance.
+    # The urban A 35 through Strasbourg is mapped M 35 since its transfer to the Eurometropole.
+    # The road dipping under a rail bridge is not built: Dijon has no LiDAR HD MNT, and Reims, its
+    # same-day replacement by the same rule, fails the U-turn check (task doc, E2 quinquies amendments).
+    dict(id='n14-strasbourg-under-a35', role='negative', category='road-under-motorway',
+         place='Strasbourg (Bas-Rhin) longest named street passing under the urban A 35 (now M 35)',
+         derived='under', pick=dict(over_ref=r'^[AM] ?35$'), bbox=(48.560, 7.700, 48.600, 7.745),
+         classes=STREETS, checks=[('overhead', r'^[AM] ?35$', 1)]),
+    dict(id='n15-lyon-berges-rhone', role='negative', category='quay-under-bridges',
+         place='Lyon left-bank lower quay of the Rhone (Voie Verte des Berges du Rhone) under Pont de la Guillotiere Pont Wilson and Pont Lafayette',
+         waypoints=[(45.75266, 4.83677), (45.75958, 4.84061), (45.76564, 4.84101)],
+         classes=CYCLE | {'pedestrian', 'footway'}, selector=dict(name=r'Berges du Rh[oô]ne|Karen Blixen'),
+         checks=[('o_spans', 2), ('selector_frac', 0.7)]),
+    dict(id='n16-cousin-d427', role='negative', category='wooded-valley-road',
+         place='Vallee du Cousin D 427 west of Avallon (Yonne)',
+         waypoints=[(47.48397, 3.88437), (47.48554, 3.87961), (47.48993, 3.86537)],
+         classes=CARS, selector=dict(ref=r'\bD ?427\b'),
+         checks=[('selector_frac', 0.8)]),
     dict(id='p01-chevire', role='held-out-positive', category='long-high-motorway-bridge',
          place='Pont de Chevire Nantes N 844',
          derived='chevire_bridge', bbox=(47.17, -1.66, 47.22, -1.58), osm_key='chevire',
@@ -176,6 +196,50 @@ SITES = [
          derived='periph_overpass', osm_key='n04-nantes-periph-nord',
          classes=STREETS | {'cycleway'},
          checks=[('d_span_range', 30, 80)]),
+    # ── E2 quinquies (2026-10-13): second held-out series, chosen by the rule written in
+    # elevation-bridge-decks.md *before* any detector run; role holdout2 keeps them out of every
+    # calibration test (only ElevationBenchProbeTest.deckHoldoutJudge reads them, DECK_JUDGE=1).
+    # A deck is picked by name or by a "longest bridge that ..." rule, never by hand, and routed
+    # with ~APPROACH_M of road on ground beyond each end.
+    dict(id='p09-cubzac', role='holdout2', category='long-truss-bridge',
+         place='Pont de Cubzac D 1010 over the Dordogne (Gironde)',
+         derived='bridge', pick=dict(name=r'^Pont de Cubzac$'), bbox=(44.950, -0.481, 44.973, -0.443),
+         classes=STREETS, checks=[('d_span_min', 900), ('d_name', r'Cubzac')]),
+    dict(id='p10-pont-saint-esprit', role='holdout2', category='long-masonry-arch-bridge',
+         place='Pont du Saint-Esprit D 994 over the Rhone (Gard / Vaucluse)',
+         derived='bridge', pick=dict(name=r'^Pont du Saint-Esprit$'), bbox=(44.250, 4.638, 44.270, 4.672),
+         classes=STREETS, checks=[('d_span_min', 700), ('d_name', r'Saint-Esprit')]),
+    dict(id='p11-sully', role='holdout2', category='long-suspension-bridge',
+         place='Pont de Sully-sur-Loire D 948 (Loiret)',
+         derived='bridge', pick=dict(name=r'^Pont de Sully-sur-Loire$'), bbox=(47.760, 2.362, 47.780, 2.385),
+         classes=STREETS, checks=[('d_span_min', 350), ('d_name', r'Sully')]),
+    dict(id='p12-tonnay-charente', role='holdout2', category='long-suspension-cycle-bridge',
+         place='Pont suspendu de Tonnay-Charente over the Charente (Charente-Maritime) cycle and foot bridge',
+         derived='bridge', pick=dict(name=r'^Pont Suspendu de Tonnay-Charente$'), bbox=(45.929, -0.898, 45.948, -0.876),
+         classes=STREETS | CYCLE | {'footway'}, checks=[('d_span_min', 500), ('d_name', r'Tonnay')]),
+    dict(id='p13-chalon-bourgogne', role='holdout2', category='long-cable-stayed-bridge',
+         place='Pont de Bourgogne D 5A over the Saone Chalon-sur-Saone (Saone-et-Loire)',
+         derived='bridge', pick=dict(name=r'^Pont de Bourgogne$'), bbox=(46.777, 4.861, 46.792, 4.879),
+         classes=STREETS, checks=[('d_span_min', 300), ('d_name', r'Bourgogne')]),
+    dict(id='p14-saint-cloud', role='holdout2', category='medium-girder-bridge',
+         place='Pont de Saint-Cloud D 907 over the Seine (Hauts-de-Seine) one carriageway',
+         derived='bridge', pick=dict(name=r'^Pont de Saint-Cloud$'), bbox=(48.835, 2.210, 48.848, 2.238),
+         classes=STREETS, checks=[('d_span_min', 140), ('d_name', r'Saint-Cloud')]),
+    dict(id='p15-blois', role='holdout2', category='medium-masonry-arch-bridge',
+         place='Pont Jacques-Gabriel D 956B over the Loire Blois (Loir-et-Cher)',
+         derived='bridge', pick=dict(name=r'^Pont Jacques[- ]Gabriel$'), bbox=(47.577, 1.326, 47.593, 1.349),
+         classes=STREETS, checks=[('d_span_min', 250), ('d_name', r'Gabriel')]),
+    # The rail-yard overpass cell stays empty: Le Mans has no street bridge over railway=rail in its
+    # bbox, Lille (same-day replacement) no LiDAR HD MNT, Saint-Denis La Plaine no 25-150 m street
+    # bridge over the rails either (task doc, E2 quinquies amendments).
+    dict(id='p16-reims-a4', role='holdout2', category='short-overpass-over-motorway',
+         place='Reims (Marne) longest street or cycleway bridge of 25-80 m over the A 4',
+         derived='bridge', pick=dict(over_ref=r'^A ?4$', length=(25.0, 80.0)), bbox=(49.205, 4.040, 49.240, 4.110),
+         classes=(STREETS - {'primary', 'primary_link'}) | {'cycleway'}, checks=[('d_span_range', 25, 80)]),
+    dict(id='p17-strasbourg-ill', role='holdout2', category='short-river-bridge',
+         place='Strasbourg centre (Bas-Rhin) longest street bridge of 20-60 m over the Ill',
+         derived='bridge', pick=dict(over_water=r"^L'Ill( Canalis[ée])?$", length=(20.0, 60.0)), bbox=(48.574, 7.735, 48.588, 7.760),
+         classes=STREETS, checks=[('d_span_range', 20, 60)]),
 ]
 
 
@@ -699,8 +763,184 @@ def derive_periph_overpass(site, osm):
     return wps, sel, f'overpass way {wid}'
 
 
+def bridge_chain(osm, start, bridges):
+    """nodes of the deck through way `start`: `start` extended at both ends by the other ways of
+    `bridges` that share an end node (way-level chaining, so a two-way graph never walks back)."""
+    nodes = list(osm.ways[start]['nodes'])
+    used = {start}
+    for _ in range(2):
+        while True:
+            nxt = None
+            for wid in sorted(bridges - used):
+                ns = osm.ways[wid]['nodes']
+                if ns[0] == nodes[-1]:
+                    nxt = (wid, list(ns))
+                elif ns[-1] == nodes[-1]:
+                    nxt = (wid, list(ns[::-1]))
+                if nxt:
+                    break
+            if nxt is None:
+                break
+            used.add(nxt[0])
+            nodes += nxt[1][1:]
+        nodes.reverse()
+    return nodes, used
+
+
+def chain_length(osm, nodes):
+    la = np.array([osm.node[n][0] for n in nodes])
+    lo = np.array([osm.node[n][1] for n in nodes])
+    return float(hav(la[:-1], lo[:-1], la[1:], lo[1:]).sum())
+
+
+def crosses(osm, proj, wid, targets):
+    return any(o != wid and crossings(osm, proj, wid, o) for o in targets)
+
+
+def over_pred(pick):
+    """what a picked bridge must cross (or a picked street pass under): railway, road ref, river name"""
+    if pick.get('over') == 'rail':
+        return lambda t: t.get('railway') == 'rail'
+    if 'over_ref' in pick:
+        r = re.compile(pick['over_ref'])
+        return lambda t: 'highway' in t and bool(r.search(t.get('ref', '')))
+    if 'over_water' in pick:
+        r = re.compile(pick['over_water'])
+        return lambda t: t.get('waterway') == 'river' and bool(r.search(t.get('name', '')))
+    raise ValueError(pick)
+
+
+def approach(osm, classes, core, nodes, t, need_clean):
+    """[A, S, E, B]: the core ways' node chain S..E plus ~APPROACH_M of road beyond each end, first on
+    the core's own ref or name, else on any road of the classes; each end is the straightest
+    continuation (largest straight-line / along-route ratio, then farthest from the other end) and,
+    with need_clean, has END_MARGIN_M of route without any bridge way before it."""
+    s_node, e_node = nodes[0], nodes[-1]
+    L = chain_length(osm, nodes)
+    sel = dict(ref='^' + re.escape(t['ref']) + '$') if t.get('ref') else (
+        dict(name='^' + re.escape(t['name']) + '$') if t.get('name') else None)
+    oneway = bool(classes & (MOTOR | MOTOR_LINKS))
+
+    def ends(sel_):
+        g = Graph(osm, classes, selector_fn(sel_), oneway)
+        for a, es in g.adj.items():
+            g.adj[a] = [e for e in es if e[2] not in core]
+        out = []
+        for here, there, rev in ((e_node, s_node, False), (s_node, e_node, True)):
+            if here not in g.adj:
+                return None
+            dist, prev = g.dijkstra(here, limit=APPROACH_M + 400, reverse=rev and oneway)
+            ph, pt = osm.node[here], osm.node[there]
+
+            def clean(n):
+                walked, m = 0.0, n
+                while m in prev and walked < END_MARGIN_M:
+                    u, wid = prev[m]
+                    if own_bridge(osm.tags(wid)):
+                        return False
+                    walked += dist[m] - dist[u]
+                    m = u
+                return walked >= END_MARGIN_M
+            pool = []
+            for n in sorted(dist):
+                p = osm.node[n]
+                if dist[n] < APPROACH_M - 100 or dist[n] > APPROACH_M + 150 or (need_clean and not clean(n)):
+                    continue
+                away = float(hav(p[0], p[1], pt[0], pt[1]))
+                if away <= float(hav(p[0], p[1], ph[0], ph[1])) + 0.5 * L:
+                    continue                 # back towards the other end of the core
+                straight = float(hav(p[0], p[1], ph[0], ph[1])) / dist[n]
+                pool.append((-round(straight, 2), -away, n))
+            if not pool:
+                return None
+            out.append(min(pool)[2])
+        return out
+    found = ends(sel) if sel else None
+    if found is None:
+        if sel:
+            print(f'  derived: approach on {sel} too short, any road of the classes', flush=True)
+        sel = None
+        found = ends(None)
+    if found is None:
+        raise RuntimeError('no approach of ~400 m on both sides')
+    b_end, a_end = found
+    return [osm.node[a_end], osm.node[s_node], osm.node[e_node], osm.node[b_end]], sel
+
+
+def derive_bridge(site, osm):
+    """E2 quinquies: the deck named by pick['name'], or the longest deck (chained bridge ways of the
+    site's classes, length in pick['length']) crossing pick's target; then ~APPROACH_M of road on
+    ground beyond each end, continuing as straight as the graph allows."""
+    pick = site['pick']
+    classes = site['classes']
+    bridges = {wid for wid, el in osm.ways.items()
+               if own_bridge(el.get('tags', {})) and el['tags'].get('highway') in classes
+               and el['tags'].get('area') != 'yes'}
+    proj = Proj(float(np.mean(site['bbox'][0::2])))
+    if 'name' in pick:
+        r = re.compile(pick['name'])
+        named = sorted(w for w in bridges if any(r.search(osm.tags(w).get(k, '')) for k in ('name', 'bridge:name')))
+        if not named:
+            raise RuntimeError(f'no bridge way named ~ {pick["name"]}')
+        start = named[0]
+        nodes, used = bridge_chain(osm, start, set(named))
+    else:
+        pred = over_pred(pick)
+        targets = [o for o in sorted(osm.ways) if pred(osm.tags(o))]
+        lo, hi = pick['length']
+        seen, cands = set(), []
+        for wid in sorted(bridges):
+            if not crosses(osm, proj, wid, targets):
+                continue
+            ns, used = bridge_chain(osm, wid, bridges)
+            key = frozenset(used)
+            if key in seen:
+                continue
+            seen.add(key)
+            L = chain_length(osm, ns)
+            if lo <= L <= hi:
+                cands.append((-L, min(used), ns, used))
+        if not cands:
+            raise RuntimeError(f'no {lo:.0f}-{hi:.0f} m bridge of {sorted(classes)} crossing {pick}')
+        cands.sort(key=lambda c: (c[0], c[1]))
+        _, start, nodes, used = cands[0]
+    L = chain_length(osm, nodes)
+    t = osm.tags(start)
+    print(f'  derived: deck ways {sorted(used)} "{label_of(t, start)}" {L:.0f} m', flush=True)
+    wps, sel = approach(osm, classes, set(used), nodes, t, need_clean=True)
+    return wps, sel, f'deck ways {sorted(used)}'
+
+
+def derive_under(site, osm):
+    """E2 quinquies negatives: the longest named street way (no bridge, tunnel or layer) of the site's
+    classes crossing under an elevated way matching pick, with ~APPROACH_M of road beyond each end."""
+    pred = over_pred(site['pick'])
+    proj = Proj(float(np.mean(site['bbox'][0::2])))
+    over = [w for w in sorted(osm.ways) if is_elevated(osm.tags(w)) and pred(osm.tags(w))]
+    if not over:
+        raise RuntimeError(f'no elevated way matching {site["pick"]}')
+    cands = []
+    for wid, el in sorted(osm.ways.items()):
+        t = el.get('tags', {})
+        if t.get('highway') not in site['classes'] or not t.get('name'):
+            continue
+        if t.get('bridge', 'no') != 'no' or t.get('tunnel', 'no') != 'no' or layer_of(t) != 0:
+            continue
+        pts = [p for o in over for p in crossings(osm, proj, wid, o)]
+        if pts:
+            cands.append((-way_length(osm, wid), wid, pts[0]))
+    if not cands:
+        raise RuntimeError(f'no named street crosses under {site["pick"]}')
+    cands.sort()
+    _, wid, pt = cands[0]
+    t = osm.tags(wid)
+    print(f'  derived: way {wid} "{t["name"]}" {-cands[0][0]:.0f} m crossing under at {pt[0]:.6f},{pt[1]:.6f}', flush=True)
+    wps, sel = approach(osm, site['classes'], {wid}, list(osm.ways[wid]['nodes']), t, need_clean=False)
+    return wps, sel, f'way {wid} crossing under {site["pick"]}'
+
+
 DERIVED = dict(chevire_under=derive_chevire_under, chevire_bridge=derive_chevire_bridge,
-               periph_overpass=derive_periph_overpass)
+               periph_overpass=derive_periph_overpass, bridge=derive_bridge, under=derive_under)
 
 
 # ── Station kinds ────────────────────────────────────────────────────────────────────────────
@@ -733,7 +973,7 @@ def build(site):
     X, Y = proj.xy(lat, lon)
     PX, PY = proj.xy(lat0, lon0)
     heading = np.degrees(np.arctan2(PY[1:] - PY[:-1], PX[1:] - PX[:-1]))[seg]
-    positive = site['role'] == 'held-out-positive'
+    positive = site['role'] in POSITIVE_ROLES
     own = set(ways)
 
     D = np.zeros(n, bool)
@@ -919,7 +1159,7 @@ def geometry_checks(res):
         i, j = bad[0]
         msg += f': s={i * STEP:.0f} and s={j * STEP:.0f} are {dd[i, j]:.1f} m apart ({len(bad) // 2} pairs)'
     out.append((len(bad) == 0, msg))
-    if res['site']['role'] == 'held-out-positive':
+    if res['site']['role'] in POSITIVE_ROLES:
         last = (n - 1) * STEP
         short = [(a * STEP, last - b * STEP) for c, a, b, *_ in res['spans'] if c == 'D' and (b - a + 1) * STEP >= 20
                  and min(a * STEP, last - b * STEP) < END_MARGIN_M]

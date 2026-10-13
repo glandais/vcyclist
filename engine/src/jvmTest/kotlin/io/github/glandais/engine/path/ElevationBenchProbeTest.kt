@@ -46,7 +46,7 @@ import kotlin.test.assertTrue
  * tunnels, Strava shifted onto the MNT frame on balcony spans (where the MNT reads the cliff), LiDAR
  * MNT elsewhere, all NGF-IGN69 — so the E1 bench never calls Overpass or the MNS.
  *
- * Six tests:
+ * Seven tests:
  * - [truth_files_parse_and_hold_their_guards] runs on every `jvmTest`: it only reads the frozen
  *   files, checks their sizes (so a broken reader fails loudly instead of measuring nothing) and
  *   the spec's guards (Saint-Nazaire at 63.7 m and a 5.9 % slope P95, Grands Goulets 600 → 681 m).
@@ -64,6 +64,9 @@ import kotlin.test.assertTrue
  *   A cold E1 run fetches ≈ 190 IGN tiles (≈ 48 MB) and ≈ 20 Mapterhorn tiles (≈ 2 MB); E2 adds
  *   the MNS at z15 and the MNH at z13/z14/z15, 512 BIL tiles (≈ 134 MB); E2 bis adds MNT and MNS
  *   z15 for the 20 controls, 178 BIL tiles (≈ 47 MB). A warm run fetches nothing.
+ * - [deckHoldoutJudge] (E2 quinquies) is the only reader of the second held-out series `p09..`
+ *   (`holdout2`): gated on `INTEGRATION=1` **and** `DECK_JUDGE=1`, so a plain `INTEGRATION=1` run
+ *   of this class never measures it. Print-only; a failure there is reported, never tuned.
  *
  *     INTEGRATION=1 ./gradlew :engine:jvmTest --tests '*ElevationBenchProbeTest*' --rerun-tasks -i
  *
@@ -1417,12 +1420,21 @@ class ElevationBenchProbeTest {
         assertEquals(16, corners.found, "variant (a⌐) old corner convention Strava bridges")
         assertEquals(8, corners.outSpan, "variant (a⌐) old corner convention stations outside truth, spans")
         assertEquals(8, corners.outDeck, "variant (a⌐) old corner convention stations outside truth, deck mask")
+        // DEFAULT since E2 quinquies (recalibrated at pixel centres): a steep merged span is judged as
+        // its parts, and a bridged gap is vetoed only by the ground. 18 bridges: (a)'s 14, the two
+        // the centres lost (Willy-Brandt, way 362043805), Bellevue and Haudaudine — every bridge the
+        // old corner reading found, none lost; two more abutment stations outside the truth.
         val e2ter = scoreStrava(results.getValue("ater"), structures)
-        assertEquals(14, e2ter.found, "variant (ater) DEFAULT Strava bridges")
-        assertEquals(e2.foundKeys, e2ter.foundKeys, "variant (ater) finds the same bridges as (a)")
+        println("[decks] (ater) DEFAULT: ${e2ter.found} bridges, FP ${e2ter.fps.size}, outside ${e2ter.outSpan} / ${e2ter.outDeck}")
+        assertEquals(18, e2ter.found, "variant (ater) DEFAULT Strava bridges")
+        assertTrue(e2ter.foundKeys.containsAll(e2.foundKeys), "variant (ater) loses a bridge of (a): ${e2.foundKeys - e2ter.foundKeys}")
+        assertTrue(
+            e2ter.foundKeys.containsAll(corners.foundKeys),
+            "variant (ater) loses a corner-era bridge: ${corners.foundKeys - e2ter.foundKeys}",
+        )
         assertEquals(0, e2ter.fps.size, "variant (ater) false positives")
-        assertEquals(5, e2ter.outSpan, "variant (ater) stations outside truth, spans")
-        assertEquals(5, e2ter.outDeck, "variant (ater) stations outside truth, deck mask")
+        assertEquals(7, e2ter.outSpan, "variant (ater) stations outside truth, spans")
+        assertEquals(7, e2ter.outDeck, "variant (ater) stations outside truth, deck mask")
         twoPhaseSame.forEach { (key, same) -> assertTrue(same, "two-phase $key differs from the full-MNS run") }
     }
 
@@ -1438,7 +1450,14 @@ class ElevationBenchProbeTest {
         val counts: Map<Char, Int>,
         val place: String,
     ) {
-        val positive: Boolean get() = role == "held-out-positive"
+        /** A held-out positive of either series: `D` spans to find, route beyond them on ground. */
+        val positive: Boolean get() = role == "held-out-positive" || role == HOLDOUT2
+
+        /**
+         * The second held-out series (`p09..`, E2 quinquies), frozen before any detector run. Read
+         * only by [deckHoldoutJudge]; [deckControls] drops these rows before sampling anything.
+         */
+        val holdout2: Boolean get() = role == HOLDOUT2
     }
 
     /** A control path of `controls.py`: 5 m stations and their kind (`GOLXxD`). */
@@ -1625,8 +1644,9 @@ class ElevationBenchProbeTest {
     }
 
     /**
-     * E2 bis, on every `jvmTest`: the controls of `analysis/controls.py` (13 negatives, 8 held-out
-     * positives) parse, keep their guards, and their GPX is the same run as their truth.
+     * E2 bis, on every `jvmTest`: the controls of `analysis/controls.py` (16 negatives, 8 held-out
+     * positives, and the 9 of the second held-out series, E2 quinquies) parse, keep their guards, and
+     * their GPX is the same run as their truth. Reads no tile, so it touches `holdout2` safely.
      */
     @Test
     fun deck_controls_parse_and_hold_their_guards() {
@@ -1851,20 +1871,23 @@ class ElevationBenchProbeTest {
     }
 
     /**
-     * E2 bis, `INTEGRATION=1`: [DeckDetector] on the 13 negative controls (one wooded-ravine one since E2 quater) and 8 held-out positives
+     * E2 bis, `INTEGRATION=1`: [DeckDetector] on the 16 negative controls (one wooded-ravine one since E2 quater,
+     * three more since E2 quinquies) and 8 held-out positives
      * of `analysis/controls.py`, sampled exactly as variant (a) of [deckDetector] (MNS − MNT z15,
      * bilinear, one layer after the other), then a one-at-a-time sensitivity sweep around
      * [DeckDetectorOptions.DEFAULT] — built here with `copy`, DEFAULT itself never changes. The sweep
      * is printed, not asserted: a probe must not go red on a finding. Asserted: data integrity, tile
      * counts, that the extracted Strava scoring reproduces E2 on [DeckDetectorOptions.PYTHON] (14/21,
      * FP 0, 5 / 5 stations at pixel centres — 16/21 and 8 / 8 at the old corner convention) and that
-     * DEFAULT finds the same bridges with the same 5 / 5 outside the truth,
-     * and the acceptance criterion at DEFAULT: 0 FP and 0 `G`/`O`/`L` station inside a detection on
-     * the 13 negatives, n04's own Pont de la Beaujoire found. E2 ter adds: nothing PYTHON finds is
-     * lost but Normandie, held-out `D` coverage exactly 1 240 / 1 692 = 73 % (94 % at the corners), 13/15 spans, p01/p07
-     * each ≥ 95 % covered, and with the canyon test off no more `G`/`O`/`L` stations than PYTHON lets
-     * through. Every figure moved by the pixel-centre fix is in `docs/tasks/elevation-half-pixel.md`
-     * (H3).
+     * DEFAULT, recalibrated at pixel centres (E2 quinquies), finds 18/21 — every PYTHON bridge among
+     * them — with 7 / 7 stations outside the truth, and the acceptance criterion at DEFAULT: 0 FP and
+     * 0 `G`/`O`/`L` station inside a detection on the 16 negatives, n04's own Pont de la Beaujoire
+     * found. The second held-out series (`holdout2`) is dropped before sampling: only
+     * [deckHoldoutJudge] reads it. Since E2 quinquies: nothing PYTHON finds is lost, held-out `D`
+     * coverage exactly 1 666 / 1 692 = 98 % (73 % under E2 ter at pixel centres, 94 % at the
+     * corners), 14/15 spans (the rue des Ponts the one missed), p01/p07 each ≥ 95 % covered, and
+     * with the canyon test off no more `G`/`O`/`L` stations than PYTHON lets through. Every figure moved by the pixel-centre fix is in `docs/tasks/elevation-half-pixel.md`
+     * (H3), and the recalibration in `elevation-bridge-decks.md` (*Recalage aux centres*).
      */
     @Test
     fun deckControls() {
@@ -1875,23 +1898,18 @@ class ElevationBenchProbeTest {
         val tag = "[controls]"
         val structures = readStructures()
         assertEquals(STRUCTURE_COUNTS, structures.groupingBy { it.kind }.eachCount())
-        val (index, controls, spans) = readControls()
+        val (allIndex, controls, spans) = readControls()
+        // The second held-out series is the judge's alone: dropped here, before any tile is read,
+        // so no calibration figure of this test can depend on it (E2 quinquies, rule 7).
+        val index = allIndex.filter { !it.holdout2 }
+        assertEquals(CONTROL_ROLES.getValue(HOLDOUT2), allIndex.size - index.size, "holdout2 rows dropped")
         println("$tag tile cache: ${cacheDir.absolutePath}")
 
         fun sample(
             key: String,
             lat: DoubleArray,
             lon: DoubleArray,
-        ): DeckProfile {
-            val stations =
-                lat.indices.map {
-                    io.github.glandais.elevation
-                        .LatLon(lat[it], lon[it])
-                }
-            val mnt = sampleLayer(key, "MNT z15", stations, IgnLidarHdLayer.MNT.provider(15) { countingFetcher(it) })
-            val mns = sampleLayer(key, "MNS z15", stations, IgnLidarHdLayer.MNS.provider(15) { countingFetcher(it) })
-            return DeckProfile.fromSurface(mns, mnt)
-        }
+        ): DeckProfile = sampleSurface(key, lat, lon)
         val strava =
             ROUTES.mapValues { (route, rows) ->
                 val t = readTruth(route)
@@ -1935,13 +1953,18 @@ class ElevationBenchProbeTest {
         assertEquals(0, pyStrava.fps.size, "PYTHON Strava false positives (E2)")
         assertEquals(5, pyStrava.outSpan, "PYTHON Strava stations outside truth, spans (E2)")
         assertEquals(5, pyStrava.outDeck, "PYTHON Strava stations outside truth, deck mask (E2)")
-        // E2 ter DEFAULT: the same bridges, no FP, no new station outside the truth.
+        // DEFAULT, recalibrated at pixel centres (E2 quinquies): every bridge PYTHON finds, plus
+        // Willy-Brandt, way 362043805, Bellevue and Haudaudine — 18, none lost against the 16 of the
+        // old corner reading; no FP; two more abutment stations outside the truth (5 -> 7).
         val baseStrava = scoreStrava(strava.mapValues { DeckDetector.detect(it.value, default) }, structures)
-        assertEquals(14, baseStrava.found, "DEFAULT Strava bridges")
-        assertEquals(pyStrava.foundKeys, baseStrava.foundKeys, "DEFAULT finds the same Strava bridges as PYTHON")
+        assertEquals(18, baseStrava.found, "DEFAULT Strava bridges")
+        assertTrue(
+            baseStrava.foundKeys.containsAll(pyStrava.foundKeys),
+            "DEFAULT loses PYTHON's ${pyStrava.foundKeys - baseStrava.foundKeys}",
+        )
         assertEquals(0, baseStrava.fps.size, "DEFAULT Strava false positives")
-        assertEquals(5, baseStrava.outSpan, "DEFAULT Strava stations outside truth, spans")
-        assertEquals(5, baseStrava.outDeck, "DEFAULT Strava stations outside truth, deck mask")
+        assertEquals(7, baseStrava.outSpan, "DEFAULT Strava stations outside truth, spans")
+        assertEquals(7, baseStrava.outDeck, "DEFAULT Strava stations outside truth, deck mask")
 
         // ── DEFAULT, per control ──────────────────────────────────────────────────────────────
         println()
@@ -2140,7 +2163,7 @@ class ElevationBenchProbeTest {
         // The acceptance criterion, asserted at DEFAULT only (the sweep stays print-only): no false
         // positive and no G/O/L station inside a detection on any negative, and the one own bridge
         // that DEFAULT finds (Beaujoire) still found. Every negative must be scored.
-        assertEquals(13, negs.size, "negatives inside LiDAR HD coverage")
+        assertEquals(CONTROL_ROLES.getValue("negative"), negs.size, "negatives inside LiDAR HD coverage")
         assertEquals(0, negs.sumOf { scores.getValue(it.id).fps.size }, "DEFAULT false positives on the negatives")
         for (k in "GOL") {
             assertEquals(0, negs.sumOf { scores.getValue(it.id).out(k) }, "DEFAULT $k stations inside detections on the negatives")
@@ -2154,9 +2177,9 @@ class ElevationBenchProbeTest {
             scores.getValue("n04-nantes-periph-nord").ownFound.any { "Beaujoire" in it.name },
             "DEFAULT finds n04's own Pont de la Beaujoire",
         )
-        // E2 ter: nothing PYTHON finds is lost, and the steep bridges are covered — except Normandie,
-        // which DEFAULT loses at pixel centres (P95 6.5 -> 41.1 %, elevation-half-pixel H3). Pinned as
-        // an equality, so recovering it fails here too: that is news to write down, not a defect.
+        // E2 ter: nothing PYTHON finds is lost, and the steep bridges are covered. Normandie, lost at
+        // pixel centres under the E2 ter rule (P95 6.5 -> 41.1 %, elevation-half-pixel H3), is back
+        // since E2 quinquies (cleanGapGroundMnhM): no span lost anywhere.
         val pyScores =
             scored.associate {
                 it.id to
@@ -2164,11 +2187,7 @@ class ElevationBenchProbeTest {
             }
         for (r in scored) {
             val lost = pyScores.getValue(r.id).dFound - scores.getValue(r.id).dFound.toSet()
-            assertEquals(
-                LOST_AT_CENTRES[r.id].orEmpty(),
-                lost.map { it.name },
-                "${r.id}: DEFAULT loses PYTHON's ${lost.map { it.name }}",
-            )
+            assertTrue(lost.isEmpty(), "${r.id}: DEFAULT loses PYTHON's ${lost.map { it.name }}")
             val ownLost = pyScores.getValue(r.id).ownFound - scores.getValue(r.id).ownFound.toSet()
             assertTrue(ownLost.isEmpty(), "${r.id}: DEFAULT loses PYTHON's own bridge ${ownLost.map { it.name }}")
         }
@@ -2200,18 +2219,19 @@ class ElevationBenchProbeTest {
                 ),
             )
         }
-        // 94 % at the old corner convention; 73 % at pixel centres, Normandie's 2 150 m deck being the
-        // difference (elevation-half-pixel H3). An equality, so a move either way shows.
-        assertEquals(1240 to 1692, dIn to dAll, "DEFAULT D coverage on the held-out positives (73 %)")
-        assertEquals(13, poss.sumOf { scores.getValue(it.id).dFound.size }, "DEFAULT held-out spans found")
+        // 94 % at the old corner convention; 73 % at pixel centres under E2 ter, Normandie's 2 150 m
+        // deck being the difference (elevation-half-pixel H3); 98 % since E2 quinquies (Normandie
+        // back, the rue des Ponts the only span missed). An equality, so a move either way shows.
+        assertEquals(1666 to 1692, dIn to dAll, "DEFAULT D coverage on the held-out positives (98 %)")
+        assertEquals(14, poss.sumOf { scores.getValue(it.id).dFound.size }, "DEFAULT held-out spans found")
         for (id in listOf("p01-chevire", "p07-millau-a75")) {
             val sc = scores.getValue(id)
             assertTrue(100.0 * sc.dInSpan / sc.dStations >= 95.0, "$id D coverage: ${sc.dInSpan} / ${sc.dStations}")
         }
         assertEquals(
-            listOf("Pont de Normandie"),
-            scores.getValue("p06-normandie").let { sc -> (sc.dSpans - sc.dFound.toSet()).map { it.name } },
-            "p06-normandie: the span DEFAULT misses at pixel centres",
+            listOf("p02-thouare Rue des Ponts"),
+            poss.flatMap { r -> scores.getValue(r.id).let { sc -> (sc.dSpans - sc.dFound.toSet()).map { "${r.id} ${it.name}" } } },
+            "the held-out spans DEFAULT misses",
         )
 
         // ── Sensitivity: one variation at a time ──────────────────────────────────────────────
@@ -2221,6 +2241,12 @@ class ElevationBenchProbeTest {
                 "PYTHON (E2 bis DEFAULT)" to python,
                 "slopeOnCleanDeck false" to default.copy(slopeOnCleanDeck = false),
                 "mntAboveMnsAsTall false" to default.copy(mntAboveMnsAsTall = false),
+                // E2 quinquies: each of its two changes undone, then both (E2 ter's DEFAULT).
+                "splitSteepMerged false" to default.copy(splitSteepMerged = false),
+                "cleanGapGroundMnhM 5 (E2 ter)" to default.copy(cleanGapGroundMnhM = 5.0),
+                "E2 ter DEFAULT" to default.copy(splitSteepMerged = false, cleanGapGroundMnhM = 5.0),
+                "cleanGapGroundMnhM 2.5" to default.copy(cleanGapGroundMnhM = 2.5),
+                "maxSlopeP95 0.08" to default.copy(maxSlopeP95 = 0.08),
                 "minCleanFraction 0" to default.copy(minCleanFraction = 0.0),
                 "minCleanFraction 0.4" to default.copy(minCleanFraction = 0.4),
                 "minCleanStationsCount 3" to default.copy(minCleanStationsCount = 3),
@@ -2264,17 +2290,22 @@ class ElevationBenchProbeTest {
                 // E2 quater: the two variations that cost nothing on the E2 bis sweep, together.
                 "mergeGapM 200 + median 35" to default.copy(mergeGapM = 200.0, surfaceMedianWindowM = 35.0),
             )
-        assertEquals(40, settings.size, "DEFAULT + 39 variants")
+        assertEquals(45, settings.size, "DEFAULT + 44 variants")
         val negGol = HashMap<String, Int>()
         val bridges = structures.filter { it.kind == "bridge" }
         val lostFive = LOST_FIVE.mapValues { (_, needle) -> bridges.single { needle in it.name }.key }
         assertEquals(5, lostFive.size)
-        lostFive.values.forEach { assertTrue(it !in baseStrava.foundKeys, "lost bridge $it is found by DEFAULT") }
+        // Two of E2's five lost bridges are found since E2 quinquies, by the split of a steep merge.
+        assertEquals(
+            setOf("Bellevue", "Haudaudine"),
+            lostFive.filter { it.value in baseStrava.foundKeys }.keys,
+            "the bridges of LOST_FIVE that DEFAULT finds",
+        )
         val baseOwn = negs.flatMap { r -> scores.getValue(r.id).ownFound.map { "${r.id} ${it.i0}" } }.toSet()
         println()
         println(
             "$tag sensitivity, one variation at a time from DEFAULT (stress row: several at once). Strava: bridges /21 (t1/t2/t3/t4), " +
-                "recovered of the 5 lost, lost of the 16 (verdict), FP, outside span/mask; held-out recall; " +
+                "of the 5 lost found, lost vs DEFAULT (verdict), FP, outside span/mask; held-out recall; " +
                 "negatives: FP, outside G/O/L (span), " +
                 "own bridges found /${negs.sumOf { scores.getValue(it.id).own.size }} (lost vs DEFAULT, verdict)",
         )
@@ -2535,6 +2566,152 @@ class ElevationBenchProbeTest {
         )
     }
 
+    /** Variant (a) of [deckDetector]: MNS − MNT z15, bilinear, one layer after the other. */
+    private fun sampleSurface(
+        key: String,
+        lat: DoubleArray,
+        lon: DoubleArray,
+    ): DeckProfile {
+        val stations =
+            lat.indices.map {
+                io.github.glandais.elevation
+                    .LatLon(lat[it], lon[it])
+            }
+        val mnt = sampleLayer(key, "MNT z15", stations, IgnLidarHdLayer.MNT.provider(15) { countingFetcher(it) })
+        val mns = sampleLayer(key, "MNS z15", stations, IgnLidarHdLayer.MNS.provider(15) { countingFetcher(it) })
+        return DeckProfile.fromSurface(mns, mnt)
+    }
+
+    /**
+     * E2 quinquies, the judge: [DeckDetector] on the second held-out series `p09..` (role
+     * `holdout2` in `index.csv`), frozen by the rule of `elevation-bridge-decks.md` *before* any
+     * detector run. Gated twice — `INTEGRATION=1` **and** `DECK_JUDGE=1` — so that no calibration
+     * run, and no `INTEGRATION=1` run of the whole class, ever reads it: [deckControls] drops these
+     * rows before sampling.
+     *
+     *     INTEGRATION=1 DECK_JUDGE=1 ./gradlew :engine:jvmTest --tests '*deckHoldoutJudge*' --rerun-tasks -i
+     *
+     * Sampled exactly as [deckControls] (variant (a)), scored exactly as its held-out positives, at
+     * [DeckDetectorOptions.DEFAULT], the E2 ter DEFAULT (`10faced`) then [DeckDetectorOptions.PYTHON].
+     * Printed, never asserted beyond data integrity: a failure here is reported in the task doc,
+     * never tuned. A threshold changed after reading this output makes the series a calibration
+     * set, and a third series is then needed.
+     */
+    @Test
+    fun deckHoldoutJudge() {
+        if (!enabled || dataDir == null || System.getenv(JUDGE_ENV) != "1") {
+            println("[judge] set INTEGRATION=1 and $JUDGE_ENV=1 to judge the deck detector on the second held-out series (p09..)")
+            return
+        }
+        val tag = "[judge]"
+        val (allIndex, controls, spans) = readControls()
+        val judged = allIndex.filter { it.holdout2 }
+        assertEquals(CONTROL_ROLES.getValue(HOLDOUT2), judged.size, "holdout2 rows")
+        println("$tag tile cache: ${cacheDir.absolutePath}")
+        val profiles = LinkedHashMap<String, DeckProfile>()
+        val outOfCoverage = LinkedHashSet<String>()
+        for (row in judged) {
+            val c = controls.getValue(row.id)
+            val p = sampleSurface(row.id, c.lat, c.lon)
+            profiles[row.id] = p
+            val nanMnt = p.mntM.count { it.isNaN() }
+            if (nanMnt > 0.01 * c.size) outOfCoverage += row.id
+            println(
+                "$tag   %-26s %-30s %5d stations, NaN MNT %d, MNS %d%s".fmt(
+                    row.id,
+                    row.category,
+                    c.size,
+                    nanMnt,
+                    p.mnsM.count { it.isNaN() },
+                    if (row.id in outOfCoverage) "  ← OUTSIDE COVERAGE (left out of the totals)" else "",
+                ),
+            )
+        }
+        val scored = judged.filter { it.id !in outOfCoverage }
+        // The E2 ter DEFAULT (10faced), as the sweep of deckControls builds it: the gain of E2
+        // quinquies is attributable only against it.
+        val e2terDefault = DeckDetectorOptions.DEFAULT.copy(splitSteepMerged = false, cleanGapGroundMnhM = 5.0)
+        for ((label, opts) in listOf(
+            "DEFAULT" to DeckDetectorOptions.DEFAULT,
+            "E2 ter DEFAULT" to e2terDefault,
+            "PYTHON" to DeckDetectorOptions.PYTHON,
+        )) {
+            println()
+            println(
+                "$tag $label: spans found / counted, D coverage, accepted spans, FP, G/O/L stations in spans (mask), missed spans with their verdicts",
+            )
+            val scores = LinkedHashMap<String, ControlScore>()
+            for (row in judged) {
+                val c = controls.getValue(row.id)
+                val d = DeckDetector.detect(profiles.getValue(row.id), opts)
+                val sc = scoreControl(c, spans, d, opts)
+                scores[row.id] = sc
+                println(
+                    "$tag   %-26s %d/%d %3d %% | %-24s | FP %d | %d/%d/%d (%d/%d/%d) | %s".fmt(
+                        row.id,
+                        sc.dFound.size,
+                        sc.dSpans.size,
+                        sc.coveragePct(),
+                        sc.accepted.joinToString(" ") { "%.2f–%.2f".fmt(it.startM / 1000, it.endM / 1000) }.ifEmpty { "—" },
+                        sc.fps.size,
+                        sc.out('G'),
+                        sc.out('O'),
+                        sc.out('L'),
+                        sc.outDeck['G'],
+                        sc.outDeck['O'],
+                        sc.outDeck['L'],
+                        (sc.dSpans - sc.dFound.toSet())
+                            .joinToString { "${it.name} %.0f m (${verdictsOn(d, it.i0, it.i1)})".fmt(it.lengthM) }
+                            .ifEmpty { "none missed" },
+                    ),
+                )
+                if (label != "PYTHON") {
+                    for (cand in (sc.accepted + sc.measured).sortedBy { it.first }) {
+                        val m = cand.metrics!!
+                        println(
+                            "$tag       km %.2f–%.2f, L %.0f m, rough %.2f, P95 %.1f %% (raw %.1f, clean %.2f), canyon %.1f, drop %.1f, %s"
+                                .fmt(
+                                    cand.startM / 1000,
+                                    cand.endM / 1000,
+                                    m.lengthM,
+                                    m.roughnessM,
+                                    m.slopeP95 * 100,
+                                    m.rawSlopeP95 * 100,
+                                    m.cleanFraction,
+                                    m.canyonM,
+                                    m.mntDropM,
+                                    cand.rejection?.name ?: (if (cand in sc.fps) "DECK (FP)" else "DECK"),
+                                ),
+                        )
+                    }
+                }
+            }
+            val dIn = scored.sumOf { scores.getValue(it.id).dInSpan }
+            val dAll = scored.sumOf { scores.getValue(it.id).dStations }
+            println(
+                "$tag $label totals (%d of %d in coverage): spans %d/%d, D stations in accepted spans %d / %d = %d %%, in deck masks %d, FP %d, G/O/L %d/%d/%d"
+                    .fmt(
+                        scored.size,
+                        judged.size,
+                        scored.sumOf { scores.getValue(it.id).dFound.size },
+                        scored.sumOf { scores.getValue(it.id).dSpans.size },
+                        dIn,
+                        dAll,
+                        if (dAll == 0) 0 else Math.round(100.0 * dIn / dAll),
+                        scored.sumOf { scores.getValue(it.id).dInDeck },
+                        scored.sumOf { scores.getValue(it.id).fps.size },
+                        scored.sumOf { scores.getValue(it.id).out('G') },
+                        scored.sumOf { scores.getValue(it.id).out('O') },
+                        scored.sumOf { scores.getValue(it.id).out('L') },
+                    ),
+            )
+        }
+        println()
+        println(
+            "$tag tiles: %d from disk, %d fetched (%.1f MB) in this test".fmt(tileHits.get(), tileMisses.get(), bytesFetched.get() / 1e6),
+        )
+    }
+
     private companion object {
         const val STEP_M = 5.0
         const val MATCH_MAX_M = 30.0
@@ -2572,6 +2749,7 @@ class ElevationBenchProbeTest {
             listOf(
                 "n04-nantes-periph-nord Périphérique Extérieur - Pont de la Beaujoire",
                 "n08-nantes-centre Pont de la Rotonde",
+                "n14-strasbourg-under-a35 Pont de la Porte de Saverne",
             )
 
         /**
@@ -2590,11 +2768,14 @@ class ElevationBenchProbeTest {
          */
         val RAVINES_WITHOUT_WITNESS = setOf("n13-morlaix-pennele")
 
-        /** Held-out D spans that PYTHON finds and DEFAULT loses, at pixel centres (elevation-half-pixel H3). */
-        val LOST_AT_CENTRES = mapOf("p06-normandie" to listOf("Pont de Normandie"))
-
         /** `index.csv` rows per role — the size self-check of its reader. */
-        val CONTROL_ROLES = mapOf("negative" to 13, "held-out-positive" to 8)
+        val CONTROL_ROLES = mapOf("negative" to 16, "held-out-positive" to 8, HOLDOUT2 to 9)
+
+        /** Role of the second held-out series in `index.csv` (E2 quinquies). */
+        const val HOLDOUT2 = "holdout2"
+
+        /** The env switch of [deckHoldoutJudge], on top of `INTEGRATION=1`. */
+        const val JUDGE_ENV = "DECK_JUDGE"
 
         /**
          * Per control, from the second `controls.py` generation (underpasses under the route
@@ -2617,6 +2798,10 @@ class ElevationBenchProbeTest {
                 "n11-morlaix-viaduc" to intArrayOf(307, 7, 0, 49, 0),
                 "n12-toulouse-brienne" to intArrayOf(287, 0, 0, 22, 0),
                 "n13-morlaix-pennele" to intArrayOf(187, 0, 0, 0, 0),
+                // E2 quinquies negatives (2026-10-13).
+                "n14-strasbourg-under-a35" to intArrayOf(199, 33, 0, 18, 0),
+                "n15-lyon-berges-rhone" to intArrayOf(302, 30, 0, 0, 0),
+                "n16-cousin-d427" to intArrayOf(333, 0, 0, 0, 0),
                 "p01-chevire" to intArrayOf(602, 11, 0, 28, 1),
                 "p02-thouare" to intArrayOf(368, 0, 0, 42, 3),
                 "p03-ancenis" to intArrayOf(298, 0, 0, 14, 1),
@@ -2625,6 +2810,16 @@ class ElevationBenchProbeTest {
                 "p06-normandie" to intArrayOf(905, 10, 60, 42, 3),
                 "p07-millau-a75" to intArrayOf(869, 0, 0, 44, 2),
                 "p08-periph-overpass" to intArrayOf(119, 0, 0, 14, 1),
+                // E2 quinquies, second held-out series (holdout2), frozen before any detector run.
+                "p09-cubzac" to intArrayOf(374, 0, 0, 14, 1),
+                "p10-pont-saint-esprit" to intArrayOf(353, 0, 0, 14, 1),
+                "p11-sully" to intArrayOf(258, 0, 0, 14, 1),
+                "p12-tonnay-charente" to intArrayOf(332, 0, 0, 38, 2),
+                "p13-chalon-bourgogne" to intArrayOf(243, 0, 0, 46, 1),
+                "p14-saint-cloud" to intArrayOf(252, 0, 0, 69, 1),
+                "p15-blois" to intArrayOf(222, 0, 0, 14, 1),
+                "p16-reims-a4" to intArrayOf(193, 0, 0, 14, 1),
+                "p17-strasbourg-ill" to intArrayOf(187, 0, 0, 28, 2),
             )
 
         /** The five bridges variant (a) loses on DEFAULT (E2), by a substring of their structures.csv name. */

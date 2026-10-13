@@ -344,6 +344,8 @@ gain sur les ponts.
 > Cheviré P95 7,4 %, `n13` sans candidat mesuré — voir `elevation-half-pixel.md` § Résultats. Les
 > tables ci-dessous restent valables pour la convention qu'elles décrivent : la variante (a⌐) du
 > banc les reproduit exactement.
+> Le DEFAULT a depuis été recalé aux centres (Strava 18/21, témoins 14/15 à 98 %) : voir
+> *Recalage aux centres (E2 quinquies)*.
 
 
 Livré : `IgnLidarHdLayer` (`:elevation`, couches brutes MNT / MNS / MNH du même WMS, sans id de
@@ -522,6 +524,8 @@ Les fenêtres couvrent 43 / 43 / 63 / 43 % des stations en z14 (59 / 61 / 64 / 7
 > Cheviré P95 7,4 %, `n13` sans candidat mesuré — voir `elevation-half-pixel.md` § Résultats. Les
 > tables ci-dessous restent valables pour la convention qu'elles décrivent : la variante (a⌐) du
 > banc les reproduit exactement.
+> Le DEFAULT a depuis été recalé aux centres (Strava 18/21, témoins 14/15 à 98 %) : voir
+> *Recalage aux centres (E2 quinquies)*.
 
 
 **Pourquoi.** Le critère d'acceptation de E2 (zéro détection sur des témoins forestiers et urbains)
@@ -875,6 +879,8 @@ Les détections hors vérité de `tallMnhM` 3,0 et 2,5 (36 et 37 stations) reste
 > Cheviré P95 7,4 %, `n13` sans candidat mesuré — voir `elevation-half-pixel.md` § Résultats. Les
 > tables ci-dessous restent valables pour la convention qu'elles décrivent : la variante (a⌐) du
 > banc les reproduit exactement.
+> Le DEFAULT a depuis été recalé aux centres (Strava 18/21, témoins 14/15 à 98 %) : voir
+> *Recalage aux centres (E2 quinquies)*.
 
 
 **Pourquoi.** À DEFAULT E2 bis, trois grands ouvrages tenus à l'écart échouent au test de pente :
@@ -1126,7 +1132,9 @@ aucun négatif actuel ne l'a (`n05` n'a pas de canyon, `n06` et `n11` pas de sta
 État : **le témoin demandé reste à trouver.** E2 quater n'a trouvé aucun site de cette forme et
 ajoute seulement `n13`, un vallon boisé dont la canopée passe le test du canyon mais qui est rejeté
 par une pente loin du seuil : il ne couvre que le passage du canyon par une canopée, pas
-l'acceptation, et ne départage aucun réglage (voir ci-dessous). Les `p09..` restent à faire.
+l'acceptation, et ne départage aucun réglage (voir ci-dessous). Les `p09..` sont gelés en E2
+quinquies (*Témoins tenus à l'écart, deuxième série*), jugés une fois après calibration (voir
+*Jugement sur p09..p17*).
 
 #### Vallons boisés et seuils combinés (E2 quater)
 
@@ -1136,6 +1144,8 @@ l'acceptation, et ne départage aucun réglage (voir ci-dessous). Les `p09..` re
 > Cheviré P95 7,4 %, `n13` sans candidat mesuré — voir `elevation-half-pixel.md` § Résultats. Les
 > tables ci-dessous restent valables pour la convention qu'elles décrivent : la variante (a⌐) du
 > banc les reproduit exactement.
+> Le DEFAULT a depuis été recalé aux centres (Strava 18/21, témoins 14/15 à 98 %) : voir
+> *Recalage aux centres (E2 quinquies)*.
 
 
 **Pourquoi.** Deux questions laissées ouvertes par E2 ter : le pontage accepte-t-il une canopée de
@@ -1251,6 +1261,430 @@ catégorie `ravine-merged-tall-runs`) et, pour chaque ravin, qu'il existe au DEF
 mesuré au-delà du test du canyon (chute de MNT > `minCanyonDropM`) contenant au moins deux suites
 hautes : si le candidat fragile de `n13` disparaît, le banc casse au lieu de passer sur rien. Le balayage passe à 40 réglages. Coût de `n13` : 3 tuiles MNT
 z15 et leurs MNS.
+
+#### Témoins tenus à l'écart, deuxième série (E2 quinquies)
+
+**Pourquoi.** Depuis E2 ter, `p01`..`p08` ont tous servi au réglage ou été vus dans un balayage, et
+la lecture aux centres de pixel (`elevation-half-pixel`) a déplacé des seuils réglés sur l'ancienne
+lecture aux coins. Il faut un jeu de ponts **que personne n'a regardé avec le détecteur**, figé par
+une règle écrite avant tout passage, et mesuré par un test séparé qu'aucun réglage ne lit.
+
+**Règle de choix (écrite le 2026-10-13, avant toute requête OSM ou tuile pour ces sites).**
+
+1. *Ouvrage.* Un pont routier dont le cycliste **parcourt le tablier** (voie OSM `bridge=*` de classe
+   `primary` … `residential` ou `cycleway`, jamais `motorway` ni `trunk`), qui franchit un cours
+   d'eau, une vallée, une route ou une voie ferrée **à l'intérieur des terres** (pas de bras de mer :
+   le MNT n'y existe pas).
+2. *Strates.* Trois classes de longueur du tablier OSM — court < 60 m, moyen 60–300 m, long > 300 m —
+   croisées avec quatre types : poutre (`beam`, caisson, treillis), arc ou voûte, suspendu ou haubané,
+   passage supérieur (au-dessus d'une autoroute ou d'un faisceau ferré). Le type est celui du tag
+   `bridge:structure` quand il existe, sinon celui documenté pour l'ouvrage. Une cellule sans
+   candidat évident reste vide plutôt que remplie par un pont choisi au jugé.
+3. *Régions.* Aucun département déjà utilisé par le banc, à l'une ou l'autre extrémité du pont :
+   Loire-Atlantique, Maine-et-Loire, Indre-et-Loire, Calvados, Seine-Maritime, Aveyron, Paris,
+   Haute-Garonne, Landes, Seine-et-Marne, Bouches-du-Rhône, Finistère, Drôme, Isère. **Un seul site
+   positif par département.**
+4. *Itinéraire.* Construit par `controls.py` à partir d'OSM seul, avec les mêmes contrôles que
+   `p01`..`p08` : pas de demi-tour, pas de retour sur soi, **≥ 150 m d'itinéraire au sol de chaque
+   côté** de tout span `D` compté. Le site est le pont et ≈ 400 m de route de chaque côté, au sol ;
+   une seule chaussée quand la route est à chaussées séparées.
+5. *Couverture.* LiDAR HD vérifiée **sans lire de MNS ni de MNH** : la fraction de `NaN` du MNT z15
+   aux stations, lue une fois au gel (≤ 1 %, le seuil « hors couverture » du banc). Aucune autre
+   valeur d'altitude n'est regardée avant le juge.
+6. *Ordre.* Les candidats sont pris **dans l'ordre de la liste ci-dessous**, cellule par cellule. Un
+   candidat est remplacé par le suivant de sa cellule seulement si un contrôle de `controls.py` ou
+   la couverture échoue, et la raison est écrite ici. **Jamais** à cause d'un passage du détecteur,
+   qui n'a lieu qu'une fois la liste gelée.
+7. *Jugement.* Le détecteur ne tourne sur `p09..` que dans `deckHoldoutJudge` (`INTEGRATION=1` **et**
+   `DECK_JUDGE=1`). Un échec y est **rapporté, jamais réglé** : un réglage qui suivrait un jugement
+   rend la série inutilisable, et il faut alors une troisième série.
+
+Candidats, dans l'ordre (département) :
+
+| cellule | 1ᵉʳ choix | remplaçant |
+|---|---|---|
+| long, poutre / treillis | Pont de Cubzac, D 1010 sur la Dordogne (33) | — |
+| long, arc / voûte | Pont de Pont-Saint-Esprit sur le Rhône (30) | Pont de Pierre, Bordeaux (33), si Cubzac tombe |
+| long, suspendu / haubané | Pont de Sully-sur-Loire, D 948 (45) | — |
+| moyen, poutre | Pont de Saint-Cloud sur la Seine (92) | — |
+| moyen, arc / voûte | Pont Jacques-Gabriel, Blois (41) | — |
+| moyen, suspendu | Pont suspendu de Tonnay-Charente (17) | — |
+| moyen, haubané | Pont de Bourgogne, Chalon-sur-Saône (71) | — |
+| passage supérieur, faisceau ferré | Le Mans (72) : le plus long pont de rue de 25 à 150 m qui croise `railway=rail` près de la gare | — |
+| court, passage supérieur | est de Reims (51) : le plus long pont de rue ou piste de 25 à 80 m qui croise `ref=A 4` (règle de `p08`) | — |
+| court, rivière | Strasbourg (67) : le plus long pont de rue de 20 à 60 m sur l'Ill dans le centre | — |
+
+Une sélection « le plus long pont qui … » est faite par `controls.py` sur les voies OSM, jamais à
+la main. Les cellules « long, passage supérieur » et « court, arc » restent vides : aucun pont long
+au-dessus d'une autoroute sur une route ouverte aux vélos ne s'impose, et une voûte courte ne se
+désigne pas sans tag fiable.
+
+**Négatifs ajoutés à la même date**, de formes faibles dans le banc ; ils rejoignent le critère
+d'acceptation normal de `deckControls`, pas le juge : une rue qui **plonge sous une voie ferrée**
+(Dijon, 21 : la plus longue rue nommée qui passe sous un pont ferroviaire près de la gare), une rue
+qui passe **sous une autoroute** (Strasbourg, A 35 : la plus longue rue nommée qui passe dessous),
+un **quai sous des ponts** (Lyon, bas-port de la rive gauche du Rhône, sous les ponts Wilson et de
+la Guillotière), un **vallon boisé** à fond plat (vallée du Cousin, D 427, Avallon, 89). Mêmes
+contrôles, rôle `negative`.
+
+**Amendements du même jour, avant tout passage du détecteur.** Construction par `controls.py`
+(OSM du 2026-10-13), puis couverture par la fraction de `NaN` du MNT z15 aux stations (plus proche
+pixel, grille de `fetch.py` ; aucune autre valeur lue) :
+
+- *Cellules réattribuées par la longueur OSM* (règle 2), liste inchangée : le pont suspendu de
+  Tonnay-Charente fait 624 m de tablier OSM (trois voies, dont une `footway` de 73 m au milieu,
+  admise dans ses classes : c'est une passerelle cyclable et piétonne) et le Pont de Bourgogne 354 m :
+  tous deux passent en « long ». Les cellules « moyen, suspendu » et « moyen, haubané » restent donc
+  vides.
+- *Passage supérieur sur faisceau ferré : cellule vide.* Le Mans n'a, dans son emprise, aucun pont
+  de rue qui croise `railway=rail` (ses ponts franchissent la Sarthe) ; remplacé le jour même, par la
+  même règle, par Lille (Lille-Flandres / Lille-Europe), dont le MNT est absent (203/203 stations
+  `NaN`), puis par Saint-Denis La Plaine (faisceau de Paris-Nord), sans pont de rue de 25 à 150 m sur
+  les voies. Trois échecs de règle, pas de quatrième essai.
+- *Rue qui plonge sous une voie ferrée : non construite.* Dijon : MNT absent (205/205 `NaN`) ;
+  Reims, son remplaçant par la même règle : échec du contrôle de demi-tour (131° sur 2 × 15 m).
+- *Corrections de transcription de la règle*, sans changement de choix : l'Ill est nommée
+  `L'Ill` dans OSM (l'expression régulière `^Ill$` ne trouvait rien) ; l'A 35 urbaine de Strasbourg
+  est cartographiée `M 35` depuis son transfert à l'Eurométropole ; l'emprise de la recherche sous
+  l'A 35 a été élargie à l'est (le premier passage trouvé était au bord de l'emprise, sans 400 m
+  d'approche).
+- *Reconnaissance OSM à la main, non journalisée jusqu'ici.* Avant d'écrire les sites dans
+  `controls.py`, des requêtes Overpass à la main (scripts jetables `recon.py`, `recon2.py`,
+  `recon3.py` du bloc-notes, 13 h 53 – 14 h 01) ont listé les ponts OSM autour des sept ouvrages
+  nommés (Cubzac, Pont-Saint-Esprit, Sully, Saint-Cloud, Blois, Tonnay-Charente, Chalon) et des
+  négatifs de Lyon et du Cousin : existence, voies du tablier, longueurs, tags. Elles ont servi à
+  coder les voies du tablier et les points de passage, pas à choisir : aucun candidat n'a été
+  écarté sur leur vue, et les sélections « le plus long pont qui … » sont restées à `controls.py`.
+  La phrase « jamais à la main » ci-dessus vaut donc pour la *sélection*, pas pour la
+  reconnaissance. **Ordre** : la règle et la liste des candidats ont été écrites à 13 h 53 min 10 s
+  (horodatage de la session), la première requête Overpass est partie à 13 h 53 min 31 s, et le texte
+  de la règle, des candidats et des négatifs prévus est resté inchangé depuis (comparé au texte de la
+  session). Cet ordre ne repose que sur le journal de la session, les horodatages du cache de tuiles
+  et les journaux de test, **pas sur un commit**. Pour une troisième série : committer la règle et la
+  liste gelée seules, avant tout recalage et tout passage du juge.
+- *Exception à la règle 1, nommée comme telle.* Le tablier compté de `p12` inclut la voie 121636940,
+  `highway=footway` (73 m au milieu de la passerelle), hors des classes de la règle 1. Elle a été
+  admise avant tout passage du détecteur ; c'est une exception à la règle écrite, pas une lecture
+  de celle-ci. Elle n'est pas défaite après le jugement.
+- Les approches de 400 m prennent, de chaque côté, le nœud le plus « droit » (rapport distance à
+  vol d'oiseau / distance routière), puis le plus éloigné de l'autre culée ; sur la même `ref` ou le
+  même nom que le tablier quand c'est possible, sinon sur toute route des classes du site.
+
+**Liste gelée (2026-10-13, OSM du jour, aucune altitude lue hormis le `NaN` du MNT : 0 % partout).**
+Rôle `holdout2` dans `index.csv`, mesurés **seulement** par `deckHoldoutJudge`.
+
+| id | ouvrage (dépt.) | cellule | voies OSM du tablier | km | spans `D` (m) | `X+x` |
+|---|---|---|---|---|---|---|
+| p09 | Pont de Cubzac, D 1010, Dordogne (33) | long, treillis | 37829396, 1202440422, 1202440423 | 1,87 | 1 055 | 14 |
+| p10 | Pont du Saint-Esprit, D 994, Rhône (30 / 84) | long, voûtes | 34977420, 615699262 | 1,76 | 785 | 14 |
+| p11 | Pont de Sully-sur-Loire, D 948 (45) | long, suspendu | 174751939, 1374227449 | 1,29 | 400 | 14 |
+| p12 | Pont suspendu de Tonnay-Charente, passerelle (17) | long, suspendu | 121636940, 121636941, 121636950 | 1,66 | 625 ; 35 (rue de Lattre-de-Tassigny, 121688592) | 38 |
+| p13 | Pont de Bourgogne, D 5A, Chalon-sur-Saône (71) | long, haubané | 157176480 | 1,21 | 355 | 46 |
+| p14 | Pont de Saint-Cloud, D 907, une chaussée (92) | moyen, poutre | 22063856 | 1,26 | 165 | 69 |
+| p15 | Pont Jacques-Gabriel, D 956B, Blois (41) | moyen, voûtes | 19727454, 1044179665, 1063548233 | 1,11 | 285 | 14 |
+| p16 | Reims, chemin agricole sans nom (`highway=unclassified`, prolongé de `track`) au-dessus de l'A 4 (51) | court, passage supérieur | 396421656 | 0,96 | 60 | 14 |
+| p17 | Strasbourg, Pont Royal sur l'Ill (67) | court, rivière | 26306542 | 0,93 | 55 ; 40 (Pont Saint-Étienne, 14879071) | 28 |
+
+Soit 9 sites, 11 spans `D` comptés (≥ 20 m), 772 stations `D`. Les `X+x` de `p13`, `p14`
+sont des passages inférieurs (rues et tram sous les rampes d'accès) et leurs marges, exclus.
+
+Réserves sur la liste gelée, relevées après le jugement et **sans re-choix** (la série est jugée) :
+
+- *Règle 4 plus étroite dans le code que dans le texte.* `controls.py` (`END_MARGIN_M`) et la garde
+  Kotlin (`deck_controls_parse_and_hold_their_guards`) ne mesurent que la distance de chaque span
+  `D` aux **extrémités de l'itinéraire**, et l'approche n'exige 150 m sans pont qu'avant chaque
+  extrémité. Rien ne vérifie le sol **entre** deux spans `D`, ni que l'approche est au sol.
+  - `p17` enfreint la règle telle qu'écrite : le Pont Saint-Étienne (`D` s 295–330) finit 145 m
+    avant le début du Pont Royal (`D` s 475–525), avec 70 m de `G` entre eux (s 370–435). Et le
+    Pont Saint-Étienne franchit le **Fossé du Faux-Rempart** (canal), pas l'Ill. Le juge n'a donné
+    aucun candidat sur l'un ni l'autre : l'écart de 145 m est un facteur confondant à garder en
+    mémoire, pas une explication établie.
+  - `p12` : l'approche porte un second pont (rue de Lattre-de-Tassigny sur la voie ferrée
+    Nantes–Saintes, `D` compté, s 275–305), et le tablier principal (s 510–1130) s'enchaîne
+    directement sur la rampe cyclable `layer=1` 285257598 (`X` s 460–505), sans sol ni marge `x`
+    entre eux.
+  - Pour une troisième série : ajouter un contrôle de sol entre spans `D` à `controls.py` et à la
+    garde Kotlin, ou réécrire la règle.
+- *Types mélangés dans un span compté.* Sur `p09`, seule la voie principale 37829396 (≈ 575 m) est
+  `bridge:structure=truss` ; les viaducs d'accès 1202440422 et 1202440423 (≈ 480 m des 1 055 m
+  comptés) sont `bridge:structure=arch`. Sur `p12`, l'essentiel des 625 m est du viaduc d'accès
+  autour de la travée suspendue. Leurs résultats au juge ne sont donc pas une mesure pure du type de
+  leur cellule.
+- *Département partagé avec un négatif.* `n14-strasbourg-under-a35` (négatif, lu par le recalage
+  puisqu'il est dans le critère normal de `deckControls`) et `p17` sont tous deux dans le Bas-Rhin
+  (67), à ≈ 1 km l'un de l'autre (`n14` finit à lon 7,739, `p17` commence à 7,7526), donc sur des
+  tuiles z15 voisines, peut-être communes. La règle 3 ne visait que les sites positifs ; la fuite
+  est faible (`n14` ne contraint que les faux positifs), mais elle existe. Pour une troisième série :
+  appliquer la règle 3 aux négatifs aussi.
+
+Négatifs ajoutés (rôle `negative`, dans le critère d'acceptation normal de `deckControls`) :
+
+| id | catégorie | lieu | km | G | O | L | X+x |
+|---|---|---|---|---|---|---|---|
+| n14 | `road-under-motorway` | Strasbourg, rue du Bataillon-de-Marche-24 sous la M 35 (voie 25415527), puis la voie ferrée vers Strasbourg-Ville ; pont propre de la Porte de Saverne (20 m, `X`) | 0,99 | 148 | 33 | 0 | 18 |
+| n15 | `quay-under-bridges` | Lyon, Voie verte des berges du Rhône, sous les ponts de la Guillotière, Wilson et Lafayette | 1,51 | 272 | 30 | 0 | 0 |
+| n16 | `wooded-valley-road` | Vallée du Cousin, D 427, à l'ouest d'Avallon (89) | 1,66 | 333 | 0 | 0 | 0 |
+
+`n15` finit à 8 m au sud de la Passerelle du Collège (voie 133403571, `footway`, `layer=1`, qui
+enjambe le bas-port) : ses 2–3 dernières stations sont étiquetées `G` mais tombent dans la fenêtre
+`O` (demi-largeur + `OVERHEAD_SLACK_M`) qu'aurait un passage au milieu de l'itinéraire. Sans effet à
+une extrémité, où le détecteur ne peut pas former de candidat ; si `n15` est reconstruit, finir
+≈ 20 m plus tôt ou franchir la passerelle pour qu'elle soit marquée `O`.
+
+**Branchement du banc.** `ControlRow.holdout2` ; `deckControls` retire ces lignes de l'index
+**avant** tout échantillonnage (assertion sur leur nombre) ; `deckHoldoutJudge` est le seul lecteur,
+gardé par `INTEGRATION=1` **et** `DECK_JUDGE=1` ; il imprime, par site, à `DEFAULT`, au DEFAULT
+E2 ter (reconstruit : `splitSteepMerged = false`, `cleanGapGroundMnhM = 5`, ajouté avant le passage
+noté ; voir *Jugement sur p09..p17*), puis à `PYTHON`,
+spans trouvés, couverture `D`, FP, stations `G`/`O`/`L`, verdicts des spans manqués, et n'asserte que
+l'intégrité des données. `deck_controls_parse_and_hold_their_guards` (sans réseau) porte les
+`CONTROL_GUARDS` des 12 nouveaux sites et la règle des 150 m au sol pour `holdout2` comme pour
+`p01..p08`. Le juge n'a **pas** été lancé à la livraison de cette étape.
+
+**Mesures sur les nouveaux négatifs** (`deckControls`, `INTEGRATION=1`, sans `DECK_JUDGE`) : vert.
+DEFAULT sur les 16 négatifs : 0 FP, 0 station `G`/`O`/`L` en span comme en masque ; Strava 14/21,
+5 / 5 ; témoins `p01..p08` inchangés (13/15, 1 240 / 1 692). Aucun candidat accepté sur `n14..n16` ;
+candidats mesurés, tous `NO_CANYON` : `n14` km 0,39–0,79 (passage sous la M 35 fusionné avec le pont
+de la Porte de Saverne, chute de MNT 1,9 m, P95 35,1 %), `n15` sous chacun des trois ponts (chute
+≤ 0,1 m). Le pont propre de `n14` (20 m) n'est pas trouvé (`NO_CANYON`) : propres trouvés 1/3. `n16`
+ne donne que deux groupes `ROUGH` (1,17 km). Canyon coupé (`minCanyonDropM` −1) : 3 FP sur les
+négatifs (`n02`, `n04` et `n15` sous le pont Wilson, 25 m), 15 stations `O` : le quai sous un pont
+est un négatif que seul le test du canyon tient. Coût : 18 tuiles z15 (4,7 MB).
+Ces chiffres sont ceux du DEFAULT E2 ter ; le recalage ci-dessous ne change aucun verdict sur
+`n14..n16`.
+
+#### Recalage aux centres (E2 quinquies)
+
+**Pourquoi.** Les seuils de `DeckDetectorOptions.DEFAULT` avaient été réglés sur la lecture aux
+coins de pixel. Aux centres (`elevation-half-pixel`, H3), Strava passe de 16/21 à 14/21 (*Pont
+Willy-Brandt* et *way 362043805* deviennent `STEEP`, à un P95 de 10,8 et 11,7 %), et la couverture
+`D` des témoins `p01..p08` tombe de 94 à 73 %, parce que Normandie (`p06`) devient `STEEP` avec un
+P95 propre de 41,1 %. Ce recalage n'utilise **que le jeu de réglage** : les 4 itinéraires Strava, `p01..p08`
+et les 16 négatifs `n01..n16`. La série `p09..p17` n'a été ni échantillonnée ni jugée : aucun
+passage avec `DECK_JUDGE=1`, et `deckControls` retire toujours ces lignes avant de lire la moindre
+tuile.
+
+**Méthode.** Les MNS et MNT z15 du jeu de réglage, aux centres et aux coins, ont été extraits du
+banc par un test jetable (retiré, non commité). Un port Python jetable du détecteur, lui aussi non
+commité, a servi au diagnostic. Avant tout usage, il redonnait les chiffres Kotlin : Strava 14 et
+16, P95 41,1 / 51,8, 11,7 et 10,8 %. Chaque chiffre ci-dessous qui n'est pas marqué « port » vient
+du banc Kotlin, reproductible avec `INTEGRATION=1 ./gradlew :engine:jvmTest --tests
+'*ElevationBenchProbeTest*' --rerun-tasks -i`.
+
+**Diagnostic : deux mécanismes, aucun seuil en cause.**
+
+- **Willy-Brandt et 362043805 : un voisin fusionné.** Aucun des deux tabliers n'est raide. Lu seul,
+  Willy-Brandt (km 9,31–9,51) donne un P95 de 4,4 % aux centres, comme aux coins. Aux centres, un
+  objet lisse **hors du pont** devient une suite haute : km 9,16–9,23, à 75 m de la culée, au
+  sol (chute de MNT −0,0 m), MNH 6,3 m, rugosité 0,11–0,25. Aux coins, son MNH plafonnait à 4,6 m
+  et il ne formait pas de suite. Séparé du pont par 15 stations de sol (MNH 0), il est fusionné
+  par `mergeGapM`, et les marches de son MNS (+29 % puis −20 %) font monter le P95 du span fusionné
+  à 10,8 %. Même schéma pour 362043805 (km 1,43–1,55, 6,6 % seul) : aux centres, Bellevue
+  (km 0,63–1,01, `ROUGH` aux coins) est gardé et fusionné avec lui, à travers l'ouvrage du
+  périphérique (km 1,21–1,26, chute 0,2 m, marches à 20 %). Le span km 0,63–1,55 lit alors 11,7 %.
+  Le pontage d'E2 ter ne peut rien ici : les stations des marches sont propres, et le trou entre les
+  ouvrages touche le sol. C'est la limite connue « un ouvrage dans l'écart de fusion », prise à
+  l'envers : le voisin ne passe pas grâce au pont, il fait échouer le pont.
+- **Normandie : une seule station veto.** Aux centres, le trou ponté du sud (stations 517–600,
+  82 stations, le « Normandie sud » d'E2 ter) n'est plus ponté, à cause d'une seule station : la
+  559 (km 2,795), où le MNT vaut 51,2 m sous un MNS de 55,6 m, soit un MNH de 4,38 m. Ses voisines
+  ont un MNT **au-dessus** du MNS (79–126 m pour un MNS de 55–79 m), et toutes les autres stations du
+  trou sont hautes. La règle du trou haut (aucune station `≤ tallMnhM`, 5 m) refuse alors de
+  ponter. Le trou reste brut (pylônes et haubans) : le profil lu garde 64 stations sur 422 au-dessus
+  de 10 %, et le P95 passe à 41,1 %. Aux coins, le MNH minimal du même trou était de 5,81 m : la règle passait à 0,81 m
+  près. La station 559 se trouve dans la zone où le MNT d'IGN est corrompu sous le tablier : son
+  MNH n'est pas un sol.
+
+**Changements.** Deux principes, et aucun seuil d'`analyze.py` déplacé. Les deux options sont
+coupées dans `PYTHON`, qui reste inchangé, parité comprise.
+
+1. `cleanGapGroundMnhM` = **1,0 m** (nouvelle option) : un trou n'est plus ponté s'il **touche le
+   sol**, c'est-à-dire s'il contient une station de MNH `≤ 1 m`, la valeur de `deckMnhM`. C'est le
+   seuil auquel l'extension et le masque de tablier décident déjà qu'on est au sol (la culée). Avant,
+   le trou n'était pas ponté s'il n'était pas haut de bout en bout (`≤ tallMnhM`, 5 m). Le pontage
+   reste ainsi confiné à une structure continue `MNH > 1 m` : une clairière ou une route entre deux
+   ouvrages (MNH ≈ 0) l'interrompt toujours. En revanche, un sous-étage de 1 à 5 m n'arrête plus le
+   pontage.
+2. `splitSteepMerged` = **vrai** (nouvelle option) : quand un span fait de plusieurs suites gardées
+   (fusionnées par `mergeGapM` ou réunies par leurs extensions) est `STEEP`, il est rejugé **par
+   parties**. Chaque partie est une suite gardée étendue seule, les parties qui se chevauchent étant
+   réunies : ce sont les spans que donnerait un écart de fusion nul. Les parties remplacent le span
+   dans le résultat, chacune avec son canyon, sa pente et son verdict. Un span fusionné qui passe
+   entier n'est jamais coupé : Saint-Nazaire et Mauves, que la fusion porte à travers leurs trous de
+   MNS au-dessus de l'eau, ne changent pas. La fusion sert à porter un tablier à travers ses propres
+   trous ; quand l'ensemble n'est pas un tablier, chaque morceau est jugé sur ses propres mérites.
+
+`DeckDetectorTest` épingle les deux règles, avec trois tests ajustés et deux nouveaux. Pour le trou :
+une station à 4,4 m de MNH dans un trou ponté ne bloque plus le pontage, une station à 0,5 m le
+bloque toujours, et la règle d'E2 ter (5 m) bloque les deux. Pour la partition : un tablier plat et
+un bâtiment à deux niveaux sur sol plat, fusionnés, donnent un span `STEEP` sous `PYTHON` ; sous
+DEFAULT, le tablier est accepté et le bâtiment rejeté `NO_CANYON`. Le toit de la limite connue, qui
+passe entier, n'est pas coupé. Les deux témoins canopée (`woodedRavine`, repli à peu de stations
+propres) restent sans détection : leurs parties sont `NO_CANYON`.
+
+**Avant / après** (banc Kotlin ; DEFAULT E2 ter puis DEFAULT recalé) :
+
+| Critère | E2 ter aux coins | E2 ter aux centres | **Recalé aux centres** |
+|---|---|---|---|
+| Strava, ponts /21 | 16 | 14 | **18** |
+| Strava, ponts perdus par rapport aux coins | — | Willy-Brandt, 362043805 | **aucun** (16 ⊂ 18, asserté) |
+| Strava, gagnés | — | — | Willy-Brandt, 362043805, Bellevue, Haudaudine |
+| Strava, FP | 0 | 0 | 0 |
+| Strava, hors vérité (span / masque) | 8 / 8 | 5 / 5 | 7 / 7 |
+| Négatifs (16) : FP | 0 | 0 | **0** |
+| Négatifs : stations `G`/`O`/`L` (span et masque) | 0 / 0 / 0 | 0 / 0 / 0 | **0 / 0 / 0** |
+| Beaujoire (`n04`) | trouvé | trouvé | **trouvé** (km 1,74–1,94) |
+| Ponts propres des négatifs trouvés | 1/2 | 1/3 | 1/3 |
+| Témoins `p01..p08`, spans | 13/15 | 13/15 | **14/15** (seule la rue des Ponts, 30 m, est manquée) |
+| Témoins, couverture `D` | 1 594 / 1 692 (94 %) | 1 240 / 1 692 (73 %) | **1 666 / 1 692 (98 %)** |
+| Témoins, `D` dans le masque | — | 1 227 | 1 653 |
+| Rien de `PYTHON` perdu | oui | non (Normandie) | **oui** |
+| `n13` | candidat `STEEP` 45,6 % | aucun candidat mesuré | aucun candidat mesuré (inchangé) |
+| Canyon coupé : FP nég. / `G`/`O`/`L` | 2 / 0/10/0 (13 nég.) | 3 / 0/15/0 | 3 / 0/15/0 |
+| Canyon coupé : FP Strava / hors vérité | 3 / 28 | 0 / 5 | 1 / 22 |
+
+Par témoin, couverture `D` à DEFAULT : `p01` 100 %, `p02` 94 %, `p03` 93 %, `p04` 94 %, `p05` 100 %,
+`p06` 73 % → **99 %** (Normandie km 1,22–3,35, P95 6,4 % ponté, 51,8 % brut), `p07` 100 %, `p08`
+100 %. Seul `p06` bouge. Les 7 stations Strava hors vérité sont toutes des stations de culée, une
+par span (Léopold-Sédar-Senghor, Tabarly, Willy-Brandt, Haudaudine, Audibert, way 410671587,
+Mauves) ; les deux nouvelles sont celles de Willy-Brandt et de Haudaudine. Aux coins, avec le
+DEFAULT recalé (port) : Strava 17/21, 0 FP, témoins 13/15 à 94 %, négatifs 0 / 0 ; Langeais y reste
+`ROUGH`, comme avant.
+
+**Marges** (banc Kotlin, DEFAULT recalé) :
+
+- **Seuil de sol du trou.** Sur tout le jeu de réglage, seuls trois trous ont une décision qui
+  dépend de la règle (MNH minimal entre 1 et 5 m), et ce sont trois vrais tabliers : Saint-Nazaire
+  (3,96 m), Thouaré (3,77 m) et Normandie (4,38 m). Aucun trou d'un négatif n'est dans ce cas, donc
+  la règle n'est **pas** éprouvée par un négatif. Normandie passe avec 3,4 m de marge sur le seuil,
+  et `cleanGapGroundMnhM` 2,5 donne exactement la même ligne de balayage. À 5 m (la règle d'E2
+  ter), Normandie retombe : couverture 82 %, la partition récupérant une partie du pont.
+- **Pente.** Le plus fort P95 accepté est celui de Cheviré, 7,4 %, pour un seuil de 10 %. Viennent
+  ensuite `p08` à 7,0 %, `test2` way 1287936957 à 6,7 % et 362043805 à 6,6 %. `maxSlopeP95` 0,08
+  donne exactement la ligne de DEFAULT. À 0,12, les spans fusionnés passent entiers et les stations
+  hors vérité montent à 111 / 34.
+- **Parties.** Les parties acceptées et leur marge sur le seuil de pente :
+
+  | Partie | Pont | P95 | chute de MNT |
+  |---|---|---|---|
+  | km 9,31–9,51 | Willy-Brandt | 4,4 % | 7,4 m |
+  | km 1,43–1,55 | 362043805 | 6,6 % | 6,0 m |
+  | km 0,83–1,01 | Bellevue | 3,6 % | 6,0 m |
+  | km 20,96–21,15 | Haudaudine | 5,7 % | 6,0 m |
+  | km 0,63–0,80 | Bellevue | 4,4 % (profil brut, fraction propre 0,22) | **3,9 m** |
+
+  La dernière n'a que 0,9 m de marge sur le canyon. Les parties rejetées le sont toutes par le
+  canyon, loin du seuil : le voisin de Willy-Brandt (chute −0,0 m, et un P95 de 9,9 %, sous le seuil
+  de pente), l'ouvrage du périphérique de Bellevue (0,2 m) et la queue arborée de Haudaudine
+  (0,1 m). C'est donc **le test du canyon seul** qui empêche une partie voisine d'être acceptée : canyon coupé,
+  la partition laisse passer un FP Strava de plus et 22 stations hors vérité (5 sous E2 ter).
+- **Partition et négatifs.** À DEFAULT, aucun négatif n'a de span fusionné `STEEP` : la partition
+  ne s'y déclenche jamais, et n'y est **pas** éprouvée non plus. Ses seuls témoins négatifs sont les
+  trois parties voisines ci-dessus, sur les itinéraires Strava.
+
+**Balayage** (45 lignes, dont 5 nouvelles : chacune des deux options défaite, les deux à la fois
+(= DEFAULT E2 ter), `cleanGapGroundMnhM` 2,5 et `maxSlopeP95` 0,08). Aucune ligne ne crée de FP
+ni de station `G`/`O`/`L` sur les négatifs, sauf le canyon coupé. Les lignes qui changent de sens :
+
+| Réglage | Strava (hors vérité) | Témoins | Remarque |
+|---|---|---|---|
+| `splitSteepMerged` faux | 14 (5 / 5) | 14/15, 98 % | le gain Strava vient tout entier de la partition |
+| `cleanGapGroundMnhM` 5 | 18 (7 / 7) | 14/15, 82 % | le gain sur Normandie vient de la règle de sol |
+| `tallMnhM` 4,0 / 3,0 | 18 (7 / 7) | **15/15, 83 %** | rue des Ponts trouvée, Normandie à 38 % (port) |
+| `minTallRunM` 10 | 18 (7 / 7) | 15/15, 99 % | — |
+| `minTallRunM` 5 / `tallMnhM` 2,5 | 18, **1 FP** (10 / 10 ; 39 / 10) | 15/15 | — |
+| `maxRoughnessM` 0,5 | 17 (Bellevue `ROUGH`) | 12/15, 89 % | — |
+| `surfaceMedianWindowM` 35 | 18 (**81 / 19**) | 14/15, 98 % | — |
+| `mergeGapM` 200 / 100 / 50 | 18 (7 / 7) | 14/15, **82 %** | Normandie coupé : km 1,69–2,79 `STEEP` 41,2 % |
+| `maxSlopeP95` 0,12 / 0,15 | 18 (**111 / 34**) | 14/15, 98 % | — |
+| `deckMnhM` 0,5 / 2,0 | 18 (18 / 18 ; 3 / 3) | 14/15, 99 / 98 % | — |
+
+Depuis E2 quinquies, la règle du trou haut lit `cleanGapGroundMnhM` et non plus `tallMnhM` : les
+lignes `tallMnhM` 4,0 / 3,0 / 2,5 ne déplacent plus que le seuil des suites hautes, alors que dans
+les balayages d'E2 ter elles déplaçaient aussi la règle du trou. Les deux tableaux ne se comparent
+pas ligne à ligne sur ce réglage.
+
+`minTallRunM` 10 est la seule ligne qui gagne sans rien coûter sur ce banc (+ la rue des Ponts,
++1 point). Elle n'est **pas** adoptée : c'est un seuil de Python, et ce gain d'un span de 30 m
+porte sur un témoin déjà vu. Le recalage s'en tient aux deux principes.
+
+**Tests et épingles.** `deckControls` et `deckDetector` sont recalés en égalités sur le nouveau
+DEFAULT : Strava 18, ponts de `PYTHON` et des coins inclus, 7 / 7 hors vérité, 0 FP ; parmi les
+`LOST_FIVE`, Bellevue et Haudaudine trouvés ; couverture `D` 1 666 / 1 692 ; 14/15 spans, la rue des
+Ponts seule manquée ; rien de `PYTHON` perdu. `LOST_AT_CENTRES` est retiré. Le critère des négatifs
+(0 FP, 0 `G`/`O`/`L`, Beaujoire) est inchangé et vert. `n13` reste dans
+`RAVINES_WITHOUT_WITNESS`. La parité sur les échantillons de Python (`PYTHON` exact, DEFAULT avec
+les mêmes 21 spans et les mêmes verdicts) reste verte.
+
+**Ce que vaut ce recalage.** Les quatre ponts Strava gagnés et Normandie sont des **cas de
+réglage** : c'est sur eux que le diagnostic a été fait. Les cinq ponts non réglants `p02..p05` ne
+bougent pas (même rappel, même couverture), et aucune des deux règles n'est éprouvée par un
+négatif. La généralisation reste à mesurer, **une seule fois**, sur `p09..p17` par
+`deckHoldoutJudge`, à DEFAULT recalé, sans retouche après lecture (règle 7 d'E2 quinquies).
+
+#### Jugement sur p09..p17 (E2 quinquies, après calibration)
+
+**Passé une seule fois, le 2026-10-13, après la fin du recalage et sans retouche ensuite** (règle 7).
+`INTEGRATION=1 DECK_JUDGE=1 ./gradlew :engine:jvmTest --tests '*deckHoldoutJudge*' --rerun-tasks -i`
+(`--rerun-tasks` est nécessaire : ni `INTEGRATION` ni `DECK_JUDGE` ne sont des entrées déclarées
+de `jvmTest`, et Gradle peut sinon tenir la tâche pour à jour et sauter le juge sans rien dire),
+lecture aux centres de pixel, trois jeux d'options dans le même passage : DEFAULT recalé, **DEFAULT E2 ter**
+(`10faced`, reconstruit comme dans le balayage : `splitSteepMerged = false`,
+`cleanGapGroundMnhM = 5`) pour attribuer le gain, et `PYTHON`. **Cinq** tentatives précédentes ont
+échoué sur un HTTP 400 transitoire du WMS IGN pendant l'échantillonnage (15 h 11 – 15 h 13, builds
+13 à 17 du démon Gradle), **avant toute sortie du détecteur** ; le cache de tuiles s'est complété de
+l'une à l'autre, et seul le sixième passage (15 h 13 min 26 s) a produit des verdicts. Deux des cinq
+ont un journal dans le bloc-notes (`judge.log`, `judge2.log`) ; les trois autres n'en ont pas, mais
+le journal du démon (`~/.gradle/daemon/9.8.0/daemon-1379818.out.log`, éphémère) garde la sortie de
+test des six : les échecs n'impriment que les lignes « stations, NaN MNT … » (de 0 à 6 sites, `p09`
+à `p14` au plus) avant l'exception, et aucune ligne d'en-tête ni de verdict
+`[judge] DEFAULT` / `E2 ter` / `PYTHON`, que le sixième imprime (trois en-têtes, trois totaux). Les 9 sites sont dans la
+couverture (0 `NaN` MNT ni MNS), 11 spans `D`, 772 stations `D`.
+
+| Témoin | Span `D` (OSM) | DEFAULT recalé | DEFAULT E2 ter | `PYTHON` |
+|---|---|---|---|---|
+| `p09` Cubzac (long, treillis) | Pont de Cubzac, 1 055 m | manqué, `ROUGH` | manqué, `ROUGH` | manqué, `ROUGH` |
+| `p10` Pont-Saint-Esprit (long, voûte) | Pont du Saint-Esprit, 785 m | manqué, `STEEP` 10,5 % (brut 12,8, propre 0,46), km 0,45–1,23 | manqué, `STEEP` 14,2 % (brut 14,6, propre 0,49), km 0,45–1,28 | manqué, `STEEP` |
+| `p11` Sully (long, suspendu) | 1 span | **trouvé, 95 %**, P95 1,6 % | trouvé, 95 %, 1,6 % | trouvé, 95 % |
+| `p12` Tonnay-Charente (suspendu) | Pont suspendu, 625 m | manqué, `ROUGH` | manqué, `ROUGH` | manqué, `ROUGH` |
+| | rue de Lattre de Tassigny, 35 m | manqué, `ROUGH` | manqué, `ROUGH` | manqué, `ROUGH` |
+| `p13` Chalon, pont de Bourgogne (haubané) | 1 span | **trouvé, 99 %**, P95 1,6 % | trouvé, 99 %, 1,6 % | trouvé, 99 % |
+| `p14` Saint-Cloud (moyen, poutre) | Pont de Saint-Cloud, 165 m | **trouvé, 100 %**, P95 1,9 %, km 0,54–0,72 | manqué, `STEEP` 42,7 %, km 0,54–0,79 | manqué, `STEEP` |
+| `p15` Blois (moyen, voûte) | 1 span | **trouvé, 98 %**, P95 4,7 % | trouvé, 98 %, 4,7 % | trouvé, 98 % |
+| `p16` Reims A 4 (court, passage sup.) | way 396421656, 60 m | manqué, aucun candidat | idem | idem |
+| `p17` Strasbourg, Ill (court) | Pont Saint-Étienne, 40 m | manqué, aucun candidat | idem | idem |
+| | Pont Royal, 55 m | manqué, aucun candidat | idem | idem |
+| **Total** | 11 spans, 772 stations `D` | **4/11, 235 / 772 = 30 %** | 3/11, 202 / 772 = 26 % | 3/11, 202 / 772 = 26 % |
+
+FP 0 et stations `G`/`O`/`L` 0/0/0 (masque compris) pour les trois jeux sur les neuf sites.
+
+Après ce passage, `ElevationBenchProbeTest.kt` n'a été modifié que dans des KDoc (le paragraphe de
+`deckHoldoutJudge` rebouclé, à 15 h 14, puis la KDoc de `deckControls`) : vérifié sur le journal de
+la session, et `ktlintCheck` et la compilation de `jvmTest` sont verts sur le fichier livré. Le
+code du juge est celui qui a tourné. Les
+spans `ROUGH` sont rejetés avant toute mesure de pente : le juge n'en imprime pas de P95.
+
+**Attribution.** Le seul gain du recalage est Saint-Cloud, et il vient de `splitSteepMerged` : le
+span fusionné km 0,54–0,79 (`STEEP` 42,7 %) est rejugé en deux parties, le tablier km 0,54–0,72
+(`DECK`, P95 1,9 %, canyon 9,5 m, chute 7,4 m) et un voisin km 0,77–0,79 rejeté par le canyon
+(chute −0,1 m) — exactement la forme diagnostiquée sur Willy-Brandt. Sur Pont-Saint-Esprit, le
+recalage détache aussi un morceau d'extrémité (km 1,25–1,28, `NO_CANYON`) et la pente du reste
+tombe de 14,2 à 10,5 %, encore au-dessus du seuil de 10 % ; ce cas montre que le seuil de pente
+n'est plus loin, et c'est exactement pourquoi il **n'est pas** retouché ici. Rien de ce que
+trouvent `PYTHON` ou DEFAULT E2 ter n'est perdu.
+
+**Verdict.** La précision généralise (0 FP, 0 `G`/`O`/`L` sur des sites jamais vus), le rappel non :
+4 spans sur 11 et 30 % des stations `D`, contre 14/15 et 98 % sur `p01..p08`. Le chiffre de
+réglage était donc optimiste, comme la règle 7 le craignait. Les échecs se rangent en trois formes
+que le banc de réglage couvrait mal : les **ponts courts** (≤ 60 m, 3/3 sans candidat, la même
+forme que la rue des Ponts), les **grands ouvrages à superstructure** (treillis de Cubzac,
+suspendu de Tonnay-Charente, `ROUGH` : le MNS y lit vraisemblablement la structure plutôt que le
+tablier, non vérifié ici) et une **voûte longue** à fraction propre faible (Pont-Saint-Esprit,
+`STEEP`). L'échantillon est petit : n = 11 spans, sur 9 sites et des strates inégalement remplies
+(cinq cellules vides), si bien que 4/11 a un intervalle large (Wilson à 95 % : ≈ 15–65 %). Les trois
+formes d'échec sont des **hypothèses** pour une troisième série, pas des taux mesurés. Le recalage apporte +1 span et +4 points, sans régression. **Aucun seuil n'est modifié
+à la suite de ce jugement** ; `p09..p17` sont désormais consommés, et tout réglage ultérieur visant
+ces trois formes exige une troisième série tenue à l'écart.
 
 ### E3 — Remplacement par le profil du tablier
 

@@ -6,8 +6,9 @@ import kotlin.math.roundToInt
 /**
  * Thresholds of [DeckDetector], in metres on the along-track grid.
  *
- * Every default but [maxAbutmentM] and the E2 ter options ([slopeOnCleanDeck], [minCleanFraction],
- * [minCleanStationsCount], [mntAboveMnsAsTall], [mntAboveMnsToleranceM]; [PYTHON] turns them off) is
+ * Every default but [maxAbutmentM], the E2 ter options ([slopeOnCleanDeck], [minCleanFraction],
+ * [minCleanStationsCount], [mntAboveMnsAsTall], [mntAboveMnsToleranceM]) and the E2 quinquies ones
+ * ([cleanGapGroundMnhM], [splitSteepMerged]) — [PYTHON] turns them off — is
  * the value of the reference detector,
  * `docs/deck-strava-data/analysis/analyze.py` (bridges block) and `common.py`, measured on the four
  * Strava routes of
@@ -123,6 +124,28 @@ data class DeckDetectorOptions(
     val mntAboveMnsAsTall: Boolean = true,
     /** See [mntAboveMnsAsTall]. */
     val mntAboveMnsToleranceM: Double = 0.5,
+    /**
+     * E2 quinquies: the tall-gap rule of [slopeOnCleanDeck] — a gap is bridged only when no station
+     * of it has an MNH at or below this, i.e. when it does not reach the **ground**. 1 m is
+     * [deckMnhM]'s value, the ground as the extension and the deck mask read it: bridging stays
+     * inside one continuous `MNH > 1 m` structure, never across a clearing or a road between two
+     * structures. E2 ter read `tallMnhM` (5 m) here, and lost Pont de Normandie at pixel centres to
+     * a single station of the corrupt-MNT zone under its deck (MNH 4.38 m, every other station of
+     * the 82-station gap tall or `MNT > MNS`). Only read when [slopeOnCleanDeck] holds.
+     */
+    val cleanGapGroundMnhM: Double = 1.0,
+    /**
+     * E2 quinquies: a span made of several kept tall runs (merged across fewer than [mergeGapM]
+     * stations, or unioned by their extensions) that is [DeckRejection.STEEP] is judged again as its
+     * **parts** — each kept run extended on its own, overlapping parts unioned, i.e. the spans a zero
+     * merge gap gives — and the parts replace it, each with its own canyon, slope and verdict. The
+     * merge exists to carry a deck across its own MNS holes (Saint-Nazaire, Mauves: those spans pass
+     * whole and are never split); a smooth neighbour off the bridge (a roof, a hedge, a second
+     * structure) merged into it puts its own MNS steps into the slope and made the whole span
+     * steep: Willy-Brandt, way 362043805, Bellevue and Haudaudine at pixel centres. `false`: the
+     * merged span's verdict stands, as analyze.py.
+     */
+    val splitSteepMerged: Boolean = true,
 ) {
     init {
         require(stepM > 0.0 && stepM.isFinite()) { "stepM must be positive, got $stepM" }
@@ -147,6 +170,7 @@ data class DeckDetectorOptions(
                 "maxAbutmentM" to maxAbutmentM,
                 "minCleanFraction" to minCleanFraction,
                 "mntAboveMnsToleranceM" to mntAboveMnsToleranceM,
+                "cleanGapGroundMnhM" to cleanGapGroundMnhM,
             )
         // A NaN threshold fails every comparison silently: maxSlopeP95 = NaN makes every span STEEP.
         thresholds.forEach { (name, v) -> require(v.isFinite()) { "$name must be finite, got $v" } }
@@ -215,16 +239,19 @@ data class DeckDetectorOptions(
     companion object {
         /**
          * The reference detector's thresholds on a 5 m grid, with the E2 ter slope estimator
-         * ([slopeOnCleanDeck]) and [mntAboveMnsAsTall].
+         * ([slopeOnCleanDeck]) and [mntAboveMnsAsTall], recalibrated at pixel centres in E2
+         * quinquies ([cleanGapGroundMnhM], [splitSteepMerged]; no threshold of Python moved).
          */
         val DEFAULT: DeckDetectorOptions = DeckDetectorOptions()
 
         /**
          * `analyze.py` plus the bounded abutment and the NaN-island bridging: the E2 bis DEFAULT,
-         * without [slopeOnCleanDeck] nor [mntAboveMnsAsTall]. The exact parity with Python's own
+         * without [slopeOnCleanDeck], [mntAboveMnsAsTall] nor [splitSteepMerged] ([cleanGapGroundMnhM]
+         * is only read with [slopeOnCleanDeck]). The exact parity with Python's own
          * samples is pinned on this set — E2 ter changes one of their P95s (`test2` 125..202), no
          * verdict.
          */
-        val PYTHON: DeckDetectorOptions = DeckDetectorOptions(slopeOnCleanDeck = false, mntAboveMnsAsTall = false)
+        val PYTHON: DeckDetectorOptions =
+            DeckDetectorOptions(slopeOnCleanDeck = false, mntAboveMnsAsTall = false, splitSteepMerged = false)
     }
 }

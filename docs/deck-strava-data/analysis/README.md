@@ -20,11 +20,18 @@ python3 -I controls.py      # E2 bis: negative controls and held-out positives, 
 `controls.py` (stdlib + numpy, network to Overpass only, bbox queries one at a time; raw answers
 cached in `osm/controls/`, so a rerun on that cache is offline and deterministic — but the cache is
 gitignored: from a fresh clone the script queries current OSM and may not reproduce the committed
-truth, whose reference is `CONTROL_GUARDS` in `ElevationBenchProbeTest`) builds the 20 sites of its
-`SITES` table — 12 negative controls `n01..n12` (roads under or beside viaducts and overpasses,
-toll canopy, covered carriageway, forest, plane trees, levee) and 8 held-out positives `p01..p08`
-(bridges outside the four Strava routes, never used to pick a threshold). Each site is a Dijkstra
-route over OSM ways, resampled at 5 m exactly like `fetch.py`, with one kind per station: `G`
+truth, whose reference is `CONTROL_GUARDS` in `ElevationBenchProbeTest`) builds the 33 sites of its
+`SITES` table — 16 negative controls `n01..n16` (roads under or beside viaducts and overpasses,
+toll canopy, covered carriageway, forest, plane trees, levee, wooded ravine and valley, a street
+under a motorway, a quay under bridges), 8 held-out positives `p01..p08` (bridges outside the four
+Strava routes; since E2 ter, used or seen in calibration) and the 9 bridges `p09..p17` of the second
+held-out series (role `holdout2`, frozen by the rule of the task doc's E2 quinquies before any
+detector run, and read only by `deckHoldoutJudge` under `INTEGRATION=1 DECK_JUDGE=1`). A
+`holdout2` deck is picked by name or by a "longest bridge that crosses ..." rule, never by hand
+(the deck ways of the named bridges were looked up with by-hand Overpass queries before being
+coded here; see the task doc's amendments). The 150 m guard measures each counted `D` span's
+distance to the route ends only, not the ground between two `D` spans (`p17` has 145 m). Each
+site is a Dijkstra route over OSM ways, resampled at 5 m exactly like `fetch.py`, with one kind per station: `G`
 ground, `O` structure overhead, `L` bridge or railway viaduct alongside (≤ 20 m), `X` own structure
 on a negative, or a tunnel/culvert crossing under the route (an untagged deck), and `x` its 35 m
 abutment margin (both excluded from scoring), `D` own bridge deck on a positive. Every site carries

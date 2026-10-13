@@ -28,6 +28,12 @@ n11-morlaix-viaduc,X,195,196,975,980,38565698,underpass,under Le Queffleuth
 n11-morlaix-viaduc,X,212,213,1060,1065,38550142,underpass,under Le Jarlot
 n11-morlaix-viaduc,X,252,254,1260,1270,46410650,underpass,under Le Jarlot
 n12-toulouse-brienne,X,175,182,875,910,113628082,tunnel,Allée de Brienne
+n14-strasbourg-under-a35,O,73,88,365,440,0,,way 547656800; M 350; M 35
+n14-strasbourg-under-a35,X,96,99,480,495,25416039,bridge,Pont de la Porte de Saverne
+n14-strasbourg-under-a35,O,144,160,720,800,0,,way 88634125; 70000; Ligne de Noisy-le-sec à Strasbourg-Ville; 145000
+n15-lyon-berges-rhone,O,89,99,445,495,0,,Pont de la Guillotière
+n15-lyon-berges-rhone,O,172,180,860,900,0,,Pont Wilson; way 739013816
+n15-lyon-berges-rhone,O,251,260,1255,1300,0,,Pont Lafayette; way 1304437058
 p01-chevire,D,130,466,650,2330,293742439,bridge,Périphérique Intérieur - Pont de Cheviré
 p01-chevire,O,540,550,2700,2750,0,,way 30435586
 p01-chevire,X,595,596,2975,2980,43059332,underpass,under way 43059332
@@ -50,3 +56,23 @@ p07-millau-a75,D,58,62,290,310,854870987,bridge,La Méridienne
 p07-millau-a75,D,204,696,1020,3480,4296812,bridge,Viaduc de Millau
 p07-millau-a75,X,815,816,4075,4080,81088592,underpass,under way 81088592
 p08-periph-overpass,D,49,59,245,295,10315732,bridge,Boulevard Professeur René Auvigné
+p09-cubzac,D,63,273,315,1365,1202440422,bridge,Pont de Cubzac
+p10-pont-saint-esprit,D,88,244,440,1220,34977420,bridge,Pont du Saint-Esprit
+p11-sully,D,73,152,365,760,1374227449,bridge,Pont de Sully-sur-Loire
+p12-tonnay-charente,D,55,61,275,305,121688592,bridge,Rue de Lattre de Tassigny
+p12-tonnay-charente,X,92,101,460,505,285257598,layer,way 285257598
+p12-tonnay-charente,D,102,226,510,1130,121636941,bridge,Pont Suspendu de Tonnay-Charente
+p13-chalon-bourgogne,X,8,9,40,45,288457182,underpass,under way 288457182
+p13-chalon-bourgogne,D,103,173,515,865,157176480,bridge,Pont de Bourgogne
+p13-chalon-bourgogne,X,214,215,1070,1075,194011141,underpass,under way 194011141
+p14-saint-cloud,X,42,43,210,215,168754050,underpass,under way 168754050
+p14-saint-cloud,X,66,67,330,335,129307275,underpass,under way 129307275
+p14-saint-cloud,X,100,103,500,515,22062778,underpass,under Quai du Quatre Septembre
+p14-saint-cloud,X,106,109,530,545,22060613,underpass,under D 1
+p14-saint-cloud,D,110,142,550,710,22063856,bridge,Pont de Saint-Cloud
+p14-saint-cloud,X,143,146,715,730,151091931,underpass,under Quai Carnot
+p14-saint-cloud,X,153,155,765,775,92842577,underpass,under Tram T2
+p15-blois,D,104,160,520,800,19727454,bridge,Pont Jacques Gabriel
+p16-reims-a4,D,96,107,480,535,396421656,bridge,way 396421656
+p17-strasbourg-ill,D,59,66,295,330,14879071,bridge,Pont Saint-Étienne
+p17-strasbourg-ill,D,95,105,475,525,26306542,bridge,Pont Royal

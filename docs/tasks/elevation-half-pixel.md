@@ -369,6 +369,10 @@ couverture `D` des témoins (1 240 / 1 692), spans perdus (`LOST_AT_CENTRES`, No
 `p06`), `n13` sans témoin (`RAVINES_WITHOUT_WITNESS`) ; seuls restent des planchers les critères
 qui l'étaient déjà (0 FP, 0 `G`/`O`/`L`, couverture ≥ 95 % de `p01`/`p07`) ; décision 3 des *Notes* : accepté, pas compensé.
 
+> **Suite (2026-10-13).** Le DEFAULT a ensuite été recalé aux centres, une fois la deuxième série
+> de témoins gelée et sur le seul jeu de réglage : `elevation-bridge-decks.md`, *Recalage aux centres
+> (E2 quinquies)* (Strava 18/21, témoins 14/15 à 98 %, négatifs 0 FP / 0 `G`/`O`/`L`).
+
 ### H4 — pipeline, deux sources
 
 E1 (`bench()`), ancien → nouveau. D+ rapporté (préréglage `dem`) et D+ dem en mètres, RMS terrain

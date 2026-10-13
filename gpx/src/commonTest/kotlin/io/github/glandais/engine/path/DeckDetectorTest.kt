@@ -599,20 +599,28 @@ class DeckDetectorTest {
     fun `too few clean stations falls back to the raw profile`() {
         // Canopy: two 10-station smooth tall runs at 0 m merged across 50 rough stations under 5 m
         // MNH. Bridged, the span would be flat; it has too few clean stations to be read that way.
+        // The merged span is judged whole here (splitSteepMerged off): DEFAULT splits it, below.
         val r = steepBridge(deckStations = 70) { j -> if (j < 10 || j >= 60) 0.0 else -7.5 + 4.0 * noise(j) }
-        val c = only(detect(r))
+        val whole = DeckDetectorOptions.DEFAULT.copy(splitSteepMerged = false)
+        val c = only(detect(r, whole))
         val m = assertNotNull(c.metrics)
         assertTrue(m.cleanFraction < 0.25, "clean ${m.cleanFraction}")
         assertFalse(m.slopeOnCleanDeck)
         assertEquals(m.rawSlopeP95, m.slopeP95, 1e-12)
         assertEquals(DeckRejection.STEEP, c.rejection)
-        val floorless = only(detect(r, DeckDetectorOptions.DEFAULT.copy(minCleanFraction = 0.0)))
-        // Without the floor the estimator runs, but the gap's MNH is under tallMnhM: it stays raw
-        // (the tall-gap rule), so the canopy is still steep. Before that rule it passed, flat.
+        val floorless = only(detect(r, whole.copy(minCleanFraction = 0.0)))
+        // Without the floor the estimator runs, but the gap reaches the ground (MNH at or under
+        // cleanGapGroundMnhM): it stays raw (the tall-gap rule), so the canopy is still steep.
+        // Before that rule it passed, flat.
         val fm = assertNotNull(floorless.metrics)
         assertTrue(fm.slopeOnCleanDeck)
         assertEquals(fm.rawSlopeP95, fm.slopeP95, 1e-12)
         assertEquals(DeckRejection.STEEP, floorless.rejection)
+        // DEFAULT judges the steep merged span as its two parts, the two smooth runs: no canyon of
+        // their own (the ground under the canopy is as low as theirs), nothing accepted.
+        val split = detect(r)
+        assertTrue(split.accepted.isEmpty(), "${split.accepted}")
+        assertEquals(listOf(DeckRejection.NO_CANYON, DeckRejection.NO_CANYON), split.rejected.map { it.rejection })
 
         // p08: a tall 8-station core and an 8-station abutment whose MNS cycles 10 ± 1.8 m (rough,
         // but flat under the median): 4 clean stations, judged on the raw profile, and it passes.
@@ -661,22 +669,126 @@ class DeckDetectorTest {
 
         fun span(d: DeckDetection) = (d.accepted + d.rejected).single { it.metrics != null }
         assertEquals(DeckRejection.STEEP, span(detect(r, DeckDetectorOptions.PYTHON)).rejection)
-        val c = span(detect(r))
+        // The merged span, judged whole (DEFAULT splits it, at the end).
+        val whole = DeckDetectorOptions.DEFAULT.copy(splitSteepMerged = false)
+        val c = span(detect(r, whole))
         assertEquals(60..174, c.first..c.last)
         val m = assertNotNull(c.metrics)
         assertTrue(m.slopeOnCleanDeck, "$m")
         assertTrue(m.cleanFraction >= 0.25, "clean ${m.cleanFraction}")
         assertEquals(DeckRejection.STEEP, c.rejection, "the gap holds the clearings: read raw, $m")
         assertTrue(m.slopeP95 > 0.10, "P95 ${m.slopeP95}")
-        // Two distinct tall runs are always split by a station at or under tallMnhM, so the rule
-        // confines bridging to gaps inside one tall run (or across no-data only): the two roofs at
+        // The clearings reach the ground (MNH 0, at or under cleanGapGroundMnhM), so the rule
+        // confines bridging to one continuous structure (or across no-data only): the two roofs at
         // the same height would otherwise bridge into a flat line.
         assertEquals(m.rawSlopeP95, m.slopeP95, 1e-12)
+        // DEFAULT: the steep merged span is judged as its parts, the two roofs (the canopy run is
+        // rough, no part): neither has a canyon of its own.
+        val d = detect(r)
+        assertTrue(d.accepted.isEmpty(), "${d.accepted}")
+        assertEquals(listOf(60..90, 144..174), d.rejected.filter { it.metrics != null }.map { it.first..it.last })
+        assertTrue(d.rejected.filter { it.metrics != null }.all { it.rejection == DeckRejection.NO_CANYON }, "${d.rejected}")
     }
 
     @Test
-    fun `PYTHON is DEFAULT without the E2 ter options, which are validated`() {
-        assertEquals(DeckDetectorOptions.DEFAULT.copy(slopeOnCleanDeck = false, mntAboveMnsAsTall = false), DeckDetectorOptions.PYTHON)
+    fun `a gap is bridged unless it reaches the ground`() {
+        // Normandie at pixel centres: one station of a pylon gap reads MNH 4.4 m (corrupt MNT under
+        // the deck). Above cleanGapGroundMnhM (1 m) it no longer vetoes the bridging; at the ground
+        // (MNH 0.5 m) it still does. E2 ter's threshold, tallMnhM (5 m), vetoed both.
+        fun withGapStation(mnh: Double): Route {
+            val r = steepBridge(deckStations = 300, under = { -60.0 }) { j -> 0.05 * j }
+            for (k in 150..189) r.mns[k] += 10.0 + 35.0 * noise(k)
+            r.mnt[170] = r.mns[170] - mnh
+            return r
+        }
+        // Judged whole: DEFAULT would split the steep span at the low station (two tall runs).
+        val whole = DeckDetectorOptions.DEFAULT.copy(splitSteepMerged = false)
+        for ((mnh, bridged) in listOf(4.4 to true, 0.5 to false)) {
+            val c = only(detect(withGapStation(mnh), whole))
+            val m = assertNotNull(c.metrics)
+            assertTrue(m.slopeOnCleanDeck, "$m")
+            if (bridged) {
+                assertNull(c.rejection, "MNH $mnh: $m")
+                assertTrue(m.slopeP95 < 0.06, "MNH $mnh: P95 ${m.slopeP95}")
+            } else {
+                assertEquals(DeckRejection.STEEP, c.rejection, "MNH $mnh: $m")
+            }
+            val e2ter = only(detect(withGapStation(mnh), whole.copy(cleanGapGroundMnhM = 5.0)))
+            assertEquals(DeckRejection.STEEP, e2ter.rejection, "MNH $mnh at E2 ter's 5 m")
+        }
+    }
+
+    @Test
+    fun `a steep merged span is judged as its parts`() {
+        // Willy-Brandt at pixel centres: a 40-station flat deck over a 10 m drop, and 175 m before
+        // it, across bare ground, a smooth object on flat ground (a building, 6 m then 12 m high)
+        // whose MNS steps. Merged, the steps make the span steep; as parts, the deck passes and the
+        // object has no canyon.
+        val r = Route(260, ground = 10.0)
+        for (k in 60..69) r.mns[k] = 16.0
+        for (k in 70..79) r.mns[k] = 22.0
+        r.deck(115..154, under = 0.0) { 11.0 }
+        val python = detect(r, DeckDetectorOptions.PYTHON)
+        assertEquals(listOf(60..154), python.rejected.map { it.first..it.last })
+        assertEquals(DeckRejection.STEEP, python.rejected.single().rejection)
+        val d = detect(r)
+        assertEquals(listOf(115..154), d.accepted.map { it.first..it.last })
+        assertEquals(listOf(60..79 to DeckRejection.NO_CANYON), d.rejected.map { (it.first..it.last) to it.rejection })
+        assertEquals(listOf(115..154), d.accepted.single().deckRanges)
+        // A merged span that passes whole is never split: the roof of the known limit stays in.
+        val r2 = Route(700).deck(100..299, under = 2.0) { 12.0 }
+        for (k in 340..351) r2.mns[k] = 16.0
+        assertEquals(listOf(100..351), detect(r2).accepted.map { it.first..it.last })
+    }
+
+    @Test
+    fun `a split part can stay steep, and the parts lie inside the merged span`() {
+        // Pont-Saint-Esprit in the judge: the split detaches the neighbour, and the deck itself is
+        // still too steep. The candidates are then exactly the parts, the deck rejected STEEP.
+        val r = Route(260, ground = 10.0)
+        for (k in 60..69) r.mns[k] = 16.0
+        for (k in 70..79) r.mns[k] = 22.0
+        r.deck(115..154, under = 0.0) { k -> 11.0 + 0.75 * (k - 115) } // 15 % grade
+        val merged = detect(r, DeckDetectorOptions.PYTHON).rejected.single()
+        assertEquals(60..154, merged.first..merged.last)
+        assertEquals(DeckRejection.STEEP, merged.rejection)
+        val d = detect(r)
+        assertTrue(d.accepted.isEmpty(), "${d.accepted}")
+        val parts = d.rejected.map { (it.first..it.last) to it.rejection }
+        assertEquals(listOf(60..79 to DeckRejection.NO_CANYON, 115..154 to DeckRejection.STEEP), parts)
+        // Every part is inside the span it was split from (extend gives up past maxAbutmentM by
+        // returning its own start, never a station outside the walk).
+        assertTrue(parts.all { (p, _) -> p.first >= merged.first && p.last <= merged.last }, "$parts")
+    }
+
+    @Test
+    fun `a steep merged span whose part extensions overlap stays whole`() {
+        // Two tall runs (100..139, 145..154) apart by five stations of MNH 3 m: merged as one span,
+        // and the short run's own extension walks back over the gap into the long one (15 stations,
+        // within maxAbutmentM), so the parts union into one: nothing to split, the span is judged
+        // whole, as with splitSteepMerged off.
+        val r = Route(300, ground = 10.0).deck(100..154, under = 0.0) { k -> 13.0 + 0.75 * (k - 100) }
+        for (k in 140..144) r.mnt[k] = r.mns[k] - 3.0
+        val whole = DeckDetectorOptions.DEFAULT.copy(splitSteepMerged = false)
+        val c = only(detect(r, whole))
+        assertEquals(100..154, c.first..c.last)
+        assertEquals(DeckRejection.STEEP, c.rejection)
+        val d = detect(r)
+        assertEquals(listOf(100..154 to DeckRejection.STEEP), (d.accepted + d.rejected).map { (it.first..it.last) to it.rejection })
+        // Contrast: the same gap at the ground stops both extensions, and the short run is a part
+        // of its own (so it is kept, and the case above did hold two kept runs).
+        for (k in 140..144) r.mnt[k] = r.mns[k]
+        val apart = detect(r)
+        assertEquals(listOf(100..139, 145..154), (apart.accepted + apart.rejected).map { it.first..it.last }.sortedBy { it.first })
+    }
+
+    @Test
+    fun `PYTHON is DEFAULT without the E2 ter and E2 quinquies options, which are validated`() {
+        assertEquals(
+            DeckDetectorOptions.DEFAULT.copy(slopeOnCleanDeck = false, mntAboveMnsAsTall = false, splitSteepMerged = false),
+            DeckDetectorOptions.PYTHON,
+        )
+        assertFailsWith<IllegalArgumentException> { DeckDetectorOptions.DEFAULT.copy(cleanGapGroundMnhM = Double.NaN) }
         assertFailsWith<IllegalArgumentException> { DeckDetectorOptions.DEFAULT.copy(minCleanFraction = 1.5) }
         assertFailsWith<IllegalArgumentException> { DeckDetectorOptions.DEFAULT.copy(minCleanFraction = Double.NaN) }
         assertFailsWith<IllegalArgumentException> { DeckDetectorOptions.DEFAULT.copy(minCleanStationsCount = 1) }

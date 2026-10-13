@@ -12,6 +12,9 @@ n10-loire-levee,negative,road-on-levee,670,3345.3,670,0,0,0,0,0,Levee de la Loir
 n11-morlaix-viaduc,negative,town-under-stone-rail-viaduct,307,1533.9,251,7,0,7,42,0,Morlaix centre streets under and beside the railway viaduct
 n12-toulouse-brienne,negative,urban-plane-tree-alley,287,1432.6,265,0,0,8,14,0,Toulouse allees de Brienne along the canal de Brienne
 n13-morlaix-pennele,negative,ravine-merged-tall-runs,187,932.9,187,0,0,0,0,0,Morlaix path along the wooded Vallee de la Pennele
+n14-strasbourg-under-a35,negative,road-under-motorway,199,991.4,148,33,0,4,14,0,Strasbourg (Bas-Rhin) longest named street passing under the urban A 35 (now M 35)
+n15-lyon-berges-rhone,negative,quay-under-bridges,302,1506.4,272,30,0,0,0,0,Lyon left-bank lower quay of the Rhone (Voie Verte des Berges du Rhone) under Pont de la Guillotiere Pont Wilson and Pont Lafayette
+n16-cousin-d427,negative,wooded-valley-road,333,1664.3,333,0,0,0,0,0,Vallee du Cousin D 427 west of Avallon (Yonne)
 p01-chevire,held-out-positive,long-high-motorway-bridge,602,3007.9,226,11,0,2,26,337,Pont de Chevire Nantes N 844
 p02-thouare,held-out-positive,truss-bridge,368,1838.4,193,0,0,0,42,133,Pont de Thouare-sur-Loire to Saint-Julien-de-Concelles
 p03-ancenis,held-out-positive,suspension-bridge,298,1488.9,198,0,0,0,14,86,Pont d Ancenis D 723
@@ -20,3 +23,12 @@ p05-saumur,held-out-positive,stone-arches-across-island,291,1452.5,150,0,0,1,40,
 p06-normandie,held-out-positive,long-cable-stayed-bridge,905,4521.4,344,10,60,0,42,449,Pont de Normandie (N 1029) Le Havre to Honfleur one carriageway
 p07-millau-a75,held-out-positive,very-high-valley-viaduct,869,4340.7,327,0,0,2,42,498,Viaduc de Millau A 75 one carriageway
 p08-periph-overpass,held-out-positive,narrow-short-overpass,119,592.4,94,0,0,0,14,11,Nantes local road over the peripherique nord (selected from n04)
+p09-cubzac,holdout2,long-truss-bridge,374,1869.1,149,0,0,0,14,211,Pont de Cubzac D 1010 over the Dordogne (Gironde)
+p10-pont-saint-esprit,holdout2,long-masonry-arch-bridge,353,1763.7,182,0,0,0,14,157,Pont du Saint-Esprit D 994 over the Rhone (Gard / Vaucluse)
+p11-sully,holdout2,long-suspension-bridge,258,1289.3,164,0,0,0,14,80,Pont de Sully-sur-Loire D 948 (Loiret)
+p12-tonnay-charente,holdout2,long-suspension-cycle-bridge,332,1658.8,162,0,0,10,28,132,Pont suspendu de Tonnay-Charente over the Charente (Charente-Maritime) cycle and foot bridge
+p13-chalon-bourgogne,holdout2,long-cable-stayed-bridge,243,1212.7,126,0,0,4,42,71,Pont de Bourgogne D 5A over the Saone Chalon-sur-Saone (Saone-et-Loire)
+p14-saint-cloud,holdout2,medium-girder-bridge,252,1257.9,150,0,0,19,50,33,Pont de Saint-Cloud D 907 over the Seine (Hauts-de-Seine) one carriageway
+p15-blois,holdout2,medium-masonry-arch-bridge,222,1108.8,151,0,0,0,14,57,Pont Jacques-Gabriel D 956B over the Loire Blois (Loir-et-Cher)
+p16-reims-a4,holdout2,short-overpass-over-motorway,193,963.4,167,0,0,0,14,12,Reims (Marne) longest street or cycleway bridge of 25-80 m over the A 4
+p17-strasbourg-ill,holdout2,short-river-bridge,187,932.3,140,0,0,0,28,19,Strasbourg centre (Bas-Rhin) longest street bridge of 20-60 m over the Ill

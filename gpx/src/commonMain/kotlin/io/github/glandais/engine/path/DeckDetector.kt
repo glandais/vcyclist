@@ -175,8 +175,12 @@ data class DeckDetection(
  *    `roughnessWindowM` window centred on it is below `maxRoughnessM` — linearly between the clean
  *    stations around each gap, leading and trailing rough stations left raw; with fewer than
  *    `minCleanStationsCount` clean stations, or a clean share under `minCleanFraction`, the raw
- *    profile is read. A gap is bridged only when every station in it is tall (`MNH > tallMnhM`):
- *    one that reaches the ground keeps its raw MNS.
+ *    profile is read. A gap is bridged only when no station in it reaches the ground (`MNH ≤
+ *    cleanGapGroundMnhM`, 1 m, `deckMnhM`'s value; E2 ter read `tallMnhM` here): one that does keeps
+ *    its raw MNS.
+ *    With `splitSteepMerged` (E2 quinquies), a [DeckRejection.STEEP] span made of two or more kept
+ *    runs is judged again as its **parts** — each kept run extended on its own (step 6), overlapping
+ *    parts unioned — through steps 7 and 8, and the parts replace it in the result.
  * 9. Deck mask of an accepted span: its `MNH > deckMnhM` runs of at least `deckMinRunM`, or all of
  *    them on a span of at most `smallSpanM` — after closing holes of at most `maxDeckGapStations`
  *    (`NaN` or low MNH) where `mf` is finite, so one no-data pixel does not drop the road into the
@@ -196,25 +200,33 @@ data class DeckDetection(
  * `mntAboveMnsAsTall` — an MNT above the MNS (impossible, IGN data under Pont de Normandie) reads as
  * a tall MNH for steps 3, 6 and 9, for the median roughness of step 8 (`roughnessM`, which reads the
  * tall stations) and for the tall-gap rule of the bridged slope — never for the canyon test (step 7)
- * nor the profile `mf`.
+ * nor the profile `mf`. **E2 quinquies divergence**, off in [DeckDetectorOptions.PYTHON]: the split
+ * of a steep merged span (step 8); the ground threshold of the tall-gap rule only acts with the
+ * bridged slope, so PYTHON never reads it.
  *
  * **Known limits, kept from Python.** Kept runs merge across up to `mergeGapM` *before* the canyon
  * and slope tests, so a smooth structure with no canyon of its own (a roof, a canopy over the road)
  * within 300 m of a bridge joins its span and its deck mask, and two bridges that close come out as
- * one candidate. A per-run canyon test would cure it and break the two longest bridges: Saint-Nazaire
- * and Mauves each hold a 51-station `MNH ≤ 1` stretch (MNS holes over the water) that reads exactly
- * like road on the ground. Likewise trees touching a deck share its tall run and its deck mask while
- * the run stays smooth enough on the whole: cutting rough stations off a run's ends, or stopping the
- * extension at them, loses two of Python's bridges (`test2` 285..309 and 4858..4881), whose
- * abutment stations read 0.86 m and 1.07 m of roughness — a real abutment is as rough as a tree
- * line. E3 owns both cases.
+ * one candidate. A per-run canyon test would cure it and break the two longest bridges:
+ * Saint-Nazaire and Mauves each hold a 51-station `MNH ≤ 1` stretch (MNS holes over the water) that
+ * reads exactly like road on the ground. `splitSteepMerged` cures the case only where the neighbour
+ * makes the merged span steep (Willy-Brandt, way 362043805, Bellevue, Haudaudine at pixel centres):
+ * a flat roof that leaves the merged span under `maxSlopeP95` still joins it and its deck mask, and
+ * a split part is a deck on its own canyon test, which then alone keeps a neighbour out (with the
+ * canyon test off, the split lets one more Strava span through). Likewise trees touching a deck
+ * share its tall run and its deck mask while the run stays smooth enough on the whole: cutting
+ * rough stations off a run's ends, or stopping the extension at them, loses two of Python's bridges
+ * (`test2` 285..309 and 4858..4881), whose abutment stations read 0.86 m and 1.07 m of roughness —
+ * a real abutment is as rough as a tree line. E3 owns both cases.
  *
  * **Known limit of the bridged slope.** It masks only rough stations: a sag that is long *and
  * smooth* (Cheviré s 1095–1300, left by edge mixing in the z15 pixel) stays in the slope, and a
  * step hidden between two clean stations of a fully smooth roof is not seen either. A bridged gap
  * has no length limit (385 m on Cheviré, 410 m on Normandie, 495 m on Millau): only the tall-gap
- * rule ties it to a structure, so a canopy that stays tall from one smooth structure to the next
- * (no clearing, within `mergeGapM`) is still read along the line between their tops.
+ * rule ties it to a structure, so a canopy that stays above the ground (`MNH > cleanGapGroundMnhM`)
+ * from one smooth structure to the next (no clearing, within `mergeGapM`) is still read along the
+ * line between their tops; since E2 quinquies that includes an understorey 1–5 m high between two
+ * tall runs, which E2 ter's 5 m threshold kept raw. No negative of the bench has that shape.
  */
 object DeckDetector {
     /** Detect decks on [profile]. */
@@ -290,8 +302,10 @@ object DeckDetector {
                 BooleanArray(n) { m[it] < options.maxRoughnessM }
             }
 
-        val classified = ArrayList<Triple<IntRange, DeckMetrics, DeckRejection?>>()
-        for ((span, fraction) in spans) {
+        fun classify(
+            span: IntRange,
+            fraction: Double,
+        ): Pair<DeckMetrics, DeckRejection?> {
             val a = span.first
             val b = span.last
             val short = b - a <= options.shortSpanIntervals
@@ -340,7 +354,37 @@ object DeckDetector {
                     slopeP95 <= options.maxSlopeP95 && (b - a) * step >= options.minLengthM -> null
                     else -> DeckRejection.STEEP
                 }
-            classified += Triple(span, metrics, rejection)
+            return metrics to rejection
+        }
+
+        // Parts (E2 quinquies): each kept run extended on its own, overlaps unioned — the spans
+        // the merge rule would have given with a zero gap.
+        val parts = ArrayList<Pair<IntRange, Double>>()
+        for ((r, f) in kept) {
+            val a = extend(mnh, r.first, -1, options.deckMnhM, island, options.maxAbutmentStations)
+            val b = extend(mnh, r.last, +1, options.deckMnhM, island, options.maxAbutmentStations)
+            val prev = parts.lastOrNull()
+            if (prev != null && a <= prev.first.last) {
+                parts[parts.size - 1] = (prev.first.first..maxOf(prev.first.last, b)) to minOf(prev.second, f)
+            } else {
+                parts += (a..b) to f
+            }
+        }
+
+        val classified = ArrayList<Triple<IntRange, DeckMetrics, DeckRejection?>>()
+        for ((span, fraction) in spans) {
+            val (metrics, rejection) = classify(span, fraction)
+            val inside =
+                if (options.splitSteepMerged && rejection == DeckRejection.STEEP) {
+                    parts.filter { it.first.first >= span.first && it.first.last <= span.last }
+                } else {
+                    emptyList()
+                }
+            if (inside.size >= 2) {
+                for ((part, f) in inside) classify(part, f).let { (m, r) -> classified += Triple(part, m, r) }
+            } else {
+                classified += Triple(span, metrics, rejection)
+            }
         }
 
         // Deck mask (step 9): MNH > deckMnhM, with short holes closed inside accepted spans.
@@ -432,9 +476,9 @@ object DeckDetector {
      * `minCleanFraction` — the caller then reads the raw profile.
      *
      * A gap — the non-clean stations strictly between two consecutive clean stations of the span — is
-     * replaced by the linear interpolation between those two clean stations **only when it is tall
-     * throughout**: no station of the gap has an [mnh] (the effective one, `mntAboveMnsAsTall`
-     * applied) at or below `tallMnhM`; a no-data MNH does not veto, its MNS is `NaN` and the
+     * replaced by the linear interpolation between those two clean stations **only when it does not
+     * reach the ground**: no station of the gap has an [mnh] (the effective one, `mntAboveMnsAsTall`
+     * applied) at or below `cleanGapGroundMnhM`; a no-data MNH does not veto, its MNS is `NaN` and the
      * nan-median skips it anyway. A gap that touches the ground — a clearing at a forest edge, a
      * road between two structures — keeps its raw MNS, so the slope test still sees a canopy that
      * follows a ravine between two flat roofs. Leading and trailing non-clean stations keep their
@@ -465,7 +509,7 @@ object DeckDetector {
         for (j in 0 until inSpan.size - 1) {
             val c0 = inSpan[j]
             val c1 = inSpan[j + 1]
-            if ((c0 + 1 until c1).any { mnh[it] <= options.tallMnhM }) continue
+            if ((c0 + 1 until c1).any { mnh[it] <= options.cleanGapGroundMnhM }) continue
             for (k in c0 + 1 until c1) {
                 x[k - lo] = mns[c0] + (mns[c1] - mns[c0]) * (k - c0) / (c1 - c0)
             }
