@@ -1,0 +1,21 @@
+id,role,category,n,length_m,G,O,L,X,x,D,place
+n01-paris-metro6,negative,elevated-rail-beside,396,1975.6,12,7,377,0,0,0,Paris 15e bd de Grenelle -> bd Garibaldi beside the aerial Metro 6
+n02-nantes-chevire-under,negative,under-viaduct-approach,309,1543.5,298,11,0,0,0,0,Nantes / Reze local road under the Pont de Chevire approach (N 844)
+n03-millau-d992,negative,valley-floor-under-high-viaduct,482,2406.2,454,12,0,2,14,0,Millau D 992 along the Tarn under the Viaduc de Millau (A 75)
+n04-nantes-periph-nord,negative,motorway-cutting-under-overpasses,801,4003.0,634,73,6,46,42,0,Nantes peripherique nord (N 844) Porte de la Chapelle -> Porte de Carquefou one carriageway
+n05-canal-midi-platanes,negative,plane-tree-towpath,735,3671.0,728,7,0,0,0,0,Canal du Midi towpath Ramonville -> Castanet (Toulouse)
+n06-fontainebleau-route-ronde,negative,forest-road,652,3258.8,652,0,0,0,0,0,Foret de Fontainebleau Route Ronde (D 301)
+n07-landes-velodyssee,negative,pine-forest-cycleway,340,1699.6,340,0,0,0,0,0,Piste de la Cote cycleway north of Saint-Girons-Plage (Landes)
+n08-nantes-centre,negative,urban-street-covered-carriageway,581,2901.6,500,16,0,37,28,0,Nantes centre rue de Strasbourg and cours John Kennedy then quai Andre Morice westbound through its tunnel and covered section
+n09-peage-lancon,negative,toll-plaza-canopy,518,2585.4,502,16,0,0,0,0,A7 barriere de peage de Lancon-Provence one carriageway
+n10-loire-levee,negative,road-on-levee,670,3345.3,670,0,0,0,0,0,Levee de la Loire D 952 west of Saint-Martin-de-la-Place
+n11-morlaix-viaduc,negative,town-under-stone-rail-viaduct,307,1533.9,251,7,0,7,42,0,Morlaix centre streets under and beside the railway viaduct
+n12-toulouse-brienne,negative,urban-plane-tree-alley,287,1432.6,265,0,0,8,14,0,Toulouse allees de Brienne along the canal de Brienne
+p01-chevire,held-out-positive,long-high-motorway-bridge,602,3007.9,226,11,0,2,26,337,Pont de Chevire Nantes N 844
+p02-thouare,held-out-positive,truss-bridge,368,1838.4,193,0,0,0,42,133,Pont de Thouare-sur-Loire to Saint-Julien-de-Concelles
+p03-ancenis,held-out-positive,suspension-bridge,298,1488.9,198,0,0,0,14,86,Pont d Ancenis D 723
+p04-langeais,held-out-positive,narrow-suspension-bridge,193,962.4,101,0,0,0,14,78,Pont de Langeais D 57
+p05-saumur,held-out-positive,stone-arches-across-island,291,1452.5,150,0,0,1,40,100,Saumur Pont Cessart and Pont des Cadets
+p06-normandie,held-out-positive,long-cable-stayed-bridge,905,4521.4,344,10,60,0,42,449,Pont de Normandie (N 1029) Le Havre to Honfleur one carriageway
+p07-millau-a75,held-out-positive,very-high-valley-viaduct,869,4340.7,327,0,0,2,42,498,Viaduc de Millau A 75 one carriageway
+p08-periph-overpass,held-out-positive,narrow-short-overpass,119,592.4,94,0,0,0,14,11,Nantes local road over the peripherique nord (selected from n04)

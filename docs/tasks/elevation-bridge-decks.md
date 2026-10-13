@@ -182,8 +182,9 @@ itinéraires dans le vrai pipeline. La base est faite des quatre itinéraires de
   bombé), Échevis (`test4`) ;
 - **tunnels** : Petits Goulets, Grands Goulets, tunnel des Moines, galeries de Combe Laval (`test4`) ;
 - **routes en balcon** : Combe Laval et gorges de la Bourne (`test4`) ;
-- **à ajouter** : des témoins négatifs (une route forestière sous canopée dense, une rue bordée de
-  bâtiments, une route en déblai), Cheviré, et Thouaré (cas à treillis, MNS surestimé).
+- **témoins** (ajoutés en E2 bis, *Témoins*) : 12 témoins négatifs (forêt, platanes, rues, voie en
+  déblai sous passages supérieurs, rues sous et le long de viaducs, péage, levée) et 8 ponts hors
+  réglage, dont Cheviré et Thouaré (cas à treillis, MNS surestimé).
 
 La vérité est la **chaussée estimée** de l'analyse : MNS médiane 25 m sur les tabliers détectés,
 interpolation linéaire entre portails dans les tunnels, Strava recalé sur le MNT sur les tronçons
@@ -316,7 +317,8 @@ imprimés par le test ; leurs écarts max vont de −6,6 à +10,5 m.
   station à l'autre hors ouvrage (210 m des 216 m bruts sur le terrain `T`, 225 m pour le MNT
   seul) ; seul le preset `dem` y est comparable. Aux bords des balcons, la vérité saute du MNT à
   Strava d'au plus `dmax`. Échevis reste douteux (voir `analysis/rapport.md` : 25 m, tablier et
-  interpolation indiscernables) ; aucun témoin négatif ni Cheviré / Thouaré dans ce banc.
+  interpolation indiscernables). Les témoins négatifs, Cheviré et Thouaré ne sont pas dans les
+  mesures E1 : ils jugent le détecteur, en E2 bis.
 
 ### E2 — Détecteur d'ouvrage sur le MNH
 
@@ -489,9 +491,348 @@ Les fenêtres couvrent 43 / 43 / 63 / 43 % des stations en z14 (59 / 61 / 64 / 7
 - **Pas de faux positif en z15 et z14** (a, a½, b, c, f), y compris sur les deux tunnels de `test4`
   (Grands Goulets et Combe Laval, écartés par `NO_CANYON` : le relief au-dessus d'un tunnel n'a pas
   de MNT plus bas que ses bouts) ; **deux en z13** (d, e13). Le compte de FP ne suffit pas : il ne
-  voit pas une détection étirée qui touche un pont, d'où la colonne « hors vérité ». Le critère d'acceptation de la spec (zéro détection sur des témoins forestiers et urbains)
-  reste **non jugé** : le banc n'a pas encore de témoin négatif dédié (E1, « à ajouter ») ; la
-  canopée rejetée passe de 17,9 km (Python) à 25,2 km en z15, sans fuite en tablier.
+  voit pas une détection étirée qui touche un pont, d'où la colonne « hors vérité ». Le critère
+  d'acceptation de la spec (zéro détection sur des témoins forestiers et urbains) est **jugé en
+  E2 bis : 0 FP et 0 station hors vérité (`G`/`O`/`L`) sur 12 témoins** (30,4 km) ; seule
+  détection : le pont propre de `n04` (`X`, exclu du score). C'est vrai à DEFAULT et dans 28 des 29
+  variantes du balayage (la 29ᵉ coupe le test de canyon, pour diagnostic) ; la canopée rejetée
+  passe de 17,9 km (Python) à 25,2 km en z15, sans fuite en tablier.
+
+#### Témoins (E2 bis)
+
+**Pourquoi.** Le critère d'acceptation de E2 (zéro détection sur des témoins forestiers et urbains)
+n'était pas jugé, faute de témoin. Sur la grille z15 de vcyclist, cinq ponts sont perdus à des
+seuils qui sont au bord (Pont écluse, Rotonde, Bellevue, Échevis, Haudaudine). Retoucher ces seuils
+demande deux choses : des **témoins négatifs** dédiés, qui montrent ce que coûte une variation, et
+des **ponts que le réglage n'a jamais vus** (témoins positifs), qui montrent si un gain se généralise.
+`DeckDetectorOptions.DEFAULT` **n'a pas changé** : le balayage ci-dessous construit ses variantes
+par `copy` dans le test. Le choix d'un nouveau DEFAULT revient à l'utilisateur.
+
+**Sites.** Il y a 12 témoins négatifs `n01..n12` (30,4 km) et 8 témoins positifs `p01..p08`, tous
+hors des quatre itinéraires Strava. Colonnes : stations à 5 m par type. `G` = sol, `O` = ouvrage
+au-dessus, `L` = pont ou viaduc le long de la route, `X+x` = ouvrage propre ou passage inférieur, et
+leurs marges, exclus, `D` = tablier propre.
+
+| id | catégorie | lieu | km | G | O | L | X+x |
+|---|---|---|---|---|---|---|---|
+| n01 | rue le long d'un viaduc ferroviaire | Paris 15ᵉ, bd de Grenelle → bd Garibaldi, métro 6 aérien | 1,98 | 12 | 7 | 377 | 0 |
+| n02 | rue sous l'approche d'un viaduc | Rezé, rue de l'Île Botty sous le Pont de Cheviré (N 844) | 1,54 | 298 | 11 | 0 | 0 |
+| n03 | fond de vallée sous un viaduc très haut | Millau, D 992 sous le Viaduc de Millau | 2,41 | 454 | 12 | 0 | 16 |
+| n04 | voie rapide en déblai sous des passages supérieurs | Nantes, périphérique nord extérieur (N 844), avec son pont de la Beaujoire | 4,00 | 634 | 73 | 6 | 88 |
+| n05 | chemin de halage sous platanes | Canal du Midi, Ramonville → Castanet | 3,67 | 728 | 7 | 0 | 0 |
+| n06 | route forestière | Forêt de Fontainebleau, Route Ronde (D 301) | 3,26 | 652 | 0 | 0 | 0 |
+| n07 | piste cyclable en pinède | Landes, Piste de la Côte (nord de Saint-Girons-Plage) | 1,70 | 340 | 0 | 0 | 0 |
+| n08 | rue urbaine, chaussée couverte | Nantes, rue de Strasbourg, cours John-Kennedy (Pont de la Rotonde), puis quai André-Morice vers l'ouest | 2,90 | 500 | 16 | 0 | 65 |
+| n09 | auvent de péage, passerelle d'aire | A7, barrière de Lançon-Provence puis aire de Lançon | 2,59 | 502 | 16 | 0 | 0 |
+| n10 | route sur levée | Levée de la Loire, D 952, Saint-Martin-de-la-Place | 3,35 | 670 | 0 | 0 | 0 |
+| n11 | ville sous un viaduc ferroviaire en pierre | Morlaix, quai de Léon → rue de Paris | 1,53 | 251 | 7 | 0 | 49 |
+| n12 | allée urbaine sous platanes | Toulouse, allées de Brienne | 1,43 | 265 | 0 | 0 | 22 |
+
+| id | ouvrage | km | spans `D` (m) |
+|---|---|---|---|
+| p01 | Pont de Cheviré (N 844), un sens | 3,01 | 1 685 |
+| p02 | Pont de Thouaré + pont de la D 37 (deux bras de Loire) | 1,84 | 400 ; 235 ; 30 (rue des Ponts) |
+| p03 | Pont Bretagne-Anjou, Ancenis (suspendu) | 1,49 | 430 |
+| p04 | Pont de Langeais, D 57 (suspendu, étroit) | 0,96 | 390 |
+| p05 | Pont Cessart + Pont des Cadets, Saumur (arches, île) | 1,45 | 275 ; 195 ; 30 (place de la Résistance) |
+| p06 | Pont de Normandie (N 1029), un sens | 4,52 | 2 150 ; 60 ; 35 |
+| p07 | Viaduc de Millau (A 75), un sens | 4,34 | 2 465 ; 25 |
+| p08 | Passage supérieur bd Professeur-René-Auvigné sur le périphérique (tiré de n04) | 0,59 | 55 |
+
+Chaque span `D` compté laisse au moins 150 m d'itinéraire avant et après lui (vérifié par
+`controls.py` et par le test non conditionné) : `DeckDetector` prend, au bout d'un itinéraire, le
+MNT du span lui-même comme « MNT juste à côté », et le test de canyon mesurerait alors ce bornage.
+
+Couverture LiDAR HD, d'après une sonde MNS 8 × 8 px faite à la conception. Le péage de
+Saint-Arnoult (A10) et la forêt de Compiègne sont hors couverture (0/64 pixels) et n'ont pas été
+retenus. Sur les 20 sites retenus, il n'y a **aucun** `NaN` de MNT ni de MNS sur les stations. Aucune
+chaussée sous une halle de gare n'a pu être identifiée sans ambiguïté. La chaussée couverte ne
+compte que **30 m notés** : sur `n08`, le quai André-Morice passe d'abord en tunnel
+(`tunnel=yes`, `layer=-1`, 65 m), ouvrage propre exclu en `X` avec ses marges (28 stations), et seule
+la section `covered=yes` qui suit (6 stations `O`) est notée. S'y ajoutent l'auvent de péage et la
+passerelle couverte de l'aire de Lançon (`n09`, 16 stations `O`).
+
+Sites déplacés par rapport à la conception, les vérifications restant inchangées :
+
+- les points de passage, estimés de mémoire, ont été recalés sur les voies OSM ;
+- `n04` est passé sur la portion N 844 effectivement « périphérique nord » (Porte de la Chapelle →
+  est de la Beaujoire), sens extérieur ;
+- `n07` a été déplacé sur la Piste de la Côte, seule voie `cycleway` continue de la zone, la
+  Vélodyssée plus au sud y étant cartographiée en `track`/`path` ;
+- `n08` : la sélection automatique de passages sous immeuble ne donnait que des impasses de cour ou
+  des voies piétonnes (3 % de rue). Elle est remplacée par un itinéraire fixe. Le quai André-Morice
+  vers l'ouest ne se rejoint depuis le centre que par un demi-tour (quai Magellan à l'aller, quai
+  André-Morice au retour, 15 m plus loin) : l'itinéraire y entre donc par l'est, après la rue de
+  Strasbourg, le cours John-Kennedy et le Pont de la Rotonde (pont propre, `X`) ;
+- `n09` : prolongé de 380 m vers l'est, jusqu'au nœud OSM suivant, pour passer sous la voie couverte
+  (way 184840286) et la passerelle de l'aire de Lançon (way 1409740514) ;
+- `n11` : le troisième point de passage, sur la bretelle de la place des Otages, faisait revenir
+  l'itinéraire de 130° ; il est passé sur la branche ouest de la place ;
+- `p01` : l'approche s'arrêtait sur un pont voisin de 60 m, sans sol avant lui. Les deux bouts sont
+  désormais choisis à ≈ 700 m du tablier, sur une voie sans pont dans leurs 150 derniers mètres ;
+- `p02`, `p05`, `p07` : prolongés au-delà du dernier pont (0, 15 et 60 m d'itinéraire après lui
+  auparavant ; 225, 160 et 860 m désormais). `p05` y gagne le pont de la place de la Résistance
+  (30 m) ;
+- `p04` : la rampe cyclable du bout nord tournait en goutte d'eau (stations à moins de 15 m l'une de
+  l'autre). L'itinéraire part désormais de la D 952 sur la levée ;
+- `p06` : le Pont de Normandie est la N 1029 (`trunk`) dans OSM, pas l'A 29 ;
+- `p08` : la rue nommée s'arrête à 224 m. Le tracé se prolonge sur toute voie de desserte, avec la
+  même règle des ± 300 m.
+
+**Méthode.** [`analysis/controls.py`](../deck-strava-data/analysis/controls.py) n'interroge
+qu'Overpass : une requête par emprise (points de passage + 400 m, ou emprise fixée par site), une à
+la fois, réponses en cache dans `osm/controls/`. Il trace l'itinéraire par Dijkstra sur les voies OSM
+des classes du site, en respectant le sens unique sur les voies rapides, ce qui garde une seule
+chaussée. Il rééchantillonne à 5 m exactement comme `fetch.py`. La relance sur le cache est hors
+ligne et déterministe, sorties identiques à l'octet ; mais ce cache est **local et non versionné**
+(`osm/` est ignoré par git). Depuis un clone neuf, le script interroge l'OSM du jour et ne
+reproduit pas forcément la vérité livrée : la référence est la vérité versionnée, et
+`CONTROL_GUARDS` signale toute dérive. Chaque site porte ses propres vérifications : noms attendus,
+référence de l'ouvrage au-dessus, longueur des tabliers. Tous les sites en portent trois de plus :
+aucun virage de plus de 120° sur 2 × 15 m, aucune station à moins de 15 m d'une autre distante de
+plus de 60 m le long de l'itinéraire (pas de demi-tour ni d'aller-retour), et 150 m d'itinéraire
+de part et d'autre de chaque span `D` compté. Quand une vérification échoue, on déplace le point de
+passage, jamais la vérification.
+
+| type | règle |
+|---|---|
+| `D` | la voie propre de la station porte `bridge` ou `man_made=bridge`, sur un témoin positif |
+| `X` | sur un témoin négatif, la voie propre porte `bridge`, `tunnel` (sauf `building_passage`) ou `layer > 0` ; ou, sur tout témoin, une voie en tunnel ou en buse (`tunnel` ≠ `no`/`building_passage`, ou cours d'eau à `layer < 0`) **passe sous** l'itinéraire, sur ± (l/2 / sin θ) autour du croisement, sauf à `layer ≤ −2` (métro foré) |
+| `x` | moins de 35 m (7 stations) d'une station `D`/`X` |
+| `O` | une autre voie routière ou ferrée surélevée (`bridge` ou `layer ≥ 1`) **croise** le segment, sur ± (l/2 / sin θ + 10 m) autour du croisement ; ou la voie propre est `building_passage` / `covered=yes` ; ou la station est dans un polygone `building=roof` / `man_made=canopy`, ou à moins de 25 m d'une `barrier=toll_booth` |
+| `L` | un pont (`bridge` ≠ `no` ou `man_made=bridge`), ou une voie ferrée à `layer ≥ 1`, passe à ≤ 20 m de la station, cap à ± 25°, sur ≥ 25 m consécutifs ; un escalier ou un trottoir à `layer ≥ 1` sans `bridge` n'en est pas un |
+| `G` | tout le reste, voie propre à `layer < 0` comprise : une route en passage inférieur est au sol |
+
+l = `width`, sinon de 30 m pour une autoroute à 10 m pour une voie de desserte, 12 m pour une voie
+ferrée ; θ = angle du croisement. Priorité : D/X > x > O > L > G. Les marges se justifient ainsi :
+
+- **35 m** pour `x` : c'est l'extension maximale le long de `MNH > 1` mesurée en E2 sur les 21 ponts
+  de Python ;
+- **20 m** pour `L` : pixel z15 (≈ 3,3 m à 46° N), plus ± 1 pixel de bilinéaire, plus 3 à 5 m
+  d'erreur d'axe OSM, plus une demi-largeur de tablier parallèle ;
+- **l/2 + 10 m** pour `O` : la largeur de l'ouvrage, plus la même marge pixel/OSM. Le `/ sin θ`
+  ajouté à la conception allonge la fenêtre sous un ouvrage biais.
+
+Les ouvrages qui **passent au-dessus** du témoin ne sont pas exclus. Ce sont précisément les
+négatifs difficiles : un tablier lisse et haut au-dessus d'une route au sol. Seuls les ouvrages
+propres de l'itinéraire (`X`, `D`) sont connus exactement, puisque le tracé est fait de voies OSM.
+Les **passages inférieurs** sont l'exception : une route sur un court ouvrage non tagué au-dessus
+d'un chemin en tunnel est un vrai tablier, avec un vrai canyon. Relevé au WMS (≈ 1,5 m/px) : `n03`
+station 11, D 992 au-dessus de la Route du Larzac (way 157512472, 17 m), MNS 391,75 m pour un MNT de
+385,82 m, voisins MNS = MNT ; `n04` station 763, périphérique au-dessus d'un sentier (way 419403514,
+42 m), MNS 10,00 m pour un MNT de 5,84 m. Une relaxation qui y détecterait un tablier aurait raison,
+et serait comptée en FP : ces croisements sont donc exclus (`X`, structure `underpass` dans
+`spans.csv`), comme les autres passages inférieurs, même sans chute de MNT relevée (buse du Gesvres
+sur `n04`, Jarlot, Queffleuth et rivière de Morlaix sur `n11`).
+
+L'échantillonnage suit le chemin de la variante (a) : MNS − MNT z15, bilinéaire, une couche après
+l'autre. Les métriques sont celles du code :
+
+- un **FP** est une détection acceptée sans aucune station `D`/`X`/`x` ;
+- **hors vérité** compte les stations `G`/`O`/`L` dans les détections acceptées, puis dans leur
+  masque de tablier ;
+- le **rappel des témoins positifs** compte les spans `D` d'au moins 20 m touchés par une
+  détection acceptée. La **couverture** est la part des stations `D` qui sont dans une détection
+  acceptée, arrondie au pour cent. Elle voit une détection partielle que le rappel compte comme
+  trouvée ;
+- les **ponts propres des négatifs** (`X`, structure `bridge`, au moins 20 m : Beaujoire sur `n04`,
+  Rotonde sur `n08`) ne sont pas des FP ; ils sont comptés en rappel, pour qu'un réglage qui les
+  perd se voie.
+
+Banc : deux tests de plus dans `ElevationBenchProbeTest`.
+
+- `deck_controls_parse_and_hold_their_guards`, **non conditionné**. Il vérifie les tailles :
+  12 + 8 rôles, `n=` de l'en-tête, `s = 5k`, comptes par type contre `index.csv`, runs et structures
+  contre `spans.csv`, les deux ponts propres des négatifs, et les 150 m de part et d'autre de chaque
+  span `D` compté. Il fige les comptes de chaque site (`CONTROL_GUARDS`), et vérifie que chaque GPX
+  rééchantillonné redonne la vérité : `n` à ± 1, premières et dernières stations à 1e-6°.
+- `deckControls`, `INTEGRATION=1`, qui imprime `[controls]`. Il vérifie que l'extraction du
+  score Strava reproduit E2 (16/21, FP 0, 8 / 8 stations) et **le critère d'acceptation à
+  DEFAULT** : 0 FP et 0 station `G`/`O`/`L` dans une détection ou un masque sur les 12 négatifs, et
+  le pont de la Beaujoire trouvé. Le balayage reste imprimé, pas vérifié.
+
+```bash
+python3 -I docs/deck-strava-data/analysis/controls.py
+INTEGRATION=1 ./gradlew :engine:jvmTest --tests '*ElevationBenchProbeTest*' --rerun-tasks -i
+```
+
+Coût : 178 tuiles BIL de plus (46,6 MB) pour les 20 sites (MNT et MNS z15, 89 tuiles distinctes
+par couche), puis 0.
+
+**Mesures DEFAULT.** Les négatifs donnent **0 FP et 0 station hors vérité** (0/0/0 en span comme en
+masque) sur 12 témoins, soit 30,4 km. La seule détection sur un négatif est le pont de la Beaujoire
+de `n04`, son propre ouvrage (`X`), accepté à juste titre (1,75–1,95 km, chute MNT 11,8 m). L'autre
+pont propre, la Rotonde sur `n08`, ne donne aucun candidat, comme sur `test2` en E2 (MNS z15 sans
+tablier visible) : ponts propres 1/2.
+
+Tous les candidats que le détecteur a mesurés sur les négatifs (les groupes `ROUGH` ne sont jamais
+mesurés ; P95 « — » = span court, jugé sur sa seule rugosité) :
+
+| témoin | km | L (m) | MNH max | rugosité | P95 % | chute MNT | verdict | sous/à côté |
+|---|---|---|---|---|---|---|---|---|
+| n02 | 0,79–0,82 | 35 | 50,2 | 0,10 | 208,8 | 0,0 | NO_CANYON | `O` Pont de Cheviré |
+| n04 | 0,02–0,06 | 50 | 7,1 | 0,22 | 16,5 | −0,1 | NO_CANYON | `O` route de Paris |
+| n04 | 0,59–0,61 | 20 | 5,9 | 0,15 | — | 0,0 | NO_CANYON | `O` tram ligne 1 |
+| n04 | 1,13–1,18 | 50 | 6,5 | 0,04 | 13,8 | 0,1 | NO_CANYON | `O` route de Saint-Joseph |
+| n04 | 1,75–1,95 | 205 | 12,5 | 0,06 | 0,5 | 11,8 | tablier | `X` pont de la Beaujoire (propre) |
+| n05 | 0,01–0,52 | 520 | 33,0 | 0,56 | 13,8 | 0,1 | NO_CANYON | platanes (`G`) |
+| n05 | 1,50–2,98 | 1 485 | 31,3 | 0,36 | 43,0 | 0,3 | NO_CANYON | platanes (`G`) |
+| n06 | 1,80–1,91 | 120 | 21,9 | 2,61 | 55,2 | −0,1 | NO_CANYON | forêt (`G`) |
+| n08 | 2,58–2,86 | 290 | 18,7 | 0,48 | 67,7 | 0,8 | NO_CANYON | bâti (`G`), section couverte du quai et Pont Haudaudine (`O`) |
+| n09 | 0,72–0,73 | 20 | 7,5 | 0,67 | — | −0,1 | NO_CANYON | `O` péage |
+| n09 | 2,21–2,23 | 30 | 15,8 | 0,27 | — | 0,0 | NO_CANYON | `O` passerelle de l'aire de Lançon |
+| n11 | 0,53–0,65 | 120 | 9,0 | 0,65 | 39,2 | 0,0 | NO_CANYON | bâti (`G`) |
+
+Groupes `ROUGH` : n03 0,04 km, n04 0,02, n05 0,93, n06 2,75, n07 0,20, n08 0,54, n11 0,02, n12 1,40
+(5,9 km en tout). n01 (métro 6 sur 377 stations `L`) et n10 (levée) n'ont **aucun** candidat.
+
+Sur les témoins positifs : **11/15 spans `D`** trouvés, **0 FP**, mais seulement **400 / 1 692
+stations `D`** (24 %) dans une détection acceptée, dont 385 dans un masque de tablier.
+
+| témoin | détections acceptées (km) | rappel (couv.) | verdict des spans manqués | hors vérité G |
+|---|---|---|---|---|
+| p01 Cheviré | — | 0/1 (0 %) | 1 685 m `STEEP` (P95 24,5 %) | 0 |
+| p02 Thouaré | 0,73–1,60 | 2/3 (94 %) | rue des Ponts (30 m) : aucune suite haute | 37 (île entre les bras, hors masque) |
+| p03 Ancenis | 0,53–0,93 | 1/1 (93 %) | — | 0 |
+| p04 Langeais | — | 0/1 (0 %) | 390 m `ROUGH` (groupe de 0,36 km) | 0 |
+| p05 Saumur | 0,38–0,66 ; 1,00–1,29 | 3/3 (100 %) | — | 0 |
+| p06 Normandie | 3,05–3,35 ; 3,68–3,86 | 3/3 (18 %) | 1,22–2,60 km du grand pont `STEEP` (P95 35,1 %) : seuls les ≈ 300 derniers mètres (côté sud, ≈ 14 % du tablier) sont acceptés | 5 |
+| p07 Millau | 0,29–0,31 (pont voisin) | 1/2 (1 %) | viaduc 2 465 m `STEEP` (P95 34,8 %) | 0 |
+| p08 passage supérieur | 0,23–0,31 | 1/1 (100 %) | — | 0 |
+
+Les trois `STEEP` ne viennent pas des culées : aucune station raide dans les 100 premiers ou derniers
+mètres des trois tabliers. Elles viennent de sauts du MNS **au milieu du tablier** :
+
+- Cheviré : −56 % au km 1,72, le MNS passe de 57 à 46 m ;
+- Normandie : ±150 % aux km 1,81–1,84, le MNS tombe à 18–29 m sur un tablier à ≈ 48 m, MNT 0,6 m ;
+- Millau : ±100 % aux km 1,71–1,79, sauts de ≈ 20 m sur un tablier à ≈ 620 m.
+
+Pour Normandie, le km 1,84 tombe à ≈ 15 m de la position attendue du pylône nord. Cette position
+est déduite, pas relevée : milieu du span `D` à 2,28 km, moins la demi-travée centrale de 428 m,
+**en supposant les viaducs d'accès symétriques**. Pour Millau et Cheviré, la cause n'est **pas
+vérifiée** : pylônes et haubans, écrans anti-vent, ou MNS qui mélange les deux sens.
+
+Langeais (suspendu, étroit) est perdu en `ROUGH`. Un groupe `ROUGH` n'est jamais mesuré, et la
+cause n'est pas relevée.
+
+**Sensibilité.** Une seule variation à la fois depuis DEFAULT ; la dernière ligne en cumule cinq.
+`mergeGapM` 200 / 100 / 50 resserre la fusion (DEFAULT 300) au lieu de la relâcher. Les deux lignes
+`minCanyonDropM` 0,3 et −1 (test de canyon coupé : toutes les chutes mesurées sur les témoins sont
+au-dessus de −1 m) ne sont pas des candidats : elles montrent ce que tiennent les autres
+garde-fous seuls. Les pertes sont données avec le verdict que le pont prend.
+
+| réglage | ponts /21 | récupérés / perdus (verdict) | rappel témoins pos. (couv. `D`) | FP négatifs | hors vérité nég. G/O/L | ponts propres nég. /2 | FP Strava / hors vérité |
+|---|---|---|---|---|---|---|---|
+| DEFAULT | 16 | — / — | 11/15 (24 %) | 0 | 0/0/0 | 1 | 0 / 8 |
+| tallMnhM 4,0 | 13 | — / way 362043805, Willy-Brandt, Trois-Continents (`STEEP`) | 12/15 (24 %) | 0 | 0/0/0 | 1 | 0 / 6 |
+| tallMnhM 3,0 | 14 | — / Willy-Brandt, Trois-Continents (`STEEP`) | 12/15 (24 %) | 0 | 0/0/0 | 1 | 0 / 36 |
+| tallMnhM 2,5 | 15 | Haudaudine / Willy-Brandt, Trois-Continents (`STEEP`) | 12/15 (24 %) | 0 | 0/0/0 | 1 | 0 / 37 |
+| minTallRunM 10 | 16 | — / — | 12/15 (24 %) | 0 | 0/0/0 | 1 | **1** / 10 |
+| minTallRunM 5 | 15 | — / Trois-Continents (`STEEP`) | 12/15 (24 %) | 0 | 0/0/0 | 1 | **1** / 10 |
+| maxRoughnessM 1,0 | 16 | Bellevue / Pirmil (`STEEP`) | 11/15 (24 %) | 0 | 0/0/0 | 1 | 0 / 9 |
+| maxRoughnessM 1,2 | 16 | Bellevue / Pirmil (`STEEP`) | 12/15 (28 %) | 0 | 0/0/0 | **0** (Beaujoire `STEEP`) | 0 / 9 |
+| maxRoughnessM 1,5 | 16 | Bellevue / Pirmil (`STEEP`) | 12/15 (28 %) | 0 | 0/0/0 | **0** (Beaujoire `STEEP`) | 0 / 9 |
+| minSmoothFraction 0,5 | 17 | Bellevue / — | 12/15 (28 %) | 0 | 0/0/0 | **0** (Beaujoire `STEEP`) | 0 / 9 |
+| minSmoothFraction 0,4 | 17 | Bellevue / — | 12/15 (28 %) | 0 | 0/0/0 | **0** (Beaujoire `STEEP`) | 0 / 9 |
+| maxShortRoughnessM 0,6 / 0,8 | 16 | — / — | 11/15 (24 %) | 0 | 0/0/0 | 1 | 0 / 8 |
+| roughnessWindowM 25 | 16 | — / — | 12/15 (28 %) | 0 | 0/0/0 | **0** (Beaujoire `STEEP`) | 0 / 8 |
+| roughnessWindowM 45 | 17 | Haudaudine / — | 11/15 (24 %) | 0 | 0/0/0 | 1 | 0 / 9 |
+| surfaceMedianWindowM 15 | 14 | — / Pirmil, way 410671587 (`STEEP`) | 11/15 (24 %) | 0 | 0/0/0 | 1 | 0 / 7 |
+| surfaceMedianWindowM 35 | **18** | Bellevue, Haudaudine / — | 11/15 (24 %) | 0 | 0/0/0 | 1 | 0 / 10 |
+| mergeGapM 200 | 17 | Haudaudine / — | 11/15 (29 %) | 0 | 0/0/0 | 1 | 0 / 9 |
+| mergeGapM 100 | 17 | Haudaudine / — | 11/15 (34 %) | 0 | 0/0/0 | 1 | 0 / 9 |
+| mergeGapM 50 | 17 | Haudaudine / — | 11/15 (34 %) | 0 | 0/0/0 | 1 | 0 / 9 |
+| maxSlopeP95 0,12 / 0,15 | 16 | — / — | 11/15 (24 %) | 0 | 0/0/0 | 1 | 0 / 8 |
+| minCanyonDropM 2,0 / 1,0 | 16 | — / — | 11/15 (24 %) | 0 | 0/0/0 | 1 | 0 / 8 |
+| *minCanyonDropM 0,3, diagnostic* | 16 | — / — | 11/15 (24 %) | 0 | 0/0/0 | 1 | 0 / 8 |
+| *minCanyonDropM −1, canyon coupé, diagnostic* | 16 | — / — | 11/15 (24 %) | **2** | 0/**10**/0 | 1 | **3** / 28 |
+| deckMnhM 0,5 | 16 | — / — | 11/15 (24 %) | 0 | 0/0/0 | 1 | 0 / 9 |
+| deckMnhM 2,0 | 16 | — / — | 11/15 (23 %) | 0 | 0/0/0 | 1 | 0 / 2 |
+| minLengthM 20 | 16 | — / — | 11/15 (24 %) | 0 | 0/0/0 | 1 | 0 / 8 |
+| *stress, pas une proposition* : tallMnhM 3, minTallRunM 10, maxRoughnessM 1,2, maxShortRoughnessM 0,8, mergeGapM 100 | 16 | Bellevue / Willy-Brandt (`STEEP`) | 13/15 (33 %) | 0 | 0/0/0 | 1 | **2** / 15 |
+
+« Trois-Continents » désigne la structure `Boulevard Victor Schœlcher; Pont des Trois Continents`.
+Le témoin positif gagné à 12/15 est la rue des Ponts (`p02`) pour `tallMnhM` et `minTallRunM`,
+Langeais (`p04`) pour `maxRoughnessM` ≥ 1,2, `minSmoothFraction` et `roughnessWindowM` 25.
+
+Les FP du balayage :
+
+- `minTallRunM` 10 et 5 : `test4` km 5,37, 10 m, MNH 15,4 m, chute MNT 4,0 m, dans l'emprise du
+  tunnel des Petits Goulets (route en falaise) ;
+- *stress* : `test2` km 3,01–3,03 (25 m, MNH 4,5 m, chute 4,0 m) et `test4` km 61,33 (10 m, MNH
+  5,0 m, chute 3,7 m) ;
+- canyon coupé : sur les négatifs, deux spans courts sous un ouvrage, `n04` km 0,59–0,61 (tram
+  ligne 1, 20 m, rugosité 0,15) et `n09` km 2,21–2,23 (passerelle de l'aire, 30 m, rugosité 0,27) ;
+  sur Strava, `test1` km 0,33, `test4` km 23,18 et 42,96 (chutes −0,1 à −0,3 m).
+
+Les détections hors vérité de `tallMnhM` 3,0 et 2,5 (36 et 37 stations) restent dans des spans
+étirés, pas dans le masque de tablier (7 et 8 stations).
+
+**Constats**
+
+- **Critère d'acceptation : tenu sur ce banc.** Les 12 témoins négatifs donnent 0 FP et 0 station
+  hors vérité (`G`/`O`/`L`) ; seule détection : le pont propre de `n04` (`X`, exclu du score). C'est
+  vrai à DEFAULT (vérifié par le test) et dans 28 des 29 variantes du balayage, *stress* compris ;
+  seule la ligne de diagnostic « canyon coupé » en produit.
+- **Sur les négatifs, le test de canyon rejette tout ce qui est mesuré.** Tablier de Cheviré
+  au-dessus de `n02` (MNH 50 m, rugosité 0,10), passages supérieurs de `n04` (rugosité 0,04 à
+  0,22), auvent de péage et passerelle de `n09`, et **voûte de platanes du Canal du Midi** (rugosité
+  0,36 à 0,56, sous le seuil de 0,8 sur 2 km) : tous sont lisses, et tous écartés par `NO_CANYON`,
+  avec une chute de MNT de −0,1 à 0,8 m. La rugosité n'écarte que la forêt et le bâti ordinaires
+  (`ROUGH`, 5,9 km en tout). Les ouvrages au-dessus (`O`) donnent sept candidats, tous `NO_CANYON` ;
+  l'ouvrage latéral (`L`, métro 6 sur 377 stations) n'en donne aucun.
+- **Sans canyon, la pente tient les longs, pas les courts.** Canyon coupé, les candidats longs des
+  négatifs tombent en `STEEP` (P95 13,8 à 208,8 %), mais deux spans courts sous un ouvrage, jugés sur
+  leur seule rugosité (0,15 et 0,27 < 0,4), passent : 2 FP, 10 stations `O`. Deux marges sont
+  minces : les passages supérieurs de `n04` à P95 13,8 et 16,5 % ne sont qu'à peine au-dessus de
+  `maxSlopeP95`.
+- **Conséquence pour la retouche des seuils.** Comme le canyon rejette tout candidat des négatifs
+  avant les autres tests, un 0 dans les colonnes négatives d'une ligne qui ne touche pas au canyon
+  (`tallMnhM`, rugosité, fusion, médiane) **ne prouve pas** que la variation est sûre : il était
+  presque acquis. Le coût de ces variations ne se voit que sur les **routes Strava** (Petits Goulets
+  dès `minTallRunM` 10), en **ponts perdus** (Pirmil, Willy-Brandt, Trois-Continents) et sur le
+  **pont propre de `n04`**. Les négatifs ne jugent vraiment que le test de canyon.
+- **La marge du canyon est plus mince qu'il n'y paraît.** Chute ≤ 0,8 m sur les négatifs contre
+  ≥ 5,2 m sur tous les ponts acceptés des témoins positifs ; mais les FP Strava des variations, qui
+  ne sont pas des ponts, ont des chutes de 3,7 à 4,0 m (`test4` km 5,37 et 61,33, `test2` km 3,01),
+  dans cet écart et au-dessus du seuil de 3,0 m. Les négatifs ne contiennent **aucun** cas où le sol
+  tombe sous ou à côté d'une route qui n'est pas sur un pont : c'est une limite du banc, pas la
+  preuve d'une marge de 5 m.
+- **Variations sans FP ni pont Strava perdu** (hors vérité Strava +1 à +2) :
+  - `surfaceMedianWindowM` 35 récupère **Bellevue et Haudaudine** (18/21, hors vérité 10 / 10) ;
+  - `mergeGapM` 200, 100 et 50 (mesurés) et `roughnessWindowM` 45 récupèrent Haudaudine (17/21) ;
+  - `minSmoothFraction` 0,5 et 0,4 récupèrent Bellevue (17/21) et Langeais, **mais perdent le pont
+    propre de la Beaujoire** (`STEEP`), comme `roughnessWindowM` 25 et `maxRoughnessM` ≥ 1,2. La
+    cause de ce `STEEP` n'est pas mesurée.
+- **Variations qui coûtent** :
+  - `tallMnhM` < 5 perd 2 à 3 ponts nantais, tous en `STEEP` ;
+  - `minTallRunM` 10 / 5 crée le FP des Petits Goulets ;
+  - `maxRoughnessM` ≥ 1,0 perd Pirmil (`STEEP`), et ≥ 1,2 la Beaujoire ;
+  - `surfaceMedianWindowM` 15 perd Pirmil et way 410671587 (`STEEP`).
+
+  **Pont écluse et Rotonde** ne sont rattrapés par aucun réglage : le MNS z15 ne voit pas leur
+  tablier (une seule station haute au plus), et la Rotonde de `n08` le confirme. **Échevis** est
+  `ROUGH` (3 stations hautes) et n'est pas rattrapé jusqu'à `maxRoughnessM` 1,5 ni à
+  `minSmoothFraction` 0,4 ; il l'est en z14 (E2). Leur cas relève du zoom ou de l'échantillonnage,
+  pas d'un seuil **dans la plage balayée**.
+- **Les témoins positifs montrent une lacune que les quatre routes cachaient.** Les trois
+  grands ouvrages (Cheviré 1,7 km, Normandie 2,2 km, Millau 2,5 km) sont `STEEP` à P95 25 à 35 %,
+  pour des sauts du MNS en milieu de tablier, et **aucun réglage du balayage ne les rattrape** :
+  `maxSlopeP95` 0,15 ne suffit pas. Le rappel par span (11/15) le masque. La couverture des stations
+  `D` (24 %) le montre. C'est le premier sujet de E3 (profil filtré, quantile bas), avant toute
+  retouche de seuil.
+- **Limites du banc.** Sur 30,4 km de négatifs, 26,5 km sont `G`. Les cas difficiles sont minces :
+  149 stations `O` (≈ 0,75 km en 16 spans, qui ont donné 7 candidats), 383 stations `L`
+  dont 377 sur le seul métro 6 de `n01`, 30 m de chaussée couverte notée. La forêt dense tient en
+  un site plat (`n06`, 3,3 km), plus une pinède (`n07`, 1,7 km) ; pas de forêt en pente. Les tunnels
+  propres sont exclus (`X`) alors que le relief au-dessus d'un tunnel est un risque connu (jugé
+  seulement sur `test4`, Grands Goulets et Combe Laval). Manquent : un sol qui tombe sous ou à côté
+  de la route hors pont (route en corniche, bord de quai ou de berge, digue, buse sous remblai),
+  une forêt en pente, une chaussée sous des immeubles.
+- Ces mesures ne choisissent pas de nouveau DEFAULT : la décision revient à l'utilisateur. Les
+  variations sans FP, sans pont Strava perdu et sans perte de la Beaujoire sont
+  `surfaceMedianWindowM` 35, `mergeGapM` 200, 100 et 50, et `roughnessWindowM` 45 (hors vérité
+  Strava +1 à +2). Leur combinaison n'a pas été mesurée, hors la ligne *stress*.
 
 ### E3 — Remplacement par le profil du tablier
 
@@ -566,7 +907,8 @@ si le coût en tuiles MNH reste raisonnable (voir *Notes*).
   ≤ 5 m sur Cheviré et Saint-Nazaire (contre 59–66 m) ; rapport D+ dans [0,8 ; 1,2].
 - Banc E1, tunnels : Grands Goulets à ≤ 5 m de la chaussée interpolée entre portails (contre
   jusqu'à +190 m chez Strava), sans D+ fictif ; aucune route en lacets prise pour un tunnel.
-- Banc E1, témoins : **zéro** ouvrage détecté sur la route forestière et la rue bâtie.
+- Banc E2 bis, témoins négatifs : **0 FP** (hors ouvrage propre `X`) et 0 station hors vérité sur la
+  route forestière et la rue bâtie.
 - `sample.gpx` : D+ rapporté et durée simulée inchangés à 0,5 % près hors ouvrages, et l'écart
   expliqué ouvrage par ouvrage s'il y en a.
 - `./gradlew check` vert ; smoke CLI `enhance` avec `--dem-source ign-lidar-hd`.
@@ -594,6 +936,7 @@ consigné dans le ledger comme mesuré et écarté.
   « baro pour la forme, MNT pour le niveau » (filtre complémentaire, λ 200–500 m) est hors du
   périmètre de cette tâche, centrée sur l'itinéraire planifié, mais mérite sa propre ligne.
 - **Ce qui reste peu mesuré** : l'étude Loire n'avait ni tunnel ni route de montagne ; l'*Input 5*
-  couvre quatre tunnels et deux routes en balcon, mais toujours pas de route en déblai, de viaduc
-  de montagne ni de témoin forestier dédié. Le banc E1 doit les ajouter avant toute conclusion
-  générale.
+  couvre quatre tunnels et deux routes en balcon ; les témoins de E2 bis ajoutent une route en
+  déblai (`n04`), un viaduc de montagne (`p07`, `n03`) et des témoins forestiers (`n06`, `n07`).
+  Manquent toujours un sol qui tombe hors pont, une forêt en pente et une chaussée sous des
+  immeubles (*Limites du banc*, E2 bis) : à ajouter avant toute conclusion générale.
