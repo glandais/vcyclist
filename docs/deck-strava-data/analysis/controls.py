@@ -38,6 +38,12 @@ SNAP_M = 60.0
 END_MARGIN_M = 150.0       # held-out D spans: ground before and after, so the route ends never clamp the canyon
 APPROACH_M = 400.0         # holdout2: road kept beyond each end of the deck (E2 quinquies, rule 4)
 POSITIVE_ROLES = {'held-out-positive', 'holdout2'}   # holdout2: judged only by deckHoldoutJudge (DECK_JUDGE=1)
+# E4 tunnel series (--tunnels): its own output directories, so the deck bench's readers never see it.
+TUNNEL_GPX_DIR = os.path.join(ROOT, 'controls', 'tunnels')
+TUNNEL_TRUTH_DIR = os.path.join(HERE, 'truth', 'tunnels')
+TUNNEL_POSITIVE_ROLES = {'tunnel-tuning', 'tunnel-holdout'}   # tunnel-holdout*: judged only by a *TunnelJudge* test (TUNNEL_JUDGE=1)
+TUNNEL_ROLES = TUNNEL_POSITIVE_ROLES | {'tunnel-negative', 'tunnel-holdout-negative'}
+GROUND_M = 150.0           # tunnel series: ground beyond every group of counted N spans, and between two groups
 UTURN_DEG = 120.0          # no heading change above this over 2 x 15 m
 UTURN_NEAR_M = 15.0        # no station within this of another one more than UTURN_ALONG_M away along the route
 UTURN_ALONG_M = 60.0
@@ -348,7 +354,7 @@ def bbox_of(points, margin_m):
 def osm_for(site):
     key = site.get('osm_key', site['id'])
     path = os.path.join(OSM_DIR, key + '.json')
-    owner = next((s for s in SITES if s['id'] == key), site)
+    owner = next((s for s in SITES + flat_tunnel_sites() if s['id'] == key), site)
     bb = owner.get('bbox') or bbox_of(owner['waypoints'], 400.0)
     b = ','.join(f'{v:.5f}' for v in bb)
     if os.path.exists(path):
@@ -434,6 +440,21 @@ def is_under(tags):
 
 def own_bridge(tags):
     return tags.get('bridge', 'no') != 'no' or tags.get('man_made') == 'bridge'
+
+
+def own_tunnel(tags):
+    """N on a tunnel positive: a bored or cut-and-cover tunnel of the route (never a building passage,
+    a culvert or an avalanche gallery, which stay X)"""
+    return tags.get('tunnel', 'no') not in ('no', 'building_passage', 'culvert', 'avalanche_protector')
+
+
+def structure_kind(tags):
+    """the structure column of spans.csv for a D/X/N station"""
+    if own_bridge(tags):
+        return 'bridge'
+    if tags.get('tunnel') == 'avalanche_protector':
+        return 'gallery'
+    return 'tunnel' if tags.get('tunnel', 'no') != 'no' else 'layer'
 
 
 def own_structure(tags):
@@ -552,7 +573,7 @@ def selector_fn(sel):
     return f
 
 
-def route(osm, waypoints, classes, sel=None, oneway=True, max_detour=1.3):
+def route(osm, waypoints, classes, sel=None, oneway=True, max_detour=1.3, snap_m=SNAP_M):
     """Dijkstra between consecutive waypoints; selector-restricted, classes-only fallback."""
     graphs = []
     if sel:
@@ -563,9 +584,9 @@ def route(osm, waypoints, classes, sel=None, oneway=True, max_detour=1.3):
         try:
             snapped = []
             for lat, lon in waypoints:
-                nid, d = g.snap(lat, lon)
+                nid, d = g.snap(lat, lon, snap_m)
                 if nid is None:
-                    raise RuntimeError(f'waypoint {lat:.5f},{lon:.5f} not within {SNAP_M:.0f} m of the {gname} graph (nearest {d:.0f} m)')
+                    raise RuntimeError(f'waypoint {lat:.5f},{lon:.5f} not within {snap_m:.0f} m of the {gname} graph (nearest {d:.0f} m)')
                 snapped.append(nid)
             nodes, ways = [snapped[0]], []
             for a, b in zip(snapped[:-1], snapped[1:]):
@@ -810,10 +831,11 @@ def over_pred(pick):
     raise ValueError(pick)
 
 
-def approach(osm, classes, core, nodes, t, need_clean):
+def approach(osm, classes, core, nodes, t, need_clean, dirty=own_bridge, back=0.5):
     """[A, S, E, B]: the core ways' node chain S..E plus ~APPROACH_M of road beyond each end, first on
     the core's own ref or name, else on any road of the classes; each end is the straightest
-    continuation (largest straight-line / along-route ratio, then farthest from the other end) and,
+    continuation (largest straight-line / along-route ratio, then farthest from the other end; `back`
+    sets how much farther from the other end than from this one, in core lengths) and,
     with need_clean, has END_MARGIN_M of route without any bridge way before it."""
     s_node, e_node = nodes[0], nodes[-1]
     L = chain_length(osm, nodes)
@@ -836,18 +858,29 @@ def approach(osm, classes, core, nodes, t, need_clean):
                 walked, m = 0.0, n
                 while m in prev and walked < END_MARGIN_M:
                     u, wid = prev[m]
-                    if own_bridge(osm.tags(wid)):
+                    if dirty(osm.tags(wid)):
                         return False
                     walked += dist[m] - dist[u]
                     m = u
-                return walked >= END_MARGIN_M
+                if walked < END_MARGIN_M:
+                    return False
+                if dirty is own_bridge:
+                    return True
+                # E4 rule 4: the first GROUND_M out of the core are ground too (no structure at all)
+                m = n
+                while m in prev:
+                    u, wid = prev[m]
+                    if dist[u] < GROUND_M and dirty(osm.tags(wid)):
+                        return False
+                    m = u
+                return True
             pool = []
             for n in sorted(dist):
                 p = osm.node[n]
                 if dist[n] < APPROACH_M - 100 or dist[n] > APPROACH_M + 150 or (need_clean and not clean(n)):
                     continue
                 away = float(hav(p[0], p[1], pt[0], pt[1]))
-                if away <= float(hav(p[0], p[1], ph[0], ph[1])) + 0.5 * L:
+                if away <= float(hav(p[0], p[1], ph[0], ph[1])) + back * L:
                     continue                 # back towards the other end of the core
                 straight = float(hav(p[0], p[1], ph[0], ph[1])) / dist[n]
                 pool.append((-round(straight, 2), -away, n))
@@ -939,8 +972,431 @@ def derive_under(site, osm):
     return wps, sel, f'way {wid} crossing under {site["pick"]}'
 
 
+def tunnel_ok(t, classes, strict):
+    """a tunnel way a pick may count: rule 1 of the E4 series when strict (tunnel=yes only), any
+    own_tunnel otherwise (tuning sites)"""
+    if t.get('highway') not in classes or t.get('area') == 'yes':
+        return False
+    if not strict:
+        return own_tunnel(t)                # tuning: a hand-drawn route may ride a tunnel closed to bikes
+    if t.get('bicycle') == 'no' or t.get('access') in ('no', 'private'):
+        return False
+    return t.get('tunnel') == 'yes'
+
+
+def tunnel_candidates(osm, site, ways=None):
+    """[(sort key, start way, nodes, used ways, length, chord / length)] for site['pick'], best first:
+    chained tunnel ways (sharing an end node), filtered by ref / name / length, sorted by the pick's
+    order ('longest', or 'curved': smallest chord / length)"""
+    pick = site['pick']
+    classes = site['classes']
+    strict = site['role'] in ('tunnel-holdout', 'tunnel-holdout-negative')
+    pool = {w for w in (ways if ways is not None else osm.ways) if tunnel_ok(osm.tags(w), classes, strict)
+            and osm.tags(w).get('highway') in pick.get('highway', classes)}
+    ref = re.compile(pick['ref']) if 'ref' in pick else None
+    name = re.compile(pick['name']) if 'name' in pick else None
+    lo, hi = pick.get('length', (50.0, 2500.0))
+    seen, cands = set(), []
+    for wid in sorted(pool):
+        ns, used = bridge_chain(osm, wid, pool)
+        key = frozenset(used)
+        if key in seen:
+            continue
+        seen.add(key)
+        tags = [osm.tags(w) for w in used]
+        if ref and not any(ref.search(x.get('ref', '')) for x in tags):
+            continue
+        if name and not any(name.search(x.get(k, '')) for x in tags for k in ('name', 'tunnel:name', 'alt_name')):
+            continue
+        L = chain_length(osm, ns)
+        if not lo <= L <= hi:
+            continue
+        a, b = osm.node[ns[0]], osm.node[ns[-1]]
+        ratio = float(hav(a[0], a[1], b[0], b[1])) / L
+        order = round(ratio, 4) if pick.get('order') == 'curved' else -L
+        cands.append((order, min(used), ns, used, L, ratio))
+    cands.sort(key=lambda c: (c[0], c[1]))
+    return cands
+
+
+def resolve_area_pick(site):
+    """E4 picks over an administrative area (department or commune by its INSEE code): one light
+    Overpass query for the area's tunnel ways (cached as osm/controls/<id>-pick.json), the pick made
+    on it, then the site's bbox set around the chosen tunnel so osm_for fetches the full site."""
+    pick = site['pick']
+    path = os.path.join(OSM_DIR, site['id'] + '-pick.json')
+    if os.path.exists(path):
+        js = json.load(open(path))
+    else:
+        level = 6 if len(pick['insee']) <= 3 else 8
+        what = ''.join(f'["{k}"="{v}"]' for k, v in pick['tags'].items()) if 'tags' in pick else '[tunnel]'
+        q = (f'[out:json][timeout:180];\narea["ref:INSEE"="{pick["insee"]}"]["admin_level"="{level}"]->.a;\n'
+             f'way(area.a)[highway]{what};\nout body geom;')
+        print(f'  overpass area pick for {site["id"]} INSEE {pick["insee"]}', flush=True)
+        js = overpass(q)
+        os.makedirs(OSM_DIR, exist_ok=True)
+        with open(path + '.tmp', 'w') as f:
+            json.dump(js, f)
+        os.replace(path + '.tmp', path)
+    osm = Osm(js)
+    if 'tags' in pick:
+        cands = [c + (chain_length(osm, c[2]), 1.0) for c in tagged_candidates(osm, site)]
+    else:
+        cands = tunnel_candidates(osm, site)
+    if not cands:
+        raise RuntimeError(f'no match in INSEE {pick["insee"]} for {pick}')
+    _, start, nodes, used, L, ratio = cands[0]
+    print(f'  area pick: {len(cands)} candidate(s); chosen ways {sorted(used)} "{label_of(osm.tags(start), start)}" '
+          f'{L:.0f} m, chord/length {ratio:.3f}', flush=True)
+    pts = [osm.node[x] for x in nodes]
+    site['bbox'] = tuple(round(v, 5) for v in bbox_of(pts, APPROACH_M + 500.0))
+    site['picked_ways'] = sorted(used)
+
+
+def derive_tunnel(site, osm):
+    """E4: the tunnel picked by site['pick'] (ref / name / length / order inside the site's bbox, or
+    an area pick resolved before the fetch), then ~APPROACH_M of road beyond each end, with
+    END_MARGIN_M of route free of any bridge, tunnel or layer before each end."""
+    ways = None
+    if 'picked_ways' in site:
+        ways = set(site['picked_ways'])
+    cands = tunnel_candidates(osm, site, ways)
+    if not cands:
+        raise RuntimeError(f'no tunnel of {sorted(site["classes"])} for {site["pick"]}')
+    _, start, nodes, used, L, ratio = cands[0]
+    t = osm.tags(start)
+    others = [(sorted(c[3]), round(c[4]), round(c[5], 3)) for c in cands[1:4]]
+    print(f'  derived: tunnel ways {sorted(used)} "{label_of(t, start)}" {L:.0f} m, chord/length {ratio:.3f}; next {others}', flush=True)
+    dirty = (lambda tags: False) if site.get('x_near_ok') else own_structure
+    # back=0: a mountain road bends; the bridges' 0.5 core length rejected any ~60 deg turn in 400 m
+    wps, sel = approach(osm, site['classes'], set(used), nodes, t, need_clean=True, dirty=dirty, back=0.0)
+    return wps, sel, f'tunnel ways {sorted(used)}'
+
+
+def derive_along(site, osm):
+    """E4 negatives: ~2 x site['half'] of road along site['selector'] (or any road of the classes)
+    through the node nearest site['center'] (within 400 m), each end the farthest reachable node."""
+    sel = site.get('selector')
+    g = Graph(osm, site['classes'], selector_fn(sel), oneway=False)
+    x, d = g.snap(*site['center'], max_m=site.get('snap_m', 400.0))
+    if x is None:
+        raise RuntimeError(f'no {sel} node within {site.get("snap_m", 400.0):.0f} m of {site["center"]} (nearest {d:.0f} m)')
+    half = site['half']
+    dx, _ = g.dijkstra(x, limit=half)
+    a = max(sorted(dx), key=lambda n: (dx[n], -n))
+    da, _ = g.dijkstra(a, limit=3 * half)
+    b = max(sorted(n for n in dx if n in da), key=lambda n: (da[n], -n))
+    print(f'  derived: along {sel} through node {x} ({d:.0f} m from the centre), {da[b]:.0f} m', flush=True)
+    return [osm.node[a], osm.node[b]], sel, f'along {sel} through node {x}'
+
+
+def derive_tagged(site, osm):
+    """E4 negatives: the longest chain of ways of the classes carrying every tag of site['pick']['tags']
+    (e.g. cutting=yes) in the site's bbox, length in pick['length'], then ~APPROACH_M beyond each end."""
+    cands = tagged_candidates(osm, site, set(site['picked_ways']) if 'picked_ways' in site else None)
+    pick = site['pick']
+    lo, hi = pick.get('length', (100.0, 3000.0))
+    if not cands:
+        raise RuntimeError(f'no {lo:.0f}-{hi:.0f} m way chain tagged {pick["tags"]}')
+    _, start, nodes, used = cands[0]
+    t = osm.tags(start)
+    print(f'  derived: {pick["tags"]} ways {sorted(used)} "{label_of(t, start)}" {-cands[0][0]:.0f} m; {len(cands)} candidate(s)', flush=True)
+    wps, sel = approach(osm, site['classes'], set(used), nodes, t, need_clean=False, back=0.0)
+    return wps, sel, f'{"_".join(f"{k}={v}" for k, v in pick["tags"].items())} ways {sorted(used)}'
+
+
+def tagged_candidates(osm, site, ways=None):
+    """chains of ways of the classes carrying every tag of site['pick']['tags'], longest first"""
+    pick = site['pick']
+    pool = {w for w in (ways if ways is not None else osm.ways) if osm.tags(w).get('highway') in site['classes']
+            and all(osm.tags(w).get(k) == v for k, v in pick['tags'].items())}
+    lo, hi = pick.get('length', (100.0, 3000.0))
+    seen, cands = set(), []
+    for wid in sorted(pool):
+        ns, used = bridge_chain(osm, wid, pool)
+        key = frozenset(used)
+        if key in seen:
+            continue
+        seen.add(key)
+        L = chain_length(osm, ns)
+        if lo <= L <= hi:
+            cands.append((-L, min(used), ns, used))
+    cands.sort(key=lambda c: (c[0], c[1]))
+    return cands
+
+
 DERIVED = dict(chevire_under=derive_chevire_under, chevire_bridge=derive_chevire_bridge,
-               periph_overpass=derive_periph_overpass, bridge=derive_bridge, under=derive_under)
+               periph_overpass=derive_periph_overpass, bridge=derive_bridge, under=derive_under,
+               tunnel=derive_tunnel, along=derive_along, tagged=derive_tagged)
+
+
+# ── E4 tunnel series (python3 -I controls.py --tunnels) ──────────────────────────────────────
+# Written to controls/tunnels/ and truth/tunnels/. Roles: tunnel-tuning and tunnel-negative are the
+# calibration set (any department of the bench's exclusion list); tunnel-holdout and
+# tunnel-holdout-negative are frozen by the rule of elevation-bridge-decks.md (E4, *Témoins tunnels*),
+# written before any OSM query for them, and read only by a *TunnelJudge* test (TUNNEL_JUDGE=1).
+
+def around(lat, lon, m):
+    return tuple(round(v, 5) for v in bbox_of([(lat, lon)], m))
+
+
+TUNNEL_CLASSES = STREETS | {'cycleway'}          # rule 1 of the held-out series
+
+
+def area_tunnel(sid, dept, insee, category, place, length, order=None, highway=None):
+    """a held-out tunnel candidate picked over an administrative area (amendment 1 of the E4 rule)"""
+    pick = dict(insee=insee, length=length)
+    if order:
+        pick['order'] = order
+    if highway:
+        pick['highway'] = highway
+    return dict(id=sid, depts={dept}, role='tunnel-holdout', category=category, place=place,
+                derived='tunnel', pick=pick, classes=TUNNEL_CLASSES)
+
+TUNNEL_SITES = [
+    # ── tuning tunnels (truth = line between portals; the four of test4 stay in truth/test4.csv)
+    dict(id='tt01-galibier', role='tunnel-tuning', category='mountain-tunnel-under-col',
+         place='Tunnel du Galibier D 902 under the Col du Galibier (Savoie / Hautes-Alpes)',
+         derived='tunnel', pick=dict(name=r'Galibier'), bbox=around(45.0630, 6.4070, 1500),
+         classes=CARS, max_detour=2.5, hairpins=True),
+    dict(id='tt02-croix-rousse', role='tunnel-tuning', category='urban-bored-tunnel-under-hill',
+         place='Lyon Tunnel de la Croix-Rousse bus / foot / cycle tube under the Croix-Rousse hill',
+         derived='tunnel', pick=dict(name=r'Croix-Rousse', length=(1500.0, 2000.0)), bbox=(45.764, 4.805, 45.784, 4.850),
+         classes=STREETS | {'busway', 'path', 'cycleway', 'service'}),
+    dict(id='tt03-lioran', role='tunnel-tuning', category='long-mountain-tunnel-under-col',
+         place='Tunnel du Lioran N 122 under the Col de Font de Cere (Cantal)',
+         derived='tunnel', pick=dict(ref=r'^N 122$', length=(1000.0, 2000.0)), bbox=around(45.0790, 2.7400, 1800),
+         classes=CARS),
+    dict(id='tt04-tuileries', role='tunnel-tuning', category='urban-cut-and-cover-flat-above',
+         place='Paris Tunnel des Tuileries (former Voie Georges-Pompidou) under the Tuileries quay and garden',
+         derived='tunnel', pick=dict(name=r'Tuileries'), bbox=(48.853, 2.312, 48.868, 2.345),
+         classes=STREETS | {'service', 'cycleway', 'pedestrian', 'footway'}),
+    dict(id='tt05-rousset', role='tunnel-tuning', category='mountain-tunnel-under-col',
+         place='Tunnel du Col de Rousset D 518 (Drome)',
+         derived='tunnel', pick=dict(ref=r'^D 518$'), bbox=around(44.8390, 5.4020, 1500),
+         classes=CARS),
+    dict(id='tt06-nesque', role='tunnel-tuning', category='short-gorge-tunnels',
+         place='Gorges de la Nesque D 942 tunnels (Vaucluse)',
+         derived='tunnel', pick=dict(ref=r'^D 942$', length=(80.0, 300.0)), bbox=around(44.0500, 5.3300, 1500),
+         classes=CARS),
+    dict(id='tt07-petit-frou', role='tunnel-tuning', category='balcony-gorge-tunnel',
+         place='Gorges du Guiers Vif D 520C Tunnel du Petit Frou (Isere / Savoie)',
+         derived='tunnel', pick=dict(ref=r'^D 520C$'), bbox=around(45.4200, 5.8300, 1800),
+         classes=CARS),
+    dict(id='tt08-arly-cliets', role='tunnel-tuning', category='gorge-tunnel-among-avalanche-galleries',
+         place='Gorges de l Arly D 1212 Tunnel des Cliets between avalanche galleries (Savoie)',
+         derived='tunnel', pick=dict(ref=r'^D 1212$', length=(150.0, 400.0)), bbox=around(45.7800, 6.4850, 1500),
+         classes=CARS, x_near_ok=True),
+    # ── tuning negatives: real roads, all on the ground (X = own structure, excluded)
+    dict(id='tn01-alpe-huez', role='tunnel-negative', category='hairpin-climb',
+         place='Alpe d Huez D 211 lacets above Le Bourg-d Oisans (Isere)',
+         derived='along', selector=dict(ref=r'^D 211$'), center=(45.0700, 6.0450), half=1500.0,
+         bbox=around(45.0700, 6.0450, 2500), classes=CARS, hairpins=True),
+    dict(id='tn02-montvernier', role='tunnel-negative', category='hairpin-climb-on-cliff',
+         place='Lacets de Montvernier (Savoie)',
+         derived='along', center=(45.3150, 6.3400), half=1200.0,
+         bbox=around(45.3150, 6.3400, 2000), classes=CARS, hairpins=True),
+    dict(id='tn03-galibier-col', role='tunnel-negative', category='road-over-col-above-tunnel',
+         place='Col du Galibier D 902 over the col, above the Tunnel du Galibier (Savoie / Hautes-Alpes)',
+         derived='along', selector=dict(ref=r'^D 902$'), center=(45.0641, 6.4078), half=1200.0,
+         bbox=around(45.0641, 6.4078, 2000), classes=CARS, hairpins=True),
+    dict(id='tn04-ventoux', role='tunnel-negative', category='steep-summit-climb',
+         place='Mont Ventoux D 974 from below Chalet Reynard to the summit (Vaucluse)',
+         derived='along', selector=dict(ref=r'^D 974$'), center=(44.1700, 5.2950), half=1500.0,
+         bbox=around(44.1700, 5.2950, 2500), classes=CARS, hairpins=True),
+    dict(id='tn05-montmartre', role='tunnel-negative', category='steep-urban-ramp-over-crest',
+         place='Paris Montmartre rue Lepic from Place Blanche over the butte',
+         waypoints=[(48.88365, 2.33270), (48.88705, 2.33650)],
+         classes=STREETS, max_detour=1.8, hairpins=True),
+    dict(id='tn06-lyon-boucle', role='tunnel-negative', category='steep-urban-hairpin-ramp',
+         place='Lyon Montee de la Boucle from the Rhone to the Croix-Rousse plateau',
+         derived='along', selector=dict(name=r'Mont[ée]e de la Boucle'), center=(45.7770, 4.8440), half=500.0,
+         bbox=around(45.7770, 4.8440, 1200), classes=STREETS, hairpins=True),
+    dict(id='tn07-lyon-st-sebastien', role='tunnel-negative', category='steep-urban-ramp',
+         place='Lyon from Place Croix-Paquet to the Croix-Rousse plateau by the quays and Montee Bonafous',
+         waypoints=[(45.7697, 4.8362), (45.7745, 4.8330)], bbox=around(45.7720, 4.8346, 900),
+         classes=STREETS, max_detour=3.0, hairpins=True),
+    dict(id='tn08-bourne', role='tunnel-negative', category='balcony-under-cliff',
+         place='Gorges de la Bourne D 531 balcony road (Isere)',
+         derived='along', selector=dict(ref=r'^D 531$'), center=(45.0700, 5.4600), half=1500.0, snap_m=2000.0,
+         bbox=around(45.0700, 5.4600, 3500), classes=CARS),
+    dict(id='tn09-verdon-cretes', role='tunnel-negative', category='balcony-over-gorge',
+         place='Gorges du Verdon Route des Cretes D 23 (Alpes-de-Haute-Provence)',
+         derived='along', selector=dict(ref=r'^D 23$'), center=(43.7720, 6.3550), half=1500.0, snap_m=2500.0,
+         bbox=around(43.7720, 6.3550, 2500), classes=CARS, hairpins=True),
+    dict(id='tn10-roselend', role='tunnel-negative', category='dam-crest-road',
+         place='Barrage de Roselend Route du Barrage over the dam (Savoie)',
+         derived='along', selector=dict(name=r'^Route du Barrage$'), center=(45.6825, 6.6165), half=700.0,
+         bbox=around(45.6830, 6.6200, 1500), classes=CARS, hairpins=True),
+    dict(id='tn11-serre-poncon', role='tunnel-negative', category='dam-crest-road',
+         place='Barrage de Serre-Poncon Route du Barrage (Hautes-Alpes)',
+         derived='along', selector=dict(name=r'^Route du Barrage$'), center=(44.4815, 6.2695), half=700.0,
+         bbox=around(44.4710, 6.2740, 1500), classes=CARS),
+    dict(id='tn12-arly-galleries', role='tunnel-negative', category='avalanche-galleries',
+         place='Gorges de l Arly D 1212 south of the Tunnel des Cliets under avalanche galleries (Savoie)',
+         derived='along', selector=dict(ref=r'^D 1212$'), center=(45.7521, 6.4449), half=700.0,
+         bbox=around(45.7521, 6.4449, 1500), classes=CARS),
+    dict(id='tn13-cutting-isere', role='tunnel-negative', category='road-in-cutting',
+         place='Longest cutting=yes road chain of the classes around Grenoble (Isere)',
+         derived='tagged', pick=dict(tags={'cutting': 'yes'}, length=(100.0, 2000.0)), bbox=(45.10, 5.60, 45.30, 5.85),
+         classes=STREETS),
+    # ── held-out series (rule of E4, frozen 2026-10-13 18:06 before any OSM query for it). One cell
+    # per row of the rule's tables: its candidates are tried in the rule's order, the first that
+    # builds and passes every check is kept, a candidate whose department a kept site already holds
+    # is skipped (rule 3), and a cell with none left stays empty. Failures are printed, and written in
+    # the task doc (E4, *Témoins tunnels*, amendments).
+    dict(cell='T1 short gorge (Alps)', candidates=[
+        dict(id='th01-cians', depts={'06'}, role='tunnel-holdout', category='short-gorge-tunnel',
+             place='Gorges du Cians D 28 longest tunnel between Touet-sur-Var and Beuil (Alpes-Maritimes)',
+             derived='tunnel', pick=dict(ref=r'^D ?28$'), bbox=(43.93, 6.94, 44.10, 7.06), classes=TUNNEL_CLASSES),
+        dict(id='th01-daluis', depts={'06'}, role='tunnel-holdout', category='short-gorge-tunnel',
+             place='Gorges de Daluis D 2202 longest tunnel (Alpes-Maritimes)',
+             derived='tunnel', pick=dict(ref=r'^D ?2202$'), bbox=(43.98, 6.78, 44.05, 6.86), classes=TUNNEL_CLASSES)]),
+    dict(cell='T2 short gorge (Pyrenees)', candidates=[
+        dict(id='th02-luz', depts={'65'}, role='tunnel-holdout', category='short-gorge-tunnel',
+             place='Gorges de Luz D 921 longest tunnel between Pierrefitte-Nestalas and Luz-Saint-Sauveur (Hautes-Pyrenees)',
+             derived='tunnel', pick=dict(ref=r'^D ?921$'), bbox=(42.86, -0.09, 42.97, 0.01), classes=TUNNEL_CLASSES),
+        dict(id='th02-pierre-lys', depts={'11'}, role='tunnel-holdout', category='short-gorge-tunnel',
+             place='Defile de Pierre-Lys D 117 longest tunnel (Aude)',
+             derived='tunnel', pick=dict(ref=r'^D ?117$'), bbox=(42.80, 2.17, 42.88, 2.27), classes=TUNNEL_CLASSES)]),
+    dict(cell='T3 medium under a col', candidates=[
+        dict(id='th03-bussang', depts={'88', '68'}, role='tunnel-holdout', category='medium-tunnel-under-col',
+             place='Col de Bussang N 66 longest tunnel (Vosges / Haut-Rhin)',
+             derived='tunnel', pick=dict(ref=r'^N ?66$'), bbox=(47.86, 6.82, 47.91, 6.89), classes=TUNNEL_CLASSES),
+        dict(id='th03-tunnel-66', depts={'66'}, role='tunnel-holdout', category='medium-tunnel',
+             place='Pyrenees-Orientales the longest 200-700 m tunnel',
+             derived='tunnel', pick=dict(insee='66', length=(200.0, 700.0)), classes=TUNNEL_CLASSES),
+        # amendment 1 (2026-10-13 19:36)
+        area_tunnel('th03-tunnel-74', '74', '74', 'medium-tunnel', 'Haute-Savoie the longest 200-700 m tunnel', (200.0, 700.0)),
+        # amendment 1 (2026-10-13 19:36)
+        area_tunnel('th03-tunnel-01', '01', '01', 'medium-tunnel', 'Ain the longest 200-700 m tunnel', (200.0, 700.0)),
+        # amendment 1 (2026-10-13 19:36)
+        area_tunnel('th03-tunnel-09', '09', '09', 'medium-tunnel', 'Ariege the longest 200-700 m tunnel', (200.0, 700.0)),
+        # amendment 1 (2026-10-13 19:36)
+        area_tunnel('th03-tunnel-63', '63', '63', 'medium-tunnel', 'Puy-de-Dome the longest 200-700 m tunnel', (200.0, 700.0))]),
+    dict(cell='T4 medium curved', candidates=[
+        dict(id='th04-curved-66', depts={'66'}, role='tunnel-holdout', category='medium-curved-tunnel',
+             place='Pyrenees-Orientales the 100-700 m tunnel with the smallest chord / length',
+             derived='tunnel', pick=dict(insee='66', order='curved', length=(100.0, 700.0)), classes=TUNNEL_CLASSES),
+        dict(id='th04-curved-06', depts={'06'}, role='tunnel-holdout', category='medium-curved-tunnel',
+             place='Alpes-Maritimes the 100-700 m tunnel with the smallest chord / length',
+             derived='tunnel', pick=dict(insee='06', order='curved', length=(100.0, 700.0)), classes=TUNNEL_CLASSES),
+        dict(id='th04-curved-2b', depts={'2B'}, role='tunnel-holdout', category='medium-curved-tunnel',
+             place='Haute-Corse the 100-700 m tunnel with the smallest chord / length',
+             derived='tunnel', pick=dict(insee='2B', order='curved', length=(100.0, 700.0)), classes=TUNNEL_CLASSES),
+        # amendment 1 (2026-10-13 19:36)
+        area_tunnel('th04-curved-07', '07', '07', 'medium-curved-tunnel', 'Ardeche the 100-700 m tunnel with the smallest chord / length', (100.0, 700.0), order='curved'),
+        # amendment 1 (2026-10-13 19:36)
+        area_tunnel('th04-curved-09', '09', '09', 'medium-curved-tunnel', 'Ariege the 100-700 m tunnel with the smallest chord / length', (100.0, 700.0), order='curved'),
+        # amendment 1 (2026-10-13 19:36)
+        area_tunnel('th04-curved-63', '63', '63', 'medium-curved-tunnel', 'Puy-de-Dome the 100-700 m tunnel with the smallest chord / length', (100.0, 700.0), order='curved')]),
+    dict(cell='T5 long', candidates=[
+        dict(id='th05-long-01', depts={'01'}, role='tunnel-holdout', category='long-tunnel',
+             place='Ain the longest 700-2500 m tunnel',
+             derived='tunnel', pick=dict(insee='01', length=(700.0, 2500.0)), classes=TUNNEL_CLASSES),
+        dict(id='th05-long-74', depts={'74'}, role='tunnel-holdout', category='long-tunnel',
+             place='Haute-Savoie the longest 700-2500 m tunnel',
+             derived='tunnel', pick=dict(insee='74', length=(700.0, 2500.0)), classes=TUNNEL_CLASSES),
+        dict(id='th05-long-25', depts={'25'}, role='tunnel-holdout', category='long-tunnel',
+             place='Doubs the longest 700-2500 m tunnel',
+             derived='tunnel', pick=dict(insee='25', length=(700.0, 2500.0)), classes=TUNNEL_CLASSES),
+        # amendment 1 (2026-10-13 19:36)
+        area_tunnel('th05-long-09', '09', '09', 'long-tunnel', 'Ariege the longest 700-2500 m tunnel', (700.0, 2500.0)),
+        # amendment 1 (2026-10-13 19:36)
+        area_tunnel('th05-long-63', '63', '63', 'long-tunnel', 'Puy-de-Dome the longest 700-2500 m tunnel', (700.0, 2500.0)),
+        # amendment 1 (2026-10-13 19:36)
+        area_tunnel('th05-long-2b', '2B', '2B', 'long-tunnel', 'Haute-Corse the longest 700-2500 m tunnel', (700.0, 2500.0))]),
+    dict(cell='T6 urban bored under relief', candidates=[
+        dict(id='th06-angouleme', depts={'16'}, role='tunnel-holdout', category='urban-bored-tunnel-under-relief',
+             place='Angouleme (Charente) the longest 150-2500 m tunnel of the commune',
+             derived='tunnel', pick=dict(insee='16015', length=(150.0, 2500.0)), classes=TUNNEL_CLASSES),
+        dict(id='th06-saint-etienne', depts={'42'}, role='tunnel-holdout', category='urban-bored-tunnel-under-relief',
+             place='Saint-Etienne (Loire) the longest 150-2500 m tunnel of the commune',
+             derived='tunnel', pick=dict(insee='42218', length=(150.0, 2500.0)), classes=TUNNEL_CLASSES),
+        dict(id='th06-besancon', depts={'25'}, role='tunnel-holdout', category='urban-bored-tunnel-under-relief',
+             place='Besancon (Doubs) the longest 150-2500 m tunnel of the commune',
+             derived='tunnel', pick=dict(insee='25056', length=(150.0, 2500.0)), classes=TUNNEL_CLASSES),
+        # amendment 1 (2026-10-13 19:36)
+        area_tunnel('th06-le-puy', '43', '43157', 'urban-bored-tunnel-under-relief', 'Le Puy-en-Velay (Haute-Loire) the longest 150-2500 m tunnel of the commune', (150.0, 2500.0)),
+        # amendment 1 (2026-10-13 19:36)
+        area_tunnel('th06-clermont', '63', '63113', 'urban-bored-tunnel-under-relief', 'Clermont-Ferrand (Puy-de-Dome) the longest 150-2500 m tunnel of the commune', (150.0, 2500.0)),
+        # amendment 1 (2026-10-13 19:36)
+        area_tunnel('th06-annecy', '74', '74010', 'urban-bored-tunnel-under-relief', 'Annecy (Haute-Savoie) the longest 150-2500 m tunnel of the commune', (150.0, 2500.0))]),
+    dict(cell='T7 urban cut-and-cover', candidates=[
+        dict(id='th07-montpellier', depts={'34'}, role='tunnel-holdout', category='urban-cut-and-cover',
+             place='Montpellier (Herault) the longest 150-2500 m tunnel of the commune',
+             derived='tunnel', pick=dict(insee='34172', length=(150.0, 2500.0)), classes=TUNNEL_CLASSES),
+        dict(id='th07-metz', depts={'57'}, role='tunnel-holdout', category='urban-cut-and-cover',
+             place='Metz (Moselle) the longest 150-2500 m tunnel of the commune',
+             derived='tunnel', pick=dict(insee='57463', length=(150.0, 2500.0)), classes=TUNNEL_CLASSES),
+        dict(id='th07-nancy', depts={'54'}, role='tunnel-holdout', category='urban-cut-and-cover',
+             place='Nancy (Meurthe-et-Moselle) the longest 150-2500 m tunnel of the commune',
+             derived='tunnel', pick=dict(insee='54395', length=(150.0, 2500.0)), classes=TUNNEL_CLASSES),
+        # amendment 1 (2026-10-13 19:36)
+        area_tunnel('th07-rennes', '35', '35238', 'urban-cut-and-cover', 'Rennes (Ille-et-Vilaine) the longest 150-2500 m tunnel of the commune', (150.0, 2500.0)),
+        # amendment 1 (2026-10-13 19:36)
+        area_tunnel('th07-amiens', '80', '80021', 'urban-cut-and-cover', 'Amiens (Somme) the longest 150-2500 m tunnel of the commune', (150.0, 2500.0)),
+        # amendment 1 (2026-10-13 19:36)
+        area_tunnel('th07-limoges', '87', '87085', 'urban-cut-and-cover', 'Limoges (Haute-Vienne) the longest 150-2500 m tunnel of the commune', (150.0, 2500.0)),
+        # amendment 1 (2026-10-13 19:36)
+        area_tunnel('th07-poitiers', '86', '86194', 'urban-cut-and-cover', 'Poitiers (Vienne) the longest 150-2500 m tunnel of the commune', (150.0, 2500.0))]),
+    dict(cell='T8 greenway in a rail tunnel', candidates=[
+        dict(id='th08-voie-verte-07', depts={'07'}, role='tunnel-holdout', category='greenway-in-rail-tunnel',
+             place='Ardeche the longest 100-2500 m highway=cycleway tunnel',
+             derived='tunnel', pick=dict(insee='07', highway={'cycleway'}, length=(100.0, 2500.0)), classes=TUNNEL_CLASSES),
+        dict(id='th08-voie-verte-43', depts={'43'}, role='tunnel-holdout', category='greenway-in-rail-tunnel',
+             place='Haute-Loire the longest 100-2500 m highway=cycleway tunnel',
+             derived='tunnel', pick=dict(insee='43', highway={'cycleway'}, length=(100.0, 2500.0)), classes=TUNNEL_CLASSES),
+        dict(id='th08-voie-verte-24', depts={'24'}, role='tunnel-holdout', category='greenway-in-rail-tunnel',
+             place='Dordogne the longest 100-2500 m highway=cycleway tunnel',
+             derived='tunnel', pick=dict(insee='24', highway={'cycleway'}, length=(100.0, 2500.0)), classes=TUNNEL_CLASSES)]),
+    # held-out negatives: centres and waypoints coded from OSM geometry only (rule 6)
+    dict(cell='H1 hairpins', candidates=[
+        dict(id='hn01-aubisque', depts={'64'}, role='tunnel-holdout-negative', category='hairpin-climb',
+             place='Col d Aubisque D 918 lacets below Gourette on the Eaux-Bonnes side (Pyrenees-Atlantiques)',
+             derived='along', selector=dict(ref=r'^D ?918$'), center=(42.9600, -0.3520), half=1200.0,
+             bbox=around(42.9600, -0.3520, 2000), classes=CARS, hairpins=True)]),
+    dict(cell='H2 balcony under a cliff', candidates=[
+        dict(id='hn02-aveyron', depts={'82'}, role='tunnel-holdout-negative', category='balcony-under-cliff',
+             place='Gorges de l Aveyron D 115 between Saint-Antonin-Noble-Val and Cazals (Tarn-et-Garonne)',
+             derived='along', selector=dict(ref=r'^D ?115$'), center=(44.1400, 1.7350), half=1200.0, snap_m=2000.0,
+             bbox=around(44.1400, 1.7350, 3000), classes=CARS)]),
+    dict(cell='H3 steep urban ramp', candidates=[
+        dict(id='hn03-laon', depts={'02'}, role='tunnel-holdout-negative', category='steep-urban-ramp',
+             place='Laon (Aisne) streets from the lower town (station) to the upper town (cathedral)',
+             waypoints=[(49.5706, 3.6207), (49.5641, 3.6247)], classes=STREETS, max_detour=2.5, snap_m=200.0,
+             coverage_failed='IGN MNT z15 NaN at 381 / 381 stations (no LiDAR HD MNT served)'),
+        dict(id='hn03-boulogne', depts={'62'}, role='tunnel-holdout-negative', category='steep-urban-ramp',
+             place='Boulogne-sur-Mer (Pas-de-Calais) streets from the lower town to the upper town',
+             waypoints=[(50.7247, 1.6062), (50.7262, 1.6125)], classes=STREETS, max_detour=2.5, snap_m=200.0)]),
+    dict(cell='H4 dam crest', candidates=[
+        dict(id='hn04-vouglans', depts={'39'}, role='tunnel-holdout-negative', category='dam-crest-road',
+             place='Barrage de Vouglans the road over the crest (Jura)',
+             derived='along', center=(46.3975, 5.6650), half=700.0,
+             bbox=around(46.3975, 5.6650, 1500), classes=CARS),
+        dict(id='hn04-panneciere', depts={'58'}, role='tunnel-holdout-negative', category='dam-crest-road',
+             place='Barrage de Panneciere-Chaumard D 303 over the dam (Nievre)',
+             derived='along', selector=dict(ref=r'^D ?303$'), center=(47.1640, 3.8743), half=600.0,
+             bbox=around(47.1640, 3.8743, 1400), classes=CARS,
+             coverage_failed='IGN MNT z15 NaN at 131 / 131 stations (no LiDAR HD MNT served)')]),
+    dict(cell='H5 cutting', candidates=[
+        dict(id='hn05-cutting-46', depts={'46'}, role='tunnel-holdout-negative', category='road-in-cutting',
+             place='Lot the longest cutting=yes road chain of the classes (>= 100 m)',
+             derived='tagged', pick=dict(insee='46', tags={'cutting': 'yes'}, length=(100.0, 3000.0)), classes=STREETS),
+        dict(id='hn05-cutting-19', depts={'19'}, role='tunnel-holdout-negative', category='road-in-cutting',
+             place='Correze the longest cutting=yes road chain of the classes (>= 100 m)',
+             derived='tagged', pick=dict(insee='19', tags={'cutting': 'yes'}, length=(100.0, 3000.0)), classes=STREETS)]),
+    dict(cell='H6 col', candidates=[
+        dict(id='hn06-bavella', depts={'2A'}, role='tunnel-holdout-negative', category='road-over-col',
+             place='Col de Bavella D 268 on both sides of the col (Corse-du-Sud)',
+             derived='along', selector=dict(ref=r'^D ?268$'), center=(41.7950, 9.2240), half=1500.0,
+             bbox=around(41.7950, 9.2240, 2500), classes=CARS)]),
+    # amendment 2 (2026-10-13 20:02): complement cell, no stratum, up to four more sites
+    dict(cell='T9 complement', keep=4, candidates=[
+        area_tunnel(f'th09-tunnel-{d.lower()}', d, d, 'tunnel', f'{name} the longest 50-2500 m tunnel', (50.0, 2500.0))
+        for d, name in [('34', 'Herault'), ('07', 'Ardeche'), ('2B', 'Haute-Corse'), ('43', 'Haute-Loire'),
+                        ('46', 'Lot'), ('19', 'Correze'), ('81', 'Tarn'), ('65', 'Hautes-Pyrenees')]]),
+]
 
 
 # ── Station kinds ────────────────────────────────────────────────────────────────────────────
@@ -952,13 +1408,17 @@ def runs_of(mask):
 
 
 def build(site):
+    if site.get('pick', {}).get('insee') and 'picked_ways' not in site:
+        resolve_area_pick(site)
     osm = osm_for(site)
     if site.get('derived'):
         wps, sel, how = DERIVED[site['derived']](site, osm)
     else:
         wps, sel, how = site['waypoints'], site.get('selector'), 'waypoints'
     oneway = bool(site['classes'] & (MOTOR | MOTOR_LINKS))
-    nodes, ways, lat0, lon0, length = route(osm, wps, site['classes'], sel, oneway, site.get('max_detour', 1.3))
+    nodes, ways, lat0, lon0, length = route(osm, wps, site['classes'], sel, oneway,
+                                            site.get('max_detour', 12.0 if site.get('derived') == 'along' else 1.3),
+                                            site.get('snap_m', SNAP_M) if not site.get('derived') else SNAP_M)
 
     # Resample exactly like fetch.py.
     d = np.concatenate([[0], np.cumsum(hav(lat0[:-1], lon0[:-1], lat0[1:], lon0[1:]))])
@@ -974,25 +1434,28 @@ def build(site):
     PX, PY = proj.xy(lat0, lon0)
     heading = np.degrees(np.arctan2(PY[1:] - PY[:-1], PX[1:] - PX[:-1]))[seg]
     positive = site['role'] in POSITIVE_ROLES
+    tpositive = site['role'] in TUNNEL_POSITIVE_ROLES
     own = set(ways)
 
     D = np.zeros(n, bool)
+    N = np.zeros(n, bool)
     Xs = np.zeros(n, bool)
     O = np.zeros(n, bool)
     L = np.zeros(n, bool)
     src = [''] * n
     o_src = []
-    # structure behind each D/X station: (bridge|tunnel|layer|underpass, way id, label)
+    # structure behind each D/X/N station: (bridge|tunnel|gallery|layer|underpass, way id, label)
     struct = [None] * n
     for k in range(n):
         t = osm.tags(int(way[k]))
-        if positive and own_bridge(t):
+        if tpositive and own_tunnel(t):
+            N[k] = True
+        elif positive and own_bridge(t):
             D[k] = True
         elif own_structure(t):
             Xs[k] = True
-        if D[k] or Xs[k]:
-            kind_ = 'bridge' if own_bridge(t) else 'tunnel' if t.get('tunnel', 'no') != 'no' else 'layer'
-            struct[k] = (kind_, int(way[k]), label_of(t, int(way[k])))
+        if D[k] or Xs[k] or N[k]:
+            struct[k] = (structure_kind(t), int(way[k]), label_of(t, int(way[k])))
         if t.get('tunnel') == 'building_passage' or t.get('covered') == 'yes':
             O[k] = True
             src[k] = src[k] or label_of(t, int(way[k]))
@@ -1030,7 +1493,7 @@ def build(site):
             continue
         for sx, half in crossings_of(wid):
             m = np.abs(s - sx) <= max(half, STEP / 2)
-            for k in np.where(m & ~D)[0]:
+            for k in np.where(m & ~D & ~N)[0]:
                 Xs[k] = True
                 struct[k] = struct[k] or ('underpass', wid, 'under ' + label_of(osm.tags(wid), wid))
             unders.append((wid, sx))
@@ -1094,7 +1557,7 @@ def build(site):
         if b - a + 1 >= LATERAL_MIN_STATIONS:
             L[a:b + 1] = True
 
-    hard = D | Xs
+    hard = D | Xs | N
     margin = np.zeros(n, bool)
     for k in np.where(hard)[0]:
         margin[max(0, k - ABUTMENT_STATIONS):k + ABUTMENT_STATIONS + 1] = True
@@ -1103,11 +1566,12 @@ def build(site):
     kind[O] = 'O'
     kind[margin] = 'x'
     kind[Xs] = 'X'
+    kind[N] = 'N'
     kind[D] = 'D'
     names = []
     for k in range(n):
         c = kind[k]
-        if c in 'DX':
+        if c in 'DXN':
             names.append(struct[k][2])
         elif c == 'O':
             names.append(src[k])
@@ -1116,10 +1580,10 @@ def build(site):
         else:
             names.append('')
     spans = []
-    for c in 'DXOL':
+    for c in 'DXOLN':
         for a, b in runs_of(kind == c):
             nm = '; '.join(dict.fromkeys(x for x in names[a:b + 1] if x)).replace(',', ' ')
-            st, sw = (struct[a][0], struct[a][1]) if c in 'DX' else ('', 0)
+            st, sw = (struct[a][0], struct[a][1]) if c in 'DXN' else ('', 0)
             spans.append((c, a, b, nm, st, sw))
     spans.sort(key=lambda r: (r[1], r[0]))
     return dict(site=site, osm=osm, how=how, sel=sel, nodes=nodes, ways=ways, lat0=lat0, lon0=lon0, length=length,
@@ -1142,6 +1606,10 @@ def geometry_checks(res):
     proj = Proj(float(res['lat'].mean()))
     X, Y = proj.xy(res['lat'], res['lon'])
     n = len(X)
+    if res['site'].get('hairpins'):
+        # E4 hairpin negatives: the U-turns are the point of the site (rule 4 of the tunnel series)
+        out.append((True, 'hairpin site: U-turn and doubling-back checks waived'))
+        return out + tunnel_ground_checks(res)
     h = 3                                   # 15 m each side
     worst = (0.0, -1)
     for k in range(h, n - h):
@@ -1164,7 +1632,43 @@ def geometry_checks(res):
         short = [(a * STEP, last - b * STEP) for c, a, b, *_ in res['spans'] if c == 'D' and (b - a + 1) * STEP >= 20
                  and min(a * STEP, last - b * STEP) < END_MARGIN_M]
         out.append((not short, f'D spans >= 20 m with < {END_MARGIN_M:.0f} m of route before/after: {short}'))
-    return out
+    return out + tunnel_ground_checks(res)
+
+
+def n_groups(spans):
+    """counted N spans (>= 20 m) of a tunnel positive, merged when less than GROUND_M apart"""
+    groups = []
+    for c, a, b, *_ in sorted(spans, key=lambda r: r[1]):
+        if c != 'N' or (b - a + 1) * STEP < 20:
+            continue
+        if groups and (a - groups[-1][1] - 1) * STEP < GROUND_M:
+            groups[-1][1] = b
+        else:
+            groups.append([a, b])
+    return groups
+
+
+def tunnel_ground_checks(res):
+    """tunnel positives (rule 4 of the E4 series): GROUND_M of route beyond every group of counted N
+    spans, both sides, without any N or X station in it, so groups are also GROUND_M apart."""
+    if res['site']['role'] not in TUNNEL_POSITIVE_ROLES:
+        return []
+    kind = res['kind']
+    n = len(kind)
+    w = int(round(GROUND_M / STEP))
+    groups = n_groups(res['spans'])
+    if res['site'].get('x_near_ok'):
+        # tuning only: a tunnel among avalanche galleries (tt08); the galleries stay X, excluded
+        return [(bool(groups), f'{len(groups)} counted N group(s) (>= 1)'),
+                (True, 'X within the ground margin allowed for this tuning site (x_near_ok)')]
+    bad = []
+    for a, b in groups:
+        before = kind[max(0, a - w):a]
+        after = kind[b + 1:b + 1 + w]
+        if a < w or n - 1 - b < w or any(c in 'NX' for c in before) or any(c in 'NX' for c in after):
+            bad.append((a * STEP, b * STEP, ''.join(sorted(set(before))), ''.join(sorted(set(after)))))
+    return [(bool(groups), f'{len(groups)} counted N group(s) (>= 1)'),
+            (not bad, f'N groups without {GROUND_M:.0f} m of ground (no N/X) on both sides: {bad}')]
 
 
 def run_checks(res):
@@ -1175,7 +1679,7 @@ def run_checks(res):
 
     def span_len(a, b):
         return (b - a + 1) * STEP
-    for chk in res['site']['checks']:
+    for chk in res['site'].get('checks', []):
         name = chk[0]
         if name == 'name_frac':
             f = frac_where(res, lambda t: re.search(chk[1], t.get('name', '')))
@@ -1277,16 +1781,31 @@ KIND_LEGEND = ('# kind: G ground | O overhead structure | L parallel bridge or r
                'X own structure or underpass (excluded) | x 35 m abutment margin (excluded) | D own bridge deck (held-out positive)')
 
 
-def counts(kind):
-    return {c: int(np.sum(kind == c)) for c in 'GOLXxD'}
+TUNNEL_KIND_LEGEND = ('# kind: G ground | O overhead structure | L parallel bridge or rail viaduct within 20 m | '
+                      'X other structure, gallery or underpass (excluded) | x 35 m margin (excluded) | '
+                      'N own tunnel (tunnel positive; truth = line between the MNT at the stations just outside it)')
 
 
-def write_site(res):
+class Series:
+    """where a series writes, and its own-structure letter (D decks, N tunnels)"""
+    def __init__(self, gpx_dir, truth_dir, kinds, legend):
+        self.gpx_dir, self.truth_dir, self.kinds, self.legend = gpx_dir, truth_dir, kinds, legend
+
+
+DECKS = Series(GPX_DIR, TRUTH_DIR, 'GOLXxD', KIND_LEGEND)
+TUNNELS = Series(TUNNEL_GPX_DIR, TUNNEL_TRUTH_DIR, 'GOLXxN', TUNNEL_KIND_LEGEND)
+
+
+def counts(kind, kinds='GOLXxD'):
+    return {c: int(np.sum(kind == c)) for c in kinds}
+
+
+def write_site(res, series=DECKS):
     site = res['site']
     sid = site['id']
-    os.makedirs(GPX_DIR, exist_ok=True)
-    os.makedirs(TRUTH_DIR, exist_ok=True)
-    with open(os.path.join(GPX_DIR, sid + '.gpx'), 'w', encoding='utf-8', newline='\n') as f:
+    os.makedirs(series.gpx_dir, exist_ok=True)
+    os.makedirs(series.truth_dir, exist_ok=True)
+    with open(os.path.join(series.gpx_dir, sid + '.gpx'), 'w', encoding='utf-8', newline='\n') as f:
         f.write('<?xml version="1.0" encoding="UTF-8"?>\n')
         f.write('<gpx creator="vcyclist controls.py" version="1.1" xmlns="http://www.topografix.com/GPX/1/1">\n')
         f.write(' <metadata>\n')
@@ -1300,24 +1819,24 @@ def write_site(res):
             f.write(f'   <trkpt lat="{la:.7f}" lon="{lo:.7f}"></trkpt>\n')
         f.write('  </trkseg>\n </trk>\n</gpx>\n')
     n = len(res['s'])
-    with open(os.path.join(TRUTH_DIR, sid + '.csv'), 'w', newline='\n') as f:
+    with open(os.path.join(series.truth_dir, sid + '.csv'), 'w', newline='\n') as f:
         f.write(f'# control={sid} role={site["role"]} category={site["category"]} step_m=5 n={n} '
                 f'osm_base={res["osm"].base} length_m={res["length"]:.1f} built_from={res["how"].replace(" ", "_")}\n')
-        f.write(KIND_LEGEND + '\n')
+        f.write(series.legend + '\n')
         f.write('s,lat,lon,kind,way\n')
         for k in range(n):
             f.write(f'{int(round(res["s"][k]))},{res["lat"][k]:.6f},{res["lon"][k]:.6f},{res["kind"][k]},{int(res["way"][k])}\n')
 
 
-def write_tables(results):
-    with open(os.path.join(TRUTH_DIR, 'index.csv'), 'w', newline='\n') as f:
-        f.write('id,role,category,n,length_m,G,O,L,X,x,D,place\n')
+def write_tables(results, series=DECKS):
+    with open(os.path.join(series.truth_dir, 'index.csv'), 'w', newline='\n') as f:
+        f.write('id,role,category,n,length_m,' + ','.join(series.kinds) + ',place\n')
         for res in results:
             site = res['site']
-            c = counts(res['kind'])
+            c = counts(res['kind'], series.kinds)
             f.write(f'{site["id"]},{site["role"]},{site["category"]},{len(res["s"])},{res["length"]:.1f},'
-                    f'{c["G"]},{c["O"]},{c["L"]},{c["X"]},{c["x"]},{c["D"]},{site["place"].replace(",", " ")}\n')
-    with open(os.path.join(TRUTH_DIR, 'spans.csv'), 'w', newline='\n') as f:
+                    + ''.join(f'{c[k]},' for k in series.kinds) + f'{site["place"].replace(",", " ")}\n')
+    with open(os.path.join(series.truth_dir, 'spans.csv'), 'w', newline='\n') as f:
         f.write('id,kind,i0,i1,s0,s1,way,structure,name\n')
         for res in results:
             for c, a, b, nm, st, w in res['spans']:
@@ -1325,34 +1844,34 @@ def write_tables(results):
 
 
 def main(args):
-    sites = [s for s in SITES if not args or any(s['id'].startswith(a) for a in args)]
-    results, failed = [], []
-    for site in sites:
-        print(f'== {site["id"]} ({site["role"]}, {site["category"]})', flush=True)
-        try:
-            res = build(site)
-        except RuntimeError as ex:
-            print(f'  FAILED to build: {ex}', flush=True)
-            failed.append(site['id'])
+    series = DECKS
+    pool = SITES
+    if args and args[0] == '--tunnels':
+        series, pool, args = TUNNELS, TUNNEL_SITES, args[1:]
+    results, failed, taken = [], [], set()
+    for entry in pool:
+        cands = entry.get('candidates', [entry])
+        if args and not any(c['id'].startswith(a) for c in cands for a in args):
             continue
-        c = counts(res['kind'])
-        used = []
-        for w in res['ways']:
-            if not used or used[-1] != w:
-                used.append(w)
-        names = list(dict.fromkeys(label_of(res['osm'].tags(w), w) for w in used))
-        print(f'  {res["how"]}; length {res["length"]:.0f} m, {len(res["s"])} stations, {len(set(used))} ways: {"; ".join(names)[:300]}')
-        print('  kinds ' + ' '.join(f'{k}={v}' for k, v in c.items()))
-        for cc, a, b, nm, st, _ in res['spans']:
-            print(f'    {cc} {a:4d}..{b:4d}  {a * 5:5d}-{b * 5:5d} m  {(b - a + 1) * 5:5d} m  {st:9s} {nm[:90]}')
-        ok = True
-        for passed, msg in run_checks(res):
-            print(f'  check {"ok  " if passed else "FAIL"} {msg}')
-            ok &= passed
-        if ok:
-            results.append(res)
-        else:
-            failed.append(site['id'])
+        res = None
+        kept = []
+        for site in cands:
+            print(f'== {site["id"]} ({site["role"]}, {site["category"]})' + (f' [cell {entry["cell"]}]' if 'cell' in entry else ''), flush=True)
+            if site.get('depts', set()) & taken:
+                print(f'  SKIPPED (rule 3): department {sorted(site["depts"] & taken)} already held by a kept held-out site', flush=True)
+                continue
+            res = try_site(site, series)
+            if res is not None:
+                taken |= site.get('depts', set())
+                kept.append(res)
+                if len(kept) >= entry.get('keep', 1):
+                    break
+                continue
+            if 'cell' not in entry:
+                failed.append(site['id'])
+        results.extend(kept)
+        if not kept and 'cell' in entry:
+            print(f'  CELL EMPTY: {entry["cell"]} (no candidate left)', flush=True)
     if failed:
         print('FAILED:', failed)
         sys.exit(1)
@@ -1360,9 +1879,42 @@ def main(args):
         print('dry run (site subset): nothing written')
         return
     for res in results:
-        write_site(res)
-    write_tables(results)
+        write_site(res, series)
+    write_tables(results, series)
     print(f'wrote {len(results)} controls')
+
+
+def flat_tunnel_sites():
+    return [c for e in TUNNEL_SITES for c in e.get('candidates', [e])]
+
+
+def try_site(site, series):
+    """build one site and run its checks: the result, or None (printed) when it fails"""
+    if site.get('coverage_failed'):
+        print(f'  FAILED coverage (rule 5): {site["coverage_failed"]}', flush=True)
+        return None
+    try:
+        res = build(site)
+    except RuntimeError as ex:
+        print(f'  FAILED to build: {ex}', flush=True)
+        return None
+    c = counts(res['kind'], series.kinds)
+    used = []
+    for w in res['ways']:
+        if not used or used[-1] != w:
+            used.append(w)
+    names = list(dict.fromkeys(label_of(res['osm'].tags(w), w) for w in used))
+    print(f'  {res["how"]}; length {res["length"]:.0f} m, {len(res["s"])} stations, {len(set(used))} ways: {"; ".join(names)[:300]}')
+    print('  kinds ' + ' '.join(f'{k}={v}' for k, v in c.items()))
+    for cc, a, b, nm, st, _ in res['spans']:
+        print(f'    {cc} {a:4d}..{b:4d}  {a * 5:5d}-{b * 5:5d} m  {(b - a + 1) * 5:5d} m  {st:9s} {nm[:90]}')
+    ok = True
+    for passed, msg in run_checks(res):
+        print(f'  check {"ok  " if passed else "FAIL"} {msg}')
+        ok &= passed
+    if not ok:
+        print('  FAILED checks', flush=True)
+    return res if ok else None
 
 
 if __name__ == '__main__':
