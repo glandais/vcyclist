@@ -32,6 +32,8 @@ import io.github.glandais.api.openapi.gpxQueryParameters
 import io.github.glandais.api.openapi.gpxRequestBody
 import io.github.glandais.api.openapi.problemResponses
 import io.github.glandais.api.service.checkPathCount
+import io.github.glandais.api.service.checkSimulatedPoints
+import io.github.glandais.api.service.demFor
 import io.github.glandais.api.service.enhancePath
 import io.github.glandais.api.service.export
 import io.github.glandais.engine.path.dominantHeadwindAzimuthDeg
@@ -79,19 +81,21 @@ fun Route.enhanceRoutes() {
         // The path count is known once parsed, before the simulation: a CSV of three tracks is a
         // 422 that costs a parse, not three rides.
         checkPathCount(plan, input.paths.size)
+        checkSimulatedPoints(input.paths, services.config.maxSimulatedPoints)
+        val dem = services.deps.elevation.demFor(settings)
         if (plan !is OutputPlan.Summary) {
             val body =
-                services.computeGate.run {
-                    val enhanced = input.paths.map { enhancePath(it, settings, services.deps.elevation) }
+                services.computeGate.run(dem?.lock) {
+                    val enhanced = input.paths.map { enhancePath(it, settings, dem) }
                     export(plan, enhanced, inputNames = null, document = input.document)
                 }
             call.respondExport(body)
             return@post
         }
         val tracks =
-            services.computeGate.run {
+            services.computeGate.run(dem?.lock) {
                 input.paths.mapIndexed { i, path ->
-                    val enhanced = enhancePath(path, settings, services.deps.elevation)
+                    val enhanced = enhancePath(path, settings, dem)
                     TrackResultDto(
                         name = input.names[i],
                         summary = enhanced.toSummary(),
@@ -159,6 +163,7 @@ fun Route.enhanceRoutes() {
                     LimitsDto(
                         maxBodyBytes = config.maxBodyBytes,
                         maxTrackPoints = config.maxTrackPoints,
+                        maxSimulatedPoints = config.maxSimulatedPoints,
                         maxElevationPoints = config.maxElevationPoints,
                         requestTimeoutMs = config.requestTimeoutMs,
                         computeConcurrency = config.computeConcurrency,

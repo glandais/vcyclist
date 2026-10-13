@@ -64,10 +64,11 @@ class EnhanceRoutesTest {
     /** Runs [block] with the application captured, so a test can read its compute gate. */
     private fun withApp(
         deps: ApiDependencies = offlineDependencies(),
+        config: ApiConfig = testConfig(),
         block: suspend (Application, HttpClient) -> Unit,
     ) {
         lateinit var app: Application
-        apiTest(deps = deps, extraRoutes = { app = this }) { client ->
+        apiTest(config = config, deps = deps, extraRoutes = { app = this }) { client ->
             startApplication()
             block(app, client)
         }
@@ -111,6 +112,19 @@ class EnhanceRoutesTest {
                     "unknown-key",
                 )
             assertEquals(setOf("/options/simplifyTolerance", "/bogus"), problem.unknownKeys?.toSet())
+            assertEquals(before, app.admitted(), "the compute gate was taken")
+        }
+
+    @Test
+    fun `a quoted number or boolean is invalid-body, before any computation`() =
+        withApp { app, client ->
+            val before = app.admitted()
+            for (request in listOf(
+                """{"options":{"simplifyEnabled":"true"}}""",
+                """{"power":{"power":"150"}}""",
+            )) {
+                assertProblem(client.enhance(request), HttpStatusCode.BadRequest, "invalid-body")
+            }
             assertEquals(before, app.admitted(), "the compute gate was taken")
         }
 
@@ -340,6 +354,45 @@ class EnhanceRoutesTest {
             assertProblem(client.enhance(query = "?format=gpx&points=true"), HttpStatusCode.BadRequest, "invalid-option")
             assertProblem(client.enhance(query = "?format=kml"), HttpStatusCode.BadRequest, "invalid-option")
         }
+
+    @Test
+    fun `a sparse GPX spanning a long distance is too-many-points before any simulation`() =
+        withApp(config = testConfig(maxSimulatedPoints = 20_000)) { app, client ->
+            // Two input points, one degree of longitude apart: ~78 km, ~42 000 points once densified.
+            val before = app.admitted()
+            val problem =
+                assertProblem(client.enhance(gpx = gpxOf(45.0 to 0.0, 45.0 to 1.0)), HttpStatusCode.PayloadTooLarge, "too-many-points")
+            assertTrue(problem.detail!!.contains("20000"), problem.detail)
+            assertEquals(before + 1, app.admitted(), "too-many-points costs the parse, never the simulation")
+            // A tenth of that fits, and the bound really is an upper bound of what was simulated.
+            val fits = enhanced(client.enhance(gpx = gpxOf(45.0 to 0.0, 45.0 to 0.1)))
+            val summary = fits.tracks.single().summary
+            assertTrue(summary.size <= Enhancer.densifiedPointBound(2, summary.totalDistance), "$summary")
+        }
+
+    @Test
+    fun `a one-point track has a summary that agrees with its point`() =
+        apiTest { client ->
+            val response = enhanced(client.enhance(gpx = gpxOf(45.0 to 6.0, elevation = 10.0), query = "?points=true"))
+            val track = response.tracks.single()
+            val point = track.points!!.single()
+            assertEquals(45.0, point.latitudeDeg!!, 1e-9)
+            val bounds = assertNotNull(track.summary.bounds)
+            assertEquals(45.0, bounds.minLatitude, 1e-9)
+            assertEquals(6.0, bounds.maxLongitude, 1e-9)
+            assertEquals(10.0, track.summary.minElevation!!, 1e-9)
+            assertEquals(10.0, track.summary.maxElevation!!, 1e-9)
+        }
+
+    /** A one-track GPX through [points] (latitude, longitude in degrees), every point at [elevation]. */
+    private fun gpxOf(
+        vararg points: Pair<Double, Double>,
+        elevation: Double = 100.0,
+    ): String =
+        """<?xml version="1.0"?><gpx version="1.1" creator="test" xmlns="http://www.topografix.com/GPX/1/1">""" +
+            "<trk><name>t</name><trkseg>" +
+            points.joinToString("") { (lat, lon) -> """<trkpt lat="$lat" lon="$lon"><ele>$elevation</ele></trkpt>""" } +
+            "</trkseg></trk></gpx>"
 
     private fun assertClose(
         expected: Double,

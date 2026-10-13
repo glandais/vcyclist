@@ -77,7 +77,7 @@ class MetaRoutesTest {
     @Test
     fun `an unknown query parameter is a 400 unknown-key problem`() =
         apiTest { client ->
-            for (path in listOf("health", "version", "catalog", "fields")) {
+            for (path in listOf("health", "version", "catalog", "fields", "defaults")) {
                 val problem = assertProblem(client.get("/api/v1/$path?foo=1&bar=2"), HttpStatusCode.BadRequest, "unknown-key")
                 assertEquals(listOf("?bar", "?foo"), problem.unknownKeys, path)
                 assertEquals("/api/v1/$path", problem.instance)

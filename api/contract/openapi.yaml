@@ -2405,6 +2405,7 @@ components:
       required:
       - maxBodyBytes
       - maxTrackPoints
+      - maxSimulatedPoints
       - maxElevationPoints
       - requestTimeoutMs
       - computeConcurrency
@@ -2414,6 +2415,8 @@ components:
         maxBodyBytes:
           type: integer
         maxTrackPoints:
+          type: integer
+        maxSimulatedPoints:
           type: integer
         maxElevationPoints:
           type: integer

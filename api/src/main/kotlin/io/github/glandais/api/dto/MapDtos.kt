@@ -1,5 +1,6 @@
 package io.github.glandais.api.dto
 
+import io.github.glandais.elevation.ElevationFunctions
 import io.ktor.openapi.JsonSchema
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
@@ -47,7 +48,8 @@ data class TerrainMapRequest(
     @JsonSchema.Description("DEM source id (`GET /api/v1/elevation/sources`). $SEE_DEFAULTS")
     val source: String? = null,
     @JsonSchema.Description(
-        "DEM zoom level, 0..15. Absent: the source's own default. A frame covering more DEM tiles " +
+        "DEM zoom level, ${ElevationFunctions.MIN_ZOOM_LEVEL}..${ElevationFunctions.MAX_ZOOM_LEVEL}. " +
+            "Absent: the source's own default. A frame covering more DEM tiles " +
             "than `limits.maxMapDemTiles` at this zoom is refused.",
     )
     val zoomLevel: Int? = null,

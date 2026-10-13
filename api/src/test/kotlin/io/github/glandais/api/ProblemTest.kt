@@ -21,7 +21,11 @@ import io.ktor.server.routing.post
 import io.ktor.server.routing.routing
 import io.ktor.utils.io.ByteWriteChannel
 import io.ktor.utils.io.writeFully
+import kotlinx.coroutines.async
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.withTimeout
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 import kotlin.test.Test
@@ -34,6 +38,13 @@ class ProblemTest {
     @SerialName("Inner")
     data class Inner(
         val a: Int? = null,
+    )
+
+    @Serializable
+    @SerialName("Flagged")
+    data class Flagged(
+        val inner: Inner? = null,
+        val flag: Boolean? = null,
     )
 
     @Serializable
@@ -91,6 +102,17 @@ class ProblemTest {
             assertFailsWith<ApiProblem> { decodeStrict(Outer.serializer(), """{"name":3}""") }.kind,
         )
         assertEquals(Outer(inner = Inner(a = 4)), decodeStrict(Outer.serializer(), """{"inner":{"a":4}}"""))
+    }
+
+    @Test
+    fun `strict decoding refuses a quoted number or boolean`() {
+        // The contract types these as number / boolean: a string is not one, even if it parses.
+        for ((body, pointer) in listOf("""{"inner":{"a":"4"}}""" to "/inner/a", """{"flag":"true"}""" to "/flag")) {
+            val failure = assertFailsWith<ApiProblem>(body) { decodeStrict(Flagged.serializer(), body) }
+            assertEquals(ProblemKind.INVALID_BODY, failure.kind, body)
+            assertEquals(listOf(pointer), failure.errors?.map { it.pointer }, body)
+        }
+        assertEquals(Flagged(inner = Inner(a = 4), flag = true), decodeStrict(Flagged.serializer(), """{"inner":{"a":4},"flag":true}"""))
     }
 
     @Test
@@ -179,6 +201,21 @@ class ProblemTest {
         val elapsedMs = (System.nanoTime() - started) / 1_000_000
         assertTrue(elapsedMs < 900, "the timeout waited for the work: $elapsedMs ms")
         assertEquals(42, runBlocking { ComputeGate(concurrency = 1, timeoutMs = 1_000).run { 42 } })
+    }
+
+    @Test
+    fun `a request waiting for a lock holds no compute permit`() {
+        val gate = ComputeGate(concurrency = 1, timeoutMs = 5_000)
+        val lock = Mutex()
+        runBlocking {
+            lock.lock()
+            // Queued behind the lock (a DEM in use): it must not take the only permit while waiting.
+            val waiting = async { gate.run(lock) { "dem" } }
+            delay(100)
+            assertEquals("free", withTimeout(2_000) { gate.run { "free" } }, "a lock waiter starved the gate")
+            lock.unlock()
+            assertEquals("dem", waiting.await())
+        }
     }
 
     private companion object {

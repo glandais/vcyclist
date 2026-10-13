@@ -1,5 +1,6 @@
 package io.github.glandais.api.dto
 
+import io.github.glandais.elevation.ElevationFunctions
 import io.ktor.openapi.JsonSchema
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
@@ -67,7 +68,9 @@ data class ElevationPointsRequest(
     val points: List<LatLonDto>,
     @JsonSchema.Description("DEM source, one of `GET /api/v1/catalog` `elevationSources`. $SEE_DEFAULTS")
     val source: String? = null,
-    @JsonSchema.Description("DEM zoom level, 0..15. Absent or null: the source's own default zoom.")
+    @JsonSchema.Description(
+        "DEM zoom level, ${ElevationFunctions.MIN_ZOOM_LEVEL}..${ElevationFunctions.MAX_ZOOM_LEVEL}. Absent or null: the source's own default zoom.",
+    )
     val zoomLevel: Int? = null,
     @JsonSchema.Description("Bilinear interpolation rather than nearest sample. $SEE_DEFAULTS")
     val interpolation: Boolean? = null,
@@ -103,7 +106,9 @@ data class ElevationAlongRequest(
     val points: List<LatLonDto>,
     @JsonSchema.Description("DEM source, one of `GET /api/v1/catalog` `elevationSources`. $SEE_DEFAULTS")
     val source: String? = null,
-    @JsonSchema.Description("DEM zoom level, 0..15. Absent or null: the source's own default zoom.")
+    @JsonSchema.Description(
+        "DEM zoom level, ${ElevationFunctions.MIN_ZOOM_LEVEL}..${ElevationFunctions.MAX_ZOOM_LEVEL}. Absent or null: the source's own default zoom.",
+    )
     val zoomLevel: Int? = null,
     @JsonSchema.Description("Densification step, metres, above 1. $SEE_DEFAULTS")
     val step: Double? = null,

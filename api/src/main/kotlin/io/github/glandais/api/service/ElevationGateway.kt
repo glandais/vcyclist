@@ -7,14 +7,13 @@ import io.github.glandais.elevation.RawTile
 import io.github.glandais.elevation.defaultTileFetcher
 import io.github.glandais.elevation.provider
 import kotlinx.coroutines.sync.Mutex
-import kotlinx.coroutines.sync.withLock
 import java.util.concurrent.ConcurrentHashMap
 
 /**
  * The server's DEM access: one [ElevationProvider] per `(source, zoomLevel)`, built on first use
  * and kept, so its tile cache serves every request.
  *
- * **Each provider is used by one coroutine at a time**, behind its own [Mutex]: the provider's
+ * **Each provider is used by one coroutine at a time**, behind its own [Mutex] ([Dem.lock]): the provider's
  * LRU cache has never been audited for concurrent use (`Enhancer.kt`), and serialising it keeps
  * the cache, where one provider per request would lose it. Two requests on different sources or
  * zooms do not wait for each other.
@@ -25,25 +24,26 @@ import java.util.concurrent.ConcurrentHashMap
 class ElevationGateway(
     private val fetcherFor: (ElevationProviderConfig) -> suspend (String) -> RawTile = ::defaultTileFetcher,
 ) {
-    private class Entry(
-        val provider: ElevationProvider,
-    ) {
-        val mutex = Mutex()
-    }
-
-    private val entries = ConcurrentHashMap<Pair<ElevationSource, Int>, Entry>()
+    private val entries = ConcurrentHashMap<Pair<ElevationSource, Int>, Dem>()
 
     /**
-     * Runs [block] with the provider of [source] at [zoom] (`null`: the source's default zoom),
-     * holding that provider's lock for the whole block.
+     * The provider of [source] at [zoom] (`null`: the source's default zoom) and its lock. Use the
+     * provider only while holding [Dem.lock], and take that lock **before** a compute permit —
+     * `ComputeGate.run(dem.lock) { … }` does both in that order — so a request queued behind the
+     * DEM never holds a permit that a request not touching the DEM could have used.
      */
-    suspend fun <T> withProvider(
+    fun dem(
         source: ElevationSource,
         zoom: Int?,
-        block: suspend (ElevationProvider) -> T,
-    ): T {
+    ): Dem {
         val zoomLevel = zoom ?: source.defaultZoomLevel
-        val entry = entries.computeIfAbsent(source to zoomLevel) { Entry(source.provider(zoomLevel, fetcherFor)) }
-        return entry.mutex.withLock { block(entry.provider) }
+        return entries.computeIfAbsent(source to zoomLevel) { Dem(source.provider(zoomLevel, fetcherFor)) }
     }
+}
+
+/** One DEM provider of the [ElevationGateway] and the lock that serialises its use. */
+class Dem(
+    val provider: ElevationProvider,
+) {
+    val lock: Mutex = Mutex()
 }

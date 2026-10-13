@@ -10,6 +10,10 @@ import java.io.File
  * @property port TCP port; `0` picks a free one
  * @property maxBodyBytes request bodies above this are rejected with 413 `payload-too-large`
  * @property maxTrackPoints total points across all parsed tracks, above which 413 `too-many-points`
+ * @property maxSimulatedPoints points `/enhance` may simulate, across the selected paths, estimated
+ *   before simulating from each path's **length** (`Enhancer.densifiedPointBound`): the pipeline
+ *   densifies to a point every 2 m first, so two input points 1 000 km apart are half a million
+ *   points of 44 doubles each. Above it, 413 `too-many-points`
  * @property maxElevationPoints points in one elevation request, above which 413 `too-many-points`
  * @property requestTimeoutMs bound on the *response* time of CPU work (see `ComputeGate`)
  * @property computeConcurrency number of CPU-bound requests computed at once
@@ -27,6 +31,7 @@ data class ApiConfig(
     val port: Int = 8080,
     val maxBodyBytes: Long = 20L * 1024 * 1024,
     val maxTrackPoints: Int = 200_000,
+    val maxSimulatedPoints: Int = 500_000,
     val maxElevationPoints: Int = 10_000,
     val requestTimeoutMs: Long = 120_000,
     val computeConcurrency: Int = Runtime.getRuntime().availableProcessors(),
@@ -40,6 +45,7 @@ data class ApiConfig(
         require(port in 0..65535) { "port must be in 0..65535, was $port" }
         require(maxBodyBytes > 0) { "maxBodyBytes must be positive, was $maxBodyBytes" }
         require(maxTrackPoints > 0) { "maxTrackPoints must be positive, was $maxTrackPoints" }
+        require(maxSimulatedPoints > 0) { "maxSimulatedPoints must be positive, was $maxSimulatedPoints" }
         require(maxElevationPoints > 0) { "maxElevationPoints must be positive, was $maxElevationPoints" }
         require(requestTimeoutMs > 0) { "requestTimeoutMs must be positive, was $requestTimeoutMs" }
         require(computeConcurrency > 0) { "computeConcurrency must be positive, was $computeConcurrency" }
@@ -100,6 +106,10 @@ data class ApiConfig(
                 maxTrackPoints =
                     envOf("MAX_TRACK_POINTS")?.let { parse("${ENV_PREFIX}MAX_TRACK_POINTS", it, String::toIntOrNull) }
                         ?: defaults.maxTrackPoints,
+                maxSimulatedPoints =
+                    envOf("MAX_SIMULATED_POINTS")?.let {
+                        parse("${ENV_PREFIX}MAX_SIMULATED_POINTS", it, String::toIntOrNull)
+                    } ?: defaults.maxSimulatedPoints,
                 maxElevationPoints =
                     envOf("MAX_ELEVATION_POINTS")?.let {
                         parse("${ENV_PREFIX}MAX_ELEVATION_POINTS", it, String::toIntOrNull)

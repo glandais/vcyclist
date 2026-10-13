@@ -29,6 +29,7 @@ import io.github.glandais.api.openapi.problemResponses
 import io.github.glandais.elevation.CoordinatesElevation
 import io.github.glandais.elevation.Distance
 import io.github.glandais.elevation.ElevationDefaults
+import io.github.glandais.elevation.ElevationFunctions
 import io.github.glandais.elevation.ElevationSource
 import io.github.glandais.elevation.LatLon
 import io.ktor.http.ContentType
@@ -109,11 +110,10 @@ fun Route.elevationRoutes() {
         val source = elevationSource(call.queryString(PointQuery.SOURCE), "?${PointQuery.SOURCE}")
         val zoom = elevationZoom(call.queryInt(PointQuery.ZOOM_LEVEL), "?${PointQuery.ZOOM_LEVEL}")
         val interpolation = call.queryBoolean(PointQuery.INTERPOLATION) ?: ElevationDefaults.INTERPOLATION
+        val dem = services.deps.elevation.dem(source, zoom)
         val elevation =
-            services.computeGate.run {
-                services.deps.elevation.withProvider(source, zoom) {
-                    it.getElevation(point.latitude, point.longitude, interpolation)
-                }
+            services.computeGate.run(dem.lock) {
+                dem.provider.getElevation(point.latitude, point.longitude, interpolation)
             }
         call.respond(
             ElevationPointResponse(
@@ -148,8 +148,14 @@ fun Route.elevationRoutes() {
                 schema = JsonSchema(type = JsonType.STRING, enum = ElevationSource.ids.map { GenericElement(it) })
             }
             query(PointQuery.ZOOM_LEVEL) {
-                description = "DEM zoom level, 0..15. Absent: the source's own default zoom."
-                schema = JsonSchema(type = JsonType.INTEGER, minimum = 0.0, maximum = 15.0)
+                description =
+                    "DEM zoom level, ${ElevationFunctions.MIN_ZOOM_LEVEL}..${ElevationFunctions.MAX_ZOOM_LEVEL}. Absent: the source's own default zoom."
+                schema =
+                    JsonSchema(
+                        type = JsonType.INTEGER,
+                        minimum = ElevationFunctions.MIN_ZOOM_LEVEL.toDouble(),
+                        maximum = ElevationFunctions.MAX_ZOOM_LEVEL.toDouble(),
+                    )
             }
             query(PointQuery.INTERPOLATION) {
                 description = "Bilinear interpolation rather than nearest sample. Default `${ElevationDefaults.INTERPOLATION}`."
@@ -174,10 +180,8 @@ fun Route.elevationRoutes() {
         val source = elevationSource(request.source, "/source")
         val zoom = elevationZoom(request.zoomLevel, "/zoomLevel")
         val interpolation = request.interpolation ?: ElevationDefaults.INTERPOLATION
-        val result =
-            services.computeGate.run {
-                services.deps.elevation.withProvider(source, zoom) { it.setElevations(points, interpolation) }
-            }
+        val dem = services.deps.elevation.dem(source, zoom)
+        val result = services.computeGate.run(dem.lock) { dem.provider.setElevations(points, interpolation) }
         call.respond(result.toResponse(source, zoom))
     }.describe {
         operationId = "getElevations"
@@ -218,11 +222,10 @@ fun Route.elevationRoutes() {
         // a continent at a 2 m step would cost a million lookups. The step's own domain (> 1 m) and
         // the two-point minimum are the library's `require`s, answered `invalid-option`.
         if (step > 0.0) requirePointCount(estimatedSamples(points, step), services.config, "densified at step $step m")
+        val dem = services.deps.elevation.dem(source, zoom)
         val result =
-            services.computeGate.run {
-                services.deps.elevation.withProvider(source, zoom) {
-                    it.getElevationsAlong(points, step, minDistance, interpolation, smoothing, filter)
-                }
+            services.computeGate.run(dem.lock) {
+                dem.provider.getElevationsAlong(points, step, minDistance, interpolation, smoothing, filter)
             }
         call.respond(result.toResponse(source, zoom))
     }.describe {

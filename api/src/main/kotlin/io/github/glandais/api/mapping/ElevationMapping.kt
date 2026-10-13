@@ -30,7 +30,7 @@ fun elevationSource(
         ?: throw invalidOption(pointer, "unknown value '$id', expected one of ${ElevationSource.ids.joinToString(", ")}")
 }
 
-/** [zoom] when valid (0..15, the library's own check), `null` for the source's default. */
+/** [zoom] when valid ([ElevationFunctions.MIN_ZOOM_LEVEL]..[ElevationFunctions.MAX_ZOOM_LEVEL], the library's own check), `null` for the source's default. */
 fun elevationZoom(
     zoom: Int?,
     pointer: String,

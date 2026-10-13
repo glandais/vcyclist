@@ -43,6 +43,8 @@ data class DefaultsDto(
  *
  * @property maxBodyBytes larger request bodies are 413 `payload-too-large`
  * @property maxTrackPoints more points in the selected paths is 413 `too-many-points`
+ * @property maxSimulatedPoints `/enhance` refuses, 413 `too-many-points`, selected paths whose
+ *   densified size — input points, plus one every 30 m and every 2 m of their length — exceeds this
  * @property maxElevationPoints more points in one elevation request is 413 `too-many-points`
  * @property requestTimeoutMs a computation that has not answered by then is 503 `timeout`
  * @property computeConcurrency computations run at once; the others wait for the timeout
@@ -54,6 +56,7 @@ data class DefaultsDto(
 data class LimitsDto(
     val maxBodyBytes: Long,
     val maxTrackPoints: Int,
+    val maxSimulatedPoints: Int,
     val maxElevationPoints: Int,
     val requestTimeoutMs: Long,
     val computeConcurrency: Int,

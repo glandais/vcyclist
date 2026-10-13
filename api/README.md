@@ -37,6 +37,7 @@ command line (which win).
 | port | `VCYCLIST_API_PORT` / `--port` | `8080` |
 | max body size | `VCYCLIST_API_MAX_BODY_BYTES` | 20 MiB |
 | max track points (all parsed tracks together) | `VCYCLIST_API_MAX_TRACK_POINTS` | 200 000 |
+| max points `/enhance` simulates (estimated from the length, see below) | `VCYCLIST_API_MAX_SIMULATED_POINTS` | 500 000 |
 | max points of one elevation request (densified, for `/elevation/along`) | `VCYCLIST_API_MAX_ELEVATION_POINTS` | 10 000 |
 | response timeout of CPU work | `VCYCLIST_API_REQUEST_TIMEOUT_MS` | 120 000 |
 | requests computed at once | `VCYCLIST_API_COMPUTE_CONCURRENCY` | number of processors |
@@ -96,7 +97,8 @@ the route's own `format` / `points`):
 | `trackIndex` | integer ≥ 0 | all | keep one path; past the end is 422 |
 | `repair` | `true`, `false` | `true` | repair malformed XML (bare `&`…) and report each repair in `warnings` |
 
-No path with a point is 422 `empty-gpx`; more than the track-point limit is 413 `too-many-points`.
+No path with a point is 422 `empty-gpx`; more than the track-point limit is 413 `too-many-points`. `/enhance` also refuses, with the same
+problem, paths that the pipeline would densify past `MAX_SIMULATED_POINTS` (see below).
 
 ## Output format
 
@@ -141,7 +143,7 @@ The slugs below are the documentation of those URNs.
 | <a id="method-not-allowed"></a>`method-not-allowed` | 405 | |
 | <a id="not-acceptable"></a>`not-acceptable` | 406 | `Accept` names no format the route serves |
 | <a id="payload-too-large"></a>`payload-too-large` | 413 | body over the size limit (by `Content-Length` or while reading a chunked body) |
-| <a id="too-many-points"></a>`too-many-points` | 413 | over the track-point or elevation-point limit |
+| <a id="too-many-points"></a>`too-many-points` | 413 | over the track-point, simulated-point or elevation-point limit |
 | <a id="unsupported-media-type"></a>`unsupported-media-type` | 415 | |
 | <a id="empty-gpx"></a>`empty-gpx` | 422 | no selected path has a point |
 | <a id="multiple-tracks"></a>`multiple-tracks` | 422 | CSV / JSON asked for several tracks |
@@ -165,10 +167,18 @@ Every response echoes `X-Request-Id` (or generates one), which the logs carry.
 - CPU work runs in a **compute gate**: at most `COMPUTE_CONCURRENCY` at once, the others queue for a
   permit. The timeout bounds the **response**, not the computation: the engine's loops never
   check for cancellation, so a computation that started finishes on its thread and keeps its
-  permit. A request still waiting for a permit is really cancelled. The real protection is the
-  point limit — the pipeline is linear in the number of points.
+  permit. A request still waiting for a permit is really cancelled. The real protection is upstream, on the
+  size of what is computed.
+- The pipeline's cost follows the track's **length**, not its input point count: it densifies to a
+  point every 30 m, then every 2 m, before anything else, so two points 1 000 km apart become half a
+  million points of 44 doubles. `/enhance` therefore bounds the densified size, estimated before
+  simulating as `points + length/30 m + length/2 m` (`Enhancer.densifiedPointBound`, which reads the
+  pipeline's own spacings) against `MAX_SIMULATED_POINTS` — about 1 000 km by default.
+  `/elevation/along` bounds its densified polyline the same way against `MAX_ELEVATION_POINTS`.
 - The DEM provider of each `(source, zoom)` is shared and serialised behind a lock (its cache was
-  never audited for concurrency): two requests on the same DEM run one after the other.
+  never audited for concurrency): two requests on the same DEM run one after the other. The lock is
+  taken **before** a compute permit, so requests queued behind the DEM hold no permit and do not
+  starve requests that never touch it.
 - A map is rendered in memory, up to `4 · MAX_MAP_PIXELS²` bytes per concurrent render.
 
 ## Defaults

@@ -189,6 +189,7 @@ class HttpDefaultsTest {
                 LimitsDto(
                     maxBodyBytes = config.maxBodyBytes,
                     maxTrackPoints = config.maxTrackPoints,
+                    maxSimulatedPoints = config.maxSimulatedPoints,
                     maxElevationPoints = config.maxElevationPoints,
                     requestTimeoutMs = config.requestTimeoutMs,
                     computeConcurrency = config.computeConcurrency,

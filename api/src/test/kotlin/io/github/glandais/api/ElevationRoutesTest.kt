@@ -55,6 +55,8 @@ class ElevationRoutesTest {
             assertEquals(ElevationSource.MAPTERHORN.id, lidar.fallback)
             assertEquals(ElevationSource.IGN_LIDAR_HD.defaultZoomLevel, lidar.defaultZoomLevel)
             assertEquals(2, lidar.attribution.size)
+            val problem = assertProblem(client.get("/api/v1/elevation/sources?foo=1"), HttpStatusCode.BadRequest, "unknown-key")
+            assertEquals(listOf("?foo"), problem.unknownKeys)
         }
 
     @Test

@@ -5,7 +5,9 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.TimeoutCancellationException
 import kotlinx.coroutines.async
+import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.Semaphore
+import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.sync.withPermit
 import kotlinx.coroutines.withTimeout
 import java.util.concurrent.atomic.AtomicLong
@@ -21,8 +23,9 @@ import java.util.concurrent.atomic.AtomicLong
  * and the caller only *awaits* it: a `withContext` around a loop that never suspends would not
  * return before the loop does, timeout or not. A computation still waiting for its permit is
  * cancelled for real. The protection against a request that would compute for too long is
- * upstream: `maxTrackPoints` (the pipeline is linear in the point count) and the analysis
- * options' own bounds.
+ * upstream: `maxTrackPoints` on the parsed input, `maxSimulatedPoints` on what `/enhance` densifies
+ * it into (the pipeline's cost follows the track's length, not its input point count), the
+ * elevation and map limits, and the analysis options' own bounds.
  */
 class ComputeGate(
     val concurrency: Int,
@@ -46,11 +49,25 @@ class ComputeGate(
     /**
      * Runs [block] under the gate and returns its result, or rethrows its failure.
      *
+     * [lock], when given, is taken **before** the permit and held until [block] ends: a request
+     * waiting for a shared resource (a DEM provider) waits without a permit, so it cannot starve
+     * requests that do not need that resource. Its wait counts in [timeoutMs] like a permit's.
+     *
      * @throws ApiProblem `timeout` when [timeoutMs] elapses first
      */
-    suspend fun <T> run(block: suspend () -> T): T {
+    suspend fun <T> run(
+        lock: Mutex? = null,
+        block: suspend () -> T,
+    ): T {
         admittedCount.incrementAndGet()
-        val work = scope.async { semaphore.withPermit { block() } }
+        val work =
+            scope.async {
+                if (lock == null) {
+                    semaphore.withPermit { block() }
+                } else {
+                    lock.withLock { semaphore.withPermit { block() } }
+                }
+            }
         try {
             return withTimeout(timeoutMs) { work.await() }
         } catch (e: TimeoutCancellationException) {
