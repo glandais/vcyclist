@@ -6,7 +6,7 @@ Exposer **toutes les capacités atteignables du moteur** par HTTP, dans un modul
 `:api` (JVM seul, Ktor), avec un contrat **OpenAPI 3.1 engendré depuis le code**, versionné dans le
 dépôt et vérifié par le build.
 
-L'API est une **porte** au sens de [`surface-coverage.md`](../ledgers/surface-coverage.md), au même
+L'API est une **porte** au sens de [`surface-coverage.md`](../../ledgers/surface-coverage.md), au même
 titre que le CLI, JS, WASI, Java et la démo. Elle hérite donc de toutes leurs règles :
 
 - **mêmes noms de clés JSON que les DTO JS/WASI**, pour que les portes restent alignées ;
@@ -31,7 +31,7 @@ ressources dont personne n'a demandé la persistance.
   Central.
 - `:codegen` en **`testImplementation` uniquement** : les tests de parité de `:api` lisent
   `OptionCatalog` par réflexion (étape A7). `:codegen` ne dépend pas de `:api`, il n'y a pas de cycle.
-- [`docs/tasks/surface-alignment.md`](surface-alignment.md) — `OptionCatalog`, `DoorParityTest`,
+- [`docs/tasks/surface-alignment.md`](../../tasks/surface-alignment.md) — `OptionCatalog`, `DoorParityTest`,
   `SurfaceLedger`, l'idiome des tests de parité.
 - `RoadCondition?.applyTo(cyclist)` (S8 livré) — **le préréglage gagne**, partout. Le
   paragraphe de CLAUDE.md qui parle d'une préséance divergente « jusqu'à S8 » est périmé.
@@ -503,7 +503,7 @@ hors de `GlobalScope.promise` » : la 400 part avant que la `ComputeGate` ne soi
 Chaque étape laisse `./gradlew :api:check` vert (et `./gradlew check` à A1 et A7), régénère
 `api/contract/openapi.yaml`, met à jour `EXPECTED_OPERATIONS`, et fait **un commit**.
 
-### A1 — Module, configuration, méta, plomberie OpenAPI (4 opérations)
+### A1 — Module, configuration, méta, plomberie OpenAPI (4 opérations) ✅ livré
 
 Catalogue de versions, `settings.gradle.kts`, `api/build.gradle.kts` (`run`, `executableJar`
 → `vcyclist-api-<v>-all.jar`, `generateVersionProperties`, `generateOpenApi`, entrées de test),
@@ -511,31 +511,31 @@ Catalogue de versions, `settings.gradle.kts`, `api/build.gradle.kts` (`run`, `ex
 `QueryParams`, `BodyLimit`, `ComputeGate`, CORS, journalisation ; `health`, `version`, `catalog`,
 `fields` ; `OpenApiContract`, Swagger, générateur, contrat committé, `OpenApiContractTest`.
 
-### A2 — Entrée GPX et `/gpx/parse` (5)
+### A2 — Entrée GPX et `/gpx/parse` (5) ✅ livré
 
 `GpxInput` (multipart / brut / 415 / 413 / parts inconnues), sélection (`kinds`, `split`,
 `trackIndex`, `repair`), `Summaries`, `ParsedGpxDto`, `?points=true`.
 
-### A3 — `/enhance` en résumé, `/defaults` (7)
+### A3 — `/enhance` en résumé, `/defaults` (7) ✅ livré
 
 DTO d'entrée, `HttpDefaults`, mappeurs aller et retour, câblage physique par trace,
 `ElevationGateway` (pour `fixElevation`), avertissements, `ComputeGate`, fumée pleine chaîne.
 
-### A4 — Formats de sortie et `/export` (8)
+### A4 — Formats de sortie et `/export` (8) ✅ livré
 
 Négociation `format`/`Accept`, GPX / FIT / CSV / JSON colonnes, `output.*`, `Content-Disposition`,
 règle `multiple-tracks`, `fields`.
 
-### A5 — Analyses et élévation (15)
+### A5 — Analyses et élévation (15) ✅ livré
 
 `/analysis/climbs`, `/analysis/racing-line`, `/analysis/headwind`, `/elevation/sources|point|points|along`,
 erreurs MNT → 502/503.
 
-### A6 — Cartes (17)
+### A6 — Cartes (17) ✅ livré
 
 `SrtmMapProducer.DEFAULT_MAX_SIZE` dans `:map`, `MapService`, `/map/tiles`, `/map/terrain`.
 
-### A7 — Parité, registre, documentation
+### A7 — Parité, registre, documentation ✅ livré
 
 `Door.HTTP`, `httpDto`, tests de parité/transmission/défauts, colonne du registre, README du
 module, CLAUDE.md, `docs/README.md`, `surface-coverage.md`, archivage de cette spec.
@@ -708,6 +708,25 @@ curl -s -X POST -H 'Content-Type: application/gpx+xml' --data-binary @in.gpx 'lo
   ré-entré. Les tuiles manquantes ne font pas échouer la carte (`MissingTilePolicy.SKIP`) :
   l'en-tête `X-Vcyclist-Missing-Tiles: <manquantes>/<total>` les signale (exposé par CORS).
   Réponse `image/png`, `Content-Disposition: inline`.
+- **Constaté à A7.** `OptionCatalog` gagne `Door.HTTP` (dans `ALL_WIRE` et `WIRE_NO_CLI` : la porte
+  HTTP accepte toutes les clés fil de JS/WASI, aucun ensemble explicite n'avait à être revu) et
+  `OptionGroup.httpDto`. `CsvOptions.fields` / `JsonOptions.fields` deviennent des `Opt` HTTP seuls,
+  avec la raison écrite en `cliExempt` ; `DoorDefaultsTest` ne lit plus que les options qui
+  revendiquent WASI (il cherchait `d.fields` dans le lecteur WASI, qui n'a pas la clé). Côté `:api`,
+  le registre `HTTP_DOOR` (test) lie chaque `@SerialName` à son sérialiseur, à son lecteur et à son
+  objet `HttpDefaults` ; il est écrit à la main, puisqu'il est ce contre quoi le catalogue est
+  comparé, et sa taille est vérifiée contre `OptionCatalog.groups`. `HttpForwardingTest` dérive la
+  sentinelle du type du défaut (booléen inversé, `+ 1`, une autre entrée d'enum épelée par son `id`
+  ou `wireName`, `;` pour un `Char`) ; une petite table de surcharges couvre les défauts `null`
+  (`decimals`, `fields`), les chaînes (`lineSeparator`) et `Bike.efficiency` (un rendement, que
+  `Bike` ne borne pas mais que `+ 1` rendrait absurde) — ses clés sont elles-mêmes vérifiées. Les
+  trois clés sans champ (`demZoom`, `demSource`, `roadCondition`) ont chacune une assertion
+  comportementale. Essayé une fois : une clé ajoutée à `BikeDto` fait échouer `HttpDoorParityTest`,
+  un `crr` que `toBike` ne lit plus fait échouer `HttpForwardingTest`. Dans `surface-coverage.md`,
+  la colonne HTTP du tableau d'État est écrite à la main : `nanDefault` y est ❌ (le catalogue de
+  champs de `GET /fields` ne le publie pas), la configuration MNT ⚠️ (sources choisies par le
+  serveur, pas de `tileUrlTemplate`), le reste ✅. Les cartes (`:map`) n'y ont pas de ligne : le
+  tableau ne suit que les capacités de `:engine`.
 - Le DSL OpenAPI natif de Ktor est `@ExperimentalKtorApi` ; si une montée de Ktor le casse, le repli
   est smiley4 `ktor-openapi` (voir *Bibliothèques*), sans changer le contrat committé autrement que
   par la régénération.

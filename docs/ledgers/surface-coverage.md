@@ -1,6 +1,6 @@
-# Couverture des surfaces : cœur / CLI / JS / WASI / JVM / démo
+# Couverture des surfaces : cœur / CLI / JS / WASI / JVM / démo / HTTP
 
-vcyclist expose le même moteur par **six portes**, et une capacité ajoutée au cœur n'en franchit
+vcyclist expose le même moteur par **sept portes**, et une capacité ajoutée au cœur n'en franchit
 aucune toute seule :
 
 | Surface | Où | Vérifie ses entrées ? |
@@ -11,6 +11,7 @@ aucune toute seule :
 | **WASI** | `engine/src/wasmWasiMain/…/WasiOptions.kt` | oui (`requireOnly`) |
 | **JVM/Java** | `*/src/jvmMain/…/*Jvm.kt` | le compilateur Java |
 | **Démo** | un contrôle dans l'UI de `demo/src` | oui, par le type (`index.d.ts` engendré) |
+| **HTTP** | `api/src/main/…/dto/*.kt` + les lecteurs de `api/…/mapping/` | oui (`StrictJson` : 400 `unknown-key`, un pointeur JSON par clé) |
 
 La colonne **JVM/Java** est neuve (audit d'août 2026) et c'était l'angle mort structurel du tableau :
 une capacité peut être ✅ sur les quatre portes fil et rester **inatteignable depuis Java**, parce
@@ -80,40 +81,40 @@ Le ✅ du ledger voulait dire « livré dans le cœur et le CLI » et se lisait 
 
 Légende : ✅ atteignable · ⚠️ partiel (la note dit en quoi) · ❌ absent · — sans objet.
 
-| Capacité | Cœur | CLI | JS | WASI | JVM/Java | Démo |
-|---|---|---|---|---|---|---|
-| Puissance constante | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
-| R17 durabilité (fade sur travail > CP) | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
-| R16 critical-power (réserve W′) | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
-| Rejeu `from_data` | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
-| R19 allure terrain | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
-| R18 limite de pente de puissance | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
-| R9 condition de route sèche/mouillée | ✅ | ✅ [^prec] | ✅ [^prec] | ✅ [^prec] | ✅ | ✅ |
-| R10 angle de garde au sol des pédales | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
-| R15 CP/W′ du champ W′bal | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
-| R12 `pBrake` (champ de sortie) | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
-| R24 ligne de course (`racingLine*`, opt-in) | ✅ | ✅ [^rl] | ✅ [^rl] | ✅ [^rl] | ✅ [^rl] | ✅ [^rl] |
-| R26 largeur de route (`racingLineRoadWidthM`, OSM `highway`) | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
-| Rapport de ligne de course (`analyzeRacingLine`) | ✅ | ⚠️ table texte, pas de JSON | ✅ | ✅ | ✅ | ⚠️ 4 champs sur 13 [^conv] |
-| Export GPX (`writeGpx`, `writeGpxAt`) | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
-| Export FIT (`pathToFit`, `pathsToFit`) | ✅ | ⚠️ pas d'`interPathGap` | ✅ | ✅ | ✅ | ⚠️ mono-trace (`pathsToFit` non câblé) |
-| `--gpx-power-source` (input / computed / computed-or-input) | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
-| `trackName` (mono-trace `writeGpx` / `writeGpxAt`) | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
-| `trackName` + heure de départ absolue (multi-traces) | ✅ | ✅ | ✅ [^multi] | ✅ [^multi] | ✅ | ✅ |
-| Lecture multi-traces (`parseGpxTracks`) | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ [^pick] |
-| `tracksAsPaths(kinds)` (traces / itinéraires) | ✅ | ❌ | ✅ | ✅ | ✅ | ❌ |
-| Waypoints GPX (`<wpt>`) | ✅ | ✅ | ✅ (`writeGpxTracks`) | ❌ refus documenté | ✅ | ✅ [^wpt] |
-| `repairOnFailure` du parseur GPX + `GpxXmlRepair` | ✅ | ❌ | ❌ | ❌ | ✅ | ❌ |
-| Détection de cols (`ClimbDetector` / `ClimbOptions`) | ✅ | ❌ aucune option | ✅ 7 sur 7 | ✅ 7 sur 7 | ✅ | ✅ 6 réglages sur 7 [^climbui] |
-| Export CSV (`CsvOptions`) | ✅ | ⚠️ aucune option | ✅ 4 de 5 [^fields] | ✅ 4 de 5 [^fields] | ✅ | ⚠️ défauts seulement |
-| Export JSON (`JsonOptions`) | ✅ | ⚠️ aucune option | ✅ 3 de 4 [^fields] | ✅ 3 de 4 [^fields] | ✅ | ⚠️ défauts seulement |
-| Configuration DEM (`ElevationProviderConfig`) | ✅ | ❌ | ✅ | ⚠️ sans `tileUrlTemplate` | ✅ | ❌ |
-| `getElevationsAlong` (échantillonnage DEM le long d'un tracé) | ✅ | ❌ | ✅ | ❌ | ✅ [^bridge] | ✅ |
-| `nanDefault` dans le catalogue de champs publié | ✅ | — | ❌ | ❌ | ✅ | ❌ |
-| R27 D+/D− à seuil (`elevationGainPreset`, `elevationGainThresholdM`, `elevationGainEnabled`) | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
-| R28 fenêtre de lissage d'altitude (`elevationSmoothWindowM`) | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
-| R30 zoom du MNT pour le pipeline (`--dem-zoom`, `demZoom`, `vcSetElevationConfig`) | ✅ | ✅ | ✅ | ✅ | ⚠️ [^demzoom] | ❌ [^demzoom] |
-| Source du MNT, IGN LiDAR HD (`ElevationSource` : `--dem-source`, `demSource`, `source`) | ✅ | ✅ | ✅ | ⚠️ [^demsource] | ✅ [^demsource] | ✅ [^demsource] |
+| Capacité | Cœur | CLI | JS | WASI | JVM/Java | Démo | HTTP |
+|---|---|---|---|---|---|---|---|
+| Puissance constante | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
+| R17 durabilité (fade sur travail > CP) | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
+| R16 critical-power (réserve W′) | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
+| Rejeu `from_data` | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
+| R19 allure terrain | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
+| R18 limite de pente de puissance | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
+| R9 condition de route sèche/mouillée | ✅ | ✅ [^prec] | ✅ [^prec] | ✅ [^prec] | ✅ | ✅ | ✅ [^prec] |
+| R10 angle de garde au sol des pédales | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
+| R15 CP/W′ du champ W′bal | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
+| R12 `pBrake` (champ de sortie) | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
+| R24 ligne de course (`racingLine*`, opt-in) | ✅ | ✅ [^rl] | ✅ [^rl] | ✅ [^rl] | ✅ [^rl] | ✅ [^rl] | ✅ [^rl] |
+| R26 largeur de route (`racingLineRoadWidthM`, OSM `highway`) | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
+| Rapport de ligne de course (`analyzeRacingLine`) | ✅ | ⚠️ table texte, pas de JSON | ✅ | ✅ | ✅ | ⚠️ 4 champs sur 13 [^conv] | ✅ 13 sur 13 |
+| Export GPX (`writeGpx`, `writeGpxAt`) | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
+| Export FIT (`pathToFit`, `pathsToFit`) | ✅ | ⚠️ pas d'`interPathGap` | ✅ | ✅ | ✅ | ⚠️ mono-trace (`pathsToFit` non câblé) | ✅ [^http] |
+| `--gpx-power-source` (input / computed / computed-or-input) | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
+| `trackName` (mono-trace `writeGpx` / `writeGpxAt`) | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
+| `trackName` + heure de départ absolue (multi-traces) | ✅ | ✅ | ✅ [^multi] | ✅ [^multi] | ✅ | ✅ | ✅ |
+| Lecture multi-traces (`parseGpxTracks`) | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ [^pick] | ✅ |
+| `tracksAsPaths(kinds)` (traces / itinéraires) | ✅ | ❌ | ✅ | ✅ | ✅ | ❌ | ✅ |
+| Waypoints GPX (`<wpt>`) | ✅ | ✅ | ✅ (`writeGpxTracks`) | ❌ refus documenté | ✅ | ✅ [^wpt] | ✅ |
+| `repairOnFailure` du parseur GPX + `GpxXmlRepair` | ✅ | ❌ | ❌ | ❌ | ✅ | ❌ | ✅ |
+| Détection de cols (`ClimbDetector` / `ClimbOptions`) | ✅ | ❌ aucune option | ✅ 7 sur 7 | ✅ 7 sur 7 | ✅ | ✅ 6 réglages sur 7 [^climbui] | ✅ 7 sur 7 |
+| Export CSV (`CsvOptions`) | ✅ | ⚠️ aucune option | ✅ 4 de 5 [^fields] | ✅ 4 de 5 [^fields] | ✅ | ⚠️ défauts seulement | ✅ 5 de 5 [^fields] |
+| Export JSON (`JsonOptions`) | ✅ | ⚠️ aucune option | ✅ 3 de 4 [^fields] | ✅ 3 de 4 [^fields] | ✅ | ⚠️ défauts seulement | ✅ 4 de 4 [^fields] |
+| Configuration DEM (`ElevationProviderConfig`) | ✅ | ❌ | ✅ | ⚠️ sans `tileUrlTemplate` | ✅ | ❌ | ⚠️ [^http] |
+| `getElevationsAlong` (échantillonnage DEM le long d'un tracé) | ✅ | ❌ | ✅ | ❌ | ✅ [^bridge] | ✅ | ✅ |
+| `nanDefault` dans le catalogue de champs publié | ✅ | — | ❌ | ❌ | ✅ | ❌ | ❌ |
+| R27 D+/D− à seuil (`elevationGainPreset`, `elevationGainThresholdM`, `elevationGainEnabled`) | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
+| R28 fenêtre de lissage d'altitude (`elevationSmoothWindowM`) | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
+| R30 zoom du MNT pour le pipeline (`--dem-zoom`, `demZoom`, `vcSetElevationConfig`) | ✅ | ✅ | ✅ | ✅ | ⚠️ [^demzoom] | ❌ [^demzoom] | ✅ |
+| Source du MNT, IGN LiDAR HD (`ElevationSource` : `--dem-source`, `demSource`, `source`) | ✅ | ✅ | ✅ | ⚠️ [^demsource] | ✅ [^demsource] | ✅ [^demsource] | ✅ |
 
 [^prec]: **Refermé en S8, avec un changement de comportement du CLI.** Les trois portes résolvaient
     le préréglage elles-mêmes et ne s'accordaient pas : l'explicite gagnait au CLI, le préréglage
@@ -161,11 +162,12 @@ Légende : ✅ atteignable · ⚠️ partiel (la note dit en quoi) · ❌ absent
     quand il a gagné `trackNames` et `startTimeEpochMs`. Vérifié dans le navigateur sur
     `demo/public/gpx/two-tracks.gpx`, le seul échantillon livré qui ait plus d'une trace ou le
     moindre waypoint — ce qui explique que personne ne l'ait vu.
-[^fields]: `CsvOptions.fields` / `JsonOptions.fields` sélectionnent les colonnes et ne franchissent
-    **aucune** porte, y compris après S4 : ce sont des `List<PointField>`, et aucune porte ne sait
-    encore épeler un `PointField` sur le fil — `fieldDefinitions()` publie les noms, rien ne les
-    relit. C'est une entrée `CoreOnly` explicite du catalogue, avec sa raison écrite, pas un oubli :
-    le test échoue si quelqu'un la supprime sans donner une porte au champ.
+[^fields]: `CsvOptions.fields` / `JsonOptions.fields` sélectionnent les colonnes. Ce sont des
+    `List<PointField>` ; **seule la porte HTTP** sait les épeler sur le fil : une liste de noms
+    (`"speed"`, `"elevation"`…), relue par `PointField.byProp`, chaque nom inconnu étant une 400 avec
+    son propre pointeur (`/output/csv/fields/2`). JS et WASI n'ont toujours aucun moyen de relire un
+    nom — `fieldDefinitions()` les publie, rien ne les relit : c'est l'écart, écrit dans le
+    catalogue (`Opt("fields", doors = setOf(Door.HTTP))`) et rendu dans la table par option.
 [^conv]: **Refermé en partie en S11.** La démo lit désormais `converged` et `newtonIterations` et
     affiche un avertissement sur la carte quand le solveur a atteint son plafond d'itérations — une
     résolution non convergée n'est plus tracée comme une ligne finie. Les neuf champs restants
@@ -199,6 +201,16 @@ Légende : ✅ atteignable · ⚠️ partiel (la note dit en quoi) · ❌ absent
     (ligne propre : E7 ; l'écart est écrit dans `wasm-wasi-abi.md`, § `vcSetElevationConfig`).
     **Tunnels** (E4) : sur toutes les portes, WASI comprise, et toute source — l'étape ne lit que
     le MNT ; aucune clé, aucune option (E7 décidera).
+
+[^http]: Ce que la porte HTTP ne fait **pas** passer, par décision : aucune
+    `tileUrlTemplate`, `tileSize` ni `cacheSize` client (MNT comme carte) — ce serait une SSRF, le
+    serveur choisit ses sources parmi `ElevationSource` et sa source de tuiles par configuration ;
+    pas de cache disque du MNT (`diskCachedElevationProvider` est `internal` à `:cli`). Le `sport`
+    du FIT reste `CYCLING` (aucune porte ne l'expose). Les fenêtres de réglage de la courbure, les
+    vingt champs de réglage de la ligne de course et `elevationGain.smoothWindowM` restent Kotlin,
+    comme sur toutes les portes (entrées `CoreOnly` du catalogue). Et l'accès interactif point par
+    point d'un `Path` (`EnginePath` côté JS) n'a pas d'équivalent : l'API est sans état, on en sort
+    par `?points=true` ou par l'export JSON en colonnes.
 
 [^bridge]: **Refermé en S5.** `ElevationProvider` a trois membres `suspend` et seuls deux avaient
     des ponts `Blocking`/`Async` ; celui qui manquait était justement le seul à cinq paramètres par
@@ -251,6 +263,31 @@ choses sont apparues, et elles valent plus que la ligne elle-même :
 
    Une seule exception assumée : `export --gpx` n'a pas l'option, ses chemins ne sont jamais
    simulés, donc `computed` y serait toujours vide.
+
+## Porte HTTP
+
+La septième porte est le module `:api` (Ktor, JVM seul, sans état) : 17 opérations sous
+`/api/v1`, documentées par [`api/README.md`](../../api/README.md) et par le contrat OpenAPI
+engendré `api/contract/openapi.yaml`. Ses DTO portent **les mêmes noms de clés** que les DTO JS et
+les lecteurs WASI, et ses défauts sont ceux de JS/WASI, lus dans un seul objet, `HttpDefaults`.
+Quatre contrôles la tiennent alignée, tous dans `api/src/test` :
+
+- **`HttpDoorParityTest`** — pour chaque groupe d'`OptionCatalog`, les `elementNames` du descripteur
+  du DTO nommé par `httpDto` == `wireNames(Door.HTTP)` ; registre `@SerialName → KSerializer` avec
+  contrôle de taille contre `OptionCatalog.groups`, et HTTP ⊇ JS ∪ WASI. Par réflexion : `:api` lit
+  le catalogue en `testImplementation(project(":codegen"))`, `:codegen` ne voyant pas `:api`.
+- **`HttpForwardingTest`** — *une clé acceptée est une clé utilisée* : chaque option HTTP, envoyée
+  seule avec une sentinelle, décodée strictement et passée au lecteur de la porte, doit déplacer le
+  `path` catalogué sur l'objet du cœur ; les clés sans champ (`demZoom`, `demSource`,
+  `roadCondition`) ont chacune une assertion comportementale.
+- **`HttpDefaultsTest`** — `{}` donne `HttpDefaults` pour chaque groupe ; `HttpDefaults` ne diffère
+  du cœur que sur les trois champs nommés (`fixElevation`, `computeOnePointPerSecond`,
+  `simplifyEnabled`) ; `GET /defaults` relu puis remappé == ce qui est appliqué.
+- **`OpenApiContractTest`** — le contrat committé est le rendu du routage, chaque opération a son
+  `operationId`, et le contrat servi est le committé.
+
+Le tableau d'État ci-dessus a sa colonne HTTP écrite à la main, comme les autres ; la table par
+option ci-dessous a la sienne engendrée depuis le catalogue.
 
 ## Options par porte
 

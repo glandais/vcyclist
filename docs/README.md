@@ -29,6 +29,7 @@ and is never updated to match the code.
 | [`guides/wasm-wasi-abi.md`](guides/wasm-wasi-abi.md) | The WASI module's imports, exports and error codes — what a host must implement |
 
 Module-level guides live next to their module: [`cli/README.md`](../cli/README.md),
+[`api/README.md`](../api/README.md) (the HTTP API: endpoints, errors, configuration, OpenAPI),
 [`elevation/README.md`](../elevation/README.md), [`map/README.md`](../map/README.md),
 [`demo/README.md`](../demo/README.md), [`tools/wasi/README.md`](../tools/wasi/README.md).
 
@@ -37,7 +38,7 @@ Module-level guides live next to their module: [`cli/README.md`](../cli/README.m
 | Document | Tracks |
 |---|---|
 | [`ledgers/improvements-ledger.md`](ledgers/improvements-ledger.md) | One row per research-derived improvement (R1…), scored against the code: applied / recommended / deferred / rejected, with the measurement behind each verdict |
-| [`ledgers/surface-coverage.md`](ledgers/surface-coverage.md) | Which of the six surfaces — core, CLI, JS, WASI, JVM/Java, demo — exposes which capability, and where each one is short. Its per-option table is **generated** from `OptionCatalog` (`./gradlew :codegen:generateSurfaceLedger`); the capability table above it is written by hand, because "reachable by a human in the UI" does not derive |
+| [`ledgers/surface-coverage.md`](ledgers/surface-coverage.md) | Which of the seven surfaces — core, CLI, JS, WASI, JVM/Java, demo, HTTP — exposes which capability, and where each one is short. Its per-option table is **generated** from `OptionCatalog` (`./gradlew :codegen:generateSurfaceLedger`); the capability table above it is written by hand, because "reachable by a human in the UI" does not derive |
 | [`ledgers/build-warnings-ledger.md`](ledgers/build-warnings-ledger.md) | Everything `./gradlew clean build` emits that is not a task line, and what was done about it |
 
 ## Open tasks
@@ -47,7 +48,6 @@ Module-level guides live next to their module: [`cli/README.md`](../cli/README.m
 | [`tasks/surface-alignment.md`](tasks/surface-alignment.md) | Make façade alignment build-enforced instead of review-enforced, and close the 23 confirmed gaps between the six doors. **S0–S9 and S11 delivered; S10 (code generation) deliberately not started — the reasoning is in the step.** |
 | [`tasks/elevation-bridge-decks.md`](tasks/elevation-bridge-decks.md) | Give bridges their deck back on IGN LiDAR HD ground: detect structures on the MNH, replace the terrain-model canyon with the MNS deck profile, then revisit smoothing and the D+ preset. **Analysis only, nothing delivered.** |
 | [`tasks/elevation-half-pixel.md`](tasks/elevation-half-pixel.md) | Make `ElevationCalculator`'s bilinear lookup interpolate between pixel centres, not corners: every DEM read was shifted half a pixel south-east (≈ 1.6 m on IGN z15, ≈ 6.5 m on Mapterhorn z12), then re-measure the bench and the deck detector's thresholds tuned on that shift. **Fixed and re-measured (H1–H4, results in the doc; no threshold touched); to archive once merged.** |
-| [`tasks/api.md`](tasks/api.md) | A Ktor HTTP API (`:api`) as the seventh door: every engine capability under `/api/v1`, RFC 9457 errors, a code-first OpenAPI contract committed and drift-tested. Steps A1–A7. |
 
 Completed specs move to `archive/tasks/`.
 
@@ -61,4 +61,5 @@ surface is `ledgers/improvements-ledger.md`.
 
 [`archive/README.md`](archive/README.md) — three completed plans, the racing-line design and its
 feasibility review, the frozen port-coverage ledger, and 100+ task specs across four ID namespaces
-(`NN`, `gNN`, `wNN`, `tNN`). Indexed in [`archive/tasks/README.md`](archive/tasks/README.md).
+(`NN`, `gNN`, `wNN`, `tNN`), plus the HTTP API's design (`archive/tasks/api.md`, steps A1–A7).
+Indexed in [`archive/tasks/README.md`](archive/tasks/README.md).

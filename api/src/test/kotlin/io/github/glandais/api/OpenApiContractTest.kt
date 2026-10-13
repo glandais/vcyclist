@@ -131,7 +131,7 @@ class OpenApiContractTest {
             .replace("//", "/")
 
     private companion object {
-        /** Operations of the contract at this step of `docs/tasks/api.md`. */
+        /** Operations of the contract at this step of `docs/archive/tasks/api.md`. */
         const val EXPECTED_OPERATIONS = 17
 
         val HTTP_METHODS = HttpMethod.DefaultMethods.map { it.value.lowercase() }.toSet()

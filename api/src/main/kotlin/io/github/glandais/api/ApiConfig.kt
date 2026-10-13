@@ -4,7 +4,7 @@ import java.io.File
 
 /**
  * Settings of the **server**, not defaults of the engine: they are written here as literals, and
- * nowhere else. Engine defaults are read from the engine (see `docs/tasks/api.md`).
+ * nowhere else. Engine defaults are read from the engine (see `docs/archive/tasks/api.md`).
  *
  * @property host interface to bind
  * @property port TCP port; `0` picks a free one

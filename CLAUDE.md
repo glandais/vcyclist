@@ -14,8 +14,9 @@ documentation index; read it before going looking for anything.
 | `:elevation` | JVM, JS, wasmWasi | DEM tile fetching + 3D geometry |
 | `:engine` | JVM, JS, wasmWasi | Physics, `Enhancer` pipeline, JS/WASI façades. `api(project(":gpx"))`, so consumers see the whole Path + GPX surface. |
 | `:fit` | JVM, JS, wasmWasi | FIT course encoding (`PathToFit`) |
-| `:map` | JVM only | Static map rendering on `java.awt`. Depends on `:gpx`/`:elevation`; **nothing may depend on it**. |
+| `:map` | JVM only | Static map rendering on `java.awt`. Depends on `:gpx`/`:elevation`; **no library may depend on it** (the `:cli` and `:api` applications do). |
 | `:cli` | JVM only | picocli command-line tool, shipped as an executable jar, not to Maven Central |
+| `:api` | JVM only | Ktor HTTP API, the seventh door: 17 stateless operations under `/api/v1`, a generated OpenAPI contract in `api/contract/openapi.yaml`. An application like `:cli` (depends on `:engine` and `:map`, test-only on `:codegen`); **nothing may depend on it**, not published. See [`api/README.md`](api/README.md) |
 | `:codegen` | JVM only | Regenerates `GeneratedPath.kt` + `PointFieldAccessors.kt` into `:gpx`, and the per-option table of `surface-coverage.md` (`:codegen:generateSurfaceLedger`). Also hosts `surface/OptionCatalog.kt` — `KClass` refs + lens paths, completeness derived by reflection, driving the door-parity tests. It depends on `:engine` for that; there is no cycle, since `:gpx` never depends on `:codegen`. Not in `commonMain`: `kotlin-reflect` is JVM-only and the wasm size budget is real |
 | `:demo` | — | Browser demo (two routes: GPX analysis, elevation explorer), consumes `@glandais/vcyclist-engine` and `@glandais/vcyclist-elevation` directly, aliased onto the Gradle build output. `index.d.ts` is generated from the façades (`:codegen:generateTsFacade`) |
 
@@ -33,6 +34,10 @@ documentation index; read it before going looking for anything.
 ./gradlew :codegen:generateTsFacade      # regenerate the npm packages' index.d.ts / .mjs / .cjs
 ./gradlew :cli:run -Pargs="enhance in.gpx --gpx out.gpx"    # CLI smoke
 ./gradlew :cli:executableJar             # distributable CLI jar
+./gradlew :api:test                      # HTTP API tests (routes, contract, door parity)
+./gradlew :api:run -Pargs="--port 8081"  # run the HTTP API locally
+./gradlew :api:generateOpenApi           # regenerate api/contract/openapi.yaml — never hand-edit it
+./gradlew :api:executableJar             # api/build/libs/vcyclist-api-<v>-all.jar
 INTEGRATION=1 ./gradlew :elevation:jvmTest --tests '*Integration*'   # live HTTP
 cd demo && npm run dev                   # browser demo, hot reload (rebuilds the JS engine)
 ```
@@ -140,11 +145,13 @@ Implement the interface in `engine/src/commonMain/.../physics/`, document any `P
 writes in its KDoc, add it to `CoursePhysics` if it is a first-class strategy, and test the formula
 at sentinel inputs.
 
-### Adding a capability users can reach — the six surfaces
+### Adding a capability users can reach — the seven surfaces
 
 Core → CLI → JS (`EngineJsApi`) → WASI (`WasiOptions` + `docs/guides/wasm-wasi-abi.md`) →
 **JVM/Java (`*Jvm.kt` + a Java test in `src/jvmTest/java/`)** → **a control in the demo's UI**
-(the TypeScript surface follows on its own — it is generated) → a row in
+(the TypeScript surface follows on its own — it is generated) → **HTTP (a DTO in `api/…/dto/`, a
+reader in `api/…/mapping/` bound to `HttpDefaults`, a route with its `describe {}`, then
+`:api:generateOpenApi`)** → a row in
 [`docs/ledgers/surface-coverage.md`](docs/ledgers/surface-coverage.md).
 This has been forgotten three times; the matrix is the only check.
 
@@ -157,10 +164,13 @@ This has been forgotten three times; the matrix is the only check.
   does. Generation made an export free, which makes it mean less, not more — the standing list is
   `demo/src/engine-coverage.md`, which `DemoReachabilityTest` parses.
 - **An accepted key is not a used key.** `requireOnly` / `requireOnlyKeys` prove a *reader* accepts
-  the key, never that an *export* forwards it — `vcWriteGpxTracks` parses `trackName` and
-  `startTimeEpochMs` and drops both (`EngineWasiApi.kt:747`), and the ABI guide documents them as
-  working. Every WASI export that reads an options object needs a behavioural test below it:
-  extract an `internal fun` and pin it (the `w03` idiom). No static check sees this class of defect.
+  the key, never that an *export* forwards it — `vcWriteGpxTracks` once parsed `trackName` and
+  `startTimeEpochMs` and dropped both while the ABI guide documented them as working (fixed in S1:
+  the body is now `internal fun writeGpxTracksText`, pinned by a `wasmWasiTest`). Every WASI export
+  that reads an options object needs a behavioural test below it: extract an `internal fun` and pin
+  it (the `w03` idiom). No static check sees this class of defect. The HTTP door has the generic
+  version of that test: `HttpForwardingTest` sends every `Door.HTTP` option alone and checks it
+  moves the core object off `HttpDefaults`.
 - **Defaults come from `EngineConstants` for physics and from the stage's own options object for
   the pipeline** (`SimplifyPathOptions()`, `CurvatureOptions.DEFAULT`, `RacingLineOptions.DEFAULT`,
   `ClimbOptions.DEFAULT`, `ElevationDefaults`) — **never a literal**. The façades once hardcoded
@@ -169,10 +179,10 @@ This has been forgotten three times; the matrix is the only check.
   three **positional** JS doors (`detectClimbsWithOptions`, `pathToCsv`, `pathToJson`) have no field
   to omit, so their defaults are *published* as `climbDefaults` / `csvDefaults` / `jsonDefaults`,
   generated from `OptionCatalog`. The demo restated six of them as literals until then.
-- `RoadCondition` is the one cross-door enum with **no wire catalogue in `commonMain`**, and that is
-  why its precedence diverged: the CLI lets an explicit `maxLeanAngleDeg` win, JS and WASI let the
-  preset win. Same config, different cornering physics. Until S8, don't copy either spelling — fix
-  the catalogue.
+- `RoadCondition` has its wire catalogue in `commonMain` (`wireName` / `fromWire` / `wireNames`) and
+  one precedence rule, `RoadCondition?.applyTo(cyclist)`: **the preset is the last word**, on every
+  door (S8). The CLI and the HTTP door warn when it overrides an explicit `maxLeanAngleDeg` /
+  `maxBrakeG`. Don't re-resolve the preset in a door — call `applyTo`.
 
 ### Adding an option to an existing options data class
 
@@ -180,7 +190,12 @@ The real edit sites, in order: the `commonMain` data class → the CLI mixin →
 interface` **and** its `requireOnlyKeys` allowlist **and** `defaultJsOptions()` (a default set only
 in `toEnhanceOptions` does not apply to `enhance(path, null)`) → the WASI reader **and** its
 `requireOnly` set **and** the export body that must actually forward it → the `*Jvm.kt` factory →
-a UI control in the demo → the ledger row. The demo's TypeScript follows for free:
+a UI control in the demo → the `:api` DTO (same wire name, nullable, `@JsonSchema.Description`)
+**and** its reader in `api/…/mapping/` (fallback read off `HttpDefaults`) **and**
+`:api:generateOpenApi` → the `OptionCatalog` entry (`Opt(…, doors = …)`, including `Door.HTTP`;
+the group's `httpDto` names the DTO's `@SerialName`) → the ledger row
+(`:codegen:generateSurfaceLedger`). `HttpDoorParityTest` fails a DTO and catalog that disagree,
+`HttpForwardingTest` a reader that drops the key. The demo's TypeScript follows for free:
 `index.d.ts` is generated from the `external interface` by `:codegen:generateTsFacade`, and
 `TsFacadeTest` fails the build if the committed copy drifts.
 
@@ -298,11 +313,10 @@ Never compare `Double` with `==`.
 
 ## Tools
 
-`gradle/libs.versions.toml` is the source of truth for versions. Notable: Gradle 9.7.1 (wrapper),
-Kotlin 2.4.20-RC2 (a release candidate on purpose — wasmtime support in KGP landed in that line;
-2.4.20 final is what task w08 waits for before publishing), kotlinx-coroutines, xmlutil,
+`gradle/libs.versions.toml` is the source of truth for versions. Notable: Gradle 9.8.0 (wrapper),
+Kotlin 2.4.20 (the line where wasmtime support landed in KGP), kotlinx-coroutines, xmlutil,
 TwelveMonkeys imageio-webp (JVM) / `@jsquash/webp` (JS), ktlint, picocli (`:cli`),
-fit-kotlin-sdk (`:fit`).
+fit-kotlin-sdk (`:fit`), Ktor 3.6.0 + kotlinx-serialization + logback (`:api` only).
 
 ## Where to find things
 
@@ -317,6 +331,7 @@ fit-kotlin-sdk (`:fit`).
 | What is the racing line worth? | [`docs/guides/racing-line.md`](docs/guides/racing-line.md), ledger R23–R26 |
 | Why is `time(0) = 0`? | `VirtualizeService.kt` KDoc |
 | How do I run the CLI? | [`cli/README.md`](cli/README.md) |
+| How do I call the HTTP API? | [`api/README.md`](api/README.md); the contract is `api/contract/openapi.yaml`, its design [`docs/archive/tasks/api.md`](docs/archive/tasks/api.md) |
 | How do I cut a release? | [`docs/guides/publishing.md`](docs/guides/publishing.md) |
 | Why this design decision? | The task markdown's "Notes", or its plan in `docs/archive/plans/` |
 | Which door is missing which capability? | [`docs/ledgers/surface-coverage.md`](docs/ledgers/surface-coverage.md); the plan to fix it is [`docs/tasks/surface-alignment.md`](docs/tasks/surface-alignment.md) |

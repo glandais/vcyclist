@@ -144,6 +144,7 @@ Unless a row says otherwise, the task shipped and the owning plan carries its co
 | ID | Subject | Note |
 |---|---|---|
 | [`bonus`](bonus-elevation-js-demo.md) | Bonus — Démo browser Kotlin/JS pour `:elevation` |  |
+| [`api`](api.md) | Une API HTTP Ktor (`:api`), septième porte du moteur | Steps A1–A7, all delivered; no plan file, each step is one commit. Usage lives in [`api/README.md`](../../../api/README.md). |
 
 ## Specs that were never written
 
