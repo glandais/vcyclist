@@ -6,6 +6,7 @@ import {
     parseGpxTracks,
     parseGpxWaypoints,
     pathDurationMs,
+    pathElevationCorrections,
     pathSize,
     pathTotalDistance,
     type BikeDto,
@@ -32,6 +33,13 @@ export interface UseGPXDemoReturn {
     selectTrack: (index: number) => void;
     /** The corridor and offsets behind the current path, or `null` when the stage did not run. */
     racingLineReport: Ref<RacingLineReportDto | null>;
+    /**
+     * The same ride enhanced again with both elevation corrections off, so the chart can show what
+     * they changed. `null` until it lands, and whenever the corrections did nothing.
+     */
+    comparisonPath: Ref<Path | null>;
+    /** The comparison run is in flight. It never blocks the UI. */
+    comparisonPending: Ref<boolean>;
     isProcessing: Ref<boolean>;
     statusText: Ref<string>;
     fileName: Ref<string>;
@@ -47,8 +55,18 @@ export function useGPXDemo(config: Ref<Config>): UseGPXDemoReturn {
     const selectedTrackIndex = ref(0);
     const waypoints: Ref<WaypointDto[]> = shallowRef([]);
     const racingLineReport: Ref<RacingLineReportDto | null> = ref(null);
+    const comparisonPath: Ref<Path | null> = shallowRef(null);
+    const comparisonPending = ref(false);
     const isProcessing = ref(false);
     const statusText = ref('');
+    // Bumped by every load, track switch and enhance. A comparison run whose generation is no
+    // longer current is stale: the engine's promise cannot be aborted, so its result is dropped.
+    let generation = 0;
+    const invalidateComparison = () => {
+        generation++;
+        comparisonPath.value = null;
+        comparisonPending.value = false;
+    };
     const fileName = ref('');
 
     const setProcessing = (processing: boolean, message = '') => {
@@ -181,6 +199,7 @@ export function useGPXDemo(config: Ref<Config>): UseGPXDemoReturn {
             if (parsed.length === 0) {
                 throw new Error('no <trk> or <rte> in this file');
             }
+            invalidateComparison();
             tracks.value = parsed;
             waypoints.value = parseGpxWaypoints(gpxContent);
             selectedTrackIndex.value = 0;
@@ -210,6 +229,7 @@ export function useGPXDemo(config: Ref<Config>): UseGPXDemoReturn {
         if (!path || index === selectedTrackIndex.value) {
             return;
         }
+        invalidateComparison();
         selectedTrackIndex.value = index;
         originalPath.value = path;
         currentPath.value = path;
@@ -257,16 +277,22 @@ export function useGPXDemo(config: Ref<Config>): UseGPXDemoReturn {
             return;
         }
         setProcessing(true, 'Enhancing path with virtual cyclist...');
+        invalidateComparison();
+        const runGeneration = generation;
+        const source = originalPath.value;
+        // Built once and shared with the comparison run, so the two differ by the two correction
+        // flags only, even if the config is edited while the second one is in flight.
+        const course = [
+            buildCyclistDto(),
+            buildBikeDto(),
+            buildWindDto(),
+            buildPowerProviderDto(),
+        ] as const;
+        const options = buildEnhanceOptionsDto();
         try {
-            const enhanced = await enhanceWithCourse(
-                originalPath.value,
-                buildCyclistDto(),
-                buildBikeDto(),
-                buildWindDto(),
-                buildPowerProviderDto(),
-                buildEnhanceOptionsDto()
-            );
+            const enhanced = await enhanceWithCourse(source, ...course, options);
             currentPath.value = enhanced;
+            void runComparison(runGeneration, source, course, options, enhanced);
             // Analyse the INPUT path, not the enhanced one. The enhanced path has already had
             // the stage applied, so analysing it describes the corridor around a second
             // optimisation pass — a corridor nobody rode in. Caught by the map's own geometry
@@ -291,9 +317,47 @@ export function useGPXDemo(config: Ref<Config>): UseGPXDemoReturn {
         }
     };
 
+    /**
+     * Enhance `source` again with both corrections off, after the main run and without blocking
+     * the UI. Skipped when the corrections changed nothing (no DEM lookup, both disabled, or
+     * nothing found): the two profiles would be identical, and a second DEM fetch is not free.
+     */
+    const runComparison = async (
+        runGeneration: number,
+        source: Path,
+        course: readonly [CyclistDto, BikeDto, WindDto, PowerProviderDto],
+        options: EnhanceOptionsDto,
+        enhanced: Path
+    ) => {
+        const report = pathElevationCorrections(enhanced);
+        if (!report || report.bridgeDecksApplied + report.tunnelsApplied === 0) {
+            return;
+        }
+        comparisonPending.value = true;
+        try {
+            const without = await enhanceWithCourse(source, ...course, {
+                ...options,
+                bridgeDecksEnabled: false,
+                tunnelsEnabled: false,
+            });
+            if (runGeneration === generation) {
+                comparisonPath.value = without;
+            }
+        } catch (error) {
+            // An overlay that failed is not worth a toast over a ride that succeeded.
+            console.warn('Comparison run without elevation corrections failed:', error);
+        } finally {
+            if (runGeneration === generation) {
+                comparisonPending.value = false;
+            }
+        }
+    };
+
     return {
         currentPath,
         originalPath,
+        comparisonPath,
+        comparisonPending,
         tracks,
         selectedTrackIndex,
         waypoints,

@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { onMounted, ref, toRef } from 'vue';
+import type { IndexRange } from '~/composables/useChart';
 import type { HoverInfo } from '~/composables/useHoverSync';
 import { useMap } from '~/composables/useMap';
 import type { ClimbDto, Path, RacingLineReportDto } from '@glandais/vcyclist-engine';
@@ -10,6 +11,8 @@ const props = defineProps<{
     climbs: ClimbDto[];
     racingLineReport: RacingLineReportDto | null;
     originalPath: Path | null;
+    /** The chart's zoom window, highlighted and fitted on the map. */
+    zoomRange: IndexRange | null;
 }>();
 
 const emit = defineEmits<{
@@ -25,7 +28,8 @@ const { createMap, fitBounds, focusOnClimb, invalidateSize, racingLineDrift } = 
     (index: number | null) => emit('hoverChange', index),
     toRef(props, 'climbs'),
     toRef(props, 'racingLineReport'),
-    toRef(props, 'originalPath')
+    toRef(props, 'originalPath'),
+    toRef(props, 'zoomRange')
 );
 
 defineExpose({

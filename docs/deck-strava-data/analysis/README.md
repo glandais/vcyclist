@@ -16,6 +16,7 @@ python3 -I report.py    # rapport_tables.md
 python3 -I export_truth.py  # truth/*.csv: frozen roadway, MNS samples and structure spans for ElevationBenchProbeTest
 python3 -I controls.py      # E2 bis: negative controls and held-out positives, from OSM only
 python3 -I controls.py --tunnels   # E4: tunnel controls (tuning, steep negatives, frozen held-out series)
+python3 -I export_demo.py   # the demo's validation tracks + their reference, into demo/public/gpx/validation/
 ```
 
 `controls.py` (stdlib + numpy, network to Overpass only, bbox queries one at a time; raw answers

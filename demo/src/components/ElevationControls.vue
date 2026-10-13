@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { ref } from 'vue';
 import SliderInput from '~/components/SliderInput.vue';
-import { gpxSamples } from '~/config/gpxSamples';
+import { gpxSampleItems } from '~/config/gpxSamples';
 import type { ExplorerMode } from '~/composables/useElevationExplorer';
 import type { ReliefMode } from '~/composables/useElevationMap';
 import { DEM_SOURCES, type DemSource } from '~/types';
@@ -117,7 +117,7 @@ const onFileChange = (event: Event) => {
             <div class="flex flex-col gap-2">
                 <USelect
                     v-model="selectedSample"
-                    :items="gpxSamples"
+                    :items="gpxSampleItems"
                     label-key="label"
                     value-key="value"
                     placeholder="Load a sample track..."

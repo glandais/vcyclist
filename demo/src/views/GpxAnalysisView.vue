@@ -12,6 +12,10 @@ import { loadConfig, useConfigPersistence } from '~/composables/useConfigPersist
 import { useClimbs } from '~/composables/useClimbs';
 import { useGPXDemo } from '~/composables/useGPXDemo';
 import { useHoverSync } from '~/composables/useHoverSync';
+import type { IndexRange } from '~/composables/useChart';
+import { useValidationReference } from '~/composables/useValidationReference';
+import { type GpxSample, sampleByUrl } from '~/config/gpxSamples';
+import { DEM_SOURCES } from '~/types';
 import {
     getField,
     pathToCsv,
@@ -44,6 +48,8 @@ const {
     waypoints,
     selectTrack,
     racingLineReport,
+    comparisonPath,
+    comparisonPending,
     isProcessing,
     statusText,
     fileName,
@@ -51,6 +57,49 @@ const {
     handleFileUpload,
     enhancePath,
 } = useGPXDemo(config);
+
+// --- Validation tracks ------------------------------------------------------------------------
+
+/** The bundled bench route loaded, or null for any other file. */
+const validationSample = ref<GpxSample | null>(null);
+const { reference, loadReference, overlays } = useValidationReference(currentPath, comparisonPath);
+
+/** The chart's zoom window, which the map follows. */
+const zoomRange = ref<IndexRange | null>(null);
+
+/** The DEM the bench was measured against: the one source with a surface model for the decks. */
+const BENCH_DEM = 'ign-lidar-hd' as const;
+
+/**
+ * A bench route is only worth looking at on the DEM it was measured with, so loading one turns
+ * the DEM lookup on and picks IGN LiDAR HD — and says so, since both are saved to the config and
+ * outlive the track. The two correction switches are left as they are: turning one off to see the
+ * difference is the point of the exercise.
+ */
+const presetForValidation = () => {
+    const e = config.value.enhance;
+    const changes: string[] = [];
+    if (!e.fixElevation) {
+        changes.push('Fix Elevation Data turned on');
+    }
+    if (e.demSource !== BENCH_DEM) {
+        const label = DEM_SOURCES.find(d => d.value === BENCH_DEM)?.label ?? BENCH_DEM;
+        changes.push(`elevation source set to ${label}`);
+    }
+    if (changes.length === 0) {
+        return;
+    }
+    config.value = {
+        ...config.value,
+        enhance: { ...e, fixElevation: true, demSource: BENCH_DEM },
+    };
+    toast.add({
+        color: 'info',
+        title: 'Options changed for this validation track',
+        description: `${changes.join(', ')}. Saved in ⚙️ Config → Options; change it back there.`,
+        duration: 8000,
+    });
+};
 
 // --- Export -----------------------------------------------------------------------------------
 
@@ -306,14 +355,10 @@ const handleResetZoom = () => {
 };
 
 const onGPXSelect = async (url: string) => {
+    const sample = sampleByUrl.get(url) ?? null;
+    const isValidation = sample?.reference !== undefined;
     try {
         await loadGPXFile(url);
-        toast.add({
-            color: 'success',
-            title: 'GPX Loaded',
-            description: 'GPX file loaded successfully',
-            duration: 3000,
-        });
     } catch (error) {
         toast.add({
             color: 'error',
@@ -321,12 +366,46 @@ const onGPXSelect = async (url: string) => {
             description: 'Failed to load GPX file: ' + (error as Error).message,
             duration: 5000,
         });
+        return;
+    }
+    // Only once the track is in: a failed load must not leave the saved config changed.
+    if (isValidation) {
+        presetForValidation();
+    }
+    validationSample.value = isValidation ? sample : null;
+    try {
+        await loadReference(sample?.reference ?? null);
+    } catch (error) {
+        // The reference is an overlay, not the track: say so and carry on without it.
+        console.warn('Validation reference not loaded', error);
+        toast.add({
+            color: 'warning',
+            title: 'Reference not loaded',
+            description:
+                'The track loaded, but its reference profile did not: ' + (error as Error).message,
+            duration: 5000,
+        });
+    }
+    toast.add({
+        color: 'success',
+        title: 'GPX Loaded',
+        description: isValidation
+            ? 'Validation track loaded, enhancing it now'
+            : 'GPX file loaded successfully',
+        duration: 3000,
+    });
+    // The controls carry no <ele> at all and the bench is about the corrected profile, so a
+    // validation track is enhanced straight away instead of waiting for 🚀.
+    if (isValidation) {
+        await onEnhancePath();
     }
 };
 
 const onFileUpload = async (file: File) => {
     try {
         await handleFileUpload(file);
+        validationSample.value = null;
+        await loadReference(null);
         toast.add({
             color: 'success',
             title: 'File Uploaded',
@@ -415,6 +494,9 @@ defineExpose({ resizeAll });
                 :file-name="fileName"
                 :current-path="currentPath"
                 :is-processing="isProcessing"
+                :validation-sample="validationSample"
+                :reference="reference"
+                :comparison-path="comparisonPath"
                 @gpx-select="onGPXSelect"
                 @file-upload="onFileUpload"
             />
@@ -423,7 +505,11 @@ defineExpose({ resizeAll });
             <ConfigModal v-if="configVisible" v-model="config" />
 
             <!-- Chart and Map Section with Sidebar -->
-            <div class="grid grid-cols-1 xl:grid-cols-2 gap-4 p-4 flex-1 min-h-0">
+            <!-- The minimum height makes the outer column scroll instead of crushing the chart when
+                 the file panel, the validation card and the climbs table are all open. -->
+            <div
+                class="grid grid-cols-1 xl:grid-cols-2 gap-4 p-4 flex-1 min-h-[840px] xl:min-h-[440px]"
+            >
                 <!-- Chart with Fields Sidebar -->
                 <div class="flex h-full border border-gray-200 rounded-lg overflow-hidden bg-white">
                     <DataChart
@@ -433,7 +519,11 @@ defineExpose({ resizeAll });
                         :is-processing="isProcessing"
                         :hovered-info="hoveredInfo"
                         :climbs="climbs"
+                        :overlays="overlays"
+                        :comparison-pending="comparisonPending"
                         @hover-change="handleHoverChange"
+                        @range-change="zoomRange = $event"
+                        @reset-zoom="handleResetZoom"
                         class="flex-1"
                     />
                 </div>
@@ -446,6 +536,7 @@ defineExpose({ resizeAll });
                     :climbs="climbs"
                     :racing-line-report="racingLineReport"
                     :original-path="originalPath"
+                    :zoom-range="zoomRange"
                     @hover-change="handleHoverChange"
                 />
             </div>

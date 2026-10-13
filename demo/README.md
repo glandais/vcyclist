@@ -72,6 +72,43 @@ parser, same DEM-fix pipeline as the JVM CLI (see [`../README.md`](../README.md)
 ships its own type definitions, so no module declaration is needed. GPX parsing goes through the
 engine's own `parseGpx`, never a separate JS GPX library.
 
+## Chart
+
+Drag a rectangle to zoom on distance, wheel or pinch to zoom, Shift+drag (or a finger) to pan,
+double-click to get the whole ride back. Every y axis re-fits to the visible window, so a 30 m
+bridge is not a flat line on an axis sized for the whole ride. The strip under the chart is the
+whole profile with the window drawn on it: drag inside it to move the window, elsewhere to draw a
+new one. The map highlights the window's stretch of route in orange and fits to it.
+
+## Bridges & tunnels validation tracks
+
+The picker's *Ponts & tunnels (validation)* group holds the routes the bridge-deck and tunnel
+corrections were measured on (`docs/archive/tasks/elevation-bridge-decks.md`): the four Strava
+routes (Saint-Nazaire, Nantes, Mauves, Vercors) and a few OSM controls — decks that must be
+corrected (Millau, Normandie, Cheviré), tunnels (Lioran, Galibier) and negatives that must not move
+(under the Millau viaduct, under Cheviré, the Galibier col, the Alpe d'Huez hairpins). They live in
+`public/gpx/validation/`, with a `<id>.ref.json` beside each, both written by
+`docs/deck-strava-data/analysis/export_demo.py` from the bench's frozen truth — regenerate, never
+edit by hand.
+
+Loading one turns *Fix Elevation Data* on with IGN LiDAR HD (with a toast: both are saved to the
+config) and enhances it. The chart then shows:
+
+- coloured bands for the bench's structures (deck, tunnel, balcony road, structure overhead);
+- on the Strava routes, the *estimated roadway* the bench scores against, as a dashed line
+  (NGF-IGN69). It is not an independent measurement: it is built from the same IGN data — the
+  surface model (MNS, 25 m median) on decks, a straight line between OSM tunnel portals, Strava
+  minus its offset on balcony roads, the terrain model (MNT) elsewhere — so on decks it agrees with
+  the correction by construction. It is drawn as the bench froze it, so where the ground model is not the road it shows that too: at
+  the Saint-Nazaire dock lock (about 8.8 km) it drops to −8 m for a few stations;
+- in orange, the same ride enhanced again with both corrections off — a second `enhanceWithCourse`
+  run, started after the first and only when a correction was applied; a stale one is dropped.
+
+The reference and the second run are matched to the chart by **position**, not by cumulative
+distance: the enhanced path, the reference's 5 m grid and the second ride each measure distance
+their own way and drift apart by tens of metres over 111 km. The search is monotone, so a hairpin
+or an out-and-back never snaps onto the other leg (`useValidationReference.ts`).
+
 ## Export
 
 The `⬇️ Download` menu writes the current path as **GPX** (`writeGpxAt`) or as a **Garmin FIT

@@ -1,10 +1,12 @@
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue';
-import { gpxSamples } from '~/config/gpxSamples';
+import { gpxSampleItems, type GpxSample } from '~/config/gpxSamples';
+import type { ValidationReference } from '~/composables/useValidationReference';
 import {
     getField,
     pathElevationCorrections,
     pathElevationGain,
+    pathDurationMs,
     pathElevationLoss,
     pathReportedElevationGain,
     pathReportedElevationLoss,
@@ -17,6 +19,11 @@ const props = defineProps<{
     fileName: string;
     currentPath: Path | null;
     isProcessing: boolean;
+    /** The bundled validation sample loaded, if any, with its bench reference once fetched. */
+    validationSample: GpxSample | null;
+    reference: ValidationReference | null;
+    /** The same ride with both elevation corrections off, once that run has landed. */
+    comparisonPath: Path | null;
 }>();
 
 const emit = defineEmits<{
@@ -107,6 +114,64 @@ const elevationCorrections = computed(() => {
     };
 });
 
+/**
+ * What the corrections are worth on this ride: the reported climbing and the ride time with and
+ * without them. Only once the comparison run exists, which it does only when something was
+ * corrected.
+ */
+const withoutCorrections = computed(() => {
+    const path = props.currentPath;
+    const other = props.comparisonPath;
+    if (!path || !other) {
+        return null;
+    }
+    // Positive: the uncorrected ride is slower. NaN-safe: a path without a clock says nothing.
+    const minutes = (pathDurationMs(other) - pathDurationMs(path)) / 60000;
+    return {
+        gain: pathReportedElevationGain(other),
+        loss: pathReportedElevationLoss(other),
+        time: Number.isFinite(minutes)
+            ? `${minutes >= 0 ? '+' : '−'}${Math.abs(minutes).toFixed(1)} min`
+            : '',
+    };
+});
+
+/** The bench's own words for the loaded validation track: role, category, place. */
+const validationInfo = computed(() => {
+    const sample = props.validationSample;
+    if (!sample) {
+        return null;
+    }
+    const meta = props.reference?.meta ?? {};
+    const role = String(meta.role ?? (meta.route ? 'strava-route' : ''));
+    const roleLabel: Record<string, string> = {
+        'strava-route': 'Strava route — dashed line: the bench reference (IGN LiDAR HD)',
+        'held-out-positive': 'Positive control — the deck must be corrected',
+        holdout2: 'Positive control — the deck must be corrected',
+        negative: 'Negative control — nothing on this route may move',
+        'tunnel-tuning': 'Tunnel — the profile must go straight between the portals',
+        'tunnel-negative': 'Negative control — a steep real road, not a tunnel',
+    };
+    // What the orange line is, or why there is none. Nothing while the pipeline has not run or
+    // the second run is still in flight — the chart's spinner covers that.
+    const report = props.currentPath ? pathElevationCorrections(props.currentPath) : null;
+    const corrected = report ? report.bridgeDecksApplied + report.tunnelsApplied : 0;
+    let comparison = '';
+    if (props.comparisonPath) {
+        comparison = 'Orange line: the same ride with both corrections off.';
+    } else if (report && corrected === 0) {
+        comparison = 'Nothing was corrected on this run, so there is no second profile.';
+    }
+    return {
+        label: sample.label,
+        description: sample.description ?? '',
+        role: roleLabel[role] ?? role,
+        comparison,
+        place: String(meta.place ?? ''),
+        osm: meta.osm_base ? `Route © OpenStreetMap contributors (ODbL), ${meta.osm_base}` : '',
+    };
+});
+
 watch(
     () => props.currentPath,
     () => {
@@ -125,7 +190,7 @@ watch(
                 <USelect
                     id="gpx-select"
                     v-model="selectedGPX"
-                    :items="gpxSamples"
+                    :items="gpxSampleItems"
                     label-key="label"
                     value-key="value"
                     placeholder="Select a sample file..."
@@ -147,6 +212,28 @@ watch(
                     @change="onFileChange"
                     class="px-3 py-2 border-2 border-gray-300 rounded-lg text-base transition-colors focus:outline-none focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10"
                 />
+            </div>
+        </div>
+        <!-- Kept compact: every line here comes out of the chart's height. -->
+        <div
+            v-if="validationInfo"
+            class="mt-3 rounded-lg border border-violet-200 bg-violet-50 px-3 py-2 text-sm text-violet-950"
+        >
+            <div>
+                <span class="font-semibold">🌉 {{ validationInfo.label }}</span>
+                <span v-if="validationInfo.description"> — {{ validationInfo.description }}</span>
+            </div>
+            <div class="text-violet-800">
+                {{ validationInfo.role }}<template v-if="validationInfo.role">. </template>Bands
+                mark the bench's structures.
+                <template v-if="validationInfo.comparison">{{
+                    validationInfo.comparison
+                }}</template>
+            </div>
+            <div v-if="validationInfo.place || validationInfo.osm" class="text-xs text-violet-700">
+                {{ validationInfo.place
+                }}<template v-if="validationInfo.place && validationInfo.osm"> · </template
+                >{{ validationInfo.osm }}
             </div>
         </div>
         <UCollapsible
@@ -191,6 +278,13 @@ watch(
                         <div class="text-sm text-gray-600">Elevation corrections</div>
                         <div class="text-base font-semibold text-blue-900">
                             {{ elevationCorrections.line }}
+                        </div>
+                        <div v-if="withoutCorrections" class="mt-1 text-sm text-orange-800">
+                            Without them: +{{ withoutCorrections.gain.toFixed(0) }}m / -{{
+                                (-withoutCorrections.loss).toFixed(0)
+                            }}m<template v-if="withoutCorrections.time"
+                                >, ride time {{ withoutCorrections.time }}</template
+                            >
                         </div>
                     </div>
                 </div>

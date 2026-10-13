@@ -11,6 +11,7 @@ import {
     type RacingLineReportDto,
 } from '@glandais/vcyclist-engine';
 import { gradeColor } from './useClimbs';
+import type { IndexRange } from './useChart';
 import type { HoverInfo } from './useHoverSync';
 
 export function useMap(
@@ -20,12 +21,14 @@ export function useMap(
     onHoverChange: (index: number | null) => void,
     climbs: Ref<ClimbDto[]>,
     racingLineReport: Ref<RacingLineReportDto | null>,
-    originalPath: Ref<Path | null>
+    originalPath: Ref<Path | null>,
+    zoomRange: Ref<IndexRange | null>
 ) {
     const mapInstance = shallowRef<L.Map | null>(null);
     const routeLayer = shallowRef<L.Polyline | null>(null);
     const climbLayer = shallowRef<L.LayerGroup | null>(null);
     const racingLineLayer = shallowRef<L.LayerGroup | null>(null);
+    const zoomLayer = shallowRef<L.Polyline | null>(null);
     const hoverMarker = shallowRef<L.CircleMarker | null>(null);
     const hoverPopup = shallowRef<L.Popup | null>(null);
     let nearestPointCache: Array<{ lat: number; lon: number; index: number }> = [];
@@ -68,6 +71,42 @@ export function useMap(
 
         map.on('mousemove', handleMapHover);
         map.on('mouseout', () => onHoverChange(null));
+
+        // The container's height follows the page around it — the validation card, the file
+        // panel's lines, the sidebar — and Leaflet only measures it when told. Without this the
+        // map keeps its old size, and every fit centres on an area that is partly off-screen.
+        resizeObserver = new ResizeObserver(() => {
+            cancelAnimationFrame(resizeFrame);
+            resizeFrame = requestAnimationFrame(refitAfterResize);
+        });
+        resizeObserver.observe(mapContainer.value);
+    };
+
+    let resizeObserver: ResizeObserver | null = null;
+    let resizeFrame = 0;
+    let lastSize: { x: number; y: number } | null = null;
+    const refitAfterResize = () => {
+        const map = mapInstance.value;
+        const el = mapContainer.value;
+        if (!map || !el || el.clientWidth === 0 || el.clientHeight === 0) {
+            return;
+        }
+        const size = { x: el.clientWidth, y: el.clientHeight };
+        if (lastSize && lastSize.x === size.x && lastSize.y === size.y) {
+            return;
+        }
+        lastSize = size;
+        map.invalidateSize({ animate: false });
+        // Re-fit to whatever is being shown: the chart's zoom window if there is one, else the ride.
+        if (zoomLayer.value) {
+            map.fitBounds(zoomLayer.value.getBounds(), {
+                padding: [40, 40],
+                maxZoom: 17,
+                animate: false,
+            });
+        } else {
+            fitBounds();
+        }
     };
 
     const updateRoute = () => {
@@ -492,6 +531,53 @@ export function useMap(
         }
     };
 
+    /**
+     * Follow the chart's zoom: draw the window's stretch of route on top and fit the map to it.
+     * Back to the whole ride when the chart is — the window going away is the only time the map
+     * re-fits the whole route on its own, so a pan the user made is otherwise left alone.
+     */
+    let fitTimer: ReturnType<typeof setTimeout> | undefined;
+    const drawZoomRange = () => {
+        const map = mapInstance.value;
+        if (!map) {
+            return;
+        }
+        if (zoomLayer.value) {
+            map.removeLayer(zoomLayer.value);
+            zoomLayer.value = null;
+        }
+        const range = zoomRange.value;
+        const path = currentPath.value;
+        if (!range || !path) {
+            clearTimeout(fitTimer);
+            fitBounds();
+            return;
+        }
+        const last = Math.min(range.end, pathSize(path) - 1);
+        const coords: L.LatLngExpression[] = [];
+        for (let i = Math.max(range.start, 0); i <= last; i++) {
+            coords.push([pathLatitudeDeg(path, i), pathLongitudeDeg(path, i)]);
+        }
+        if (coords.length < 2) {
+            return;
+        }
+        const line = L.polyline(coords, {
+            color: '#f97316',
+            weight: 7,
+            opacity: 0.85,
+            interactive: false,
+        }).addTo(map);
+        zoomLayer.value = line;
+        // Debounced and not animated: dragging the chart's overview strip moves the window many
+        // times a second, and Leaflet drops a fit issued while the previous one is animating.
+        clearTimeout(fitTimer);
+        fitTimer = setTimeout(() => {
+            if (zoomLayer.value === line) {
+                map.fitBounds(line.getBounds(), { padding: [40, 40], maxZoom: 17, animate: false });
+            }
+        }, 150);
+    };
+
     const fitBounds = () => {
         if (!mapInstance.value || !routeLayer.value) {
             return;
@@ -508,12 +594,18 @@ export function useMap(
     };
 
     const destroyMap = () => {
+        resizeObserver?.disconnect();
+        resizeObserver = null;
+        cancelAnimationFrame(resizeFrame);
+        clearTimeout(fitTimer);
+        lastSize = null;
         if (mapInstance.value) {
             mapInstance.value.remove();
             mapInstance.value = null;
         }
         routeLayer.value = null;
         racingLineLayer.value = null;
+        zoomLayer.value = null;
         hoverMarker.value = null;
         hoverPopup.value = null;
         nearestPointCache = [];
@@ -523,6 +615,7 @@ export function useMap(
     watch(racingLineReport, drawRacingLine);
     watch(climbs, drawClimbs);
     watch(hoveredInfo, updateHoverMarker);
+    watch(zoomRange, drawZoomRange);
 
     onUnmounted(destroyMap);
 
