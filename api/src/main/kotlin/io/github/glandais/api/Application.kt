@@ -5,11 +5,13 @@ import io.github.glandais.api.http.ComputeGate
 import io.github.glandais.api.http.configureProblems
 import io.github.glandais.api.openapi.openApiRoutes
 import io.github.glandais.api.openapi.swaggerRoutes
+import io.github.glandais.api.routes.MISSING_TILES_HEADER
 import io.github.glandais.api.routes.analysisRoutes
 import io.github.glandais.api.routes.elevationRoutes
 import io.github.glandais.api.routes.enhanceRoutes
 import io.github.glandais.api.routes.exportRoutes
 import io.github.glandais.api.routes.gpxRoutes
+import io.github.glandais.api.routes.mapRoutes
 import io.github.glandais.api.routes.metaRoutes
 import io.ktor.http.HttpHeaders
 import io.ktor.http.HttpMethod
@@ -88,6 +90,7 @@ fun Application.module(
             exposeHeader(HttpHeaders.XRequestId)
             exposeHeader(HttpHeaders.ContentDisposition)
             exposeHeader(HttpHeaders.RetryAfter)
+            exposeHeader(MISSING_TILES_HEADER)
         }
     }
 
@@ -99,6 +102,7 @@ fun Application.module(
             exportRoutes()
             analysisRoutes()
             elevationRoutes()
+            mapRoutes()
             openApiRoutes()
         }
         swaggerRoutes()

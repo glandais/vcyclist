@@ -9,6 +9,8 @@ import io.github.glandais.engine.gpx.GpxPowerSource
 import io.github.glandais.engine.io.CsvOptions
 import io.github.glandais.engine.io.JsonOptions
 import io.github.glandais.engine.physics.CyclistPowerSpec
+import io.github.glandais.map.SrtmMapProducer
+import io.github.glandais.map.TileMapProducer
 
 /**
  * **The single default site of the HTTP door.** Every reader in `mapping/` binds to it
@@ -69,4 +71,17 @@ object HttpDefaults {
      * drop the points of interest — the lesson of F2.
      */
     const val GPX_INCLUDE_WAYPOINTS: Boolean = true
+
+    /**
+     * Padding around the tracks of a map, a ratio of their extent: `TileMapProducer`'s, which
+     * `SrtmMapProducer` restates with the same value (`MapRoutesTest` pins the two together).
+     */
+    const val MAP_MARGIN: Double = TileMapProducer.DEFAULT_MARGIN
+
+    /**
+     * Largest image dimension of a map when the request names no framing. The terrain renderer's
+     * own default; `TileMapProducer` has none (its framing is mandatory, the CLI keeps its own),
+     * so this door applies the same one to both renderers.
+     */
+    const val MAP_MAX_SIZE: Int = SrtmMapProducer.DEFAULT_MAX_SIZE
 }

@@ -17,6 +17,8 @@ import kotlinx.serialization.Serializable
  * @property gpx `trackName` is the one `/enhance` applies; `/export` keeps the input's names
  * @property fit `startTimeEpochMs` is `null`: it has no default, `format=fit` requires it
  * @property elevation the DEM routes' defaults; the zoom is per source (`GET /elevation/sources`)
+ * @property map what `/map/tiles` and `/map/terrain` apply; the terrain's DEM source is
+ *   `elevation.source`
  * @property limits the server's own limits, from its configuration
  */
 @Serializable
@@ -32,6 +34,7 @@ data class DefaultsDto(
     val fit: FitOptionsDto?,
     val climb: ClimbOptionsDto?,
     val elevation: ElevationDefaultsDto,
+    val map: MapDefaultsDto,
     val limits: LimitsDto,
 )
 
@@ -43,6 +46,8 @@ data class DefaultsDto(
  * @property maxElevationPoints more points in one elevation request is 413 `too-many-points`
  * @property requestTimeoutMs a computation that has not answered by then is 503 `timeout`
  * @property computeConcurrency computations run at once; the others wait for the timeout
+ * @property maxMapPixels a map wider or taller than this is 400 `invalid-option`
+ * @property maxMapDemTiles a terrain map whose frame covers more DEM tiles is 400 `invalid-option`
  */
 @Serializable
 @SerialName("Limits")
@@ -52,4 +57,6 @@ data class LimitsDto(
     val maxElevationPoints: Int,
     val requestTimeoutMs: Long,
     val computeConcurrency: Int,
+    val maxMapPixels: Int,
+    val maxMapDemTiles: Int,
 )

@@ -20,6 +20,7 @@ import io.github.glandais.api.mapping.elevationDefaultsDto
 import io.github.glandais.api.mapping.finiteOrNull
 import io.github.glandais.api.mapping.fitDefaultsDto
 import io.github.glandais.api.mapping.gpxWriteDefaultsDto
+import io.github.glandais.api.mapping.mapDefaultsDto
 import io.github.glandais.api.mapping.toDto
 import io.github.glandais.api.mapping.toPlan
 import io.github.glandais.api.mapping.toPoints
@@ -153,6 +154,7 @@ fun Route.enhanceRoutes() {
                 fit = fitDefaultsDto(),
                 climb = HttpDefaults.climb.toDto(),
                 elevation = elevationDefaultsDto(),
+                map = mapDefaultsDto(),
                 limits =
                     LimitsDto(
                         maxBodyBytes = config.maxBodyBytes,
@@ -160,6 +162,8 @@ fun Route.enhanceRoutes() {
                         maxElevationPoints = config.maxElevationPoints,
                         requestTimeoutMs = config.requestTimeoutMs,
                         computeConcurrency = config.computeConcurrency,
+                        maxMapPixels = config.maxMapPixels,
+                        maxMapDemTiles = config.maxMapDemTiles,
                     ),
             ),
         )
@@ -173,6 +177,7 @@ fun Route.enhanceRoutes() {
             "`/export` keeps the input's names. `fit.startTimeEpochMs` has no default: it is required. " +
             "`climb` is what `/analysis/climbs` applies, `elevation` what the `/elevation` operations apply; " +
             "their zoom level is each source's own (`GET /api/v1/elevation/sources`). " +
+            "`map` is what the `/map` operations apply when no framing is given. " +
             "`limits` are this server's."
         tag("meta")
         responses {

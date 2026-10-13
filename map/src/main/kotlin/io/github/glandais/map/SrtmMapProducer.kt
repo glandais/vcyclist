@@ -104,7 +104,7 @@ class SrtmMapProducer(
     fun createSrtmMap(
         file: File,
         paths: List<Path>,
-        maxSize: Int = 1024,
+        maxSize: Int = DEFAULT_MAX_SIZE,
         margin: Double = DEFAULT_MARGIN,
     ): MapImage {
         val map = MapImage.ofMaxSize(paths, margin, maxSize)
@@ -256,6 +256,13 @@ class SrtmMapProducer(
         const val DEFAULT_MAX_SAMPLES: Int = 65_536
 
         const val DEFAULT_MARGIN: Double = 0.1
+
+        /**
+         * Largest image dimension, in pixels, when the caller names none. A constant rather than a
+         * literal in [createSrtmMap]'s signature so that a door publishing its defaults (the HTTP
+         * API's `GET /defaults`) reads it instead of restating it.
+         */
+        const val DEFAULT_MAX_SIZE: Int = 1024
 
         /**
          * Painted where the DEM has no coverage. Neutral grey, chosen so it cannot be mistaken

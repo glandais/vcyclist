@@ -424,7 +424,8 @@ paths:
         the input''s names. `fit.startTimeEpochMs` has no default: it is required.
         `climb` is what `/analysis/climbs` applies, `elevation` what the `/elevation`
         operations apply; their zoom level is each source''s own (`GET /api/v1/elevation/sources`).
-        `limits` are this server''s.'
+        `map` is what the `/map` operations apply when no framing is given. `limits`
+        are this server''s.'
       responses:
         "200":
           description: The defaults
@@ -1168,6 +1169,282 @@ paths:
                 $ref: "#/components/schemas/Problem"
         "503":
           description: 'Problem: `urn:vcyclist:problem:dem-rate-limited`, `urn:vcyclist:problem:timeout`'
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Problem"
+  /api/v1/map/tiles:
+    post:
+      operationId: renderTileMap
+      tags:
+      - map
+      summary: Render the tracks over map tiles
+      description: 'Draws the selected paths over raster tiles of **this server''s**
+        tile source (`VCYCLIST_API_MAP_TILE_URL`); a request never names one. Without
+        it the operation is 503 `map-tiles-unconfigured`. Framing: at most one of
+        `maxSize`, `width`+`height` or `zoom`; none frames by the published `maxSize`
+        (`GET /api/v1/defaults` `map`). Any dimension is bounded by `limits.maxMapPixels`.
+        A tile the source does not give is painted grey and counted in `X-Vcyclist-Missing-Tiles`,
+        never fatal.'
+      parameters:
+      - name: kinds
+        in: query
+        description: 'Which containers to read: `all` (`<trk>` and `<rte>`), `tracks`
+          (`<trk>` only), `routes` (`<rte>` only). Default `all`.'
+        schema:
+          type: string
+          default: all
+          enum:
+          - all
+          - tracks
+          - routes
+      - name: split
+        in: query
+        description: '`tracks`: one path per `<trk>` / `<rte>`, segments concatenated
+          (the gap between two segments counts as distance). `segments`: one path
+          per `<trkseg>`. Default `tracks`.'
+        schema:
+          type: string
+          default: tracks
+          enum:
+          - tracks
+          - segments
+      - name: trackIndex
+        in: query
+        description: 'Keep only the path at this index of the selection (after `kinds`
+          and `split`, empty paths dropped). Absent: every path. Out of range: 422
+          `track-index-out-of-range`.'
+        schema:
+          type: integer
+          minimum: 0.0
+      - name: repair
+        in: query
+        description: When the XML does not parse, repair it (BOM, control characters,
+          bare `&`, split surrogate references) and parse again; each repair is reported
+          in `warnings`. Default `true`.
+        schema:
+          type: boolean
+          default: true
+      requestBody:
+        description: The GPX, as a multipart upload (part `gpx`) or as the raw body.
+          Options travel in the multipart part `request`; a raw body takes every default.
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required:
+              - gpx
+              properties:
+                gpx:
+                  type: string
+                  description: The GPX document
+                  format: binary
+                request:
+                  $ref: "#/components/schemas/TileMapRequest"
+            encoding:
+              gpx:
+                contentType: application/gpx+xml
+              request:
+                contentType: application/json
+          application/gpx+xml:
+            schema:
+              type: string
+              format: binary
+          application/xml:
+            schema:
+              type: string
+              format: binary
+          text/xml:
+            schema:
+              type: string
+              format: binary
+        required: true
+      responses:
+        "200":
+          description: The map, a PNG
+          headers:
+            Content-Disposition:
+              description: '`inline; filename="<name>.png"`'
+              required: false
+              deprecated: false
+              schema:
+                type: string
+            X-Vcyclist-Missing-Tiles:
+              description: '`<missing>/<total>`: background tiles the tile server
+                did not give, painted grey. Absent when every tile was drawn.'
+              required: false
+              deprecated: false
+              schema:
+                type: string
+          content:
+            image/png:
+              schema:
+                type: string
+                format: binary
+        "400":
+          description: 'Problem: `urn:vcyclist:problem:invalid-body`, `urn:vcyclist:problem:unknown-key`,
+            `urn:vcyclist:problem:invalid-option`, `urn:vcyclist:problem:invalid-gpx`'
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Problem"
+        "413":
+          description: 'Problem: `urn:vcyclist:problem:payload-too-large`, `urn:vcyclist:problem:too-many-points`'
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Problem"
+        "415":
+          description: 'Problem: `urn:vcyclist:problem:unsupported-media-type`'
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Problem"
+        "422":
+          description: 'Problem: `urn:vcyclist:problem:empty-gpx`, `urn:vcyclist:problem:track-index-out-of-range`'
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Problem"
+        "503":
+          description: 'Problem: `urn:vcyclist:problem:timeout`, `urn:vcyclist:problem:map-tiles-unconfigured`'
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Problem"
+  /api/v1/map/terrain:
+    post:
+      operationId: renderTerrainMap
+      tags:
+      - map
+      summary: Render the tracks over the terrain
+      description: 'A hypsometric map: the terrain coloured by altitude from the DEM
+        (cyan, yellow, magenta over the image''s own range; grey where the DEM has
+        no data), the paths on top coloured by their own altitude (blue, green, red).
+        Framed by `maxSize` only. A frame covering more DEM tiles than `limits.maxMapDemTiles`
+        at the requested `zoomLevel` is 400 `invalid-option`. The image carries DEM
+        data: display the attribution of its source (`GET /api/v1/elevation/sources`).'
+      parameters:
+      - name: kinds
+        in: query
+        description: 'Which containers to read: `all` (`<trk>` and `<rte>`), `tracks`
+          (`<trk>` only), `routes` (`<rte>` only). Default `all`.'
+        schema:
+          type: string
+          default: all
+          enum:
+          - all
+          - tracks
+          - routes
+      - name: split
+        in: query
+        description: '`tracks`: one path per `<trk>` / `<rte>`, segments concatenated
+          (the gap between two segments counts as distance). `segments`: one path
+          per `<trkseg>`. Default `tracks`.'
+        schema:
+          type: string
+          default: tracks
+          enum:
+          - tracks
+          - segments
+      - name: trackIndex
+        in: query
+        description: 'Keep only the path at this index of the selection (after `kinds`
+          and `split`, empty paths dropped). Absent: every path. Out of range: 422
+          `track-index-out-of-range`.'
+        schema:
+          type: integer
+          minimum: 0.0
+      - name: repair
+        in: query
+        description: When the XML does not parse, repair it (BOM, control characters,
+          bare `&`, split surrogate references) and parse again; each repair is reported
+          in `warnings`. Default `true`.
+        schema:
+          type: boolean
+          default: true
+      requestBody:
+        description: The GPX, as a multipart upload (part `gpx`) or as the raw body.
+          Options travel in the multipart part `request`; a raw body takes every default.
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required:
+              - gpx
+              properties:
+                gpx:
+                  type: string
+                  description: The GPX document
+                  format: binary
+                request:
+                  $ref: "#/components/schemas/TerrainMapRequest"
+            encoding:
+              gpx:
+                contentType: application/gpx+xml
+              request:
+                contentType: application/json
+          application/gpx+xml:
+            schema:
+              type: string
+              format: binary
+          application/xml:
+            schema:
+              type: string
+              format: binary
+          text/xml:
+            schema:
+              type: string
+              format: binary
+        required: true
+      responses:
+        "200":
+          description: The map, a PNG
+          headers:
+            Content-Disposition:
+              description: '`inline; filename="<name>.png"`'
+              required: false
+              deprecated: false
+              schema:
+                type: string
+          content:
+            image/png:
+              schema:
+                type: string
+                format: binary
+        "400":
+          description: 'Problem: `urn:vcyclist:problem:invalid-body`, `urn:vcyclist:problem:unknown-key`,
+            `urn:vcyclist:problem:invalid-option`, `urn:vcyclist:problem:invalid-gpx`'
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Problem"
+        "413":
+          description: 'Problem: `urn:vcyclist:problem:payload-too-large`, `urn:vcyclist:problem:too-many-points`'
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Problem"
+        "415":
+          description: 'Problem: `urn:vcyclist:problem:unsupported-media-type`'
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Problem"
+        "422":
+          description: 'Problem: `urn:vcyclist:problem:empty-gpx`, `urn:vcyclist:problem:track-index-out-of-range`'
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Problem"
+        "502":
+          description: 'Problem: `urn:vcyclist:problem:dem-unavailable`'
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Problem"
+        "503":
+          description: 'Problem: `urn:vcyclist:problem:timeout`, `urn:vcyclist:problem:dem-rate-limited`'
           content:
             application/problem+json:
               schema:
@@ -2111,6 +2388,17 @@ components:
           $ref: "#/components/schemas/SmoothingOptions"
         filterOptions:
           $ref: "#/components/schemas/FilterOptions"
+    MapDefaults:
+      type: object
+      title: MapDefaults
+      required:
+      - margin
+      - maxSize
+      properties:
+        margin:
+          type: number
+        maxSize:
+          type: integer
     Limits:
       type: object
       title: Limits
@@ -2120,6 +2408,8 @@ components:
       - maxElevationPoints
       - requestTimeoutMs
       - computeConcurrency
+      - maxMapPixels
+      - maxMapDemTiles
       properties:
         maxBodyBytes:
           type: integer
@@ -2131,11 +2421,16 @@ components:
           type: integer
         computeConcurrency:
           type: integer
+        maxMapPixels:
+          type: integer
+        maxMapDemTiles:
+          type: integer
     Defaults:
       type: object
       title: Defaults
       required:
       - elevation
+      - map
       - limits
       properties:
         enhance:
@@ -2158,6 +2453,8 @@ components:
           $ref: "#/components/schemas/ClimbOptions"
         elevation:
           $ref: "#/components/schemas/ElevationDefaults"
+        map:
+          $ref: "#/components/schemas/MapDefaults"
         limits:
           $ref: "#/components/schemas/Limits"
     ExportRequest:
@@ -2613,3 +2910,78 @@ components:
           $ref: "#/components/schemas/SmoothingOptions"
         filterOptions:
           $ref: "#/components/schemas/FilterOptions"
+    TileMapRequest:
+      type: object
+      title: TileMapRequest
+      description: The framing and track colours.
+      properties:
+        margin:
+          type:
+          - number
+          - "null"
+          description: 'Padding around the tracks, a ratio of their extent (0.1 =
+            10 %), finite and >= 0. Absent or null: the default published by `GET
+            /api/v1/defaults`.'
+        maxSize:
+          type:
+          - integer
+          - "null"
+          description: 'Framing: the deepest zoom at which neither dimension exceeds
+            this many pixels. Exclusive with width/height and zoom. At most the server''s
+            `limits.maxMapPixels`. Absent or null: the default published by `GET /api/v1/defaults`.'
+        width:
+          type:
+          - integer
+          - "null"
+          description: 'Framing: exact image width in pixels, with `height`. At most
+            `limits.maxMapPixels`.'
+        height:
+          type:
+          - integer
+          - "null"
+          description: 'Framing: exact image height in pixels, with `width`. At most
+            `limits.maxMapPixels`.'
+        zoom:
+          type:
+          - integer
+          - "null"
+          description: 'Framing: an explicit tile zoom level; the size follows from
+            the tracks and must stay within `limits.maxMapPixels`.'
+        colors:
+          type:
+          - array
+          - "null"
+          description: 'One colour per track, `#rrggbb`, cycled when there are more
+            tracks. Absent: red.'
+          items:
+            type: string
+    TerrainMapRequest:
+      type: object
+      title: TerrainMapRequest
+      description: The framing and the DEM source.
+      properties:
+        maxSize:
+          type:
+          - integer
+          - "null"
+          description: 'Largest image dimension, in pixels; at most `limits.maxMapPixels`.
+            Absent or null: the default published by `GET /api/v1/defaults`.'
+        margin:
+          type:
+          - number
+          - "null"
+          description: 'Padding around the tracks, a ratio of their extent, finite
+            and >= 0. Absent or null: the default published by `GET /api/v1/defaults`.'
+        source:
+          type:
+          - string
+          - "null"
+          description: 'DEM source id (`GET /api/v1/elevation/sources`). Absent or
+            null: the default published by `GET /api/v1/defaults`.'
+        zoomLevel:
+          type:
+          - integer
+          - "null"
+          description: 'DEM zoom level, 0..15. Absent: the source''s own default.
+            A frame covering more DEM tiles than `limits.maxMapDemTiles` at this zoom
+            is refused.'

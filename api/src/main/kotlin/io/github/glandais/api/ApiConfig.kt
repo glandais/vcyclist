@@ -14,6 +14,11 @@ import java.io.File
  * @property requestTimeoutMs bound on the *response* time of CPU work (see `ComputeGate`)
  * @property computeConcurrency number of CPU-bound requests computed at once
  * @property corsOrigins allowed CORS origins (`*` allowed); empty disables CORS entirely
+ * @property maxMapPixels largest width or height of a rendered map, in pixels: a framing that asks
+ *   for more is 400 `invalid-option`. The map is rendered in memory (4 bytes a pixel), so this
+ *   bounds a render's heap at `4 · maxMapPixels²` bytes
+ * @property maxMapDemTiles DEM tiles a terrain map may read, estimated from its frame before
+ *   rendering: a frame wider than that at the requested DEM zoom is 400 `invalid-option`
  * @property mapTileUrlTemplate tile server for tiled maps; `null` disables them (503)
  * @property cacheDir scratch directory of the server
  */
@@ -26,6 +31,8 @@ data class ApiConfig(
     val requestTimeoutMs: Long = 120_000,
     val computeConcurrency: Int = Runtime.getRuntime().availableProcessors(),
     val corsOrigins: List<String> = emptyList(),
+    val maxMapPixels: Int = 4096,
+    val maxMapDemTiles: Int = 1024,
     val mapTileUrlTemplate: String? = null,
     val cacheDir: File = File(System.getProperty("java.io.tmpdir"), "vcyclist-api"),
 ) {
@@ -36,6 +43,8 @@ data class ApiConfig(
         require(maxElevationPoints > 0) { "maxElevationPoints must be positive, was $maxElevationPoints" }
         require(requestTimeoutMs > 0) { "requestTimeoutMs must be positive, was $requestTimeoutMs" }
         require(computeConcurrency > 0) { "computeConcurrency must be positive, was $computeConcurrency" }
+        require(maxMapPixels > 0) { "maxMapPixels must be positive, was $maxMapPixels" }
+        require(maxMapDemTiles > 0) { "maxMapDemTiles must be positive, was $maxMapDemTiles" }
     }
 
     companion object {
@@ -106,6 +115,13 @@ data class ApiConfig(
                 corsOrigins =
                     envOf("CORS_ORIGINS")?.split(',')?.map { it.trim() }?.filter { it.isNotEmpty() }
                         ?: defaults.corsOrigins,
+                maxMapPixels =
+                    envOf("MAX_MAP_PIXELS")?.let { parse("${ENV_PREFIX}MAX_MAP_PIXELS", it, String::toIntOrNull) }
+                        ?: defaults.maxMapPixels,
+                maxMapDemTiles =
+                    envOf("MAX_MAP_DEM_TILES")?.let {
+                        parse("${ENV_PREFIX}MAX_MAP_DEM_TILES", it, String::toIntOrNull)
+                    } ?: defaults.maxMapDemTiles,
                 mapTileUrlTemplate = envOf("MAP_TILE_URL") ?: defaults.mapTileUrlTemplate,
                 cacheDir = envOf("CACHE_DIR")?.let(::File) ?: defaults.cacheDir,
             )

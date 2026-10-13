@@ -7,6 +7,7 @@ import io.github.glandais.api.http.Problem
 import io.github.glandais.api.service.ElevationGateway
 import io.github.glandais.elevation.ElevationProviderConfig
 import io.github.glandais.elevation.RawTile
+import io.github.glandais.map.TileFetcher
 import io.ktor.client.HttpClient
 import io.ktor.client.plugins.contentnegotiation.ContentNegotiation
 import io.ktor.client.request.HttpRequestBuilder
@@ -37,6 +38,10 @@ fun testConfig(
     requestTimeoutMs: Long = 30_000,
     maxTrackPoints: Int = ApiConfig().maxTrackPoints,
     maxElevationPoints: Int = ApiConfig().maxElevationPoints,
+    maxMapPixels: Int = ApiConfig().maxMapPixels,
+    maxMapDemTiles: Int = ApiConfig().maxMapDemTiles,
+    mapTileUrlTemplate: String? = null,
+    cacheDir: File = ApiConfig().cacheDir,
 ): ApiConfig =
     ApiConfig(
         host = "127.0.0.1",
@@ -46,6 +51,10 @@ fun testConfig(
         maxElevationPoints = maxElevationPoints,
         requestTimeoutMs = requestTimeoutMs,
         computeConcurrency = 2,
+        maxMapPixels = maxMapPixels,
+        maxMapDemTiles = maxMapDemTiles,
+        mapTileUrlTemplate = mapTileUrlTemplate,
+        cacheDir = cacheDir,
     )
 
 /**
@@ -115,8 +124,12 @@ object FlatTerrariumTiles {
     }
 }
 
-/** Collaborators that never reach the network: the DEM is [FlatTerrariumTiles]. */
-fun offlineDependencies(): ApiDependencies = ApiDependencies(elevation = ElevationGateway(FlatTerrariumTiles.fetcherFor))
+/**
+ * Collaborators that never reach the network: the DEM is [FlatTerrariumTiles], and map tiles come
+ * from [tileFetcher] — by default none at all.
+ */
+fun offlineDependencies(tileFetcher: TileFetcher = TileFetcher { null }): ApiDependencies =
+    ApiDependencies(elevation = ElevationGateway(FlatTerrariumTiles.fetcherFor), tileFetcher = tileFetcher)
 
 /** Asserts [response] is a problem document of [slug] with [status], and returns it. */
 suspend fun assertProblem(

@@ -164,6 +164,8 @@ class HttpDefaultsTest {
                     maxElevationPoints = config.maxElevationPoints,
                     requestTimeoutMs = config.requestTimeoutMs,
                     computeConcurrency = config.computeConcurrency,
+                    maxMapPixels = config.maxMapPixels,
+                    maxMapDemTiles = config.maxMapDemTiles,
                 ),
                 published.limits,
             )

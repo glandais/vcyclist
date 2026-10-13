@@ -188,6 +188,8 @@ nulle part ailleurs.
 | `requestTimeoutMs` | `VCYCLIST_API_REQUEST_TIMEOUT_MS` | 120 000 |
 | `computeConcurrency` | `VCYCLIST_API_COMPUTE_CONCURRENCY` | `Runtime.availableProcessors()` |
 | `corsOrigins` | `VCYCLIST_API_CORS_ORIGINS` (liste séparée par des virgules, `*` permis) | vide = pas de CORS |
+| `maxMapPixels` | `VCYCLIST_API_MAX_MAP_PIXELS` | 4 096 (largeur ou hauteur d'une carte ; ajouté à A6) |
+| `maxMapDemTiles` | `VCYCLIST_API_MAX_MAP_DEM_TILES` | 1 024 (tuiles MNT estimées d'une carte de relief ; ajouté à A6) |
 | `mapTileUrlTemplate` | `VCYCLIST_API_MAP_TILE_URL` | `null` = rendu de carte tuilée désactivé (503) |
 | `cacheDir` | `VCYCLIST_API_CACHE_DIR` | `${java.io.tmpdir}/vcyclist-api` |
 
@@ -680,6 +682,32 @@ curl -s -X POST -H 'Content-Type: application/gpx+xml' --data-binary @in.gpx 'lo
   `interpolation`, lissage, filtre) ; le zoom n'y figure pas, il est propre à chaque source et
   publié par `GET /elevation/sources`. L'attribution d'une source est la sienne puis celle de son
   repli (`ign-lidar-hd` → Mapterhorn).
+- **Constaté à A6.** `DEFAULT_MARGIN` existe **deux fois** dans `:map` (`TileMapProducer` et
+  `SrtmMapProducer`, même valeur) : `DEFAULT_MAX_SIZE` va sur `SrtmMapProducer`, seul propriétaire
+  du littéral `1024` de `createSrtmMap`, et `MapImage.ofMaxSize` (même `1024`) le lit aussi.
+  `TileMapProducer` n'a pas de `maxSize` par défaut (le cadrage y est obligatoire, la CLI garde le
+  sien) : sans champ de cadrage, la porte applique `SrtmMapProducer.DEFAULT_MAX_SIZE` aux deux
+  rendus (`HttpDefaults.MAP_MAX_SIZE`), et une seule marge, celle de `TileMapProducer`
+  (`HttpDefaults.MAP_MARGIN`) ; `MapRoutesTest` épingle l'égalité des deux marges.
+  `/defaults` publie `map: MapDefaults(margin, maxSize)`. Deux limites du serveur s'ajoutent
+  (`ApiConfig`, publiées dans `limits`) : `maxMapPixels` borne chaque dimension (`maxSize`,
+  `width`, `height`), et l'image d'un cadrage `zoom` — dont la taille suit les traces — est
+  calculée après le parsing, sans allouer de pixel (`MapImage.ofZoom`), et refusée au-delà ;
+  `maxMapDemTiles` borne les tuiles MNT d'une carte de relief, estimées sur le cadre (étendue en
+  tuiles du zoom MNT, plafonnée par les échantillons du rendu) : une grande marge à `zoomLevel` 15
+  ferait sinon des dizaines de milliers de téléchargements pour une requête. Les deux refus sont
+  400 `invalid-option` (`/zoom`, `/zoomLevel`). Deux modes de cadrage nommés ensemble sont 400 (la
+  précédence d'`ExportCommand` n'est pas recopiée : c'est une contradiction, pas une priorité),
+  `width` sans `height` aussi ; `colors` vide ou hors `#rrggbb` → 400 avec l'indice. `/map/tiles`
+  sans `mapTileUrlTemplate` est 503 avant même la lecture du corps. Les rendus écrivent un PNG
+  temporaire sous `cacheDir` (supprimé dans un `finally`), les tuiles sont en cache sous
+  `<cacheDir>/tiles`. Les deux rendus bloquent leur fil (requêtes HTTP de `TileFetcher` ;
+  `runBlocking` interne de `SrtmMapProducer` autour du lot MNT) : ils tournent sous la porte de
+  calcul mais sur `Dispatchers.IO`. Le `runBlocking` de `SrtmMapProducer` appelle le fournisseur
+  directement, jamais l'`ElevationGateway` : le `Mutex` tenu par `withProvider` n'est pas
+  ré-entré. Les tuiles manquantes ne font pas échouer la carte (`MissingTilePolicy.SKIP`) :
+  l'en-tête `X-Vcyclist-Missing-Tiles: <manquantes>/<total>` les signale (exposé par CORS).
+  Réponse `image/png`, `Content-Disposition: inline`.
 - Le DSL OpenAPI natif de Ktor est `@ExperimentalKtorApi` ; si une montée de Ktor le casse, le repli
   est smiley4 `ktor-openapi` (voir *Bibliothèques*), sans changer le contrat committé autrement que
   par la régénération.

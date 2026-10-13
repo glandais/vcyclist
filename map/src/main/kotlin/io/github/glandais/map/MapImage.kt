@@ -146,7 +146,7 @@ class MapImage private constructor(
         fun ofMaxSize(
             paths: List<Path>,
             margin: Double = 0.0,
-            maxSize: Int = 1024,
+            maxSize: Int = SrtmMapProducer.DEFAULT_MAX_SIZE,
             mapSpace: MapSpace = MapSpace.TILE_256,
         ): MapImage {
             require(maxSize > 0) { "maxSize must be positive, got $maxSize" }
