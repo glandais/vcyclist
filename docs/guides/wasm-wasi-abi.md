@@ -400,8 +400,8 @@ Up to five optional sub-objects; each is the matching JS DTO, field for field.
   that preset's dead band. Omitting the threshold takes the *resolved* preset's, so
   `{"elevationGainPreset": "gps"}` alone gives 10 m and not `dem`'s 3 m.
 - `options.elevationSmoothWindowM` (default 150) is the elevation smoother's triangular-kernel
-  half-width, and the number that decides both the reported climbing and the gradients the
-  simulation rides. See [`elevation.md`](elevation.md).
+  half-width. It decides the gradients the simulation rides, and so the duration; the reported
+  climbing is measured before smoothing and barely moves. See [`elevation.md`](elevation.md).
 - `options.demZoom` overrides the DEM zoom **for that call only**, leaving whatever
   `vcSetElevationConfig` last set in place. It exists here because the two wire doors accept the
   same keys or neither does; a host wanting one call at a different zoom should not have to mutate

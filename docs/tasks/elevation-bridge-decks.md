@@ -2587,6 +2587,150 @@ Une fois les tabliers en place, mesurer sur le banc E1 et sur `sample.gpx`/`stel
 La question de la provenance (savoir quels points sont du LiDAR) se pose ici ; avec `ign-lidar-hd`,
 le repli Mapterhorn la connaît déjà point par point.
 
+#### Mesures (E5)
+
+Banc E1 en direct (`ign-lidar-hd` avec tabliers et tunnels, tel que livré ; `mapterhorn` avec
+tunnels), `sample.gpx` et les parcours de la démo. Les variantes de noyau et de preset ont été
+mesurées par une sonde jetable (supprimée) ; le changement retenu, par le banc lui-même.
+
+**Décision.** Un seul changement : `ElevationGain` passe **avant** `PathSimplifier` (étape 10, sur le
+tracé 1 Hz, ou dense si le 1 Hz est coupé), et `PathSimplifier` recopie `elevationGainFiltered` /
+`elevationLossFiltered` sur le chemin qu'il construit. Le noyau de 150 m et le preset `dem` (3 m sur
+30 m) **ne bougent pas**. Le gain est net sur IGN (`test2` 0,49 → 0,95) ; sur Mapterhorn, la source
+par défaut, il est mitigé : `test2` passe de 0,90 à 1,46, l'erreur moyenne sur le banc de 0,38 à 0,28
+(détail au §3). Aucune option ajoutée, aucun défaut changé, rien pour E7.
+
+**Deux prémisses étaient fausses.**
+
+- Le « +9,29 m près des tabliers » n'est pas le noyau qui étale un tablier : le pire point est sur
+  `test1` au km 8,80, le passage supérieur de l'avenue de la Prise-d'Eau, un pont **manqué** dont la
+  vérité est le canyon du MNT (−5,6 m). Près des rampes trouvées (stations à ciel ouvert à moins de
+  300 m d'un ouvrage), l'écart lissé est de −1,89 m au pire sur `test1` (−1,86 m à 50 m). Le +5,2 m de
+  `test2` est l'artefact connu de l'appariement au pont de Bellevue manqué (km 1,23), déjà présent
+  avant lissage.
+- Le D+ dense de `test3` (1,49 × vérité) n'est pas du bruit réparti : les 9 m d'excès tiennent en
+  trois kilomètres (km 2 : 1/0, km 7 : 4/0, km 8 : 4/0, vcyclist/vérité). Aux km 7,98 et 8,91 le MNT
+  IGN lu par vcyclist est 3,5 et 5,8 m au-dessus de la vérité, sur 25–75 m de terrain dégagé au bord de
+  la Loire — une digue ou un déblai qu'un décalage latéral attrape. Problème de résolution et de
+  recalage ; aucun preset de D+ ne retire une bosse de 4–6 m sans retirer les petits ponts (≈ 5,4 m).
+
+**1. Noyau : 150 m conservé.**
+
+| Mesure (`ign-lidar-hd`) | 150 | 100 | 75 | 50 | 30 |
+|---|---|---|---|---|---|
+| `test2` lissé, terrain dégagé RMS (m) | 0,27 | 0,23 | 0,21 | 0,19 | 0,17 |
+| `test2` lissé, rampes RMS | 0,56 | 0,47 | 0,44 | 0,41 | 0,40 |
+| `test2` lissé, tabliers RMS / max | 0,86/−4,28 | 0,67/−4,08 | 0,63/−4,25 | 0,65/−4,86 | 0,70/−5,68 |
+| `test1` lissé, tabliers RMS | 0,22 | 0,20 | 0,23 | 0,30 | 0,39 |
+| `test3` lissé, tabliers RMS | 0,24 | 0,14 | 0,10 | 0,08 | 0,06 |
+| `test4` stations > 15 % sur 50 m (vérité : 2) | 0 | 25 | 59 | 81 | 89 |
+| `test4` pente max sur 10 m | 16 % | 22 % | 36 % | 76 % | 143 % |
+| `test4` tunnels, pire écart lissé (m) | +19,7 | +21,9 | +26,5 | +34,7 | +45,6 |
+| `test4` durée | 3:42:22 | +0:39 | +1:08 | +1:18 (+0,6 %) | +1:48 |
+| `sample` stations > 15 % sur 50 m | 54 | 85 | 96 | 113 | 153 |
+| `sample` durée | 19 617 s | +0,2 % | +0,3 % | +0,4 % | +0,5 % |
+
+La ligne tunnels est grande parce que les Petits Goulets ne sont pas détectés sur IGN : un noyau plus
+court expose ce que les corrections ont laissé. Mapterhorn pareil (`test4` stations raides 0/11/15/27/30,
+Combe Laval +9,3 → +16,6 m à 50 m). Durées de `test1..3` à 50 m : +1 % au plus (`test1` Mapterhorn +0,95 %, `test2` IGN +0,52 % ; +1,6 % et
++0,64 % à 30 m). Parcours lus sur leur propre
+`<ele>`, sans `--fix-elevation`, à 50 m : `stelvio` 594 s +7,1 % (avec MNT : 572 s, +2,1 %), `amazfit`
+948 s +4,0 %, `strava` 2 899 s +0,2 %, `sports-tracker` 2 217 s −3,3 % (pentes jusqu'à 839 %). Le noyau
+de 150 m n'aplatit pas les vrais tabliers : Saint-Nazaire, pente max sur 10 m 5,7 % contre un p95 vrai
+de 5,9 % ; Cheviré 6,4 % contre ≈ 6,3 % ; les tabliers corrigés s'écartent du profil source corrigé de
+3,55 m au plus (Langeais), 3,19 m à 50 m.
+
+**2. Preset de D+ : `dem` conservé.** Rapport D+ dense (grille 5 m, profil source) / vérité au même
+preset :
+
+| Route (`ign-lidar-hd`) | dem | 2/30 | 2/60 | 1,5/45 | 1/30 | 1/60 | 3/60 |
+|---|---|---|---|---|---|---|---|
+| `test1` | 1,08 | 1,11 | 1,05 | 1,07 | 1,06 | 1,05 | 1,02 |
+| `test2` | 0,95 | 1,06 | 0,97 | 1,02 | 0,99 | 0,98 | 0,97 |
+| `test3` | 1,49 | 1,26 | 1,21 | 1,21 | 1,20 | 1,12 | 1,26 |
+| `test4` | 1,05 | 1,05 | 1,03 | 1,04 | 1,05 | 1,03 | 1,03 |
+
+Un seuil de 1–1,5 m change ce que mesure le D+ plutôt que sa justesse : la vérité elle-même passe de
+18 à 36 m sur `test3` et de 89 à 109 m sur `test2` à 1 m sur 30 m. 2 m sur 60 m donne presque la même
+vérité que `dem` (71/88/22/2 411 contre 72/89/18/2 414) et gagne 2–5 points, mais coupe les traces
+enregistrées sans rien pour vérifier : `sports-tracker` 1 081 → 855 (−21 %), `stelvio` sans MNT
+172 → 152 (−12 %). Aucun preset ne corrige `test3` (voir plus haut).
+
+**3. L'effondrement du D+ rapporté, et le correctif.** `PathSimplifier` fait son Douglas-Peucker sur
+l'altitude **lissée** (tolérance 10 m, exagération 3) et garde ≈ 5 % des points (142 sur 2 674 sur
+`test2`) ; `ElevationGain` relisait ensuite le profil source aux seuls points gardés, donc sans les
+rampes des ponts nantais. Variantes à k = 150 (sonde) :
+
+| Variante | `test2` IGN : D+ (× vérité), points | `test1` IGN | `test3` IGN | `test4` IGN | `test4` Mapterhorn | Mapterhorn `test1` / `test2` / `test3` |
+|---|---|---|---|---|---|---|
+| Avant : simplifier, puis mesurer | 44 (0,49), 142 | 59 (0,82), 60 | 10 (0,57), 38 | 2 460 (1,02), 773 | 2 425 (1,00), 779 | 12 (0,17) / 80 (0,90) / 7 (0,40) |
+| **Mesurer le 1 Hz, garder le chiffre** | **84 (0,95), 142** | **78 (1,08)** | 26 (1,48) | 2 543 (1,05) | 2 476 (1,03) | 51 (0,71) / 130 (1,46) / 24 (1,34) |
+| Mesurer le dense | 85 (0,95) | 78 | 27 | 2 546 | 2 479 | 53 / 130 / 24 |
+| Exagération 6 | 65 (0,73), 153 | 59 | 14 | 2 474, 788 | 2 436 | 41 / 108 / 14 |
+| Exagération 10 | 74 (0,83), 161 | 59 | 18 | 2 474, 814 | 2 443 | 46 / 110 / 14 |
+| Tolérance 5 m | 70 (0,79), 239 (+68 %) | 59 | 17 | 2 491, 1 157 | 2 445 | 41 / 108 / 15 |
+| Simplifier sur le profil source | 65 (0,73), 157 | 72 | 19 | 2 511 | 2 449 | 42 / 109 / 16 |
+
+Retenu : la deuxième ligne. Les points et la taille du fichier ne changent pas (18 kB contre 337 kB pour
+le fichier 1 Hz de `test2` IGN) ; le D+ rapporté ne dépend plus d'un réglage de taille de fichier
+(`--no-simplify` le déplaçait de −4 %, `sports-tracker`, à +325 %, `test1` Mapterhorn 12 → 51 m ;
+`test2` IGN 44 → 84 m, +91 %). La raison de faire tourner l'étape en dernier — que le
+résumé s'accorde avec sa propre trace — ne tenait pas : le `<ele>` écrit est le profil lissé, et sur
+`test2` il donnait 36 m au preset `dem` quand 44 m étaient rapportés (`test4` : 2 386 contre 2 460).
+
+**Après le correctif, banc E1** (`ElevationBenchProbeTest.bench`, D+ rapporté × vérité ; les autres
+colonnes, durées comprises, sont identiques à l'unité près ; le banc asserte désormais
+« D+ rep. » = « D+ 1Hz ») :
+
+| Route | `map -tun` | `mapterhorn` | `ign -decks` | `ign -tun` | `ign-lidar-hd` |
+|---|---|---|---|---|---|
+| `test1` (vérité 72 m) | 12 (0,17) → 51 (0,71) | 12 → 51 | 12 (0,17) → 52 (0,73) | 59 (0,82) → 78 (1,08) | 59 (0,82) → 78 (1,08) |
+| `test2` (89 m) | 80 (0,90) → 130 (1,46) | 80 → 130 | 87 (0,98) → 135 (1,52) | 44 (0,49) → 84 (0,95) | 44 (0,49) → 84 (0,95) |
+| `test3` (18 m) | 7 (0,40) → 24 (1,34) | 7 → 24 | 11 (0,60) → 32 (1,76) | 10 (0,57) → 26 (1,48) | 10 (0,57) → 26 (1,48) |
+| `test4` (2 414 m) | 2 738 (1,13) → 2 853 (1,18) | 2 425 (1,00) → 2 476 (1,03) | 2 460 (1,02) → 2 543 (1,05) | 2 732 (1,13) → 2 868 (1,19) | 2 460 (1,02) → 2 543 (1,05) |
+
+**Sur la source par défaut, le bilan est mitigé.** Mapterhorn (`ElevationSource.DEFAULT`) n'a pas de
+tabliers : le correctif expose les canyons sous les ponts nantais que la simplification masquait, et
+`test2` se dégrade, 0,90 → 1,46 (`ign -decks` 0,98 → 1,52) ; `test4` passe de 1,00 à 1,03. `test1`
+(0,17 → 0,71) et `test3` (0,40 → 1,34) s'améliorent. L'erreur absolue sur `test1..4` passe de
+0,83 / 0,10 / 0,60 / 0,00 à 0,29 / 0,46 / 0,34 / 0,03 : meilleure en moyenne (0,38 → 0,28), pire sur
+`test2`, où l'ancien chiffre était juste par accident — le D+ dense donnait déjà 1,46 depuis E1. `TARGETS_MISSED`
+inchangé, `test3` y reste.
+
+**Parcours** (D+ rapporté, `dem`, CLI et `TunnelBenchProbeTest`, avant → après ; durées identiques) :
+
+| Parcours | Sans `--fix-elevation` | `ign-lidar-hd` | `mapterhorn` |
+|---|---|---|---|
+| `sample` | 4 485 → 4 501 (+0,4 %) | 4 555 → 4 652 (+2,1 %) | 4 545 → 4 599 (+1,2 %) |
+| `stelvio` | 148 → 172 (+16 %) | — (hors IGN, = Mapterhorn) | 131 → 132 |
+| `sports-tracker` | 1 126 → 1 081 (−4,0 %) | 528 → 538 | 527 → 533 |
+| `amazfit` | 94 → 100 (+6,4 %) | — | 79 → 85 |
+| `movescount` | 514 → 519 | 527 → 537 | 526 → 532 |
+| `strava` | 632 → 634 | 672 → 738 (+9,7 %) | 666 → 714 (+7,2 %) |
+| `garmin` | 6 → 6 | — | 8 → 17 |
+
+Le chiffre « après » sans MNT est celui que `--no-simplify` donnait déjà, à 3 m près celui de la
+colonne « dem / source » du tableau *What the pipeline reports* d'`elevation.md` ; avec Mapterhorn, `strava`
+rejoint les 714 m que *What the DEM costs* documentait (mesurés avec `--no-simplify`). Sur
+`sample.gpx`, les tabliers coûtent désormais −0,27 % de D+ rapporté (4 665 → 4 652 m) au lieu de
++0,04 % : dans la tolérance de 0,5 % de la *Validation*, durée −0,01 %.
+
+**4. Par source, provenance.** Les conclusions noyau et preset valent pour les deux sources ; `stelvio`
+(hors couverture IGN, repli Mapterhorn) sort identique au bit, `sample` est couvert par IGN sur
+357 points échantillonnés sur 357. Pas de comportement par source, pas de crochet de provenance : le
+statut des tabliers et des tunnels reste E7 (3) et (4).
+
+**Sites modifiés.** `Enhancer.kt` (étapes 10 et 11 échangées, KDoc), `PathSimplifier.kt` (recopie
+des deux scalaires après `computeDerivedData`, dont `resetStats` les efface ; les setters restent
+`internal` à `:gpx` ; un `PathSimplifier.simplify` appelé seul, `PathSimplifierJvm.simplify`
+compris, garde donc lui aussi le D+ filtré de son entrée au lieu de `NaN`), KDoc de `Path.elevationGainFiltered`, `ElevationGain.annotate` et
+`EnhanceOptions.elevationGain` ; description de `elevationSmoothWindowM` (KDoc commun et JS,
+`index.d.ts` régénéré, aide CLI, `wasm-wasi-abi.md`, `using-from-javascript.md`) qui le disait
+déterminant du D+ rapporté ; ordre du pipeline dans `using-from-javascript.md` ; `CLAUDE.md` (liste du pipeline), diagramme du `README.md` ;
+`elevation.md` ; ligne R33. Tests : `EnhancerElevationGainTest.simplification_does_not_move_the_reported_gain`
+(une bosse de 6 m sur route plate que Douglas-Peucker supprime), `PathSimplifierTest` (recopie,
+`NaN` conservé), assertion d'égalité des colonnes du banc.
+
 ### E6 — Corriger la documentation existante
 
 - `elevation.md`, *What the DEM costs* et *Raising the DEM zoom* : z12 n'est pas la résolution

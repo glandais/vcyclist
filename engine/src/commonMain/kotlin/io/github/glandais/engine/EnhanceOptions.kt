@@ -69,12 +69,14 @@ data class WPrimeBalanceOptions(
  * @param racingLine optimal-trajectory options. Off by default: enabling it **moves every
  *   coordinate**. When on it supersedes [curvature], since it writes the curvature of the line
  *   actually ridden rather than of the centreline.
- * @param elevationGain how cumulative ascent is measured — runs last, writes two cached scalars
- *   and no point. See `docs/guides/elevation.md`.
+ * @param elevationGain how cumulative ascent is measured — runs just before simplification, on the
+ *   full-resolution trace, and writes two cached scalars (carried through simplification) and no
+ *   point. See `docs/guides/elevation.md`.
  * @param elevationSmoothWindowM triangular-kernel half-width for the elevation smoother, in
- *   metres. The single largest determinant of both the reported D+ and the gradients the
- *   simulation rides — it costs `sample.gpx` 1.7 % and `sports-tracker.gpx` 49 % — and it had
- *   never been measured because no caller could reach it. Ledger row R28.
+ *   metres. It decides the gradients the simulation rides, and so the duration — 17.6 % on
+ *   `stelvio.gpx`'s switchbacks between 10 and 300 m, about 1 % elsewhere — and it had never been
+ *   measured because no caller could reach it. The reported D+ reads the profile *before* this
+ *   smoothing, so the window barely moves it. Ledger row R28.
  */
 data class EnhanceOptions(
     val fixElevation: Boolean = true,

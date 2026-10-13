@@ -183,9 +183,10 @@ class EnhanceCommand : Callable<Int> {
         names = ["--elevation-smooth-window"],
         description = [
             "Triangular-kernel half-width in metres for the elevation smoother",
-            "(default: \${DEFAULT-VALUE}). This is the number that decides both the reported",
-            "climbing and the gradients the simulation rides: it costs a clean route ~1.7%",
-            "and a noisy GPS trace ~49%. See docs/guides/elevation.md.",
+            "(default: \${DEFAULT-VALUE}). It decides the gradients the simulation rides,",
+            "and so the duration (17.6% on a switchback climb between 10 and 300 m, ~1%",
+            "elsewhere); the reported climbing is measured before smoothing and barely",
+            "moves. See docs/guides/elevation.md.",
         ],
     )
     var elevationSmoothWindowM: Double = ElevationStep.DEFAULT_SMOOTH_WINDOW_M

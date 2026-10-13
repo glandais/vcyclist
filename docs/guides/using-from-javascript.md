@@ -114,7 +114,8 @@ const out = await enhance(path, { fixElevation: true });  // fetches DEM tiles, 
 
 `{ fixElevation: true }` auto-instantiates a default `ElevationProvider` (mapterhorn Terrarium
 tiles) and runs the full pipeline: densify → fix elevation → smooth → max speeds → virtualize →
-resample → simplify → elevation gain.
+resample → elevation gain → simplify (the simplified path keeps the D+ measured on the
+full-resolution trace).
 
 The options object (`EnhanceOptionsDto`) is entirely optional, field by field:
 
@@ -129,7 +130,7 @@ The options object (`EnhanceOptionsDto`) is entirely optional, field by field:
 | `curvatureEnabled` | `true` | heading-regression curvature; off restores the older windowed estimate |
 | `racingLineEnabled` / `racingLineCorridor` / `racingLineRoadWidthM` | `false` / `"lane"` / 6 m | optimal line through corners |
 | `elevationGainEnabled` / `elevationGainPreset` / `elevationGainThresholdM` | `true` / `"dem"` / preset's | how the reported climbing is measured — `"raw"`, `"barometric"`, `"dem"`, `"gps"` |
-| `elevationSmoothWindowM` | 150 m | elevation-smoother half-width; decides both the reported climbing and the gradients ridden |
+| `elevationSmoothWindowM` | 150 m | elevation-smoother half-width; decides the gradients ridden, and so the duration (the reported climbing is measured before it) |
 | `demZoom` | the source's (12, or 15 for IGN) | Web-Mercator zoom for the DEM lookup, only used with `fixElevation` |
 | `demSource` | `"mapterhorn"` | DEM `fixElevation` reads: `"mapterhorn"` or `"ign-lidar-hd"` (France, Mapterhorn elsewhere) |
 

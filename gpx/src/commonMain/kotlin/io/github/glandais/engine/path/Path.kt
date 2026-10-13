@@ -56,7 +56,8 @@ class Path(
      *
      * Cached rather than computed here: [computeDerivedData] runs after every pipeline stage, and
      * the accumulator smooths a copy of the profile first, which is O(n·k). It is written by the
-     * `elevationGain` stage of the enhancer and invalidated by [resetStats].
+     * `elevationGain` stage of the enhancer, carried unchanged by [PathSimplifier] (which runs after
+     * it), and invalidated by [resetStats].
      */
     var elevationGainFiltered: Double = Double.NaN
         internal set

@@ -14,7 +14,14 @@ import io.github.glandais.elevation.MathConstants
  * 2. Call [DouglasPeucker.simplify] to get the simplified subset (in order).
  * 3. Walk the source path with a single pointer ; copy every retained point's full slot
  *    set into the output path.
- * 4. Run [Path.computeDerivedData] on the output.
+ * 4. Run [Path.computeDerivedData] on the output, then carry the source's
+ *    [Path.elevationGainFiltered] / [Path.elevationLossFiltered] over to it.
+ *
+ * The filtered D+ is carried, not recomputed: it is a measurement of the route, taken on the full
+ * trace, and Douglas-Peucker keeps about one point in twenty — on a flat route that crosses bridges
+ * it drops their ramps, and recomputing on what is left halved the reported climbing
+ * (`elevation-bridge-decks` E5). `NaN` on the source stays `NaN`. The raw sums
+ * ([Path.elevationGain]) are recomputed, as for every stage.
  *
  * Reuses the elevation module's Douglas-Peucker implementation. Every [PointField] slot of a
  * retained point is preserved (e.g. `pInputPower`, `heartRate`) — not just lat/lon/elevation.
@@ -29,7 +36,8 @@ object PathSimplifier {
      * @param toleranceM maximum allowed perpendicular distance from the simplified line (meters)
      * @param zExaggeration vertical exaggeration factor passed to the ECEF conversion. Higher
      *   values amplify altitude differences so that small bumps are more likely to be retained.
-     * @return a new [Path] containing the retained points with [Path.computeDerivedData] applied.
+     * @return a new [Path] containing the retained points with [Path.computeDerivedData] applied,
+     *   and the source's filtered D+ / D− carried over unchanged.
      *   For paths of size ≤ 2 a defensive [Path.copy] of the source is returned.
      */
     fun simplify(
@@ -72,6 +80,9 @@ object PathSimplifier {
             }
         }
         out.computeDerivedData()
+        // After computeDerivedData, whose resetStats clears both.
+        out.elevationGainFiltered = path.elevationGainFiltered
+        out.elevationLossFiltered = path.elevationLossFiltered
         return out
     }
 }

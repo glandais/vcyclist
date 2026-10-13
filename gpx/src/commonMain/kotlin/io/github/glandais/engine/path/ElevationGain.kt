@@ -85,7 +85,8 @@ object ElevationGain {
      *
      * The setters are `internal` to `:gpx`, so this is the only way another module writes them —
      * which is the point: the two scalars must never be set to anything but the output of this
-     * accumulator, and `resetStats` must remain the only thing that clears them.
+     * accumulator, and `resetStats` must remain the only thing that clears them. The one other
+     * writer is [PathSimplifier], which carries them from its source unchanged.
      */
     fun annotate(
         path: Path,

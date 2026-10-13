@@ -32,8 +32,8 @@ module.
             │  ├─ VirtualizeService (1 Hz physics)    │
             │  ├─ PointPerSecond (uniform sampling)   │
             │  ├─ W′bal (Critical Power annotation)   │
-            │  ├─ PathSimplifier (Douglas-Peucker 3D) │
-            │  └─ ElevationGain (D+/D− dead band)     │
+            │  ├─ ElevationGain (D+/D− dead band)     │
+            │  └─ PathSimplifier (Douglas-Peucker 3D) │
             └──────────────────┬──────────────────────┘
                                ▼
                         ┌──────────────┐

@@ -263,4 +263,38 @@ class PathSimplifierTest {
             assertEquals(once.elevation(i), twice.elevation(i), "ele mismatch at $i")
         }
     }
+
+    // ---- 13. filtered D+ carried, not recomputed ------------------------------
+
+    /** 1 km flat, with a 6 m hump 120 m long half way: a bridge the simplifier drops. */
+    private fun flatWithHump(): Path {
+        val n = 201
+        val lat = DoubleArray(n) { 48.0 }
+        val lon = DoubleArray(n) { 2.0 + it * 0.0000675 }
+        val ele = DoubleArray(n) { 10.0 + 6.0 * (1.0 - kotlin.math.abs(it - 100) / 12.0).coerceAtLeast(0.0) }
+        val p = buildSyntheticPath(lat, lon, ele)
+        p.computeDerivedData()
+        return p
+    }
+
+    @Test
+    fun simplify_carries_the_filtered_gain_of_the_source() {
+        val src = flatWithHump()
+        ElevationGain.annotate(src)
+        assertTrue(src.elevationGainFiltered > 3.0, "the hump is a climb: ${src.elevationGainFiltered}")
+
+        val out = PathSimplifier.simplify(src, toleranceM = 20.0)
+        assertEquals(2, out.size, "the hump should have been simplified away")
+        assertEquals(src.elevationGainFiltered, out.elevationGainFiltered, 1e-12)
+        assertEquals(src.elevationLossFiltered, out.elevationLossFiltered, 1e-12)
+        // The raw sum is recomputed on what was kept, as for every stage.
+        assertEquals(0.0, out.elevationGain, 1e-12)
+    }
+
+    @Test
+    fun simplify_leaves_an_unmeasured_gain_unmeasured() {
+        val out = PathSimplifier.simplify(flatWithHump(), toleranceM = 1.0)
+        assertTrue(out.elevationGainFiltered.isNaN())
+        assertTrue(out.elevationLossFiltered.isNaN())
+    }
 }

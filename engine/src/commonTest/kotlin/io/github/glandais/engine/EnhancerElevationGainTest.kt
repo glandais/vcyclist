@@ -122,6 +122,49 @@ class EnhancerElevationGainTest {
             assertEquals(src.elevationGain, out.elevationGainFiltered, 0.5)
         }
 
+    /**
+     * 2 km of flat road with one 6 m hump 100 m long in the middle — a bridge on a flat route. The
+     * 150 m kernel shrinks the hump to well under the simplifier's 10 m / 3 = 3.3 m vertical
+     * reach, so Douglas-Peucker drops it; the source profile still climbs 6 m (about 5 at the `dem`
+     * preset's own 30 m scale).
+     */
+    private fun flatRouteWithABridge(n: Int = 1_001): Path {
+        val p = Path(n)
+        val lengthM = 2_000.0
+        for (i in 0 until n) {
+            val d = lengthM * i / (n - 1)
+            val bump = (1.0 - abs(d - 1_000.0) / 50.0).coerceAtLeast(0.0)
+            p.setLatitude(i, 45.0 * MathConstants.DEG_TO_RAD)
+            p.setLongitude(i, (6.0 + d / 78_710.0) * MathConstants.DEG_TO_RAD)
+            p.setElevation(i, 10.0 + 6.0 * bump)
+            p.setTime(i, i * 1_000.0)
+        }
+        p.computeDerivedData()
+        return p
+    }
+
+    @Test
+    fun simplification_does_not_move_the_reported_gain() =
+        runTest {
+            val src = flatRouteWithABridge()
+            val dense = Enhancer.enhanceCourse(Enhancer.getDefaultCourse(src), noPhysics)
+            val simplified =
+                Enhancer.enhanceCourse(
+                    Enhancer.getDefaultCourse(src),
+                    noPhysics.copy(simplifyPath = SimplifyPathOptions()),
+                )
+
+            assertTrue(simplified.size < dense.size / 10, "kept ${simplified.size} of ${dense.size}")
+            assertTrue(dense.elevationGainFiltered > 3.0, "dense D+ ${dense.elevationGainFiltered}")
+            assertEquals(dense.elevationGainFiltered, simplified.elevationGainFiltered, 1e-9)
+            assertEquals(dense.elevationLossFiltered, simplified.elevationLossFiltered, 1e-9)
+
+            // The control: measured on what the simplifier kept, the bridge is gone. This is what
+            // the pipeline reported before E5.
+            val onKept = ElevationGain.compute(simplified, ElevationGainOptions.DEFAULT)
+            assertTrue(onKept.gainM < 1.0, "the simplifier kept the ramps: ${onKept.gainM}")
+        }
+
     @Test
     fun a_larger_preset_threshold_reports_less() =
         runTest {

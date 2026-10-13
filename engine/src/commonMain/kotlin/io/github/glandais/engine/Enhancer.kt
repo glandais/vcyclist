@@ -57,8 +57,9 @@ import kotlin.math.abs
  * 7. virtualize track (time-stepping simulation).
  * 8. resample to 1 Hz.
  * 9. annotate W′ balance (Critical Power model) — writes one field, changes no other.
- * 10. simplify with Douglas-Peucker 3D.
- * 11. elevation gain (D+/D− with a dead band) — annotation, reads `sourceElevation`, moves no point.
+ * 10. elevation gain (D+/D− with a dead band) — annotation, reads `sourceElevation`, moves no point.
+ *     Before step 11, on the full-resolution trace; the simplifier carries the figure.
+ * 11. simplify with Douglas-Peucker 3D.
  *
  * Stateless ; safe for concurrent calls.
  */
@@ -233,7 +234,21 @@ object Enhancer {
             WPrimeBalanceComputer.compute(path, options.wPrimeBalance)
         }
 
-        // Step 10 : simplify.
+        // Step 10 : cumulative ascent with a dead band. Annotation only — writes two cached scalars
+        // on the path and touches no point. It reads `sourceElevation`, the profile before step 4.
+        //
+        // Before simplification, on the 1 Hz path (or the dense one): Douglas-Peucker runs on the
+        // smoothed profile and keeps about one point in twenty, which drops the ramps of a bridge on
+        // a flat route — measured after it, the Nantes route reported 0.49 of its true D+ instead
+        // of 0.95 (44 m against 84 m with `--no-simplify`; across the bench and the recorded rides
+        // `--no-simplify` moved it by −4 % to +325 %). `PathSimplifier` carries
+        // the two scalars over, so the figure no longer depends on a file-size setting
+        // (`elevation-bridge-decks` E5).
+        if (options.elevationGain.enabled) {
+            ElevationGain.annotate(path, options.elevationGain)
+        }
+
+        // Step 11 : simplify.
         if (options.simplifyPath.enabled) {
             // The racing line lives inside roughly 2.5 m of the centreline, so the default 10 m
             // Douglas-Peucker tolerance would discard the entire deliverable — computed, written,
@@ -250,17 +265,6 @@ object Enhancer {
                     tolerance,
                     options.simplifyPath.zExaggeration,
                 )
-        }
-
-        // Step 11 : cumulative ascent with a dead band. Annotation only — writes two cached scalars
-        // on the path and touches no point.
-        //
-        // Last, after simplification, so the figure describes the file the caller receives:
-        // Douglas-Peucker drops points, which moves the raw sum, and a summary that disagrees with
-        // its own trace is worse than no summary. It reads `sourceElevation`, so simplifying does
-        // not cost it the pre-smoothing profile either.
-        if (options.elevationGain.enabled) {
-            ElevationGain.annotate(path, options.elevationGain)
         }
 
         return path

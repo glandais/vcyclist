@@ -78,11 +78,13 @@ cd demo && npm run dev                   # browser demo, hot reload (rebuilds th
 8. `PointPerSecond` (1 Hz)
 9. `WPrimeBalanceComputer` — pure annotation pass: reads `pComputedPower`, writes `wPrimeBalance`,
    every other field is bit-identical whether it runs or not (`WPrimeBalanceComputerTest` pins this)
-10. `PathSimplifier` (Douglas-Peucker 3D)
-11. `ElevationGain` — annotation pass: reads `sourceElevation` (the profile *before* step 4, so the
+10. `ElevationGain` — annotation pass: reads `sourceElevation` (the profile *before* step 4, so the
     figure is not the physics kernel's), writes `elevationGainFiltered` / `elevationLossFiltered`
-    and no point. Last on purpose: simplification moves the raw sum, and a summary that disagrees
-    with its own trace is worse than none. See [`docs/guides/elevation.md`](docs/guides/elevation.md)
+    and no point. Before simplification on purpose: Douglas-Peucker keeps ~5 % of the points and
+    dropped the ramps of every bridge on a flat route (reported D+ 0.49 × true on the Nantes bench,
+    0.95 measured first). See [`docs/guides/elevation.md`](docs/guides/elevation.md)
+11. `PathSimplifier` (Douglas-Peucker 3D) — **carries** the two filtered scalars over to the path it
+    builds; it recomputes only the raw sums
 
 The order is load-bearing. If you change it, update `Enhancer.kt`'s docstring, the `README.md`
 diagram, and run a CLI smoke.

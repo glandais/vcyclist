@@ -161,6 +161,7 @@ String json = TabularWritersJvm.writeJson(enhanced);
 byte[] fit  = PathToFitJvm.toFitBytes(enhanced, "My route", startEpochMs);
 
 Path smaller = PathSimplifierJvm.simplify(enhanced, 10.0);        // Douglas-Peucker 3D
+                                     // keeps enhanced's filtered D+ / D−
 
 // A bare GPX — no <extensions>, so no power, heart rate, cadence or temperature.
 // writeExtensions is the fifth parameter of this overload, so the ones before it

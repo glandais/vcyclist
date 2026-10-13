@@ -176,8 +176,9 @@ external interface EnhanceOptionsDto {
     /**
      * Triangular-kernel half-width for the elevation smoother, in metres.
      *
-     * The single largest determinant of both the reported climbing and the gradients the
-     * simulation rides — it costs a clean route ~1.7 % and a noisy GPS trace ~49 %.
+     * It decides the gradients the simulation rides, and so the duration (17.6 % on a switchback
+     * climb between 10 and 300 m, about 1 % elsewhere). The reported climbing is measured before
+     * this smoothing, so the window barely moves it.
      */
     val elevationSmoothWindowM: Double?
 

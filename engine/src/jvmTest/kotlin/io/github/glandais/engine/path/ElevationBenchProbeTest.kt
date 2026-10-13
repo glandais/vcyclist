@@ -79,7 +79,8 @@ import kotlin.test.assertTrue
  * Errors are read on the dense path (steps 1–4 of the pipeline, 1–2 m spacing): `sourceElevation`
  * is what `ElevationGain` reads, `elevation` (150 m kernel) is what the physics rides. Reported D+
  * and simulated duration come from a full `EnhanceOptions.DEFAULT` run; a second full run with
- * `simplifyPath` off isolates what `PathSimplifier` does to the reported D+. No offset is subtracted
+ * `simplifyPath` off isolates what `PathSimplifier` does to the reported D+ — nothing since E5,
+ * which measures D+ before simplification: the two columns are asserted equal. No offset is subtracted
  * from either source: both serve NGF-IGN69 LiDAR in France (Mapterhorn z12 is subsampled LiDAR HD),
  * so the median difference on open terrain is printed as a diagnostic of local bias, not a datum.
  */
@@ -351,7 +352,10 @@ class ElevationBenchProbeTest {
         val dense: Path,
         /** D+ reported by a full `EnhanceOptions.DEFAULT` run. */
         val reportedGainM: Double,
-        /** Same, `simplifyPath` off: the reported D+ before `PathSimplifier`. */
+        /**
+         * Same, `simplifyPath` off: the reported D+ before `PathSimplifier`. Equal to
+         * [reportedGainM] since E5 (asserted), which measures D+ before simplifying.
+         */
         val oneHzGainM: Double,
         /** Simulated duration of the full run. */
         val durationMs: Double,
@@ -533,6 +537,9 @@ class ElevationBenchProbeTest {
                     val full = runBlocking { enhance(input, provider, EnhanceOptions.DEFAULT, withTunnels) }
                     val noSimplify = EnhanceOptions.DEFAULT.copy(simplifyPath = SimplifyPathOptions(enabled = false))
                     val oneHzGain = runBlocking { enhance(input, provider, noSimplify, withTunnels) }.reportedElevationGain
+                    // E5: D+ is measured before `PathSimplifier`, which carries it — so a file-size
+                    // setting no longer moves it (it took test2 from 0.95 to 0.49 of the truth).
+                    assertEquals(oneHzGain, full.reportedElevationGain, 1e-9, "$label: simplification moved the reported D+")
                     val matcher = Matcher(truth)
                     val match =
                         DoubleArray(dense.size) { i ->

@@ -64,11 +64,14 @@ From [`Enhancer.kt`](../../engine/src/commonMain/kotlin/io/github/glandais/engin
 4. `smoothElevation` — a **triangular kernel of 150 m half-width, always, unconditionally**. The
    pre-smoothing altitude of every point is kept in `PointField.SOURCE_ELEVATION`, the way the
    racing line keeps `sourceLatitude`/`sourceLongitude`.
-5. …physics, resampling, simplification…
-6. `ElevationGain` — an annotation pass, last, writing `elevationGainFiltered` /
+5. …physics, 1 Hz resampling…
+6. `ElevationGain` — an annotation pass writing `elevationGainFiltered` /
    `elevationLossFiltered`. It reads `sourceElevation`, so it measures the terrain rather than the
-   kernel; it smooths a private copy at its own ~30 m scale; and it runs after simplification so
-   the figure describes the file the caller receives.
+   kernel; it smooths a private copy at its own ~30 m scale; and it runs on the full-resolution
+   trace (1 Hz, or the dense path when 1 Hz is off), **before** simplification.
+7. `PathSimplifier` — Douglas-Peucker on the smoothed profile; it **carries** the two filtered
+   figures over to the path it builds, so `--no-simplify` and the file size no longer move the
+   reported D+. See [Simplification and the reported D+](#simplification-and-the-reported-d).
 
 Step 4 is the single most consequential number in this document, and today it is a hard-coded
 constant (`ElevationStep.DEFAULT_SMOOTH_WINDOW_M`) that no CLI flag, JS DTO key or WASI option can
@@ -167,7 +170,7 @@ computed on each file's own `<ele>` stream (no DEM, no pipeline).
 
 ## What the pipeline reports
 
-Since R27 the enhancer runs a sixth stage, `ElevationGain`, and the figure it produces is what
+Since R27 the enhancer runs an `ElevationGain` stage, and the figure it produces is what
 `reportedElevationGain` returns. Reproduce with:
 
 ```bash
@@ -203,8 +206,11 @@ scale is not an answer — `barometric` is 2 m over 15 m, `dem` 3 m over 30 m, `
 
 ## What the smoothing window is worth on the clock
 
-Now that D+ reads `sourceElevation`, the smoothing window no longer moves the reported climbing at
-all — it moves the *ride*. Duration with `--elevation-smooth-window`, `--no-simplify`, defaults
+D+ reads `sourceElevation`, and since E5 it is measured before simplification, so the smoothing
+window barely moves the reported climbing — only through where the 1 Hz samples land, which
+depends on the simulated speed. It moves the *ride*. (Before E5 it also moved D+ through
+Douglas-Peucker, which runs on the smoothed profile: the Nantes bench route reported 44 m at 150 m
+and 59 m at 50 m.) Duration with `--elevation-smooth-window`, `--no-simplify`, defaults
 otherwise:
 
 | Window | `stelvio` | `strava` | `sample` |
@@ -218,6 +224,70 @@ otherwise:
 DEM cell averages the road with the hillside it is cut into and the sampled profile oscillates as
 the road traverses. Some of what the kernel removes there is artefact and some is real climbing;
 nothing here distinguishes them without ground truth, which is why the default has not moved.
+
+## Simplification and the reported D+
+
+`PathSimplifier` runs Douglas-Peucker on the **smoothed** elevation, with a 10 m tolerance and a
+vertical exaggeration of 3, and keeps about 5 % of the points (142 of 2 674 on the Nantes bench
+route). Until E5 of [`elevation-bridge-decks`](../tasks/elevation-bridge-decks.md), `ElevationGain`
+ran after it and read `sourceElevation` at the kept points only — and on a flat route the kept
+points are not on the bridge ramps, so the climbing over the bridges vanished from the summary. Now
+the stage runs on the full-resolution trace just before simplification, and the simplifier carries
+the figure over. The file's points and size do not change.
+
+Reported D+ (`dem` preset) against the LiDAR truth of the bench routes, at the shipped 150 m kernel:
+
+| Route | Simplify, then measure (before) | Measure, then simplify (since E5) | Dense 5 m grid |
+|---|---|---|---|
+| `test2` Nantes, IGN | 44 m (0.49) | 84 m (0.95) | 85 m (0.95) |
+| `test2` Nantes, Mapterhorn | 80 m (0.90) | 130 m (1.46) | 130 m |
+| `test1` Saint-Nazaire, IGN | 59 m (0.82) | 78 m (1.08) | 78 m |
+| `test1` Saint-Nazaire, Mapterhorn | 12 m (0.17) | 51 m (0.71) | 52 m |
+| `test3` Mauves, IGN | 10 m (0.57) | 26 m (1.48) | 27 m |
+| `test3` Mauves, Mapterhorn | 7 m (0.40) | 24 m (1.34) | 24 m |
+| `test4` Vercors, IGN | 2 460 m (1.02) | 2 543 m (1.05) | 2 546 m |
+| `test4` Vercors, Mapterhorn | 2 425 m (1.00) | 2 476 m (1.03) | 2 479 m |
+
+On Mapterhorn, the default source, the trade is mixed. It has no decks, so the change also exposes
+the canyons under the Nantes bridges that simplification used to hide: `test2` goes from 0.90 to
+1.46 of the truth, `test4` from 1.00 to 1.03. `test1` and `test3` improve (0.17 → 0.71, 0.40 →
+1.34). Over the four routes the absolute error goes 0.83 / 0.10 / 0.60 / 0.00 → 0.29 / 0.46 / 0.34
+/ 0.03: better on average (0.38 → 0.28), worse on `test2`, where the old figure was right by
+accident. The new figure is the one the full trace has always measured.
+
+`test4` was low before only because simplification happened to remove mountain noise. `test3`'s
+1.48 is two 25–75 m stretches beside the Loire where the IGN terrain model, as vcyclist reads it,
+sits 3.5–5.8 m above the truth (a levee or a cutting caught by a sideways offset) — a resolution
+and registration problem that no D+ preset removes without also removing small bridges.
+
+Recorded rides without `--fix-elevation` (the new figure is the old `--no-simplify` one, within 3 m
+of the `dem / source` column of [What the pipeline reports](#what-the-pipeline-reports)): `stelvio`
+148 → 172 m (+16 %), `amazfit` 94 → 100, `sports-tracker` 1 126 → 1 081 (−4 %), `movescount`
+514 → 519, `sample` 4 485 → 4 501, `strava` 632 → 634, `garmin` 6 → 6. With `--fix-elevation`,
+`sample.gpx` goes 4 555 → 4 652 m on IGN and 4 545 → 4 599 m on Mapterhorn. Durations do not move:
+the step is an annotation.
+
+Two alternatives were measured and rejected: a tighter simplification (exaggeration 10, or a 5 m
+tolerance) recovers at most 0.83 on `test2`, leaves `test1` at 0.82 and costs 13–68 % more points;
+simplifying on the source profile reaches 0.73 and changes which points the file keeps.
+
+**One thing the change gives up.** The figure no longer describes the file's own trace — but it
+never did: the written `<ele>` is the smoothed profile, so on `test2` the file's own `<ele>` gave
+36 m at `dem` while 44 m was reported. A summary is a measurement of the route, not of the file.
+
+### The kernel and the D+ preset on LiDAR (E5: measured, unchanged)
+
+With decks and tunnels in place, E5 measured the 150 m kernel against 100/75/50/30 m and the `dem`
+preset (3 m over 30 m) against 1–3 m over 30–60 m. Both stay. A smaller kernel gains a few tenths
+of a metre on flat routes (`test2` open-ground RMS 0.27 → 0.19 m at 50 m) and costs the mountains:
+on `test4` the stations steeper than 15 % over 50 m go from 0 to 81 (truth: 2), the steepest 10 m
+grade from 16 % to 76 %, and on `sample.gpx` from 54 to 113 stations. The 150 m kernel does not
+flatten real decks (Saint-Nazaire's steepest 10 m grade 5.7 % against a true p95 of 5.9 %). The
++9.29 m "overshoot near decks" that E3 left open is a bridge the detector misses, whose truth is
+the terrain model's canyon; elsewhere, near ramps, the smoothed profile is within 1.9 m. A 1–1.5 m
+dead band changes what D+ means rather than making it more accurate (the truth itself moves from
+18 to 36 m on `test3`), and 2 m over 60 m, nearly the same truth as `dem`, cuts recorded tracks by
+12–21 % with nothing to check against. The full tables are in the task, *Mesures (E5)*; ledger R33.
 
 ## What the DEM costs
 
@@ -399,8 +469,11 @@ slope cap at 10 % — ramped back to the terrain at both ends. On Saint-Nazaire,
 (the profile before the 150 m smoothing, which the D+ reads) is 0.54 m off its LiDAR truth at worst
 instead of 65.8 m under it, and the route's D+ (`dem` preset, on the 5 m grid) goes from 0.74 to
 1.08 of the truth. The smoothed `elevation` the physics rides is less exact: the kernel spreads each
-deck onto its approaches, up to 9.29 m above the truth on that route (5.23 m on the Nantes one) —
-a question for the smoother, not settled yet.
+deck onto its approaches. The worst point, 9.29 m above the truth on that route, is a bridge the
+detector misses (its truth is the canyon), and 5.23 m on the Nantes one is a bench matcher artefact
+at another missed bridge; near the ramps of the decks it finds, the smoothed profile stays within
+1.9 m. E5 measured smaller kernels and kept 150 m — see
+[The kernel and the D+ preset on LiDAR](#the-kernel-and-the-d-preset-on-lidar-e5-measured-unchanged).
 
 How many decks it finds depends on which routes you ask. On the four routes the detector was
 calibrated on, 18 bridges of 21; on a held-out series judged once, **4 spans of 11, 30 % of the deck
@@ -412,9 +485,8 @@ It costs one MNS tile per terrain tile (≈ 35 MB more on a cold 130 km ride) an
 a tile it cannot read leaves the terrain profile as it was — for every deck of the route, and
 without telling you, so the same command can give either profile depending on the network. Not at
 another zoom (the detector was calibrated at 15), not with Mapterhorn, and not on WASI, whose host
-serves one layer. The measurements, and what is left (the smoother and the D+ preset, reporting a
-failed read), are in [`docs/tasks/elevation-bridge-decks.md`](../tasks/elevation-bridge-decks.md),
-E1–E3.
+serves one layer. The measurements, and what is left (reporting a failed read), are in
+[`docs/tasks/elevation-bridge-decks.md`](../tasks/elevation-bridge-decks.md), E1–E3 and E5.
 
 **Tunnels — on every source.** No LiDAR sees into a tunnel: every terrain model, IGN's and
 Mapterhorn's alike, is the mountain above it. Read at the point, the Grands Goulets tunnel (Vercors,

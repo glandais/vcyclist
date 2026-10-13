@@ -82,6 +82,7 @@ deliberately skipped. The matrix lives in
 | R30 | DEM zoom above 12 | Negligible (measured) | Very low | ❌ (door shipped) |
 | R31 | **Bridge decks from the LiDAR HD surface model** | **High (measured: Saint-Nazaire 65.8 → 0.5 m)** | Medium | ✅ (`ign-lidar-hd` z15, automatic; no door option) |
 | R32 | **Tunnels from the terrain model alone** (canyon fallback measured, deferred) | **High (measured: Grands Goulets +220 → +0.9 m)** | Medium | ✅ (every DEM source, automatic; no door option) |
+| R33 | **D+ measured before simplification**; kernel and LiDAR D+ preset measured | **High on flat routes, IGN (measured: Nantes reported D+ 0.49 → 0.95 × true); on Mapterhorn, the default, Nantes 0.90 → 1.46, mean error over the bench 0.38 → 0.28** | Very low | ✅ (D+ before `PathSimplifier`); ❌ kernel < 150 m and LiDAR preset, measured and rejected |
 
 Recommended order if acted on: ~~R15 → R12 → R9 → R17 → R10 → R18 → R16 → R11 → R19 → R23 → R24~~ —
 **all shipped**. Left: **R14** (posture CdA) and **R20** (RPE / Hazard Score), both deferred on
@@ -1248,14 +1249,19 @@ suspension: `ROUGH`), and a long arch rejected as too steep (Pont-Saint-Esprit, 
 
 **Profile.** Saint-Nazaire's top at 63.67 m against 63.68 m; its `sourceElevation` — the profile
 *before* the 150 m smoothing, which `ElevationGain` reads — is 0.54 m off at worst. What the physics
-rides is the smoothed `elevation`, and the kernel now spreads each deck onto its approaches: up to
-**+9.29 m** above the truth on `test1` and +5.23 m on `test2` (all stations), pending E5. The two
+rides is the smoothed `elevation`: the kernel spreads each found deck onto its approaches, by at
+most about 1.9 m near its ramps. The two large smoothed maxima are not that: **+9.29 m** on `test1`
+is the Avenue de la Prise-d'Eau overpass, a bridge the detector misses, whose truth is the terrain's
+canyon; +5.23 m on `test2` is a bench matcher artefact at a missed bridge (km 1.23), present before
+smoothing (R33). The two
 `B` maxima that stay large are bridges the detector misses (Pont écluse sud aval, Pont de la
 Rotonde). Four Nantes decks miss the spec's 2 m target (2.6–4.8 m), each at its last deck station,
-where the profile ramps down to the end pin. The reported D+ of `test2` falls to 0.49 because
-`PathSimplifier` drops the deck ramps (E1 already saw it eat `test1`'s); that is E5's.
-`sample.gpx`: +0.04 % reported D+, −0.01 % duration, nine stretches of 25–60 m lifted by 0.1–6 m
-on average.
+where the profile ramps down to the end pin. In the table above, the reported D+ of `test2` falls
+to 0.49 because `PathSimplifier` drops the deck ramps (E1 already saw it eat `test1`'s). Since R33
+D+ is measured before simplification and matches the dense column; reported D+ / truth, without →
+with decks: `test1` 0.73 → 1.08, `test2` 1.52 → 0.95, `test3` 1.76 → 1.48; `test4` 1.19 before
+tunnels (R32). `sample.gpx`: reported D+ +0.04 % before R33, −0.27 % since (4 665 → 4 652 m);
+−0.01 % duration; nine stretches of 25–60 m lifted by 0.1–6 m on average.
 
 **Silent failure.** One surface tile that cannot be read drops every deck of the route
 (`FETCH_FAILED`) and the enhancer does not report it: the same command can ride the decks or the
@@ -1309,6 +1315,65 @@ a deck between its portals — none of them judged out of sample, none moving a 
 2.19 fails one criterion only), and Mapterhorn's GLO-30 regions are unmeasured. Full tables in
 [`../tasks/elevation-bridge-decks.md`](../tasks/elevation-bridge-decks.md), *Mesures (E4)*,
 *Jugement tunnels* and *Revue d'E4*.
+
+### R33 — D+ before simplification ✅; kernel and LiDAR D+ preset measured, rejected ❌
+
+E5 of `elevation-bridge-decks`, once decks (R31) and tunnels (R32) were in place. Three questions,
+one change.
+
+**The change.** `PathSimplifier` runs Douglas-Peucker on the *smoothed* profile (10 m tolerance,
+vertical exaggeration 3) and keeps about 5 % of the points; `ElevationGain` ran after it and read
+`sourceElevation` at the kept points only. On a flat route those are not on the bridge ramps, and
+the reported D+ of the Nantes bench route was 0.49 × the truth while the full trace measured 0.95.
+`Enhancer` now runs `ElevationGain` just before simplifying (step 10, on the 1 Hz path or the dense
+one), and `PathSimplifier` carries `elevationGainFiltered` / `elevationLossFiltered` over to the
+path it builds. No option, no default, no door touched; the file's points and size do not move,
+nor does any duration. The reason the stage ran last — the summary should match its own trace —
+never held: the written `<ele>` is the smoothed profile (on `test2` the file's own `<ele>` gave 36 m
+while 44 m was reported).
+A standalone `PathSimplifier.simplify` (`PathSimplifierJvm.simplify` from Java) now keeps its
+input's filtered D+ / D− as well, where it used to return them `NaN`.
+
+| Reported D+ (`dem`), × truth | before | after | dense 5 m grid |
+|---|---|---|---|
+| `test1` IGN / Mapterhorn | 59 (0.82) / 12 (0.17) | 78 (1.08) / 51 (0.71) | 78 / 52 |
+| `test2` IGN / Mapterhorn | 44 (0.49) / 80 (0.90) | 84 (0.95) / 130 (1.46) | 85 / 130 |
+| `test3` IGN / Mapterhorn | 10 (0.57) / 7 (0.40) | 26 (1.48) / 24 (1.34) | 27 / 24 |
+| `test4` IGN / Mapterhorn | 2 460 (1.02) / 2 425 (1.00) | 2 543 (1.05) / 2 476 (1.03) | 2 546 / 2 479 |
+| `sample.gpx` IGN / Mapterhorn / own `<ele>` | 4 555 / 4 545 / 4 485 | 4 652 / 4 599 / 4 501 | — |
+| `stelvio` / `sports-tracker` / `amazfit`, own `<ele>` | 148 / 1 126 / 94 | 172 / 1 081 / 100 | — |
+
+**On the default source the trade is mixed.** Mapterhorn (`ElevationSource.DEFAULT`) has no decks,
+so the change exposes the canyons under the Nantes bridges that simplification used to hide:
+`test2` goes 0.90 → 1.46 (`ign` without decks 0.98 → 1.52), `test4` 1.00 → 1.03, while `test1`
+goes 0.17 → 0.71 and `test3` 0.40 → 1.34. The absolute error over `test1..4` goes
+0.83 / 0.10 / 0.60 / 0.00 → 0.29 / 0.46 / 0.34 / 0.03: the mean improves (0.38 → 0.28), `test2`
+gets worse. The new figure is the one the dense trace has shown since E1; the old one was right on
+`test2` by accident.
+
+`test4` was low only because simplification happened to drop mountain noise; `test3`'s 1.48 is two
+25–75 m stretches by the Loire where the IGN terrain reads 3.5–5.8 m above the truth (a levee or a
+cutting caught by a sideways offset), which no preset removes without removing small bridges. The
+`sample.gpx` decks now cost −0.27 % of reported D+ (4 665 → 4 652 m) instead of +0.04 %, inside the
+spec's 0.5 %. The bench asserts the "D+ rep." and "D+ 1 Hz" columns equal. A tighter simplification
+(exaggeration 10, tolerance 5 m) reached 0.83 at most for 13–68 % more points; simplifying on the
+source profile reached 0.73. Both rejected.
+
+**The kernel stays at 150 m.** At 50 m `test2`'s open-ground error goes 0.27 → 0.19 m RMS, and
+`test4` gets 81 stations steeper than 15 % over 50 m (truth: 2; 0 at 150 m), a steepest 10 m grade of
+76 % and its worst tunnel residue +19.7 → +34.7 m; `sample.gpx` goes 54 → 113 steep stations.
+Durations move ≤ 1 % on the bench (`test1` Mapterhorn +0.95 %, `test4` IGN +0.6 %), +7.1 % on
+`stelvio`. The kernel does not flatten real decks
+(Saint-Nazaire steepest 10 m grade 5.7 % against a true p95 of 5.9 %). The E3 "+9.29 m overshoot near
+decks" is the Avenue de la Prise-d'Eau overpass, a bridge the detector misses, whose truth is the
+terrain's canyon; near found ramps the worst is −1.9 m.
+
+**The `dem` preset stays (3 m over 30 m).** 1–1.5 m thresholds move the truth itself (`test3` 18 →
+36 m, `test2` 89 → 109 m at 1 m / 30 m): a different quantity, not a better estimate. 2 m over 60 m
+has nearly the same truth and gains 2–5 ratio points, but cuts recorded tracks by 12–21 %
+(`sports-tracker` 1 081 → 855) with nothing to check against. Both sources behave alike, so no
+per-source preset and no provenance hook (deck and tunnel status stay E7's). Full tables in
+[`../tasks/elevation-bridge-decks.md`](../tasks/elevation-bridge-decks.md), *Mesures (E5)*.
 
 ## G. Cross-cutting notes
 
