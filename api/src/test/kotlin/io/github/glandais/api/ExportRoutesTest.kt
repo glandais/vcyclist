@@ -76,6 +76,22 @@ class ExportRoutesTest {
         }
 
     @Test
+    fun `startTimeEpochMs dates point 0 of a timestamped input, keeping its gaps`() =
+        apiTest {
+            // SAMPLE_GPX is timestamped (14:25:22, then 13 s later): its parsed clock is epoch ms.
+            val start = 1_700_000_000_000L
+            val doc =
+                gpxOf(plain().postGpx(url, GpxFixtures.SAMPLE_GPX, """{"output":{"gpx":{"startTimeEpochMs":$start}}}"""))
+            val times =
+                doc.tracks
+                    .single()
+                    .points
+                    .map { it.timeEpochMs }
+            assertEquals(start, times[0], "point 0 is at startTimeEpochMs, not 50 years later")
+            assertEquals(start + 13_000L, times[1])
+        }
+
+    @Test
     fun `includeWaypoints=false drops them`() =
         apiTest {
             val doc =

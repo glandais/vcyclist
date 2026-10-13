@@ -73,10 +73,11 @@ enum class GpxPowerSource {
  *     `time(i) == 0` (treated as "absent" since the parser uses `0` as a sentinel for missing
  *     `<time>`, see [GpxTrack.toPath]) — this is the pre-g05 behaviour, unchanged;
  *   - when [startTime] is given, every point (including index 0) gets an **absolute** timestamp
- *     `startTime + time(i)` milliseconds, rounded to the nearest millisecond (see task g05).
- *     `time(i)` is the engine's relative simulation clock (`time(0) == 0`, see
- *     `VirtualizeService`), so this turns it into a wall-clock instant for consumption by
- *     devices/platforms (Garmin Connect, Strava) that require absolute timestamps.
+ *     `startTime + (time(i) - time(0))` milliseconds, rounded to the nearest millisecond (see task
+ *     g05): point 0 is at [startTime]. For a virtualized path `time(0) == 0` (see
+ *     `VirtualizeService`), so this is `startTime + time(i)`; a path merely parsed from a
+ *     timestamped GPX carries epoch milliseconds, and without the rebase its points were dated
+ *     some 50 years after [startTime]. `PathToFit` rebases the same way, for the same reason.
  * - heart rate, cadence, temperature and power are emitted whenever the slot is not `NaN`. A
  *   genuine `0` (freewheeling cadence, 0 W, 0 °C) is a real reading and is written out; only an
  *   untouched slot is dropped: the guard is `isNaN` alone.
@@ -96,6 +97,8 @@ fun Path.toGpxTrack(
     powerSource: GpxPowerSource = GpxPowerSource.INPUT,
 ): GpxTrack {
     val startTimeMs = startTime?.toEpochMilliseconds()
+    // The clock's origin: point 0's time, or 0 when it has none (an all-NaN clock writes no <time>).
+    val t0 = if (size == 0 || time(0).isNaN()) 0.0 else time(0)
     val points =
         List(size) { i ->
             GpxTrackPoint(
@@ -105,7 +108,7 @@ fun Path.toGpxTrack(
                 timeEpochMs =
                     when {
                         time(i).isNaN() -> null
-                        startTimeMs != null -> startTimeMs + time(i).roundToLong()
+                        startTimeMs != null -> startTimeMs + (time(i) - t0).roundToLong()
                         else -> time(i).toLong().takeIf { it > 0L }
                     },
                 heartRate = heartRate(i).takeUnless { it.isNaN() }?.roundToInt(),

@@ -567,16 +567,36 @@ class GpxWriterTest {
         }
         // Non-integer relative times: each rounds independently (0.5 rounds to nearest even/up per
         // roundToLong, but the point is there is no *cumulative* drift — point 2 is not off by more
-        // than half a millisecond from point 1's rounding error).
-        p.setTime(0, 0.3)
+        // than half a millisecond from point 1's rounding error). The clock starts at 0, as a
+        // virtualized one does: point 0 is the origin of the rebase (case 31).
+        p.setTime(0, 0.0)
         p.setTime(1, 1_500.7)
         p.setTime(2, 3_000.2)
         val t = Instant.parse("2026-07-27T08:00:00Z")
         val xml = GpxWriter.write(p, name = "n", startTime = t)
         val points = GpxParser.parse(xml).tracks[0].points
-        assertEquals(t.toEpochMilliseconds() + 0L, points[0].timeEpochMs) // 0.3 rounds to 0
+        assertEquals(t.toEpochMilliseconds() + 0L, points[0].timeEpochMs)
         assertEquals(t.toEpochMilliseconds() + 1_501L, points[1].timeEpochMs) // 1500.7 rounds to 1501
         assertEquals(t.toEpochMilliseconds() + 3_000L, points[2].timeEpochMs) // 3000.2 rounds to 3000
+    }
+
+    @Test
+    fun `case 31 — startTime rebases an absolute clock on point 0, like PathToFit`() {
+        // A path parsed from a timestamped GPX carries epoch milliseconds in `time`. startTime is
+        // the instant of point 0, whatever the clock's origin: the gaps are kept, the epoch is not
+        // added twice (it used to date the points some 50 years after startTime).
+        val epoch = Instant.parse("2018-04-23T15:54:34Z").toEpochMilliseconds().toDouble()
+        val p = Path(3)
+        for (i in 0 until 3) {
+            p.setLatitude(i, (45.0 + i * 0.001) * MathConstants.DEG_TO_RAD)
+            p.setLongitude(i, (6.0 + i * 0.001) * MathConstants.DEG_TO_RAD)
+            p.setTime(i, epoch + i * 2_000.0)
+        }
+        val t = Instant.parse("2026-07-27T08:00:00Z")
+        val points = GpxParser.parse(GpxWriter.write(p, name = "n", startTime = t)).tracks[0].points
+        for (i in 0 until 3) {
+            assertEquals(t.toEpochMilliseconds() + i * 2_000L, points[i].timeEpochMs, "point $i")
+        }
     }
 
     @Test
