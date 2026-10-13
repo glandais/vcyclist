@@ -12,7 +12,7 @@ import kotlin.math.roundToInt
  * the value of the reference detector,
  * `docs/deck-strava-data/analysis/analyze.py` (bridges block) and `common.py`, measured on the four
  * Strava routes of
- * `docs/tasks/elevation-bridge-decks.md` (*Input 5*): 21 bridges found, 14 km of canopy and
+ * `docs/archive/tasks/elevation-bridge-decks.md` (*Input 5*): 21 bridges found, 14 km of canopy and
  * buildings rejected on `test4`, 2.2 km on `test2`. They were tuned on **MNS − MNT** sampled at
  * ~3 m, not on IGN's own MNH layer.
  *

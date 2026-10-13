@@ -1,6 +1,6 @@
 # Strava routes vs IGN LiDAR HD
 
-Analysis behind [`docs/tasks/elevation-bridge-decks.md`](../../tasks/elevation-bridge-decks.md):
+Analysis behind [`docs/archive/tasks/elevation-bridge-decks.md`](../../archive/tasks/elevation-bridge-decks.md):
 how Strava's elevation on four planned routes (`../test1.gpx` … `../test4.gpx`, author metadata
 removed) compares with the IGN LiDAR HD terrain (MNT), surface (MNS) and height (MNH) models over
 bridges and tunnels. Findings are in [`rapport.md`](rapport.md), figures in `fig/`, every figure in

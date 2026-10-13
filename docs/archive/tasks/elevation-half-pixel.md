@@ -23,12 +23,12 @@ convention de pixel reste un sujet séparé »).
 
 ## Depends on
 
-- [`docs/tasks/elevation-bridge-decks.md`](elevation-bridge-decks.md) — *Mesures (E2)* (variantes
+- [`docs/archive/tasks/elevation-bridge-decks.md`](elevation-bridge-decks.md) — *Mesures (E2)* (variantes
   (a) / (a½)), *Ponts pentus (E2 ter)* (diagnostics Cheviré / Millau / Normandie) et le banc
   `ElevationBenchProbeTest`. Ses chiffres sont la base de comparaison ; ce document ne les modifie
   pas.
 - `cf0798e feat(elevation): add IGN LiDAR HD as a DEM source` — requête WMS `GetMap` par tuile XYZ.
-- [`docs/guides/elevation.md`](../guides/elevation.md) — décrit la grille comme des « posts » à
+- [`docs/guides/elevation.md`](../../guides/elevation.md) — décrit la grille comme des « posts » à
   13,5 m, sans dire où un post se trouve dans son pixel.
 
 ## Inputs

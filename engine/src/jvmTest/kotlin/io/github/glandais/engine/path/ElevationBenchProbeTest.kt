@@ -36,7 +36,7 @@ import kotlin.test.assertNotNull
 import kotlin.test.assertTrue
 
 /**
- * The E1 bench of `docs/tasks/elevation-bridge-decks.md`: how far vcyclist's elevation is from the
+ * The E1 bench of `docs/archive/tasks/elevation-bridge-decks.md`: how far vcyclist's elevation is from the
  * road on bridges, in tunnels and on cliff roads, *before* any correction.
  *
  * The four routes of `docs/deck-strava-data/` (hand-drawn Strava routes over Saint-Nazaire, Nantes,
@@ -2244,7 +2244,7 @@ class ElevationBenchProbeTest {
      * [deckHoldoutJudge] reads it. Since E2 quinquies: nothing PYTHON finds is lost, held-out `D`
      * coverage exactly 1 666 / 1 692 = 98 % (73 % under E2 ter at pixel centres, 94 % at the
      * corners), 14/15 spans (the rue des Ponts the one missed), p01/p07 each ≥ 95 % covered, and
-     * with the canyon test off no more `G`/`O`/`L` stations than PYTHON lets through. Every figure moved by the pixel-centre fix is in `docs/tasks/elevation-half-pixel.md`
+     * with the canyon test off no more `G`/`O`/`L` stations than PYTHON lets through. Every figure moved by the pixel-centre fix is in `docs/archive/tasks/elevation-half-pixel.md`
      * (H3), and the recalibration in `elevation-bridge-decks.md` (*Recalage aux centres*).
      */
     @Test

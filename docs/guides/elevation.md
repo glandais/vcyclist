@@ -239,7 +239,7 @@ nothing here distinguishes them without ground truth, which is why the default h
 
 `PathSimplifier` runs Douglas-Peucker on the **smoothed** elevation, with a 10 m tolerance and a
 vertical exaggeration of 3, and keeps about 5 % of the points (142 of 2 674 on the Nantes bench
-route). Until E5 of [`elevation-bridge-decks`](../tasks/elevation-bridge-decks.md), `ElevationGain`
+route). Until E5 of [`elevation-bridge-decks`](../archive/tasks/elevation-bridge-decks.md), `ElevationGain`
 ran after it and read `sourceElevation` at the kept points only — and on a flat route the kept
 points are not on the bridge ramps, so the climbing over the bridges vanished from the summary. Now
 the stage runs on the full-resolution trace just before simplification, and the simplifier carries
@@ -514,7 +514,7 @@ the path's report says `fetch-failed` and carries a warning (see
 skips the MNS downloads. The option is a permission: on by default, it takes effect only where the
 provider has a surface model — not at another zoom (the detector was calibrated at 15), not with
 Mapterhorn, and not on WASI, whose host serves one layer; there the report says `unavailable`. The
-measurements are in [`docs/tasks/elevation-bridge-decks.md`](../tasks/elevation-bridge-decks.md),
+measurements are in [`docs/archive/tasks/elevation-bridge-decks.md`](../archive/tasks/elevation-bridge-decks.md),
 E1–E3, E5 and E7; ledger rows **R31** (decks) and **R33** (the D+ they feed).
 
 **Tunnels — on every source.** No LiDAR sees into a tunnel: every terrain model, IGN's and

@@ -74,7 +74,7 @@ class DeckProfiles(
 )
 
 /**
- * The road profile of each accepted deck (E3 of `docs/tasks/elevation-bridge-decks.md`), built from
+ * The road profile of each accepted deck (E3 of `docs/archive/tasks/elevation-bridge-decks.md`), built from
  * the LiDAR MNS that [DeckDetector] read — never the raw MNS itself, which on a deck mixes the
  * edge and the void below it, has holes over water and carries the pylons (E2 ter).
  *

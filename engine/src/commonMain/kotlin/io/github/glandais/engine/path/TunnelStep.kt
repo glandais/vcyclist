@@ -36,7 +36,7 @@ internal class TunnelResult(
 )
 
 /**
- * Step 3c of the enhancer (E4 of `docs/tasks/elevation-bridge-decks.md`): the road through a tunnel
+ * Step 3c of the enhancer (E4 of `docs/archive/tasks/elevation-bridge-decks.md`): the road through a tunnel
  * rides the straight line between its portals, not the mountain above it.
  *
  * 1. Stations every [TunnelDetectorOptions.stepM] along the path ([alongTrackStations]), and the

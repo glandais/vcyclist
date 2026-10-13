@@ -61,7 +61,7 @@ data class TunnelSpan(
 
 /**
  * Finds road tunnels in a terrain model read along the route (E4 of
- * `docs/tasks/elevation-bridge-decks.md`). Neither LiDAR nor any IGN layer sees into a tunnel: the
+ * `docs/archive/tasks/elevation-bridge-decks.md`). Neither LiDAR nor any IGN layer sees into a tunnel: the
  * terrain model there is the mountain above, and a route read on it climbs over the summit — up to
  * +220 m and 112 m of fictitious D+ at the Grands Goulets. The road inside is close to the straight
  * line between the portals, which is what the caller writes back.

@@ -6,7 +6,7 @@ import kotlin.math.roundToInt
 /**
  * Thresholds of [TunnelDetector], on the along-track grid of [stepM] metres.
  *
- * Measured in E4 of `docs/tasks/elevation-bridge-decks.md` (*Mesures (E4)*) on the tunnel tuning set
+ * Measured in E4 of `docs/archive/tasks/elevation-bridge-decks.md` (*Mesures (E4)*) on the tunnel tuning set
  * (`tt01..tt08`, the four Vercors tunnels of `test4`), its 13 negatives (`tn01..tn13`), the 16 bridge
  * negatives of E2 bis and ten whole rides, on IGN LiDAR HD MNT z15 and Mapterhorn z12. **Precision
  * first**: the detector reads the terrain model of any source, Mapterhorn worldwide included, and a

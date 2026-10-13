@@ -1175,7 +1175,7 @@ change across ±15 m is now 16.5 m (15.1 m with the corner reading the same day;
 original measurement), and on `strava` +5 m / +10 m read slightly *less* D+ than the centre (700 /
 708 m), which was already true of the corner reading on the same day (720 against 728 m) — the
 861 m table above is not reproducible on today's code and tiles. Per-station
-rule: roughness 8.092, D+ 802. Full tables in `docs/tasks/elevation-half-pixel.md` (H4).
+rule: roughness 8.092, D+ 802. Full tables in `docs/archive/tasks/elevation-half-pixel.md` (H4).
 
 ### R30 — DEM zoom above 12 ❌ (the door shipped anyway)
 
@@ -1286,7 +1286,7 @@ valley depending on the network and the cache. Surfacing it is E7's.
 takes effect only where the provider has a surface model, `unavailable` elsewhere.
 
 Full tables, the profile variants that were compared and the held-out run in
-[`../tasks/elevation-bridge-decks.md`](../tasks/elevation-bridge-decks.md), *Mesures (E3)*.
+[`../archive/tasks/elevation-bridge-decks.md`](../archive/tasks/elevation-bridge-decks.md), *Mesures (E3)*.
 
 ### R32 — Tunnels from the terrain model alone ✅ (every source, automatic)
 
@@ -1331,7 +1331,7 @@ added the face criterion (a bridged stream gully at a hill's foot passed for a p
 a deck between its portals — none of them judged out of sample, none moving a bench figure.
 **Unbounded risks**, for E7: a real ≥ 30 % knoll on a track is flattened (`sports-tracker.gpx` km
 2.19 fails one criterion only), and Mapterhorn's GLO-30 regions are unmeasured. Full tables in
-[`../tasks/elevation-bridge-decks.md`](../tasks/elevation-bridge-decks.md), *Mesures (E4)*,
+[`../archive/tasks/elevation-bridge-decks.md`](../archive/tasks/elevation-bridge-decks.md), *Mesures (E4)*,
 *Jugement tunnels* and *Revue d'E4*.
 
 *2026-10-13, E7:* the step got its off-switch for those risks, `elevationCorrections.tunnels`
@@ -1395,7 +1395,7 @@ terrain's canyon; near found ramps the worst is −1.9 m.
 has nearly the same truth and gains 2–5 ratio points, but cuts recorded tracks by 12–21 %
 (`sports-tracker` 1 081 → 855) with nothing to check against. Both sources behave alike, so no
 per-source preset and no provenance hook (deck and tunnel status stay E7's). Full tables in
-[`../tasks/elevation-bridge-decks.md`](../tasks/elevation-bridge-decks.md), *Mesures (E5)*.
+[`../archive/tasks/elevation-bridge-decks.md`](../archive/tasks/elevation-bridge-decks.md), *Mesures (E5)*.
 
 ## G. Cross-cutting notes
 

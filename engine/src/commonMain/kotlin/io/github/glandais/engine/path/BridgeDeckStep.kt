@@ -103,7 +103,7 @@ internal fun elevationAt(
 }
 
 /**
- * Step 3b of the enhancer (E3 of `docs/tasks/elevation-bridge-decks.md`): replaces each bridge deck
+ * Step 3b of the enhancer (E3 of `docs/archive/tasks/elevation-bridge-decks.md`): replaces each bridge deck
  * the LiDAR sees by its profile, where the terrain model rides the valley floor under it.
  *
  * 1. Stations every [DeckDetectorOptions.stepM] along the path ([alongTrackStations]).

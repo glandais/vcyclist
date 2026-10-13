@@ -42,7 +42,7 @@ enum class ElevationSource(
      * and on WASI, whose host serves one layer only, the viaducts stay on the valley floor. Nor does
      * it see into tunnels: the tunnel step (3c) replaces the mountain with the line between the
      * portals, on every source and needing no surface model. See `docs/guides/elevation.md`,
-     * `docs/tasks/elevation-bridge-decks.md` (E3, E4) and ledger rows R31 (decks), R32 (tunnels)
+     * `docs/archive/tasks/elevation-bridge-decks.md` (E3, E4) and ledger rows R31 (decks), R32 (tunnels)
      * and R33 (the reported D+ they feed).
      *
      * Falls back to [MAPTERHORN] wherever IGN has no data — abroad, at sea, in a survey gap — so a

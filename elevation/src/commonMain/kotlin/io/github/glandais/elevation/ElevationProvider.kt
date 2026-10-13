@@ -22,7 +22,7 @@ class ElevationProvider private constructor(
     /**
      * A raw surface model (MNS) aligned with this terrain, or `null`. Read by one consumer only:
      * the enhancer's bridge-deck step, which replaces each deck it detects by its LiDAR profile
-     * (`docs/tasks/elevation-bridge-decks.md`, E3). `null` means no decks: the terrain is ridden as
+     * (`docs/archive/tasks/elevation-bridge-decks.md`, E3). `null` means no decks: the terrain is ridden as
      * is, viaducts included.
      *
      * [ElevationSource.IGN_LIDAR_HD]'s [provider] carries IGN's MNS at its default zoom (15), the

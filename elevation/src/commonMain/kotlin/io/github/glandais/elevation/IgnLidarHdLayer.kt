@@ -11,7 +11,7 @@ package io.github.glandais.elevation
  * the bridge decks: [ElevationSource.IGN_LIDAR_HD]'s provider carries the [MNS] as its
  * [ElevationProvider.surfaceModel], and the enhancer's bridge-deck step (`DeckDetector`,
  * `DeckProfileBuilder` in `:gpx`) rides the MNS only where it has established that a deck stands
- * (`docs/tasks/elevation-bridge-decks.md`, *Input 4* and E3).
+ * (`docs/archive/tasks/elevation-bridge-decks.md`, *Input 4* and E3).
  *
  * **No fallback, and no-data stays no-data.** A [provider] of a layer answers `NaN` wherever IGN has
  * no data — abroad, at sea, in a survey gap — never Mapterhorn and never 0 m: mixing a Mapterhorn

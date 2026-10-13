@@ -34,7 +34,7 @@ import kotlin.test.assertNotNull
 import kotlin.test.assertTrue
 
 /**
- * E4 of `docs/tasks/elevation-bridge-decks.md`: the **tunnel** controls, and [TunnelDetector] on them. `analysis/controls.py --tunnels` builds them from OSM only into `controls/tunnels/<id>.gpx`
+ * E4 of `docs/archive/tasks/elevation-bridge-decks.md`: the **tunnel** controls, and [TunnelDetector] on them. `analysis/controls.py --tunnels` builds them from OSM only into `controls/tunnels/<id>.gpx`
  * and `analysis/truth/tunnels/` (`index.csv`, `spans.csv`, `<id>.csv`); the four Vercors tunnels of
  * `test4` stay in `truth/test4.csv` (kind `N`) and in [ElevationBenchProbeTest].
  *

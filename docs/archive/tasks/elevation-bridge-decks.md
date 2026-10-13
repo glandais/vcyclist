@@ -19,7 +19,7 @@ avec l'état du module `:elevation` après `cf0798e` (IGN LiDAR HD comme source 
 - `cf0798e feat(elevation): add IGN LiDAR HD as a DEM source` — catalogue `ElevationSource`,
   décodeur `decodeBil32Tile`, requêtes WMS `GetMap` par tuile XYZ, cadence à 20 req/s, repli
   Mapterhorn sur le *no-data*. Tout ce qui suit le réutilise.
-- [`docs/guides/elevation.md`](../guides/elevation.md) — l'état actuel du pipeline d'altitude et du
+- [`docs/guides/elevation.md`](../../guides/elevation.md) — l'état actuel du pipeline d'altitude et du
   D+, lignes R27–R30 du ledger.
 - `openelevation/research/verification/loire-nantes-saint-nazaire.md` (hors dépôt) — la source des
   chiffres de la section *Inputs*. Les traces qui l'ont produite sont personnelles et ne sortent
@@ -132,8 +132,8 @@ Ce qui distingue un tablier d'une canopée, à vérifier par la mesure :
 ### 5. Quatre itinéraires Strava contre l'IGN (2026-10-12)
 
 Quatre itinéraires tracés à la main dans Strava (altitude = fond Strava, pas un capteur), dans
-[`docs/deck-strava-data/`](../deck-strava-data/), analyse complète, figures et scripts dans
-[`analysis/`](../deck-strava-data/analysis/rapport.md). Méthode : rééchantillonnage à 5 m, MNT et
+[`docs/deck-strava-data/`](../../deck-strava-data/), analyse complète, figures et scripts dans
+[`analysis/`](../../deck-strava-data/analysis/rapport.md). Méthode : rééchantillonnage à 5 m, MNT et
 MNS IGN en bilinéaire, MNH = MNS − MNT, offset Strava − MNT en médiane sur terrain dégagé.
 
 | Fichier | Zone | Offset Strava − MNT | Hors ouvrages, RMSE | Ouvrages |
@@ -616,7 +616,7 @@ Sites déplacés par rapport à la conception, les vérifications restant inchan
 - `p08` : la rue nommée s'arrête à 224 m. Le tracé se prolonge sur toute voie de desserte, avec la
   même règle des ± 300 m.
 
-**Méthode.** [`analysis/controls.py`](../deck-strava-data/analysis/controls.py) n'interroge
+**Méthode.** [`analysis/controls.py`](../../deck-strava-data/analysis/controls.py) n'interroge
 qu'Overpass : une requête par emprise (points de passage + 400 m, ou emprise fixée par site), une à
 la fois, réponses en cache dans `osm/controls/`. Il trace l'itinéraire par Dijkstra sur les voies OSM
 des classes du site, en respectant le sens unique sur les voies rapides, ce qui garde une seule

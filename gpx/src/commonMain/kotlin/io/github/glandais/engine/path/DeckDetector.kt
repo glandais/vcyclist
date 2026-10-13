@@ -426,7 +426,7 @@ object DeckDetector {
      *
      * It exists for the bench's two-phase variants (MNH at z13/z14, then MNS only here), which the E2
      * measurements reject: the windows cover 43–70 % of the route and the scheme costs more tiles
-     * than the MNS alone (`docs/tasks/elevation-bridge-decks.md`, *Mesures (E2)*).
+     * than the MNS alone (`docs/archive/tasks/elevation-bridge-decks.md`, *Mesures (E2)*).
      */
     fun surfaceWindows(
         mnhM: DoubleArray,

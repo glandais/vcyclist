@@ -145,6 +145,8 @@ Unless a row says otherwise, the task shipped and the owning plan carries its co
 |---|---|---|
 | [`bonus`](bonus-elevation-js-demo.md) | Bonus — Démo browser Kotlin/JS pour `:elevation` |  |
 | [`api`](api.md) | Une API HTTP Ktor (`:api`), septième porte du moteur | Steps A1–A7, all delivered; no plan file, each step is one commit. Usage lives in [`api/README.md`](../../../api/README.md). |
+| [`elevation-bridge-decks`](elevation-bridge-decks.md) | Rendre aux ponts leur tablier sur le LiDAR HD IGN, aplatir les tunnels | E1–E7 delivered: deck detector and profile (step 3b), tunnels (step 3c), D+ before simplification, `elevationCorrections` on the seven doors. Held-out recall on new bridges is low (4/11, 0 false positive). Ledger R31–R33; bench data in [`deck-strava-data`](../../deck-strava-data/). |
+| [`elevation-half-pixel`](elevation-half-pixel.md) | Interpoler les tuiles DEM entre centres de pixels, pas entre coins | H1–H4 delivered; Mapterhorn open-terrain RMS 2.63 → 0.58 m on the Vercors. |
 
 ## Specs that were never written
 
