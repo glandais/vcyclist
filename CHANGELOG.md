@@ -1,3 +1,21 @@
+# [6.2.0](https://github.com/glandais/vcyclist/compare/v6.1.0...v6.2.0) (2026-10-13)
+
+
+### Bug Fixes
+
+* **elevation:** interpolate DEM tiles between pixel centres, not corners ([fff43cc](https://github.com/glandais/vcyclist/commit/fff43cc25b21dece6411cc1046b948a97fb78820))
+* **engine:** measure reported elevation gain before simplifying the path ([670112a](https://github.com/glandais/vcyclist/commit/670112a8c61923480d60f2badd81d6588904bf43))
+* **engine:** require tunnel faces near the portals and guard no-data portals ([c810974](https://github.com/glandais/vcyclist/commit/c810974dffd65c7e792e85e8321b2c739c4a729e))
+
+
+### Features
+
+* **engine:** flatten tunnels to the line between their portals ([39feb61](https://github.com/glandais/vcyclist/commit/39feb61611b48852639cd469c6ac0bffff67b8da))
+* **engine:** ride bridge decks instead of the valley under them on IGN LiDAR HD ([7831139](https://github.com/glandais/vcyclist/commit/7831139b4db922fc40ff8ca5f290c93072df9c69))
+* **gpx:** detect bridge decks from the IGN LiDAR HD surface model ([b9f88c8](https://github.com/glandais/vcyclist/commit/b9f88c8abe1d9b734fefeafeb0b6b7d9dd7f68a0))
+* **gpx:** judge deck slope on clean stations so long high bridges pass ([22ea62a](https://github.com/glandais/vcyclist/commit/22ea62a430a37c7292a0ce6958793df360f1c830))
+* **gpx:** recalibrate deck detection for the pixel-centre reading ([e264c5c](https://github.com/glandais/vcyclist/commit/e264c5c5becea3a0d99ac2399bbf47ce15ec69e0))
+
 # [6.1.0](https://github.com/glandais/vcyclist/compare/v6.0.1...v6.1.0) (2026-10-12)
 
 
