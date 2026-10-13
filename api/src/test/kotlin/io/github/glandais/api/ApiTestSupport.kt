@@ -36,12 +36,14 @@ fun testConfig(
     maxBodyBytes: Long = 64L * 1024,
     requestTimeoutMs: Long = 30_000,
     maxTrackPoints: Int = ApiConfig().maxTrackPoints,
+    maxElevationPoints: Int = ApiConfig().maxElevationPoints,
 ): ApiConfig =
     ApiConfig(
         host = "127.0.0.1",
         port = 0,
         maxBodyBytes = maxBodyBytes,
         maxTrackPoints = maxTrackPoints,
+        maxElevationPoints = maxElevationPoints,
         requestTimeoutMs = requestTimeoutMs,
         computeConcurrency = 2,
     )
@@ -65,6 +67,22 @@ fun apiTest(
             install(ContentNegotiation) { json(ApiJson) }
         }
     block(client)
+}
+
+/** The compute gate's admission count of the running application. */
+fun Application.gateAdmitted(): Long = attributes[ApiServicesKey].computeGate.admitted
+
+/** [apiTest] with the application captured and started, so a test can read its compute gate. */
+fun apiTestWithApp(
+    config: ApiConfig = testConfig(),
+    deps: ApiDependencies = offlineDependencies(),
+    block: suspend (Application, HttpClient) -> Unit,
+) {
+    lateinit var app: Application
+    apiTest(config = config, deps = deps, extraRoutes = { app = this }) { client ->
+        startApplication()
+        block(app, client)
+    }
 }
 
 /**

@@ -655,6 +655,31 @@ curl -s -X POST -H 'Content-Type: application/gpx+xml' --data-binary @in.gpx 'lo
   `[A-Za-z0-9._-]`. Une description `@JsonSchema.Description` sur une propriété de type objet
   fait émettre par Ktor une seconde copie du schéma (`CsvOptions2`…) : les membres d'`OutputDto`
   et `EnhanceRequest.output` n'en portent pas.
+- **Constaté à A5.** Les trois réponses d'analyse portent aussi `warnings` (les réparations XML),
+  comme `ParsedGpx` : sans elles, un GPX réparé serait analysé sans que l'appelant le sache.
+  `/analysis/racing-line` lit la liste des clés données **par le sérialiseur** (`EnhanceOptionsDto`
+  encodé, `null` écartés), pas par une liste écrite à la main : une clé ajoutée au DTO est refusée
+  ici tant que la route ne la lit pas. `racingLineEnabled: false` est refusé (`invalid-option`) :
+  appeler la route *est* la demande ; `true` est accepté pour qu'un objet d'options de `/enhance`
+  puisse être renvoyé tel quel. `SAMPLE_GPX` n'a que 7 points, sous les 8 que projette la ligne de
+  course : il donne `null`, et les tests du cas non nul utilisent un virage synthétique. Côté MNT :
+  la latitude est bornée par `ElevationFunctions.isValidLatitude` (la bande Web Mercator, ±85,05°)
+  et non ±90 — une pyramide de tuiles n'a pas de rangée au-delà, et lire la borne de la
+  bibliothèque évite de la recopier ; pointeurs `?lat` / `/points/3/latitude`. `lat` ou `lon`
+  absent → 400 `invalid-option`. Les routes MNT passent par la `ComputeGate` (concurrence bornée,
+  délai) et par `ElevationGateway.withProvider`. Les corps JSON exigent `Content-Type:
+  application/json` (sinon 415, `receiveJson`). `/elevation/along` borne aussi le polyligne
+  **densifié** (longueur / `step` + points ≤ `maxElevationPoints`, sinon 413) : deux points à un
+  continent d'écart et un pas de 2 m feraient un million de lectures de tuiles. Le domaine de `step`
+  (> 1 m) et le minimum de deux points restent les `require` de `BatchCalculator`, rendus 400
+  `invalid-option` par `StatusPages` — donc **sous** la porte de calcul, mais avant toute lecture de
+  tuile ; les recopier aurait écrit une borne du cœur dans `:api`. `smoothingOptions` /
+  `filterOptions` absents valent `SmoothingOptions()` / `FilterOptions()` (désactivés), ce qui
+  équivaut au `null` de JS. `DefaultsDto` gagne `climb` (nullable, pour réutiliser le schéma
+  `ClimbOptions` de la requête) et `elevation` (`ElevationDefaults` : source, `step`, `minDistance`,
+  `interpolation`, lissage, filtre) ; le zoom n'y figure pas, il est propre à chaque source et
+  publié par `GET /elevation/sources`. L'attribution d'une source est la sienne puis celle de son
+  repli (`ign-lidar-hd` → Mapterhorn).
 - Le DSL OpenAPI natif de Ktor est `@ExperimentalKtorApi` ; si une montée de Ktor le casse, le repli
   est smiley4 `ktor-openapi` (voir *Bibliothèques*), sans changer le contrat committé autrement que
   par la régénération.

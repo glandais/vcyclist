@@ -16,6 +16,7 @@ import io.github.glandais.api.http.requireOnlyQuery
 import io.github.glandais.api.http.resolveOutputFormat
 import io.github.glandais.api.mapping.HttpDefaults
 import io.github.glandais.api.mapping.OutputPlan
+import io.github.glandais.api.mapping.elevationDefaultsDto
 import io.github.glandais.api.mapping.finiteOrNull
 import io.github.glandais.api.mapping.fitDefaultsDto
 import io.github.glandais.api.mapping.gpxWriteDefaultsDto
@@ -150,6 +151,8 @@ fun Route.enhanceRoutes() {
                 json = HttpDefaults.json.toDto(),
                 gpx = gpxWriteDefaultsDto(),
                 fit = fitDefaultsDto(),
+                climb = HttpDefaults.climb.toDto(),
+                elevation = elevationDefaultsDto(),
                 limits =
                     LimitsDto(
                         maxBodyBytes = config.maxBodyBytes,
@@ -168,6 +171,8 @@ fun Route.enhanceRoutes() {
             "back as is and gives the same computation. Read from the engine, never restated. `demZoom` is " +
             "null: each DEM source uses its own default zoom. `gpx.trackName` is the name `/enhance` gives; " +
             "`/export` keeps the input's names. `fit.startTimeEpochMs` has no default: it is required. " +
+            "`climb` is what `/analysis/climbs` applies, `elevation` what the `/elevation` operations apply; " +
+            "their zoom level is each source's own (`GET /api/v1/elevation/sources`). " +
             "`limits` are this server's."
         tag("meta")
         responses {

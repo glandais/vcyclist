@@ -40,6 +40,19 @@ fun ApplicationCall.queryInt(name: String): Int? =
         it.toIntOrNull() ?: throw ApiProblem(ProblemKind.INVALID_OPTION, "Query parameter '$name' must be an integer, was '$it'")
     }
 
+/** Query parameter [name] as a finite number; malformed → `invalid-option`. */
+fun ApplicationCall.queryDouble(name: String): Double? =
+    queryString(name)?.let {
+        it.toDoubleOrNull()?.takeIf(Double::isFinite)
+            ?: throw ApiProblem(ProblemKind.INVALID_OPTION, "Query parameter '$name' must be a finite number, was '$it'")
+    }
+
+/** Query parameter [name], which must be present; absent → `invalid-option`. */
+fun <T : Any> ApplicationCall.requireQuery(
+    name: String,
+    read: ApplicationCall.(String) -> T?,
+): T = read(name) ?: throw ApiProblem(ProblemKind.INVALID_OPTION, "Query parameter '$name' is required")
+
 /** Query parameter [name] as a boolean, `true` or `false` exactly; anything else → `invalid-option`. */
 fun ApplicationCall.queryBoolean(name: String): Boolean? =
     queryString(name)?.let {

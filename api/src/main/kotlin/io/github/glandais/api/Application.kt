@@ -5,6 +5,8 @@ import io.github.glandais.api.http.ComputeGate
 import io.github.glandais.api.http.configureProblems
 import io.github.glandais.api.openapi.openApiRoutes
 import io.github.glandais.api.openapi.swaggerRoutes
+import io.github.glandais.api.routes.analysisRoutes
+import io.github.glandais.api.routes.elevationRoutes
 import io.github.glandais.api.routes.enhanceRoutes
 import io.github.glandais.api.routes.exportRoutes
 import io.github.glandais.api.routes.gpxRoutes
@@ -95,6 +97,8 @@ fun Application.module(
             gpxRoutes()
             enhanceRoutes()
             exportRoutes()
+            analysisRoutes()
+            elevationRoutes()
             openApiRoutes()
         }
         swaggerRoutes()

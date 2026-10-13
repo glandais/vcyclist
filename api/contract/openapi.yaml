@@ -422,6 +422,8 @@ paths:
         the engine, never restated. `demZoom` is null: each DEM source uses its own
         default zoom. `gpx.trackName` is the name `/enhance` gives; `/export` keeps
         the input''s names. `fit.startTimeEpochMs` has no default: it is required.
+        `climb` is what `/analysis/climbs` applies, `elevation` what the `/elevation`
+        operations apply; their zoom level is each source''s own (`GET /api/v1/elevation/sources`).
         `limits` are this server''s.'
       responses:
         "200":
@@ -603,6 +605,569 @@ paths:
                 $ref: "#/components/schemas/Problem"
         "503":
           description: 'Problem: `urn:vcyclist:problem:timeout`'
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Problem"
+  /api/v1/analysis/climbs:
+    post:
+      operationId: detectClimbs
+      tags:
+      - analysis
+      summary: Detect the climbs of a GPX
+      description: Finds the climbs of each selected path from its own elevations,
+        and splits each into homogeneous-grade parts. Grades are ratios (`0.08` is
+        8 %); distances are absolute along the path. Every absent option takes the
+        default published by `GET /api/v1/defaults` (`climb`).
+      parameters:
+      - name: kinds
+        in: query
+        description: 'Which containers to read: `all` (`<trk>` and `<rte>`), `tracks`
+          (`<trk>` only), `routes` (`<rte>` only). Default `all`.'
+        schema:
+          type: string
+          default: all
+          enum:
+          - all
+          - tracks
+          - routes
+      - name: split
+        in: query
+        description: '`tracks`: one path per `<trk>` / `<rte>`, segments concatenated
+          (the gap between two segments counts as distance). `segments`: one path
+          per `<trkseg>`. Default `tracks`.'
+        schema:
+          type: string
+          default: tracks
+          enum:
+          - tracks
+          - segments
+      - name: trackIndex
+        in: query
+        description: 'Keep only the path at this index of the selection (after `kinds`
+          and `split`, empty paths dropped). Absent: every path. Out of range: 422
+          `track-index-out-of-range`.'
+        schema:
+          type: integer
+          minimum: 0.0
+      - name: repair
+        in: query
+        description: When the XML does not parse, repair it (BOM, control characters,
+          bare `&`, split surrogate references) and parse again; each repair is reported
+          in `warnings`. Default `true`.
+        schema:
+          type: boolean
+          default: true
+      requestBody:
+        description: The GPX, as a multipart upload (part `gpx`) or as the raw body.
+          Options travel in the multipart part `request`; a raw body takes every default.
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required:
+              - gpx
+              properties:
+                gpx:
+                  type: string
+                  description: The GPX document
+                  format: binary
+                request:
+                  $ref: "#/components/schemas/ClimbRequest"
+            encoding:
+              gpx:
+                contentType: application/gpx+xml
+              request:
+                contentType: application/json
+          application/gpx+xml:
+            schema:
+              type: string
+              format: binary
+          application/xml:
+            schema:
+              type: string
+              format: binary
+          text/xml:
+            schema:
+              type: string
+              format: binary
+        required: true
+      responses:
+        "200":
+          description: The climbs of each path, in path order
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ClimbsResponse"
+        "400":
+          description: 'Problem: `urn:vcyclist:problem:invalid-body`, `urn:vcyclist:problem:unknown-key`,
+            `urn:vcyclist:problem:invalid-option`, `urn:vcyclist:problem:invalid-gpx`'
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Problem"
+        "413":
+          description: 'Problem: `urn:vcyclist:problem:payload-too-large`, `urn:vcyclist:problem:too-many-points`'
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Problem"
+        "415":
+          description: 'Problem: `urn:vcyclist:problem:unsupported-media-type`'
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Problem"
+        "422":
+          description: 'Problem: `urn:vcyclist:problem:empty-gpx`, `urn:vcyclist:problem:track-index-out-of-range`'
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Problem"
+        "503":
+          description: 'Problem: `urn:vcyclist:problem:timeout`'
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Problem"
+  /api/v1/analysis/racing-line:
+    post:
+      operationId: analyzeRacingLine
+      tags:
+      - analysis
+      summary: Analyse the racing line of a GPX
+      description: 'Reports what the racing line would do to each selected path —
+        corners, corridor, curvature and the solved lateral offset — without moving
+        any coordinate. Of the `options` object, only `racingLineEnabled`, `racingLineCorridor`
+        and `racingLineRoadWidthM` are read; any other key is 400 `invalid-option`,
+        and so is `racingLineEnabled: false`. A path too short or degenerate to analyse
+        gets `null`. Per-station values that were not computed are `null`.'
+      parameters:
+      - name: kinds
+        in: query
+        description: 'Which containers to read: `all` (`<trk>` and `<rte>`), `tracks`
+          (`<trk>` only), `routes` (`<rte>` only). Default `all`.'
+        schema:
+          type: string
+          default: all
+          enum:
+          - all
+          - tracks
+          - routes
+      - name: split
+        in: query
+        description: '`tracks`: one path per `<trk>` / `<rte>`, segments concatenated
+          (the gap between two segments counts as distance). `segments`: one path
+          per `<trkseg>`. Default `tracks`.'
+        schema:
+          type: string
+          default: tracks
+          enum:
+          - tracks
+          - segments
+      - name: trackIndex
+        in: query
+        description: 'Keep only the path at this index of the selection (after `kinds`
+          and `split`, empty paths dropped). Absent: every path. Out of range: 422
+          `track-index-out-of-range`.'
+        schema:
+          type: integer
+          minimum: 0.0
+      - name: repair
+        in: query
+        description: When the XML does not parse, repair it (BOM, control characters,
+          bare `&`, split surrogate references) and parse again; each repair is reported
+          in `warnings`. Default `true`.
+        schema:
+          type: boolean
+          default: true
+      requestBody:
+        description: The GPX, as a multipart upload (part `gpx`) or as the raw body.
+          Options travel in the multipart part `request`; a raw body takes every default.
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required:
+              - gpx
+              properties:
+                gpx:
+                  type: string
+                  description: The GPX document
+                  format: binary
+                request:
+                  $ref: "#/components/schemas/RacingLineRequest"
+            encoding:
+              gpx:
+                contentType: application/gpx+xml
+              request:
+                contentType: application/json
+          application/gpx+xml:
+            schema:
+              type: string
+              format: binary
+          application/xml:
+            schema:
+              type: string
+              format: binary
+          text/xml:
+            schema:
+              type: string
+              format: binary
+        required: true
+      responses:
+        "200":
+          description: One report per path, in path order
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RacingLineResponse"
+        "400":
+          description: 'Problem: `urn:vcyclist:problem:invalid-body`, `urn:vcyclist:problem:unknown-key`,
+            `urn:vcyclist:problem:invalid-option`, `urn:vcyclist:problem:invalid-gpx`'
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Problem"
+        "413":
+          description: 'Problem: `urn:vcyclist:problem:payload-too-large`, `urn:vcyclist:problem:too-many-points`'
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Problem"
+        "415":
+          description: 'Problem: `urn:vcyclist:problem:unsupported-media-type`'
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Problem"
+        "422":
+          description: 'Problem: `urn:vcyclist:problem:empty-gpx`, `urn:vcyclist:problem:track-index-out-of-range`'
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Problem"
+        "503":
+          description: 'Problem: `urn:vcyclist:problem:timeout`'
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Problem"
+  /api/v1/analysis/headwind:
+    post:
+      operationId: dominantHeadwind
+      tags:
+      - analysis
+      summary: Dominant headwind direction of a GPX
+      description: The compass azimuth, in degrees (0 = north, 90 = east), the wind
+        must blow **toward** to be a headwind on most of the course — the `wind.windDirection`
+        convention of `/enhance`. Over every selected path together (`overall`) and
+        for each. `null` with fewer than 4 points or a course whose mean direction
+        cancels out. Takes no `request` part.
+      parameters:
+      - name: kinds
+        in: query
+        description: 'Which containers to read: `all` (`<trk>` and `<rte>`), `tracks`
+          (`<trk>` only), `routes` (`<rte>` only). Default `all`.'
+        schema:
+          type: string
+          default: all
+          enum:
+          - all
+          - tracks
+          - routes
+      - name: split
+        in: query
+        description: '`tracks`: one path per `<trk>` / `<rte>`, segments concatenated
+          (the gap between two segments counts as distance). `segments`: one path
+          per `<trkseg>`. Default `tracks`.'
+        schema:
+          type: string
+          default: tracks
+          enum:
+          - tracks
+          - segments
+      - name: trackIndex
+        in: query
+        description: 'Keep only the path at this index of the selection (after `kinds`
+          and `split`, empty paths dropped). Absent: every path. Out of range: 422
+          `track-index-out-of-range`.'
+        schema:
+          type: integer
+          minimum: 0.0
+      - name: repair
+        in: query
+        description: When the XML does not parse, repair it (BOM, control characters,
+          bare `&`, split surrogate references) and parse again; each repair is reported
+          in `warnings`. Default `true`.
+        schema:
+          type: boolean
+          default: true
+      requestBody:
+        description: The GPX, as a multipart upload (part `gpx`) or as the raw body.
+          This operation takes no `request` part.
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required:
+              - gpx
+              properties:
+                gpx:
+                  type: string
+                  description: The GPX document
+                  format: binary
+            encoding:
+              gpx:
+                contentType: application/gpx+xml
+          application/gpx+xml:
+            schema:
+              type: string
+              format: binary
+          application/xml:
+            schema:
+              type: string
+              format: binary
+          text/xml:
+            schema:
+              type: string
+              format: binary
+        required: true
+      responses:
+        "200":
+          description: The azimuths
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HeadwindResponse"
+        "400":
+          description: 'Problem: `urn:vcyclist:problem:invalid-body`, `urn:vcyclist:problem:unknown-key`,
+            `urn:vcyclist:problem:invalid-option`, `urn:vcyclist:problem:invalid-gpx`'
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Problem"
+        "413":
+          description: 'Problem: `urn:vcyclist:problem:payload-too-large`, `urn:vcyclist:problem:too-many-points`'
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Problem"
+        "415":
+          description: 'Problem: `urn:vcyclist:problem:unsupported-media-type`'
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Problem"
+        "422":
+          description: 'Problem: `urn:vcyclist:problem:empty-gpx`, `urn:vcyclist:problem:track-index-out-of-range`'
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Problem"
+        "503":
+          description: 'Problem: `urn:vcyclist:problem:timeout`'
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Problem"
+  /api/v1/elevation/sources:
+    get:
+      operationId: listElevationSources
+      tags:
+      - elevation
+      summary: DEM sources
+      description: The DEM sources this server queries, by the id `source` and `demSource`
+        take, with their default zoom, their fallback where they have no data, and
+        the attribution their data requires.
+      responses:
+        "200":
+          description: The sources
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/ElevationSource"
+        "400":
+          description: 'Problem: `urn:vcyclist:problem:unknown-key`'
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Problem"
+  /api/v1/elevation/point:
+    get:
+      operationId: getElevation
+      tags:
+      - elevation
+      summary: DEM elevation of one point
+      description: The elevation of one position, read from the DEM. Every absent
+        parameter takes the default published by `GET /api/v1/defaults` (`elevation`);
+        the zoom is the source's own.
+      parameters:
+      - name: lat
+        in: query
+        description: Latitude, degrees, within the Web Mercator band (about ±85.05).
+        required: true
+        schema:
+          type: number
+      - name: lon
+        in: query
+        description: Longitude, degrees, -180..180.
+        required: true
+        schema:
+          type: number
+      - name: source
+        in: query
+        description: DEM source, one of `GET /api/v1/catalog` `elevationSources`.
+          Default `mapterhorn`.
+        schema:
+          type: string
+          enum:
+          - mapterhorn
+          - ign-lidar-hd
+      - name: zoomLevel
+        in: query
+        description: 'DEM zoom level, 0..15. Absent: the source''s own default zoom.'
+        schema:
+          type: integer
+          maximum: 15.0
+          minimum: 0.0
+      - name: interpolation
+        in: query
+        description: Bilinear interpolation rather than nearest sample. Default `true`.
+        schema:
+          type: boolean
+          default: true
+      responses:
+        "200":
+          description: The elevation, with its attribution
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ElevationPointResponse"
+        "400":
+          description: 'Problem: `urn:vcyclist:problem:unknown-key`, `urn:vcyclist:problem:invalid-option`'
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Problem"
+        "502":
+          description: 'Problem: `urn:vcyclist:problem:dem-unavailable`'
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Problem"
+        "503":
+          description: 'Problem: `urn:vcyclist:problem:dem-rate-limited`, `urn:vcyclist:problem:timeout`'
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Problem"
+  /api/v1/elevation/points:
+    post:
+      operationId: getElevations
+      tags:
+      - elevation
+      summary: DEM elevation of several points
+      description: The elevation of each position, in order. At most `limits.maxElevationPoints`
+        points (`GET /api/v1/defaults`). Every absent field takes the default published
+        there (`elevation`).
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ElevationPointsRequest"
+        required: true
+      responses:
+        "200":
+          description: The elevations, with their attribution
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ElevationPointsResponse"
+        "400":
+          description: 'Problem: `urn:vcyclist:problem:invalid-body`, `urn:vcyclist:problem:unknown-key`,
+            `urn:vcyclist:problem:invalid-option`'
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Problem"
+        "413":
+          description: 'Problem: `urn:vcyclist:problem:payload-too-large`, `urn:vcyclist:problem:too-many-points`'
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Problem"
+        "415":
+          description: 'Problem: `urn:vcyclist:problem:unsupported-media-type`'
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Problem"
+        "502":
+          description: 'Problem: `urn:vcyclist:problem:dem-unavailable`'
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Problem"
+        "503":
+          description: 'Problem: `urn:vcyclist:problem:dem-rate-limited`, `urn:vcyclist:problem:timeout`'
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Problem"
+  /api/v1/elevation/along:
+    post:
+      operationId: getElevationsAlong
+      tags:
+      - elevation
+      summary: DEM elevation profile along a polyline
+      description: 'Densifies the polyline every `step` metres, reads the DEM at each
+        point, then optionally smooths and simplifies the profile. The polyline needs
+        at least 2 points, and the densified one at most `limits.maxElevationPoints`
+        (`GET /api/v1/defaults`). Every absent field takes the default published there
+        (`elevation`). No tile server can be named: the server chooses its sources.'
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ElevationAlongRequest"
+        required: true
+      responses:
+        "200":
+          description: The profile, with its attribution
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ElevationPointsResponse"
+        "400":
+          description: 'Problem: `urn:vcyclist:problem:invalid-body`, `urn:vcyclist:problem:unknown-key`,
+            `urn:vcyclist:problem:invalid-option`'
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Problem"
+        "413":
+          description: 'Problem: `urn:vcyclist:problem:payload-too-large`, `urn:vcyclist:problem:too-many-points`'
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Problem"
+        "415":
+          description: 'Problem: `urn:vcyclist:problem:unsupported-media-type`'
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Problem"
+        "502":
+          description: 'Problem: `urn:vcyclist:problem:dem-unavailable`'
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Problem"
+        "503":
+          description: 'Problem: `urn:vcyclist:problem:dem-rate-limited`, `urn:vcyclist:problem:timeout`'
           content:
             application/problem+json:
               schema:
@@ -1435,6 +2000,117 @@ components:
           type: array
           items:
             type: string
+    ClimbOptions:
+      type:
+      - object
+      - "null"
+      title: ClimbOptions
+      properties:
+        minMinClimbElevationM:
+          type:
+          - number
+          - "null"
+          description: 'Floor of the dynamic elevation threshold, metres. Absent or
+            null: the default published by `GET /api/v1/defaults`.'
+        maxMinClimbElevationM:
+          type:
+          - number
+          - "null"
+          description: 'Ceiling of the dynamic elevation threshold, metres. Absent
+            or null: the default published by `GET /api/v1/defaults`.'
+        minClimbElevationRatio:
+          type:
+          - number
+          - "null"
+          description: 'The path''s total ascent is divided by this to size the threshold.
+            Absent or null: the default published by `GET /api/v1/defaults`.'
+        minGradePercent:
+          type:
+          - number
+          - "null"
+          description: 'Minimum average grade of a climb, percent. Absent or null:
+            the default published by `GET /api/v1/defaults`.'
+        maxDiffRealGrade:
+          type:
+          - number
+          - "null"
+          description: 'Upper bound on climbingGrade / averageGrade, a ratio. Absent
+            or null: the default published by `GET /api/v1/defaults`.'
+        booster:
+          type:
+          - number
+          - "null"
+          description: 'Exponent of the grade when scoring a candidate. Absent or
+            null: the default published by `GET /api/v1/defaults`.'
+        maxAnalysisPoints:
+          type:
+          - integer
+          - "null"
+          description: 'Bound on the points the O(n²) search looks at, at least 2.
+            Absent or null: the default published by `GET /api/v1/defaults`.'
+    SmoothingOptions:
+      type:
+      - object
+      - "null"
+      title: SmoothingOptions
+      properties:
+        enabled:
+          type:
+          - boolean
+          - "null"
+          description: 'Smooth the profile. Absent or null: the default published
+            by `GET /api/v1/defaults`.'
+        windowSize:
+          type:
+          - number
+          - "null"
+          description: 'Smoothing window, metres. Absent or null: the default published
+            by `GET /api/v1/defaults`.'
+    FilterOptions:
+      type:
+      - object
+      - "null"
+      title: FilterOptions
+      properties:
+        enabled:
+          type:
+          - boolean
+          - "null"
+          description: 'Simplify the profile. Absent or null: the default published
+            by `GET /api/v1/defaults`.'
+        tolerance:
+          type:
+          - number
+          - "null"
+          description: 'Simplification tolerance, metres. Absent or null: the default
+            published by `GET /api/v1/defaults`.'
+        zExaggeration:
+          type:
+          - number
+          - "null"
+          description: 'Elevation exaggeration of the simplification. Absent or null:
+            the default published by `GET /api/v1/defaults`.'
+    ElevationDefaults:
+      type: object
+      title: ElevationDefaults
+      required:
+      - source
+      - step
+      - minDistance
+      - interpolation
+      properties:
+        source:
+          type: string
+        step:
+          type: number
+        minDistance:
+          type: number
+        interpolation:
+          type: boolean
+        smoothingOptions:
+          $ref: "#/components/schemas/SmoothingOptions"
+        filterOptions:
+          $ref: "#/components/schemas/FilterOptions"
     Limits:
       type: object
       title: Limits
@@ -1459,6 +2135,7 @@ components:
       type: object
       title: Defaults
       required:
+      - elevation
       - limits
       properties:
         enhance:
@@ -1477,6 +2154,10 @@ components:
           $ref: "#/components/schemas/GpxWriteOptions"
         fit:
           $ref: "#/components/schemas/FitOptions"
+        climb:
+          $ref: "#/components/schemas/ClimbOptions"
+        elevation:
+          $ref: "#/components/schemas/ElevationDefaults"
         limits:
           $ref: "#/components/schemas/Limits"
     ExportRequest:
@@ -1486,3 +2167,449 @@ components:
       properties:
         output:
           $ref: "#/components/schemas/Output"
+    ClimbRequest:
+      type: object
+      title: ClimbRequest
+      description: The detector options.
+      properties:
+        options:
+          $ref: "#/components/schemas/ClimbOptions"
+    ClimbPart:
+      type: object
+      title: ClimbPart
+      required:
+      - startDistanceM
+      - endDistanceM
+      - startElevationM
+      - endElevationM
+      - lengthM
+      - elevationGainM
+      - grade
+      properties:
+        startDistanceM:
+          type: number
+        endDistanceM:
+          type: number
+        startElevationM:
+          type: number
+        endElevationM:
+          type: number
+        lengthM:
+          type: number
+        elevationGainM:
+          type: number
+        grade:
+          type: number
+          description: 'Grade, a ratio: 0.08 is 8 %.'
+    Climb:
+      type: object
+      title: Climb
+      required:
+      - startIndex
+      - endIndex
+      - startDistanceM
+      - endDistanceM
+      - startElevationM
+      - endElevationM
+      - lengthM
+      - elevationGainM
+      - averageGrade
+      - climbingGrade
+      - positiveElevationM
+      - negativeElevationM
+      - parts
+      properties:
+        startIndex:
+          type: integer
+        endIndex:
+          type: integer
+        startDistanceM:
+          type: number
+        endDistanceM:
+          type: number
+        startElevationM:
+          type: number
+        endElevationM:
+          type: number
+        lengthM:
+          type: number
+        elevationGainM:
+          type: number
+        averageGrade:
+          type: number
+          description: 'Net gain over length, a ratio: 0.08 is 8 %.'
+        climbingGrade:
+          type: number
+          description: Positive elevation over rising distance, a ratio.
+        positiveElevationM:
+          type: number
+        negativeElevationM:
+          type: number
+          description: Sum of the descents inside the climb, negative.
+        parts:
+          type: array
+          items:
+            $ref: "#/components/schemas/ClimbPart"
+    ClimbsResponse:
+      type: object
+      title: ClimbsResponse
+      required:
+      - tracks
+      - warnings
+      properties:
+        tracks:
+          type: array
+          items:
+            type: array
+            items:
+              $ref: "#/components/schemas/Climb"
+        warnings:
+          type: array
+          items:
+            type: string
+    RacingLineRequest:
+      type: object
+      title: RacingLineRequest
+      description: The racing-line options, within the pipeline options object.
+      properties:
+        options:
+          $ref: "#/components/schemas/EnhanceOptions"
+    Corner:
+      type: object
+      title: Corner
+      required:
+      - fromIndex
+      - untilIndex
+      - apexIndex
+      - kind
+      - turnRad
+      - direction
+      - radiusQ20M
+      - radiusMinM
+      - lengthM
+      properties:
+        fromIndex:
+          type: integer
+        untilIndex:
+          type: integer
+        apexIndex:
+          type: integer
+        kind:
+          type: string
+          description: One of `GET /api/v1/catalog` `cornerKinds`.
+        turnRad:
+          type: number
+        direction:
+          type: integer
+          description: +1 left, -1 right.
+        radiusQ20M:
+          type: number
+        radiusMinM:
+          type: number
+        lengthM:
+          type: number
+    RacingLineReport:
+      type:
+      - object
+      - "null"
+      title: RacingLineReport
+      required:
+      - size
+      - corners
+      - centerlineCurvature
+      - trajectoryCurvature
+      - corridorLo
+      - corridorHi
+      - roadHalfWidthM
+      - lateralOffsetM
+      - newtonIterations
+      - converged
+      - activeConstraints
+      properties:
+        size:
+          type: integer
+        corners:
+          type: array
+          items:
+            $ref: "#/components/schemas/Corner"
+        centerlineCurvature:
+          type: array
+          items:
+            type:
+            - number
+            - "null"
+        trajectoryCurvature:
+          type: array
+          items:
+            type:
+            - number
+            - "null"
+        corridorLo:
+          type: array
+          items:
+            type:
+            - number
+            - "null"
+        corridorHi:
+          type: array
+          items:
+            type:
+            - number
+            - "null"
+        roadHalfWidthM:
+          type: array
+          items:
+            type:
+            - number
+            - "null"
+        lateralOffsetM:
+          type: array
+          items:
+            type:
+            - number
+            - "null"
+        maxCorridorWidthM:
+          type:
+          - number
+          - "null"
+        newtonIterations:
+          type: integer
+        relativeGradient:
+          type:
+          - number
+          - "null"
+        converged:
+          type: boolean
+          description: Whether the solver converged; a non-converged line is still
+            reported.
+        activeConstraints:
+          type: integer
+    RacingLineResponse:
+      type: object
+      title: RacingLineResponse
+      required:
+      - tracks
+      - warnings
+      properties:
+        tracks:
+          type: array
+          items:
+            $ref: "#/components/schemas/RacingLineReport"
+        warnings:
+          type: array
+          items:
+            type: string
+    HeadwindResponse:
+      type: object
+      title: HeadwindResponse
+      required:
+      - tracks
+      - warnings
+      properties:
+        overall:
+          type:
+          - number
+          - "null"
+        tracks:
+          type: array
+          items:
+            type:
+            - number
+            - "null"
+        warnings:
+          type: array
+          items:
+            type: string
+    Attribution:
+      type: object
+      title: Attribution
+      required:
+      - text
+      properties:
+        text:
+          type: string
+        url:
+          type:
+          - string
+          - "null"
+    ElevationSource:
+      type: object
+      title: ElevationSource
+      required:
+      - id
+      - defaultZoomLevel
+      - attribution
+      properties:
+        id:
+          type: string
+          description: The wire id, for `source` and `demSource`.
+        defaultZoomLevel:
+          type: integer
+          description: The zoom used when the request names none.
+        fallback:
+          type:
+          - string
+          - "null"
+          description: The source asked where this one has no data, `null` for none.
+        attribution:
+          type: array
+          description: This source's attribution, then its fallback's.
+          items:
+            $ref: "#/components/schemas/Attribution"
+    ElevationPointResponse:
+      type: object
+      title: ElevationPointResponse
+      required:
+      - latitude
+      - longitude
+      - elevation
+      - source
+      - zoomLevel
+      - attribution
+      properties:
+        latitude:
+          type: number
+        longitude:
+          type: number
+        elevation:
+          type: number
+          description: Metres above sea level.
+        source:
+          type: string
+          description: The DEM source that was asked.
+        zoomLevel:
+          type: integer
+          description: The zoom level that was used.
+        attribution:
+          type: array
+          description: 'What must be displayed with this elevation: the source''s,
+            then its fallback''s.'
+          items:
+            $ref: "#/components/schemas/Attribution"
+    LatLon:
+      type: object
+      title: LatLon
+      required:
+      - latitude
+      - longitude
+      properties:
+        latitude:
+          type: number
+          description: Latitude, degrees, within the Web Mercator band (about ±85.05).
+        longitude:
+          type: number
+          description: Longitude, degrees, -180..180.
+    ElevationPointsRequest:
+      type: object
+      title: ElevationPointsRequest
+      required:
+      - points
+      properties:
+        points:
+          type: array
+          description: The points, at most `GET /api/v1/defaults` `limits.maxElevationPoints`.
+          items:
+            $ref: "#/components/schemas/LatLon"
+        source:
+          type:
+          - string
+          - "null"
+          description: 'DEM source, one of `GET /api/v1/catalog` `elevationSources`.
+            Absent or null: the default published by `GET /api/v1/defaults`.'
+        zoomLevel:
+          type:
+          - integer
+          - "null"
+          description: 'DEM zoom level, 0..15. Absent or null: the source''s own default
+            zoom.'
+        interpolation:
+          type:
+          - boolean
+          - "null"
+          description: 'Bilinear interpolation rather than nearest sample. Absent
+            or null: the default published by `GET /api/v1/defaults`.'
+    ElevationPoint:
+      type: object
+      title: ElevationPoint
+      required:
+      - latitude
+      - longitude
+      - elevation
+      properties:
+        latitude:
+          type: number
+        longitude:
+          type: number
+        elevation:
+          type: number
+          description: Metres above sea level.
+    ElevationPointsResponse:
+      type: object
+      title: ElevationPointsResponse
+      required:
+      - points
+      - source
+      - zoomLevel
+      - attribution
+      properties:
+        points:
+          type: array
+          items:
+            $ref: "#/components/schemas/ElevationPoint"
+        source:
+          type: string
+          description: The DEM source that was asked.
+        zoomLevel:
+          type: integer
+          description: The zoom level that was used.
+        attribution:
+          type: array
+          description: 'What must be displayed with these elevations: the source''s,
+            then its fallback''s.'
+          items:
+            $ref: "#/components/schemas/Attribution"
+    ElevationAlongRequest:
+      type: object
+      title: ElevationAlongRequest
+      required:
+      - points
+      properties:
+        points:
+          type: array
+          description: The polyline, at least 2 points.
+          items:
+            $ref: "#/components/schemas/LatLon"
+        source:
+          type:
+          - string
+          - "null"
+          description: 'DEM source, one of `GET /api/v1/catalog` `elevationSources`.
+            Absent or null: the default published by `GET /api/v1/defaults`.'
+        zoomLevel:
+          type:
+          - integer
+          - "null"
+          description: 'DEM zoom level, 0..15. Absent or null: the source''s own default
+            zoom.'
+        step:
+          type:
+          - number
+          - "null"
+          description: 'Densification step, metres, above 1. Absent or null: the default
+            published by `GET /api/v1/defaults`.'
+        minDistance:
+          type:
+          - number
+          - "null"
+          description: 'Points closer than this to the last kept one are dropped,
+            metres. Absent or null: the default published by `GET /api/v1/defaults`.'
+        interpolation:
+          type:
+          - boolean
+          - "null"
+          description: 'Bilinear interpolation rather than nearest sample. Absent
+            or null: the default published by `GET /api/v1/defaults`.'
+        smoothingOptions:
+          $ref: "#/components/schemas/SmoothingOptions"
+        filterOptions:
+          $ref: "#/components/schemas/FilterOptions"

@@ -1,7 +1,9 @@
 package io.github.glandais.api.http
 
 import io.github.glandais.api.apiServices
+import io.ktor.http.ContentType
 import io.ktor.server.application.ApplicationCall
+import io.ktor.server.request.contentType
 import kotlinx.serialization.ExperimentalSerializationApi
 import kotlinx.serialization.KSerializer
 import kotlinx.serialization.SerializationException
@@ -57,6 +59,23 @@ fun <T> decodeStrict(
 suspend fun <T> ApplicationCall.receiveStrict(serializer: KSerializer<T>): T {
     val bytes = receiveBoundedBytes(apiServices.config.maxBodyBytes)
     return decodeStrict(serializer, bytes.decodeToString())
+}
+
+/**
+ * [receiveStrict] for a route whose body is JSON: any other `Content-Type` is
+ * `unsupported-media-type`, before a byte is read.
+ *
+ * @throws ApiProblem `unsupported-media-type`, `payload-too-large`, `invalid-body`, `unknown-key`
+ */
+suspend fun <T> ApplicationCall.receiveJson(serializer: KSerializer<T>): T {
+    val contentType = request.contentType().withoutParameters()
+    if (!contentType.match(ContentType.Application.Json)) {
+        throw ApiProblem(
+            ProblemKind.UNSUPPORTED_MEDIA_TYPE,
+            "Content-Type '$contentType' is not accepted: send ${ContentType.Application.Json}",
+        )
+    }
+    return receiveStrict(serializer)
 }
 
 /**

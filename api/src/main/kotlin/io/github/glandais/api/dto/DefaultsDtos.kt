@@ -10,11 +10,13 @@ import kotlinx.serialization.Serializable
  *
  * The request-shaped members are declared nullable although they are always filled: that
  * makes them the very `EnhanceOptions`, `Cyclist`, `Bike`, `PowerProvider`, `CsvOptions`,
- * `JsonOptions`, `GpxWriteOptions` and `FitOptions` schemas of the request in the contract (Ktor would otherwise emit a second, non-null copy of each, named
- * `EnhanceOptions2`…), so a client sends a published member back with the type it read it as.
+ * `JsonOptions`, `GpxWriteOptions`, `FitOptions` and `ClimbOptions` schemas of the request in the
+ * contract (Ktor would otherwise emit a second, non-null copy of each, named `EnhanceOptions2`…),
+ * so a client sends a published member back with the type it read it as.
  *
  * @property gpx `trackName` is the one `/enhance` applies; `/export` keeps the input's names
  * @property fit `startTimeEpochMs` is `null`: it has no default, `format=fit` requires it
+ * @property elevation the DEM routes' defaults; the zoom is per source (`GET /elevation/sources`)
  * @property limits the server's own limits, from its configuration
  */
 @Serializable
@@ -28,6 +30,8 @@ data class DefaultsDto(
     val json: JsonOptionsDto?,
     val gpx: GpxWriteOptionsDto?,
     val fit: FitOptionsDto?,
+    val climb: ClimbOptionsDto?,
+    val elevation: ElevationDefaultsDto,
     val limits: LimitsDto,
 )
 
