@@ -1094,6 +1094,122 @@ de ravin boisé (vrai canyon du MNT) avec un ouvrage haut et lisse à chaque bou
 bâtiment, toit plat), à moins de 300 m l'un de l'autre. C'est la forme de faux positif du pontage ;
 aucun négatif actuel ne l'a (`n05` n'a pas de canyon, `n06` et `n11` pas de station propre).
 
+État : **le témoin demandé reste à trouver.** E2 quater n'a trouvé aucun site de cette forme et
+ajoute seulement `n13`, un vallon boisé dont la canopée passe le test du canyon mais qui est rejeté
+par une pente loin du seuil : il ne couvre que le passage du canyon par une canopée, pas
+l'acceptation, et ne départage aucun réglage (voir ci-dessous). Les `p09..` restent à faire.
+
+#### Vallons boisés et seuils combinés (E2 quater)
+
+**Pourquoi.** Deux questions laissées ouvertes par E2 ter : le pontage accepte-t-il une canopée de
+vallon quand le canyon passe (témoin demandé dans *Témoins E2 ter*) ; et que donnent ensemble
+`mergeGapM` 200 et `surfaceMedianWindowM` 35, les deux variations sans coût du balayage E2 bis,
+mesurées cette fois depuis le DEFAULT E2 ter. `DeckDetectorOptions.DEFAULT` **n'a pas changé**.
+
+**Recherche du témoin.** Contrairement à la consigne de *Témoins E2 ter* (site figé avant tout
+passage du détecteur), le site a été choisi *parce que* le détecteur y forme un candidat fusionné :
+un témoin où rien n'est mesuré ne teste pas la règle. Balayage jetable (scripts du bloc-notes, non
+commités, non reproductibles depuis le dépôt) :
+
+- 34 villes au relief boisé (Meudon, Saint-Cloud, Bièvre, Lyon ouest, Caluire, Yzeron, Rouen,
+  Mont-Saint-Aignan, Le Havre, Besançon, Brest, Morlaix, Quimper, Lannion, Saint-Brieuc, Dinan,
+  Saint-Étienne, Tulle, Saint-Claude, Morez, Chambéry, Grenoble, Nancy, Metz, Épinal, Nice,
+  Marseille, Toulon, Angoulême, Périgueux, Limoges, Poitiers, Angers, Cherbourg — ce dernier hors
+  couverture) ; les voies OSM des classes routières, cyclables et piétonnes, chaînées par nom,
+  6 834 chaînes, ≈ 3 800 km ;
+- détecteur DEFAULT sur l'échantillonnage de vcyclist (MNS et MNT z15, comme la variante (a)) ;
+  retenu : un candidat mesuré contenant au moins deux suites hautes et une chute de MNT > 3 m.
+
+Résultat : **50 candidats, dont 46 touchent (à 50 m près) une voie OSM `bridge` ou `layer ≥ 1`** :
+de vrais tabliers, acceptés ou non. Les 4 autres : un trottoir en épingle à Chambéry (demi-tour,
+inutilisable), un tablier réel non tagué à Morez (avenue Georges Lissac, MNT 15 à 20 m sous la
+route), une boucle d'échangeur à Rouen, et **un seul vallon boisé** : le chemin de la Vallée de la
+Pennélé à Morlaix. La forme « un ouvrage lisse de chaque côté d'un vallon, à moins de 300 m »
+n'a été trouvée nulle part sur l'échantillonnage de vcyclist. Deux sites qui la donnaient sur la
+grille de `fetch.py` (Tulle, chemin du Pont de la Pierre ; Lyon 9ᵉ, chemin de la Vernique entre
+deux passages sous le périphérique nord) ne forment en z15 vcyclist **aucun** candidat mesuré (un
+seul groupe `ROUGH` chacun) ; dans les deux, le canyon venait du petit pont propre du ruisseau
+(25 m et 10 m). Ils n'ont pas été gardés.
+
+| id | catégorie | lieu | km | G | O | L | X+x |
+|---|---|---|---|---|---|---|---|
+| n13 | `ravine-merged-tall-runs` | Morlaix, chemin de la Vallée de la Pennélé (une volée de marches de 15 m relie ses deux tronçons) | 0,93 | 187 | 0 | 0 | 0 |
+
+**Ce que `n13` mesure.** À DEFAULT, un candidat km 0,30–0,44 (140 m) : deux suites hautes d'au
+moins `minTallRunM` dans le candidat (`tall runs 2` dans la sortie du banc), 24 stations hautes,
+toutes `G` ; chute de MNT **3,0 m** (le test est `> 3,0`) ; fraction
+propre **0,25** (le plancher `minCleanFraction` : le profil ponté est lu) ; P95 45,6 % → `STEEP`.
+Les trous entre stations propres touchent le sol : rien n'est ponté, le P95 ponté égale le brut
+(la colonne `onClean true` de la sortie dit seulement que la pente est lue sur le tablier propre).
+Avec `surfaceMedianWindowM` 35, seul ou combiné : P95 43,0 %, `STEEP`. Aucune ligne du balayage ne
+l'accepte, canyon coupé compris (les 2 FP de cette ligne restent ceux de `n04` et `n09`).
+
+Le candidat est **fragile** : démarré 120 m plus tôt (stations décalées de 0,4 m), le même chemin ne
+donne qu'un groupe `ROUGH` de 0,72 km, rien de mesuré. L'itinéraire commence donc exactement au
+début de la chaîne balayée (commentaire dans `controls.py`). Deux marges sont nulles à 0,05 près
+(chute 3,0 m, fraction propre 0,25) : `n13` fait passer un candidat de canopée par le canyon et par
+le profil ponté, mais il est rejeté par une pente (45 %) loin du seuil. Un vallon de pente douce
+sous une canopée lisse, ou deux ouvrages lisses autour d'un vallon, restent sans témoin. Rejeté à
+4,5 fois `maxSlopeP95` (0,10) et accepté par aucune des 40 lignes du balayage, `n13` est un témoin
+de **non-régression faible** : il ne départage aucun réglage et ne répond pas à la demande de
+*Témoins E2 ter*.
+
+**Seuils combinés.** Banc Kotlin, variante (a), depuis le DEFAULT E2 ter ; 13 négatifs (`n13`
+compris), 8 positifs. Ligne `mergeGapM 200 + median 35` ajoutée au balayage, et bloc `E2 quater`
+dans la sortie `[controls]` (couverture par positif, candidats de `n13`, candidats des positifs qui
+perdent de la couverture).
+
+| réglage | Strava /21 | récupérés | FP Strava / hors vérité (span / masque) | spans pos. (couv. `D`) | FP nég. | G/O/L nég. | Beaujoire |
+|---|---|---|---|---|---|---|---|
+| DEFAULT | 16 | — | 0 / 8 / 8 | 13/15 (94 %) | 0 | 0/0/0 | oui |
+| `mergeGapM` 200 | 17 | Haudaudine | 0 / 9 / 9 | 13/15 (94 %) | 0 | 0/0/0 | oui |
+| `surfaceMedianWindowM` 35 | 18 | Bellevue, Haudaudine | 0 / 10 / 10 | 13/15 (**88 %**) | 0 | 0/0/0 | oui |
+| les deux | 18 | Bellevue, Haudaudine | 0 / 10 / 10 | 13/15 (**88 %**) | 0 | 0/0/0 | oui |
+
+Aucun pont Strava perdu dans ces trois lignes. Par positif (spans, couverture `D`) :
+
+| réglage | p01 | p02 | p03 | p04 | p05 | p06 | p07 | p08 |
+|---|---|---|---|---|---|---|---|---|
+| DEFAULT | 1/1 100 % | 2/3 94 % | 1/1 93 % | 0/1 0 % | 3/3 100 % | 3/3 99 % | 2/2 100 % | 1/1 100 % |
+| `mergeGapM` 200 | = | 2/3 **93 %** | = | = | = | = | = | = |
+| `surfaceMedianWindowM` 35 | = | = | = | = | = | 3/3 **76 %** | = | = |
+| les deux | = | 2/3 **93 %** | = | = | = | 3/3 **76 %** | = | = |
+
+- `mergeGapM` 200 coupe Thouaré (`p02`) en deux spans (km 0,73–1,12 et 1,38–1,60 au lieu de
+  0,73–1,60).
+- `surfaceMedianWindowM` 35 coupe le grand pont de Normandie (`p06`) en deux spans acceptés
+  (km 1,22–1,68 et 2,19–3,35, plus 3,68–3,86) au lieu d'un seul 1,22–3,35 : ≈ 510 m de tablier
+  (km 1,68–2,19) sortent de toute détection. La cause de la coupure n'est pas mesurée.
+- Sur Strava, la combinaison ne fait rien de plus que `surfaceMedianWindowM` 35 seul ; sur les
+  positifs, elle cumule les deux pertes.
+
+**Ce que valent ces gains.** Bellevue et Haudaudine sont deux des cinq ponts Strava perdus que les
+balayages E2 bis et E2 ter regardaient : des cas de réglage, pas de la généralisation. Des témoins
+positifs, ne restent intacts du réglage que `p02` à `p05`, soit **5 ponts mesurables** (Thouaré,
+D 37, Ancenis, Cessart, Cadets ; la rue des Ponts et la place de la Résistance font 30 m, Langeais
+est `ROUGH` partout). Sur ces 5 ponts, aucune des deux variations ne gagne rien (même rappel, même
+couverture à un point près) ; `mergeGapM` 200 y perd un point sur Thouaré. Le seul coût net tombe
+sur `p06`, cas de réglage d'E2 ter, que `surfaceMedianWindowM` 35 recoupe. Les négatifs, `n13`
+compris, ne départagent rien : 0 FP et 0 station `G`/`O`/`L` dans les quatre lignes.
+
+**Recommandation : ne pas adopter la combinaison, ni `surfaceMedianWindowM` 35 seul.** Le gain (+2
+ponts Strava) porte sur des ponts qui ont guidé le réglage, coûte 2 stations hors vérité sur Strava
+et 23 points de couverture sur Normandie, et ne se voit sur aucun des 5 ponts non réglants.
+`mergeGapM` 200 seul est **neutre à la marge** (+1 pont Strava de réglage, +1 station hors vérité,
+−1 point sur Thouaré) : rien ne justifie de le changer avant les témoins `p09..` de *Témoins E2
+ter*. La valeur 200 n'a rien de particulier : `mergeGapM` 200, 100 et 50 donnent exactement la même
+ligne du balayage (17 ponts, Haudaudine, 9 / 9, 13/15 à 94 %). La vraie question est donc « faut-il
+fusionner des suites hautes séparées de 200 à 300 m (le DEFAULT) ? », pas le choix d'une valeur.
+
+**Tests.** `deck_controls_parse_and_hold_their_guards` porte `n13` (13 + 8 rôles ; `CONTROL_GUARDS`
+`n13` = 187 stations, 0 `O`, 0 `L`, 0 `X+x`). `deckControls` (`INTEGRATION=1`) vérifie le critère
+d'acceptation au DEFAULT sur les **13** négatifs : 0 FP, 0 station `G`/`O`/`L` en span comme en
+masque, Beaujoire trouvé — vert, `n13` compris ; plus la taille du bloc E2 quater (un témoin de
+catégorie `ravine-merged-tall-runs`) et, pour chaque ravin, qu'il existe au DEFAULT un candidat
+mesuré au-delà du test du canyon (chute de MNT > `minCanyonDropM`) contenant au moins deux suites
+hautes : si le candidat fragile de `n13` disparaît, le banc casse au lieu de passer sur rien. Le balayage passe à 40 réglages. Coût de `n13` : 3 tuiles MNT
+z15 et leurs MNS.
+
 ### E3 — Remplacement par le profil du tablier
 
 Sur chaque ouvrage accepté : MNS filtré par médiane glissante sur 25 m, trous < 300 m comblés
@@ -1189,7 +1305,9 @@ consigné dans le ledger comme mesuré et écarté.
   3 m de pixel), puis le MNS à z15 sur les seuls candidats. À mesurer, comme la cadence de 20 req/s.
 - **WASI.** `fetch_tile(zoom, x, y)` ne nomme pas de source : l'hôte ne sait servir qu'une couche.
   E3 y est impossible sans changement d'ABI (un argument de couche, ou un second import). E4 n'a
-  pas ce problème. À trancher avant E7.
+  pas ce problème. **Tranché le 2026-10-13 : pas de changement d'ABI.** Sous WASI, les ponts restent
+  au MNT (E4 s'applique) ; E7 inscrit ce manque dans `surface-coverage.md` et dans
+  `wasm-wasi-abi.md`, au lieu d'ajouter une couche à `fetch_tile`.
 - **Pourquoi pas les tags OSM.** vcyclist ne lit pas OSM, et l'étude montre que les tags `bridge`
   ratent des ouvrages entiers (Saint-Nazaire). Le MNH est une détection *physique*, indépendante de
   la qualité des tags. Un GPX issu d'un routeur peut porter `bridge` dans ses extensions ; c'est un

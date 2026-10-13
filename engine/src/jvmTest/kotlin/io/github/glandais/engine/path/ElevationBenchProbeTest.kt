@@ -1616,7 +1616,7 @@ class ElevationBenchProbeTest {
     }
 
     /**
-     * E2 bis, on every `jvmTest`: the controls of `analysis/controls.py` (12 negatives, 8 held-out
+     * E2 bis, on every `jvmTest`: the controls of `analysis/controls.py` (13 negatives, 8 held-out
      * positives) parse, keep their guards, and their GPX is the same run as their truth.
      */
     @Test
@@ -1821,8 +1821,28 @@ class ElevationBenchProbeTest {
             .joinToString(" ") { "${it.key}${it.value}" }
             .ifEmpty { "-" }
 
+    /** Runs of `MNH > tallMnhM` of at least `minTallRunM` lying inside [cand]: how many the gap rule merged. */
+    private fun tallRunsIn(
+        p: DeckProfile,
+        cand: DeckCandidate,
+        opts: DeckDetectorOptions,
+    ): Int {
+        val minRun = kotlin.math.round(opts.minTallRunM / opts.stepM).toInt()
+        var count = 0
+        var len = 0
+        for (k in cand.first..cand.last + 1) {
+            if (k <= cand.last && p.mnhM[k] > opts.tallMnhM) {
+                len++
+            } else {
+                if (len >= minRun) count++
+                len = 0
+            }
+        }
+        return count
+    }
+
     /**
-     * E2 bis, `INTEGRATION=1`: [DeckDetector] on the 12 negative controls and 8 held-out positives
+     * E2 bis, `INTEGRATION=1`: [DeckDetector] on the 13 negative controls (one wooded-ravine one since E2 quater) and 8 held-out positives
      * of `analysis/controls.py`, sampled exactly as variant (a) of [deckDetector] (MNS − MNT z15,
      * bilinear, one layer after the other), then a one-at-a-time sensitivity sweep around
      * [DeckDetectorOptions.DEFAULT] — built here with `copy`, DEFAULT itself never changes. The sweep
@@ -1830,7 +1850,7 @@ class ElevationBenchProbeTest {
      * counts, that the extracted Strava scoring reproduces E2 on [DeckDetectorOptions.PYTHON] (16/21,
      * FP 0, 8 / 8 stations) and that DEFAULT finds the same bridges with no more outside the truth,
      * and the acceptance criterion at DEFAULT: 0 FP and 0 `G`/`O`/`L` station inside a detection on
-     * the 12 negatives, n04's own Pont de la Beaujoire found. E2 ter adds: nothing PYTHON finds is
+     * the 13 negatives, n04's own Pont de la Beaujoire found. E2 ter adds: nothing PYTHON finds is
      * lost, held-out `D` coverage ≥ 90 %, 13/15 spans, p01/p06/p07 each ≥ 95 % covered, and with the
      * canyon test off no more `G`/`O`/`L` stations than PYTHON lets through.
      */
@@ -2107,7 +2127,7 @@ class ElevationBenchProbeTest {
         // The acceptance criterion, asserted at DEFAULT only (the sweep stays print-only): no false
         // positive and no G/O/L station inside a detection on any negative, and the one own bridge
         // that DEFAULT finds (Beaujoire) still found. Every negative must be scored.
-        assertEquals(12, negs.size, "negatives inside LiDAR HD coverage")
+        assertEquals(13, negs.size, "negatives inside LiDAR HD coverage")
         assertEquals(0, negs.sumOf { scores.getValue(it.id).fps.size }, "DEFAULT false positives on the negatives")
         for (k in "GOL") {
             assertEquals(0, negs.sumOf { scores.getValue(it.id).out(k) }, "DEFAULT $k stations inside detections on the negatives")
@@ -2215,8 +2235,10 @@ class ElevationBenchProbeTest {
                 "minLengthM 20" to default.copy(minLengthM = 20.0),
                 "stress, not a proposal" to
                     default.copy(tallMnhM = 3.0, minTallRunM = 10.0, maxRoughnessM = 1.2, maxShortRoughnessM = 0.8, mergeGapM = 100.0),
+                // E2 quater: the two variations that cost nothing on the E2 bis sweep, together.
+                "mergeGapM 200 + median 35" to default.copy(mergeGapM = 200.0, surfaceMedianWindowM = 35.0),
             )
-        assertEquals(39, settings.size, "DEFAULT + 38 variants")
+        assertEquals(40, settings.size, "DEFAULT + 39 variants")
         val negGol = HashMap<String, Int>()
         val bridges = structures.filter { it.kind == "bridge" }
         val lostFive = LOST_FIVE.mapValues { (_, needle) -> bridges.single { needle in it.name }.key }
@@ -2379,6 +2401,100 @@ class ElevationBenchProbeTest {
             negGol.getValue("minCanyonDropM -1 (off)") <= negGol.getValue("PYTHON, canyon off"),
             "canyon off: DEFAULT G/O/L ${negGol["minCanyonDropM -1 (off)"]} > PYTHON ${negGol["PYTHON, canyon off"]}",
         )
+
+        // ── E2 quater: ravine negatives, and the two cheap variations together ────────
+        val quater =
+            listOf(
+                "DEFAULT" to default,
+                "mergeGapM 200" to default.copy(mergeGapM = 200.0),
+                "surfaceMedianWindowM 35" to default.copy(surfaceMedianWindowM = 35.0),
+                "mergeGapM 200 + median 35" to default.copy(mergeGapM = 200.0, surfaceMedianWindowM = 35.0),
+            )
+        val ravines = negs.filter { it.category == RAVINE_CATEGORY }
+        assertEquals(RAVINE_NEGATIVES, ravines.size, "ravine negatives scored")
+        println()
+        println(
+            "$tag E2 quater: per held-out positive, spans found / counted and D coverage; then every candidate measured on the ravine negatives",
+        )
+        for ((label, o) in quater) {
+            val sc =
+                scored.associate {
+                    it.id to scoreControl(controls.getValue(it.id), spans, DeckDetector.detect(profiles.getValue(it.id), o), o)
+                }
+            println(
+                "$tag   %-26s %s".fmt(
+                    label,
+                    poss.joinToString("  ") { r ->
+                        val s = sc.getValue(r.id)
+                        "${r.id.substringBefore('-')} ${s.dFound.size}/${s.dSpans.size} ${s.coveragePct()}%"
+                    },
+                ),
+            )
+            // Where a positive loses coverage against DEFAULT: what the detector did on its D stations.
+            for (r in poss) {
+                val s = sc.getValue(r.id)
+                if (s.dInSpan >= scores.getValue(r.id).dInSpan) continue
+                val d = DeckDetector.detect(profiles.getValue(r.id), o)
+                for (cand in (d.accepted + d.rejected.filter { it.metrics != null }).sortedBy { it.first }) {
+                    if (s.dSpans.none { cand.first <= it.i1 && cand.last >= it.i0 }) continue
+                    val m = cand.metrics!!
+                    println(
+                        "$tag     %-28s km %.2f–%.2f, L %.0f m, P95 %.1f %% (raw %.1f, clean %.2f, onClean %s), drop %.1f, %s".fmt(
+                            r.id,
+                            cand.startM / 1000,
+                            cand.endM / 1000,
+                            m.lengthM,
+                            m.slopeP95 * 100,
+                            m.rawSlopeP95 * 100,
+                            m.cleanFraction,
+                            m.slopeOnCleanDeck,
+                            m.mntDropM,
+                            cand.rejection?.name ?: "DECK",
+                        ),
+                    )
+                }
+            }
+            for (r in ravines) {
+                val c = controls.getValue(r.id)
+                val p = profiles.getValue(r.id)
+                val s = sc.getValue(r.id)
+                for (cand in (s.accepted + s.measured).sortedBy { it.first }) {
+                    val m = cand.metrics!!
+                    println(
+                        "$tag     %-28s km %.2f–%.2f, L %.0f m, drop %.1f, P95 %.1f %% (raw %.1f, clean %.2f, onClean %s), rough %.2f, %s, tall %s, tall runs %d"
+                            .fmt(
+                                r.id,
+                                cand.startM / 1000,
+                                cand.endM / 1000,
+                                m.lengthM,
+                                m.mntDropM,
+                                m.slopeP95 * 100,
+                                m.rawSlopeP95 * 100,
+                                m.cleanFraction,
+                                m.slopeOnCleanDeck,
+                                m.roughnessM,
+                                cand.rejection?.name ?: (if (cand in s.fps) "DECK (FP)" else "DECK"),
+                                tallKinds(c, p, cand, o),
+                                tallRunsIn(p, cand, o),
+                            ),
+                    )
+                }
+                // A ravine negative is only a witness while DEFAULT still measures a candidate past
+                // the canyon test on it: if the candidate vanishes (it is fragile, see the task doc),
+                // 0 FP / 0 G/O/L above would pass on nothing.
+                if (label == "DEFAULT") {
+                    val witnesses = s.measured.filter { it.metrics!!.mntDropM > o.minCanyonDropM }
+                    assertTrue(
+                        witnesses.isNotEmpty(),
+                        "${r.id}: no candidate past the canyon test at DEFAULT, the ravine negative tests nothing",
+                    )
+                    assertTrue(
+                        witnesses.any { tallRunsIn(p, it, o) >= 2 },
+                        "${r.id}: no measured candidate merges two tall runs at DEFAULT",
+                    )
+                }
+            }
+        }
         println()
         println(
             "$tag tiles: %d from disk, %d fetched (%.1f MB) in this test".fmt(tileHits.get(), tileMisses.get(), bytesFetched.get() / 1e6),
@@ -2424,8 +2540,17 @@ class ElevationBenchProbeTest {
                 "n08-nantes-centre Pont de la Rotonde",
             )
 
+        /**
+         * E2 quater: category of the wooded-ravine negatives (`n13`): a route through a wooded ravine
+         * where DEFAULT merges two kept tall runs across an MNT canyon, off any OSM bridge, so the
+         * canyon test passes and the clean-deck slope decides. Their count is the size self-check of the
+         * E2 quater block, and the block asserts that DEFAULT still measures such a candidate on each.
+         */
+        const val RAVINE_CATEGORY = "ravine-merged-tall-runs"
+        const val RAVINE_NEGATIVES = 1
+
         /** `index.csv` rows per role — the size self-check of its reader. */
-        val CONTROL_ROLES = mapOf("negative" to 12, "held-out-positive" to 8)
+        val CONTROL_ROLES = mapOf("negative" to 13, "held-out-positive" to 8)
 
         /**
          * Per control, from the second `controls.py` generation (underpasses under the route
@@ -2447,6 +2572,7 @@ class ElevationBenchProbeTest {
                 "n10-loire-levee" to intArrayOf(670, 0, 0, 0, 0),
                 "n11-morlaix-viaduc" to intArrayOf(307, 7, 0, 49, 0),
                 "n12-toulouse-brienne" to intArrayOf(287, 0, 0, 22, 0),
+                "n13-morlaix-pennele" to intArrayOf(187, 0, 0, 0, 0),
                 "p01-chevire" to intArrayOf(602, 11, 0, 28, 1),
                 "p02-thouare" to intArrayOf(368, 0, 0, 42, 3),
                 "p03-ancenis" to intArrayOf(298, 0, 0, 14, 1),

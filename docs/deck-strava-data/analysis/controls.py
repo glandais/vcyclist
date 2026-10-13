@@ -121,6 +121,17 @@ SITES = [
          waypoints=[(43.61047, 1.41823), (43.60756, 1.42658), (43.60474, 1.43410)],
          classes=STREETS | {'cycleway'}, selector=dict(name=r'Brienne'),
          checks=[('name_frac', r'Brienne', 0.7)]),
+    # E2 quater: the one wooded ravine found by a scan of 34 towns (~3 800 km of OSM ways, vcyclist's own
+    # MNS/MNT z15 sampling; scratch, not committed) where DEFAULT merges two kept tall runs across an
+    # MNT canyon off any OSM bridge. The route starts where the scanned way chain starts: started 120 m
+    # earlier (stations shifted by 0.4 m), the same canopy is one ROUGH group and nothing is measured.
+    dict(id='n13-morlaix-pennele', role='negative', category='ravine-merged-tall-runs',
+         place='Morlaix path along the wooded Vallee de la Pennele',
+         waypoints=[(48.58182, -3.84616), (48.58308, -3.84581), (48.58314, -3.84531), (48.58480, -3.84199),
+                    (48.58536, -3.84111), (48.58649, -3.83803)],
+         # one 15 m flight of steps (way 183631737) joins the two named path sections
+         classes=CYCLE | STREETS | {'service', 'footway', 'steps'},
+         checks=[('name_frac', r'Penn[ée]l[ée]', 0.6)]),
     dict(id='p01-chevire', role='held-out-positive', category='long-high-motorway-bridge',
          place='Pont de Chevire Nantes N 844',
          derived='chevire_bridge', bbox=(47.17, -1.66, 47.22, -1.58), osm_key='chevire',
