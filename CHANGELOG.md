@@ -1,3 +1,10 @@
+# [6.8.0](https://github.com/glandais/vcyclist/compare/v6.7.0...v6.8.0) (2026-10-14)
+
+
+### Features
+
+* **engine:** flatten tunnels only on measured terrain by default (tunnelScope) ([03e4704](https://github.com/glandais/vcyclist/commit/03e4704c16f5c990eacbdba7ac8f8a42b4b3099d))
+
 # [6.7.0](https://github.com/glandais/vcyclist/compare/v6.6.0...v6.7.0) (2026-10-14)
 
 
