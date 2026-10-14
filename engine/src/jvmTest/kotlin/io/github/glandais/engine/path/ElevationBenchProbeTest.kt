@@ -517,6 +517,7 @@ class ElevationBenchProbeTest {
                                         samples = deck?.terrain,
                                         protected = deck?.replacements?.map { it.writtenRange(STEP_M) } ?: emptyList(),
                                         refreshM = Enhancer.PRE_FIX_SPACING_M,
+                                        origins = deck?.terrainOrigins,
                                     )
                                 // It moves nothing outside its tunnels and their refresh margins, bit for bit.
                                 for (i in 0 until before.size) {
