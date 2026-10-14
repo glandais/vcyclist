@@ -1,3 +1,10 @@
+# [6.7.0](https://github.com/glandais/vcyclist/compare/v6.6.0...v6.7.0) (2026-10-14)
+
+
+### Features
+
+* **engine:** report where every kilometre of terrain was read, and ride no deck over a foreign one ([73d8738](https://github.com/glandais/vcyclist/commit/73d87381f096c0b616d5349952c835dd8ea68755))
+
 # [6.6.0](https://github.com/glandais/vcyclist/compare/v6.5.2...v6.6.0) (2026-10-14)
 
 
