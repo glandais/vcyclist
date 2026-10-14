@@ -566,8 +566,17 @@ INTEGRATION=1 ./gradlew :elevation:jvmTest --tests '*IgnLidarHdIntegrationTest*'
 ### What the corrections report
 
 Every path the enhancer returns carries `Path.elevationCorrections` (`null` only on a path that
-never went through it): a status per correction, counts and warnings, carried by `copy()` and the
-simplifier.
+never went through it): a status per correction, counts and warnings, carried by `copy()`, the
+smoother and the simplifier.
+
+A caller that runs no physics gets the same two corrections, and the same report, from
+`ElevationCorrection.fixAndCorrect(path, provider, options, maxSpacingM)` — the enhancer's steps
+1–3c, called by the enhancer itself (`ElevationCorrectionJvm.fixAndCorrectBlocking` from Java). It
+imposes its own grid: `maxSpacingM` bounds step 3's refinement, 2 m by default as in the enhancer.
+The detectors read their own stations every 5 m whatever the path's spacing, so 5 m loses nothing
+they found and 10 m only every other station before the 150 m smoother; a server bounding its
+memory (352 bytes a point) passes one of those. See
+[`using-from-java.md`](using-from-java.md#elevation-without-the-physics).
 
 | Status | Means |
 |---|---|

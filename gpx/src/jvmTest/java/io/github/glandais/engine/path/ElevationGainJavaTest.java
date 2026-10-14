@@ -85,4 +85,14 @@ public class ElevationGainJavaTest {
         assertEquals(130.0, path.getReportedElevationGain(), 1e-9);
         assertTrue("loss is negative by convention", path.getReportedElevationLoss() <= 0.0);
     }
+
+    @Test
+    public void theJavaFacadeAnnotatesWithTheDefaultPreset() {
+        Path path = hill();
+        ElevationGainResult result = ElevationGainJvm.annotate(path);
+        assertEquals(result.getGainM(), path.getElevationGainFiltered(), 1e-9);
+        Path other = hill();
+        ElevationGainJvm.annotate(other, ElevationGainOptions.Companion.getDEFAULT());
+        assertEquals(path.getElevationGainFiltered(), other.getElevationGainFiltered(), 1e-9);
+    }
 }

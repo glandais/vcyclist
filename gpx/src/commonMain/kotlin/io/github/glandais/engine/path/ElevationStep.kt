@@ -66,6 +66,8 @@ object ElevationStep {
             out.setElevation(i, smoothed[i].elevation)
         }
         out.computeDerivedData()
+        // Smoothing moves no deck and no tunnel: what the corrections did still holds.
+        out.elevationCorrections = source.elevationCorrections
         return out
     }
 

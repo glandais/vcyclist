@@ -1,20 +1,11 @@
 package io.github.glandais.engine
 
 import io.github.glandais.elevation.ElevationProvider
-import io.github.glandais.engine.path.BridgeDeckResult
-import io.github.glandais.engine.path.BridgeDeckStep
-import io.github.glandais.engine.path.DeckDetectorOptions
-import io.github.glandais.engine.path.ElevationCorrectionReport
 import io.github.glandais.engine.path.ElevationGain
 import io.github.glandais.engine.path.ElevationStep
 import io.github.glandais.engine.path.Path
 import io.github.glandais.engine.path.PathSimplifier
-import io.github.glandais.engine.path.PointPerDistance
 import io.github.glandais.engine.path.PointPerSecond
-import io.github.glandais.engine.path.TunnelDetectorOptions
-import io.github.glandais.engine.path.TunnelResult
-import io.github.glandais.engine.path.TunnelStep
-import io.github.glandais.engine.path.writtenRange
 import io.github.glandais.engine.physics.AeroProviderConstant
 import io.github.glandais.engine.physics.MaxSpeedComputer
 import io.github.glandais.engine.physics.PowerProviderConstant
@@ -24,7 +15,6 @@ import io.github.glandais.engine.physics.WindProviderNone
 import io.github.glandais.engine.physiology.WPrimeBalanceComputer
 import io.github.glandais.engine.trajectory.PathCurvature
 import io.github.glandais.engine.trajectory.RacingLine
-import kotlin.math.abs
 
 /**
  * Top-level enhancement pipeline : transforms a raw GPS [Path] into a physics-aware
@@ -57,6 +47,9 @@ import kotlin.math.abs
  *
  *    The outcome of both is stamped on the returned path as [Path.elevationCorrections] (a status
  *    per step, counts, warnings), after step 11: the one stamping site.
+ *
+ *    Steps 1–3c are [ElevationCorrection.fixAndCorrect]'s code, public for a caller that runs no
+ *    physics; it takes the refinement's widest spacing as a parameter, 2 m here.
  * 4. smooth elevations (always runs) — keeps the pre-smoothing profile in `sourceElevation`.
  * 5. **curvature**, *or* the **racing line** : both write `trajectoryCurvature`, which step 6
  *    prefers over its own windowed estimate. The curvature pass is an annotation and moves nothing;
@@ -160,52 +153,18 @@ object Enhancer {
             "fixElevation = true but elevationProvider is null. Pass a provider, or set " +
                 "fixElevation = false (enhanceCourseDefault resolves this automatically)."
         }
-        var path = course.path
-
-        // Step 1 : densify before fixElevation so DEM lookups have ~30 m granularity.
-        path = PointPerDistance.compute(path, minDistanceM = -1.0, maxDistanceM = PRE_FIX_SPACING_M)
-
-        // Step 2 : fix elevation (optional). The provider is non-null here — see the require above.
-        if (options.fixElevation && elevationProvider != null) {
-            path = ElevationStep.fixElevation(path, elevationProvider)
-        }
-
-        // Step 3 : refine to 1-2 m spacing before downstream physics.
-        path = PointPerDistance.compute(path, minDistanceM = REFINE_MIN_DISTANCE_M, maxDistanceM = REFINE_MAX_DISTANCE_M)
-
-        // Step 3b : bridge decks — only after a DEM correction (a GPX's own <ele>, a barometer's,
-        // is never overwritten), and only when the provider carries a surface model. On the dense
-        // path, before the smoother, so `sourceElevation` and the reported D+ carry the deck.
-        // Switched off, the surface model is never read.
-        val surface = elevationProvider?.surfaceModel
-        val decksAllowed = options.fixElevation && elevationProvider != null && options.elevationCorrections.bridgeDecks
-        var decks: BridgeDeckResult? = null
-        if (decksAllowed && elevationProvider != null && surface != null) {
-            decks = BridgeDeckStep.apply(path, elevationProvider, surface)
-            path = decks.path
-        }
-
-        // Step 3c : tunnels — after a DEM correction only, on any source (no surface model needed).
-        // The deck write moves no coordinate, so 3b's terrain samples are this step's stations when
-        // both grids agree; otherwise it reads them itself. It never writes over a deck.
-        var tunnels: TunnelResult? = null
-        if (options.elevationCorrections.tunnels && options.fixElevation && elevationProvider != null) {
-            val tunnelOptions = TunnelDetectorOptions.DEFAULT
-            val deckStep = DeckDetectorOptions.DEFAULT.stepM
-            val sameGrid = abs(tunnelOptions.stepM - deckStep) < 1e-9
-            val protected = decks?.replacements?.map { it.writtenRange(deckStep) } ?: emptyList()
-            tunnels =
-                TunnelStep.apply(
-                    path,
-                    elevationProvider,
-                    tunnelOptions,
-                    samples = decks?.terrain?.takeIf { sameGrid },
-                    protected = protected,
-                    refreshM = PRE_FIX_SPACING_M,
-                )
-            path = tunnels.path
-        }
-        val corrections = ElevationCorrectionReport.of(decks, decksAllowed && surface == null, tunnels)
+        // Steps 1–3c : densify, fix elevation, refine, bridge decks, tunnels — one code path with
+        // the callers that run no physics. The provider is non-null whenever fixElevation is on:
+        // see the require above.
+        var path =
+            ElevationCorrection.run(
+                course.path,
+                elevationProvider?.takeIf { options.fixElevation },
+                options.elevationCorrections,
+                REFINE_MIN_DISTANCE_M,
+                REFINE_MAX_DISTANCE_M,
+            )
+        val corrections = path.elevationCorrections
 
         // Step 4 : smooth elevations (always runs).
         path = ElevationStep.smoothElevation(path, options.elevationSmoothWindowM)

@@ -1,0 +1,110 @@
+package io.github.glandais.engine
+
+import io.github.glandais.engine.path.DeckWorld
+import io.github.glandais.engine.path.ElevationCorrectionStatus
+import io.github.glandais.engine.path.ElevationStep
+import io.github.glandais.engine.path.Path
+import io.github.glandais.engine.path.TunnelWorld
+import kotlinx.coroutines.test.runTest
+import kotlin.test.Test
+import kotlin.test.assertEquals
+import kotlin.test.assertFailsWith
+import kotlin.test.assertNull
+import kotlin.test.assertTrue
+
+/** Steps 1–3c as a caller without physics reaches them, on [DeckWorld] and [TunnelWorld]. */
+class ElevationCorrectionTest {
+    /** The route as a sparse input: one point every 50 m, so the step's own grid shows. */
+    private fun sparse(): Path = DeckWorld.path(stepM = 50.0)
+
+    private fun maxGap(p: Path): Double = (1 until p.size).maxOf { p.distance(it) - p.distance(it - 1) }
+
+    private fun elevationAt(
+        p: Path,
+        d: Double,
+    ): Double = p.elevation((0 until p.size).minBy { kotlin.math.abs(p.distance(it) - d) })
+
+    private val deckMid = (DeckWorld.DECK_START_M + DeckWorld.DECK_END_M) / 2
+
+    @Test
+    fun the_deck_is_ridden_on_the_enhancers_grid_by_default() =
+        runTest {
+            val input = sparse()
+            val out = ElevationCorrection.fixAndCorrect(input, DeckWorld.terrain().withSurfaceModel(DeckWorld.surface()))
+            val report = out.elevationCorrections!!
+            assertEquals(ElevationCorrectionStatus.APPLIED, report.bridgeDecks)
+            assertEquals(1, report.bridgeDecksApplied)
+            assertTrue(maxGap(out) <= Enhancer.REFINE_MAX_DISTANCE_M + 1e-6, "gap ${maxGap(out)}")
+            assertEquals(DeckWorld.DECK_M, elevationAt(out, deckMid), 1.0)
+            assertNull(input.elevationCorrections, "the caller's path is never stamped")
+        }
+
+    @Test
+    fun a_wider_grid_keeps_the_deck_and_bounds_the_points() =
+        runTest {
+            for (spacing in listOf(5.0, 10.0)) {
+                val out =
+                    ElevationCorrection.fixAndCorrect(
+                        sparse(),
+                        DeckWorld.terrain().withSurfaceModel(DeckWorld.surface()),
+                        maxSpacingM = spacing,
+                    )
+                assertEquals(ElevationCorrectionStatus.APPLIED, out.elevationCorrections!!.bridgeDecks, "at $spacing m")
+                assertTrue(maxGap(out) <= spacing + 1e-6, "gap ${maxGap(out)} at $spacing m")
+                assertTrue(out.size <= 3_000.0 / (spacing / 2) + 2, "${out.size} points at $spacing m")
+                assertEquals(DeckWorld.DECK_M, elevationAt(out, deckMid), 1.0, "deck at $spacing m")
+            }
+        }
+
+    @Test
+    fun the_tunnel_runs_on_a_provider_without_surface_model() =
+        runTest {
+            val out = ElevationCorrection.fixAndCorrect(DeckWorld.path(stepM = 50.0), TunnelWorld.terrain(), maxSpacingM = 10.0)
+            val report = out.elevationCorrections!!
+            assertEquals(ElevationCorrectionStatus.UNAVAILABLE, report.bridgeDecks)
+            assertEquals(ElevationCorrectionStatus.APPLIED, report.tunnels)
+            assertEquals(TunnelWorld.GROUND_M, elevationAt(out, (TunnelWorld.START_M + TunnelWorld.END_M) / 2), 1.0)
+        }
+
+    @Test
+    fun switched_off_neither_step_reads_a_tile() =
+        runTest {
+            val unreadable = DeckWorld.surface { error("the surface model was read") }
+            val out =
+                ElevationCorrection.fixAndCorrect(
+                    sparse(),
+                    DeckWorld.terrain().withSurfaceModel(unreadable),
+                    ElevationCorrectionOptions(bridgeDecks = false, tunnels = false),
+                )
+            val report = out.elevationCorrections!!
+            assertEquals(ElevationCorrectionStatus.NOT_RUN, report.bridgeDecks)
+            assertEquals(ElevationCorrectionStatus.NOT_RUN, report.tunnels)
+            assertTrue(report.warnings.isEmpty())
+        }
+
+    @Test
+    fun a_surface_tile_that_cannot_be_read_is_reported_not_thrown() =
+        runTest {
+            val unreadable = DeckWorld.surface { error("HTTP 429") }
+            val out = ElevationCorrection.fixAndCorrect(sparse(), DeckWorld.terrain().withSurfaceModel(unreadable))
+            assertEquals(ElevationCorrectionStatus.FETCH_FAILED, out.elevationCorrections!!.bridgeDecks)
+            assertTrue(out.elevationCorrections!!.warnings.isNotEmpty())
+        }
+
+    @Test
+    fun the_smoother_keeps_the_report() =
+        runTest {
+            val out = ElevationCorrection.fixAndCorrect(sparse(), DeckWorld.terrain().withSurfaceModel(DeckWorld.surface()))
+            assertEquals(out.elevationCorrections, ElevationStep.smoothElevation(out).elevationCorrections)
+        }
+
+    @Test
+    fun the_spacing_must_be_positive() =
+        runTest {
+            for (bad in listOf(0.0, -1.0, Double.NaN, Double.POSITIVE_INFINITY)) {
+                assertFailsWith<IllegalArgumentException> {
+                    ElevationCorrection.fixAndCorrect(sparse(), DeckWorld.terrain(), maxSpacingM = bad)
+                }
+            }
+        }
+}

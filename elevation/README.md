@@ -109,6 +109,31 @@ The fetcher **may block** — it is invoked on `Dispatchers.IO`, never on the ca
 example writes to a temporary file and moves it into place rather than writing the destination
 directly.
 
+### A tile store, from Java
+
+The fetcher above owns the transport, so it also owns what the library would otherwise do for you:
+IGN's request pacing, the retries, choosing the decoder per tier, and never caching an error page.
+For a catalogued `ElevationSource`, hand over only the storage:
+
+```java
+ElevationProvider provider =
+    ElevationProviderJvm.newElevationProvider(ElevationSource.IGN_LIDAR_HD, new TileStore() {
+        public byte[] get(TileKey key) { /* read cacheRoot.resolve(key.relativePath()), or null */ }
+        public void put(TileKey key, byte[] bytes) { /* write to a temp file, Files.move into place */ }
+    });
+```
+
+Every tier goes through the store — IGN's terrain (`ign-lidar-hd-mnt`), its surface model at z15
+(`ign-lidar-hd-mns`, for the bridge decks) and the Mapterhorn fallback (`mapterhorn`) — under
+`TileKey.relativePath()`, `{layer}/{z}/{x}/{y}.{extension}`. The key comes from the tile
+coordinates: an IGN tile is a WMS request whose URL carries a bounding box and names no tile.
+
+The contract (`TileStore`'s KDoc): the bytes are the **raw HTTP body** — WebP for Mapterhorn, the
+float32 BIL raster for IGN — so an existing `mapterhorn/{z}/{x}/{y}.webp` cache is read as it is;
+`put` is called only with a body that decoded; an entry that does not decode is fetched again and
+overwritten; `get` throwing is a miss and `put` throwing is ignored. Both may block and must be
+thread-safe. Pinned by `TileStoreTest` and `TileStoreJavaTest`.
+
 Two cache levels coexist and do not overlap: yours holds compressed bytes, `TileManager` keeps
 an LRU of decoded `Tile`s (`ElevationProviderConfig.cacheSize`).
 

@@ -75,6 +75,25 @@ fun newElevationProvider(
 ): ElevationProvider = source.provider(zoomLevel)
 
 /**
+ * The provider for a catalogued [source], every tier of it — fallback and surface model included —
+ * read from **your** [store] first and from the network on a miss. The library keeps the transport:
+ * request pacing at each source's own rate (IGN answers 429 past 40 a second), retries, decoding,
+ * and never storing a body that is not a tile. See [TileStore] for the contract and [TileKey] for
+ * the names: `mapterhorn/{z}/{x}/{y}.webp`, `ign-lidar-hd-mnt/…/{y}.bil`, `ign-lidar-hd-mns/…`.
+ */
+fun newElevationProvider(
+    source: ElevationSource,
+    store: TileStore,
+): ElevationProvider = source.provider(null) { config -> storedTileFetcher(config, store) }
+
+/** Same, at [zoomLevel] for the source itself; the fallback keeps its own default zoom. */
+fun newElevationProvider(
+    source: ElevationSource,
+    zoomLevel: Int,
+    store: TileStore,
+): ElevationProvider = source.provider(zoomLevel) { config -> storedTileFetcher(config, store) }
+
+/**
  * A provider whose tiles come from **your** code — the injection point for a disk cache, an
  * object store, or tiles bundled with the application (task g32).
  *

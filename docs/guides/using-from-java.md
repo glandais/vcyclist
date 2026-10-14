@@ -15,8 +15,8 @@ twin and every optional parameter becomes optional again.
 
 | Module | Facades |
 |---|---|
-| `:gpx` | `GpxParserJvm`, `GpxWriterJvm`, `GpxToPathJvm`, `GpxFromPathJvm`, `GpxModelJvm`, `PathJvm`, `PathSimplifierJvm`, `ElevationStepJvm`, `TabularWritersJvm` |
-| `:engine` | `EnhancerJvm`, `EngineModelJvm`, `ClimbDetectorJvm`, `PathWindJvm` |
+| `:gpx` | `GpxParserJvm`, `GpxWriterJvm`, `GpxToPathJvm`, `GpxFromPathJvm`, `GpxModelJvm`, `PathJvm`, `PathSimplifierJvm`, `ElevationStepJvm`, `ElevationGainJvm`, `TabularWritersJvm` |
+| `:engine` | `EnhancerJvm`, `ElevationCorrectionJvm`, `EngineModelJvm`, `ClimbDetectorJvm`, `PathWindJvm` |
 | `:elevation` | `ElevationProviderJvm`, `TileFetcherJvm` |
 | `:fit` | `PathToFitJvm` |
 | `:map` | `MapFactoriesJvm` (`:map` is JVM-only, so this is the only door it has) |
@@ -161,6 +161,30 @@ puts `cyclistPowerProvider` last, which would have made the one provider anybody
 only by also naming the three nobody touches. The factories are ordered by how often each argument
 is actually set.
 
+### Elevation without the physics
+
+A caller that only wants a clean profile — no simulation — chains the pipeline's elevation steps
+itself. `ElevationCorrectionJvm.fixAndCorrectBlocking` is the enhancer's steps 1–3c: the DEM read
+on a 30 m grid, a refinement, then the bridge decks and tunnels (`EngineModelJvm.elevationCorrectionOptions`
+switches them). It imposes its own grid, because the decks and tunnels it finds are written at the
+path's points; the last argument bounds that grid, and the memory with it — a `Path` costs 352 bytes
+a point:
+
+```java
+Path p = ElevationCorrectionJvm.fixAndCorrectBlocking(
+        input, provider, EngineModelJvm.elevationCorrectionOptions(), 10.0);  // ≤ 10 m between points
+ElevationCorrections report = p.getElevationCorrections();               // applied / none-found / fetch-failed…
+p = ElevationStepJvm.smoothElevation(p, 150.0);
+ElevationGainJvm.annotate(p);                     // D+ before simplifying: it reads the unsmoothed profile
+p = PathSimplifierJvm.simplify(p, 3.0, 3.0);      // carries the D+ and the report
+```
+
+The enhancer's own grid is 2 m (the default). 5 m is the detectors' station step and loses nothing
+they found; 10 m keeps every other station, which the 150 m smoothing does not tell apart. A
+terrain tile that cannot be read throws, as `fixElevationBlocking` does; a tile only the decks or
+tunnels needed is reported in the `ElevationCorrections`, not thrown. Pinned by
+`ElevationCorrectionJavaTest`.
+
 ## Outputs
 
 ```java
@@ -203,6 +227,14 @@ to ten tiles are fetched at once. `elevation/README.md` has a complete example, 
 `TileFetcherJvm` exposes the default fetch/decode steps individually
 (`fetchTileBytesBlocking`, `decodeTileBytesBlocking`, `fetchAndDecodeTileBlocking`, each with an
 `…Async` twin) if you only want to wrap one of them.
+
+For a catalogued source, a **`TileStore`** is shorter and safer than a fetcher:
+`ElevationProviderJvm.newElevationProvider(ElevationSource.IGN_LIDAR_HD, store)` reads every tier —
+the IGN terrain, its surface model, the Mapterhorn fallback — from your `get(TileKey)` first, and
+keeps the network half: pacing at each source's rate, retries, decoding, and never a `put` of a body
+that is not a tile. `TileKey.relativePath()` is `{layer}/{z}/{x}/{y}.{webp|bil}`; IGN's WMS URLs
+name no tile, which is why the key is built from the coordinates instead. See
+[`elevation/README.md`](../../elevation/README.md#a-tile-store-from-java).
 
 `getElevationsAlongBlocking` / `…Async` sample elevations along a path, densifying to `step` metres:
 

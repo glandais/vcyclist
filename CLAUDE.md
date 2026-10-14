@@ -74,6 +74,8 @@ cd demo && npm run dev                   # browser demo, hot reload (rebuilds th
      "tunnel" with a deck between its portals (bridge pylons). Tuned for precision: a false tunnel
      flattens a real climb — a real ≥ 30 % knoll on a track still is, and GLO-30 regions are
      unmeasured. Off with `elevationCorrections.tunnels`; a failed read is reported, not silent.
+   - Steps 1–3c are `ElevationCorrection.run`, public as `ElevationCorrection.fixAndCorrect` (and
+     `ElevationCorrectionJvm`) for callers without physics, whose `maxSpacingM` widens step 3's grid
    - The outcome of 3b and 3c is stamped on `Path.elevationCorrections` (a status per step, counts,
      warnings) after step 11; `ElevationCorrectionReport` is the one wording site of the warnings
 4. `smoothElevation` (150 m kernel, always) — keeps the pre-smoothing profile in
