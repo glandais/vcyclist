@@ -36,18 +36,28 @@ enum class TerrainOrigin(
         /** Every [id], in declaration order. */
         val ids: List<String> = entries.map { it.id }
 
-        /** The origin of a value [config] answered at [latitude], [longitude] (degrees). */
+        /**
+         * The origin of a value [config] answered at [latitude], [longitude] (degrees): by its URL
+         * template when it is the catalogue's, else by [declared] (see
+         * [ElevationProvider.servingSource]), else [OTHER].
+         */
         internal fun of(
             config: ElevationProviderConfig,
+            declared: ElevationSource?,
             latitude: Double,
             longitude: Double,
         ): TerrainOrigin {
             val template = config.tileUrlTemplate
-            return when {
-                IgnLidarHdLayer.entries.any { it.config(config.zoomLevel).tileUrlTemplate == template } -> IGN_LIDAR_HD
-                template == ElevationSource.MAPTERHORN.config(config.zoomLevel).tileUrlTemplate ->
-                    if (IgnLidarHdCoverage.contains(latitude, longitude)) MAPTERHORN_MEASURED else MAPTERHORN
-                else -> OTHER
+            val source =
+                when {
+                    IgnLidarHdLayer.entries.any { it.config(config.zoomLevel).tileUrlTemplate == template } -> ElevationSource.IGN_LIDAR_HD
+                    template == ElevationSource.MAPTERHORN.config(config.zoomLevel).tileUrlTemplate -> ElevationSource.MAPTERHORN
+                    else -> declared
+                }
+            return when (source) {
+                ElevationSource.IGN_LIDAR_HD -> IGN_LIDAR_HD
+                ElevationSource.MAPTERHORN -> if (IgnLidarHdCoverage.contains(latitude, longitude)) MAPTERHORN_MEASURED else MAPTERHORN
+                null -> OTHER
             }
         }
     }

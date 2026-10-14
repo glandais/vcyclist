@@ -112,6 +112,9 @@ const elevationCorrections = computed(() => {
         line:
             `Bridge decks: ${statusLabel(report.bridgeDecks, report.bridgeDecksApplied)}` +
             ` · Tunnels: ${statusLabel(report.tunnels, report.tunnelsApplied)}` +
+            (report.tunnelsOutOfScope > 0
+                ? ` (${report.tunnelsOutOfScope} left on unmeasured terrain)`
+                : '') +
             (terrain ? ` · Terrain: ${terrain}` : ''),
         warnings: report.warnings,
     };

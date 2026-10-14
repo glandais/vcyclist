@@ -16,6 +16,7 @@ import io.github.glandais.engine.Bike
 import io.github.glandais.engine.Cyclist
 import io.github.glandais.engine.EnhanceOptions
 import io.github.glandais.engine.RoadCondition
+import io.github.glandais.engine.TunnelScope
 import io.github.glandais.engine.applyTo
 import io.github.glandais.engine.path.ElevationGainOptions
 import io.github.glandais.engine.path.ElevationGainPreset
@@ -71,6 +72,10 @@ fun EnhanceOptionsDto?.toEnhanceOptions(at: String = "/options"): EnhanceOptions
         racingLineCorridor?.let { v ->
             wireEnum("$at/racingLineCorridor", v, CorridorMode.entries.map { it.id }, CorridorMode::byId)
         }
+    val scope =
+        tunnelScope?.let { v ->
+            wireEnum("$at/tunnelScope", v, TunnelScope.ids, TunnelScope::byId)
+        }
     val named =
         elevationGainPreset?.let { v ->
             wireEnum("$at/elevationGainPreset", v, ElevationGainPreset.entries.map { it.id }, ElevationGainPreset::byId)
@@ -122,6 +127,7 @@ fun EnhanceOptionsDto?.toEnhanceOptions(at: String = "/options"): EnhanceOptions
             d.elevationCorrections.copy(
                 bridgeDecks = bridgeDecksEnabled ?: d.elevationCorrections.bridgeDecks,
                 tunnels = tunnelsEnabled ?: d.elevationCorrections.tunnels,
+                tunnelScope = scope ?: d.elevationCorrections.tunnelScope,
             ),
     )
 }
@@ -294,6 +300,7 @@ fun EnhanceOptions.toDto(
         elevationSmoothWindowM = elevationSmoothWindowM,
         bridgeDecksEnabled = elevationCorrections.bridgeDecks,
         tunnelsEnabled = elevationCorrections.tunnels,
+        tunnelScope = elevationCorrections.tunnelScope.id,
         demZoom = zoom,
         demSource = source.id,
     )

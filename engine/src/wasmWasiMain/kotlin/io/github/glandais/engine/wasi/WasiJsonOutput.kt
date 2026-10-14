@@ -161,6 +161,7 @@ internal fun elevationCorrectionsJson(c: ElevationCorrections): String =
         "tunnels" to jsonString(c.tunnels.id),
         "tunnelsApplied" to c.tunnelsApplied.toString(),
         "tunnelsDropped" to c.tunnelsDropped.toString(),
+        "tunnelsOutOfScope" to c.tunnelsOutOfScope.toString(),
         "warnings" to jsonArray(c.warnings.map(::jsonString)),
         "terrain" to (c.terrain?.let(::terrainProvenanceJson) ?: "null"),
     )

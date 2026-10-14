@@ -203,6 +203,15 @@ external interface EnhanceOptionsDto {
     val tunnelsEnabled: Boolean?
 
     /**
+     * Where the tunnel correction may flatten what it detects: `"measured-terrain"` (the default —
+     * IGN LiDAR HD, and Mapterhorn in France, where the detector's precision was measured) or
+     * `"everywhere"` (also on unmeasured terrain, where a false tunnel flattens a real climb). A
+     * tunnel left out is counted in [pathElevationCorrections]' `tunnelsOutOfScope` and located in
+     * its warnings.
+     */
+    val tunnelScope: String?
+
+    /**
      * Web-Mercator zoom for the DEM lookup, `0..15`, used only when [fixElevation] is on.
      *
      * Not part of [EnhanceOptions] — it configures the provider, not the pipeline — so it is read
@@ -534,6 +543,9 @@ external interface ElevationCorrectionsDto {
     val tunnels: String
     val tunnelsApplied: Int
     val tunnelsDropped: Int
+
+    /** Tunnels detected but left as read: the terrain around them is not a measured model. */
+    val tunnelsOutOfScope: Int
     val warnings: Array<String>
 
     /** Where the terrain was read from, in km per origin; `null` without a DEM correction. */
@@ -563,6 +575,7 @@ internal fun elevationCorrectionsObj(c: ElevationCorrections): ElevationCorrecti
     o.tunnels = c.tunnels.id
     o.tunnelsApplied = c.tunnelsApplied
     o.tunnelsDropped = c.tunnelsDropped
+    o.tunnelsOutOfScope = c.tunnelsOutOfScope
     o.warnings = c.warnings.toTypedArray()
     o.terrain = c.terrain?.let(::terrainProvenanceObj)
     return o.unsafeCast<ElevationCorrectionsDto>()
@@ -729,6 +742,7 @@ internal fun EnhanceOptionsDto?.toEnhanceOptions(): EnhanceOptions {
             ElevationCorrectionOptions(
                 bridgeDecks = bridgeDecksEnabled ?: d.elevationCorrections.bridgeDecks,
                 tunnels = tunnelsEnabled ?: d.elevationCorrections.tunnels,
+                tunnelScope = tunnelScope?.let { TunnelScope.byId(it) } ?: d.elevationCorrections.tunnelScope,
             ),
     )
 }
@@ -897,6 +911,7 @@ private val ENHANCE_OPTIONS_KEYS =
         "elevationSmoothWindowM",
         "bridgeDecksEnabled",
         "tunnelsEnabled",
+        "tunnelScope",
         "demZoom",
         "demSource",
     )

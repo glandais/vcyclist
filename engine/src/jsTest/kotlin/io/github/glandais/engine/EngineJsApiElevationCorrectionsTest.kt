@@ -29,6 +29,11 @@ class EngineJsApiElevationCorrectionsTest {
         val decksOff = dto(js("({ bridgeDecksEnabled: false })")).toEnhanceOptions()
         assertEquals(false, decksOff.elevationCorrections.bridgeDecks)
         assertEquals(ElevationCorrectionOptions.DEFAULT.tunnels, decksOff.elevationCorrections.tunnels)
+
+        val everywhere = dto(js("({ tunnelScope: 'everywhere' })")).toEnhanceOptions()
+        assertEquals(TunnelScope.EVERYWHERE, everywhere.elevationCorrections.tunnelScope)
+        assertEquals(TunnelScope.MEASURED_TERRAIN, ElevationCorrectionOptions.DEFAULT.tunnelScope)
+        assertFailsWith<IllegalArgumentException> { dto(js("({ tunnelScope: 'nowhere' })")).toEnhanceOptions() }
     }
 
     @Test

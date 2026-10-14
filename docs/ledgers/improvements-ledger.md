@@ -81,7 +81,7 @@ deliberately skipped. The matrix lives in
 | R29 | DEM road-snapping corridor (Strava's basemap idea) | **None (measured)** | High | ❌ |
 | R30 | DEM zoom above 12 | Negligible (measured) | Very low | ❌ (door shipped) |
 | R31 | **Bridge decks from the LiDAR HD surface model** | **High (measured: Saint-Nazaire 65.8 → 0.5 m)** | Medium | ✅ (`ign-lidar-hd` z15, automatic; `bridgeDecksEnabled` / `--bridge-decks`, status on `Path.elevationCorrections`) |
-| R32 | **Tunnels from the terrain model alone** (canyon fallback measured, deferred) | **High (measured: Grands Goulets +220 → +0.9 m)** | Medium | ✅ (every DEM source, automatic; `tunnelsEnabled` / `--tunnels`, status on `Path.elevationCorrections`) |
+| R32 | **Tunnels from the terrain model alone** (canyon fallback measured, deferred) | **High (measured: Grands Goulets +220 → +0.9 m)** | Medium | ✅ (every DEM source, automatic; `tunnelsEnabled` / `--tunnels`, status on `Path.elevationCorrections`; since 6.8 only on measured terrain by default, `tunnelScope` / `--tunnel-scope everywhere` for the rest) |
 | R33 | **D+ measured before simplification**; kernel and LiDAR D+ preset measured | **High on flat routes, IGN (measured: Nantes reported D+ 0.49 → 0.95 × true); on Mapterhorn, the default, Nantes 0.90 → 1.46, mean error over the bench 0.38 → 0.28** | Very low | ✅ (D+ before `PathSimplifier`); ❌ kernel < 150 m and LiDAR preset, measured and rejected |
 
 Recommended order if acted on: ~~R15 → R12 → R9 → R17 → R10 → R18 → R16 → R11 → R19 → R23 → R24~~ —

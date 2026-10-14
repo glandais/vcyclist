@@ -12,6 +12,7 @@ import io.github.glandais.elevation.decodeBil32Tile
 import io.github.glandais.elevation.provider
 import io.github.glandais.engine.ElevationCorrectionOptions
 import io.github.glandais.engine.EngineConstants
+import io.github.glandais.engine.TunnelScope
 import io.github.glandais.engine.gpx.GpxParser
 import io.github.glandais.engine.gpx.tracksAsPaths
 import io.github.glandais.engine.path.ElevationGainPreset
@@ -817,6 +818,9 @@ class EnhanceCommandTest {
         assertEquals(false, parsed("--no-tunnels").pipelineOptions().elevationCorrections.tunnels)
         assertEquals(true, parsed("--tunnels").pipelineOptions().elevationCorrections.tunnels)
         assertEquals(true, parsed("--bridge-decks").pipelineOptions().elevationCorrections.bridgeDecks)
+        assertEquals(TunnelScope.MEASURED_TERRAIN, parsed().pipelineOptions().elevationCorrections.tunnelScope)
+        assertEquals(TunnelScope.EVERYWHERE, parsed("--tunnel-scope", "everywhere").pipelineOptions().elevationCorrections.tunnelScope)
+        assertFailsWith<IllegalArgumentException> { parsed("--tunnel-scope", "nowhere").pipelineOptions() }
     }
 
     /** [bridgeTerrain] with a surface model whose every fetch throws, counted in [fetches]. */

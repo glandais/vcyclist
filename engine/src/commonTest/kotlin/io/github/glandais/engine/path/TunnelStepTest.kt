@@ -1,8 +1,12 @@
 package io.github.glandais.engine.path
 
 import io.github.glandais.elevation.ElevationProvider
+import io.github.glandais.elevation.ElevationProviderConfig
+import io.github.glandais.elevation.ElevationSource
 import io.github.glandais.elevation.IgnLidarHdLayer
+import io.github.glandais.elevation.TileEncoding
 import io.github.glandais.engine.Enhancer
+import io.github.glandais.engine.TunnelScope
 import kotlinx.coroutines.test.runTest
 import kotlin.math.PI
 import kotlin.math.abs
@@ -115,20 +119,26 @@ class TunnelStepTest {
         runTest {
             val input = TunnelWorld.path()
             val stations = alongTrackStations(input, TunnelDetectorOptions.DEFAULT.stepM)
-            val samples =
-                TunnelWorld
-                    .terrain()
-                    .setElevations(stations)
-                    .map { it.elevation }
-                    .toDoubleArray()
+            val sampled = TunnelWorld.terrain().setElevationsWithOrigin(stations)
+            val samples = sampled.map { it.elevation }.toDoubleArray()
+            val origins = sampled.map { it.origin }
             val read = TunnelStep.apply(input, TunnelWorld.terrain(), refreshM = REFRESH_M)
-            val reused = TunnelStep.apply(input, TunnelWorld.terrain(), samples = samples, refreshM = REFRESH_M)
+            val reused = TunnelStep.apply(input, TunnelWorld.terrain(), samples = samples, refreshM = REFRESH_M, origins = origins)
             assertEquals(read.spans, reused.spans)
             for (i in 0 until input.size) {
                 assertEquals(read.path.elevation(i).toRawBits(), reused.path.elevation(i).toRawBits())
             }
             assertFailsWith<IllegalArgumentException> {
-                TunnelStep.apply(input, TunnelWorld.terrain(), samples = samples.copyOf(samples.size - 1), refreshM = REFRESH_M)
+                TunnelStep.apply(
+                    input,
+                    TunnelWorld.terrain(),
+                    samples = samples.copyOf(samples.size - 1),
+                    refreshM = REFRESH_M,
+                    origins = origins,
+                )
+            }
+            assertFailsWith<IllegalArgumentException>("samples without origins") {
+                TunnelStep.apply(input, TunnelWorld.terrain(), samples = samples, refreshM = REFRESH_M)
             }
         }
 
@@ -168,4 +178,45 @@ class TunnelStepTest {
             )
         }
     }
+
+    /** [TunnelWorld]'s terrain, its tiles declared as [source]'s: where it lies decides the origin. */
+    private fun declared(source: ElevationSource): ElevationProvider =
+        ElevationProvider(
+            ElevationProviderConfig(
+                zoomLevel = 15,
+                tileSize = 256,
+                tileUrlTemplate = "host://wms?BBOX={bbox}&x=1",
+                encoding = TileEncoding.BIL32,
+            ),
+        ) { url -> DeckWorld.tile(url, TunnelWorld::mnt) }.servingSource(source)
+
+    @Test
+    fun on_unmeasured_terrain_the_tunnel_is_left_as_read_and_counted() =
+        runTest {
+            // TunnelWorld lies at 47° N, 1° E: in France. Declared Mapterhorn there is measured.
+            val france = TunnelStep.apply(TunnelWorld.path(), declared(ElevationSource.MAPTERHORN), refreshM = REFRESH_M)
+            assertEquals(TunnelStatus.APPLIED, france.status)
+
+            // The same tiles from an unknown source: unmeasured, so the tunnel is only counted.
+            val unknown =
+                TunnelStep.apply(
+                    TunnelWorld.path(),
+                    declared(ElevationSource.MAPTERHORN).servingSource(null),
+                    refreshM = REFRESH_M,
+                )
+            assertEquals(TunnelStatus.NO_TUNNEL, unknown.status)
+            assertEquals(1, unknown.outOfScope.size)
+            assertSame(unknown.path, unknown.path, "nothing written")
+
+            // Everywhere flattens it all the same.
+            val everywhere =
+                TunnelStep.apply(
+                    TunnelWorld.path(),
+                    declared(ElevationSource.MAPTERHORN).servingSource(null),
+                    refreshM = REFRESH_M,
+                    scope = TunnelScope.EVERYWHERE,
+                )
+            assertEquals(TunnelStatus.APPLIED, everywhere.status)
+            assertEquals(everywhere.spans, france.spans)
+        }
 }

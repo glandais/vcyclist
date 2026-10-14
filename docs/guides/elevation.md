@@ -575,6 +575,20 @@ LiDAR-derived terrain (IGN, and Mapterhorn in France and Finland): Mapterhorn's 
 base (30 m, a surface model) is **unmeasured**; a probe on the Dadès gorge road in Morocco found
 three "tunnels" there. Details in E4 of the task; ledger row **R32**.
 
+**Tunnel scope (6.8).** Since that second limit cannot be measured away, the step now flattens a
+tunnel only where the terrain was measured: `tunnelScope` (`--tunnel-scope`, every door) is
+`measured-terrain` by default, and a detected tunnel is kept only when every station from 100 m
+before a portal to 100 m after the other — the reach of the face test — was read from a measured
+`TerrainOrigin` (IGN LiDAR HD, or Mapterhorn inside `IgnLidarHdCoverage`). Anywhere else it is left
+as read, counted in `tunnelsOutOfScope` and located by km in a warning (`tunnels: N tunnel-shaped
+bump(s) left as read at km …`): a probable tunnel the route still climbs over, which is a knowingly
+wrong output, not a silent one. `everywhere` is the behaviour before. Finland, LiDAR-derived but
+never measured by the bench, stays out until it is. Nothing in the detector changed, so the
+held-out series are not spent: every bench route lies in France, where both scopes agree. A WASI
+host declares the source it serves (`vcSetElevationConfig`'s `source`), which the provider carries
+(`ElevationProvider.servingSource`) so its Mapterhorn points in France count as measured; a
+hand-built provider with an unknown template is unmeasured, and needs `everywhere` to flatten.
+
 **Rate limit.** The Géoplateforme answers HTTP 429 past 40 requests a second per IP, and
 `BatchCalculator` fetches ten tiles at once — a cold run failed on its 51st tile before pacing
 existed. `ElevationProviderConfig.maxRequestsPerSecond` (20 for IGN) paces the default fetcher and

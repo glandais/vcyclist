@@ -38,18 +38,23 @@ class ElevationProvider private constructor(
      * [setElevations] read the terrain only.
      */
     val surfaceModel: ElevationProvider?,
+    /**
+     * The catalogued source these tiles are, when their URL template does not say it — a WASI
+     * host serving them through `fetch_tile`. Read only to tell a [TerrainOrigin]. See [servingSource].
+     */
+    val declaredSource: ElevationSource?,
 ) {
     constructor(
         config: ElevationProviderConfig = ElevationProviderConfig(),
         fetcher: suspend (String) -> RawTile = defaultTileFetcher(config),
-    ) : this(config, fetcher, null, false, null)
+    ) : this(config, fetcher, null, false, null, null)
 
     /** A provider whose no-data points read `NaN`: see [IgnLidarHdLayer.provider], its only caller. */
     internal constructor(
         config: ElevationProviderConfig,
         fetcher: suspend (String) -> RawTile,
         keepNoData: Boolean,
-    ) : this(config, fetcher, null, keepNoData, null)
+    ) : this(config, fetcher, null, keepNoData, null, null)
 
     init {
         require(ElevationFunctions.isValidZoomLevel(config.zoomLevel)) {
@@ -96,7 +101,7 @@ class ElevationProvider private constructor(
      */
     fun withFallback(other: ElevationProvider): ElevationProvider {
         require(!keepNoData) { "a raw IGN LiDAR HD layer takes no fallback: its no-data must stay NaN" }
-        return ElevationProvider(config, fetcher, other, false, surfaceModel)
+        return ElevationProvider(config, fetcher, other, false, surfaceModel, declaredSource)
     }
 
     /**
@@ -113,8 +118,18 @@ class ElevationProvider private constructor(
     fun withSurfaceModel(surface: ElevationProvider?): ElevationProvider {
         require(surface == null || surface.keepNoData) { "a surface model must keep its no-data as NaN" }
         require(!keepNoData) { "a raw IGN LiDAR HD layer carries no surface model" }
-        return ElevationProvider(config, fetcher, fallback, false, surface)
+        return ElevationProvider(config, fetcher, fallback, false, surface, declaredSource)
     }
+
+    /**
+     * This provider, saying its tiles are [source]'s although its URL template is not the catalogue's
+     * — a WASI host's `host://…`, a mirror of Mapterhorn. Only the [TerrainOrigin] of each value
+     * changes: the tunnel step's `measured-terrain` scope trusts a declared IGN or Mapterhorn as it
+     * trusts the catalogue's own. `null` takes the declaration back. A new provider with an empty
+     * cache, like [withFallback].
+     */
+    fun servingSource(source: ElevationSource?): ElevationProvider =
+        ElevationProvider(config, fetcher, fallback, keepNoData, surfaceModel, source)
 
     val attribution: Attribution get() = config.attribution
 
@@ -147,7 +162,8 @@ class ElevationProvider private constructor(
         val flag = ElevationCalculator.UnreadableFlag()
         val own = calculator.readOwn(coords, config.zoomLevel, interpolation, flag)
         if (!own.isNaN()) {
-            return TerrainSample(coords.latitude, coords.longitude, own, TerrainOrigin.of(config, coords.latitude, coords.longitude), false)
+            val origin = TerrainOrigin.of(config, declaredSource, coords.latitude, coords.longitude)
+            return TerrainSample(coords.latitude, coords.longitude, own, origin, false)
         }
         val next = fallback?.sample(coords, interpolation)
         if (next != null) return if (flag.met) next.copy(afterError = true) else next

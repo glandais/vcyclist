@@ -29,6 +29,7 @@ vcyclist enhance route.gpx --gpx out.gpx --csv out.csv --start-time 2026-08-01T0
 | `--dem-source <mapterhorn\|ign-lidar-hd>` | DEM `--fix-elevation` reads (default `mapterhorn`; see below) |
 | `--[no-]bridge-decks` | ride bridge decks from IGN's surface model (on; effective only with `--fix-elevation --dem-source ign-lidar-hd` at zoom 15) |
 | `--[no-]tunnels` | flatten detected tunnels between their portals, on any DEM (on; needs `--fix-elevation`) |
+| `--tunnel-scope <measured-terrain\|everywhere>` | where tunnels may be flattened: only on measured terrain — IGN LiDAR HD, Mapterhorn in France — (default), or everywhere |
 | `--dem-zoom <0-15>` | DEM zoom (default: the source's own — 12 for Mapterhorn, 15 for IGN) |
 | `--cache <folder>` | where DEM and map tiles persist between runs (default `~/.vcyclist/cache`) |
 | `--[no-]virtualize` | physics simulation (on) |
@@ -59,8 +60,9 @@ and the bridges a terrain model does not have:
 
 On every source, `--fix-elevation` also flattens the tunnels the terrain model betrays onto the
 line between their portals. `--no-tunnels` turns that off: do so on gravel, MTB or hiking tracks
-with steep real knolls, which it can take for a tunnel, or outside the LiDAR-derived regions where
-its precision is unmeasured.
+with steep real knolls, which it can take for a tunnel. Outside the LiDAR-derived regions where its
+precision is unmeasured, it already leaves them as read by default (`--tunnel-scope
+measured-terrain`), with a warning locating each one; `--tunnel-scope everywhere` flattens them too.
 
 With `--fix-elevation`, each track prints what the two corrections did on stdout, unless
 `--quiet`; in a multi-track file each line is marked `elevation corrections (track n):`.

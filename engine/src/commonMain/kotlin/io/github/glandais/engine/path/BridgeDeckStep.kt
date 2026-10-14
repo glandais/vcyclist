@@ -40,6 +40,8 @@ internal class BridgeDeckResult(
     val replacements: List<DeckReplacement>,
     val dropped: List<List<DeckCandidate>> = emptyList(),
     val terrain: DoubleArray? = null,
+    /** Where each of [terrain] was read from; set whenever [terrain] is. */
+    val terrainOrigins: List<TerrainOrigin>? = null,
 )
 
 /**
@@ -150,7 +152,7 @@ internal object BridgeDeckStep {
                 // An IGN surface over any other terrain (Mapterhorn at a coverage edge or after a
                 // failed tile) is a mix of models the detector was never measured on: no deck there.
                 for (k in mns.indices) if (read[k].origin != TerrainOrigin.IGN_LIDAR_HD) mns[k] = Double.NaN
-                mnt to mns
+                Triple(mnt, mns, read.map { it.origin })
             } catch (e: CancellationException) {
                 throw e
             } catch (e: Exception) {
@@ -160,7 +162,7 @@ internal object BridgeDeckStep {
                 return BridgeDeckResult(path, BridgeDeckStatus.FETCH_FAILED, null, emptyList())
             }
         val r = replace(path, samples.first, samples.second, options)
-        return BridgeDeckResult(r.path, r.status, r.detection, r.replacements, r.dropped, samples.first)
+        return BridgeDeckResult(r.path, r.status, r.detection, r.replacements, r.dropped, samples.first, samples.third)
     }
 
     /** Steps 3–4 on the terrain [mnt] and surface [mns] read at the stations of [path]. Never guarded. */

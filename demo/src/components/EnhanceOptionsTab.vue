@@ -200,8 +200,35 @@ const updateWPrimeField = <K extends keyof DemoEnhanceOptions['wPrimeBalance']>(
                         <span class="flex flex-col gap-1">
                             <strong class="text-gray-800">Tunnels</strong>
                             <small class="text-gray-600 text-sm"
-                                >Flattens detected tunnels between their portals, on any source.
-                                Turn off on trails with steep real knolls.</small
+                                >Flattens detected tunnels between their portals. Turn off on trails
+                                with steep real knolls.</small
+                            >
+                        </span>
+                    </label>
+
+                    <label class="flex items-start gap-3 mt-3 ml-8 cursor-pointer">
+                        <UCheckbox
+                            :modelValue="
+                                modelValue.elevationCorrections.tunnelScope === 'everywhere'
+                            "
+                            :disabled="!modelValue.elevationCorrections.tunnels"
+                            @update:modelValue="
+                                updateElevationCorrectionsField(
+                                    'tunnelScope',
+                                    modelValue.elevationCorrections.tunnelScope === 'everywhere'
+                                        ? 'measured-terrain'
+                                        : 'everywhere'
+                                )
+                            "
+                            class="mt-1"
+                        />
+                        <span class="flex flex-col gap-1">
+                            <strong class="text-gray-800">Also on unmeasured terrain</strong>
+                            <small class="text-gray-600 text-sm"
+                                >Off: tunnels are flattened only on IGN LiDAR HD and on Mapterhorn
+                                in France, where the detector was measured. On: abroad too, where
+                                Mapterhorn may be GLO-30 and a false tunnel flattens a real
+                                climb.</small
                             >
                         </span>
                     </label>

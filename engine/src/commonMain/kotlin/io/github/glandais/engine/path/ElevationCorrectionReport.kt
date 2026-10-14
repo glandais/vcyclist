@@ -94,6 +94,8 @@ internal object ElevationCorrectionReport {
         val droppedDecks = decks?.dropped?.filter { it.isNotEmpty() } ?: emptyList()
         if (droppedDecks.isNotEmpty()) warnings += droppedDecksWarning(droppedDecks)
         if (tunnels?.status == TunnelStatus.FETCH_FAILED) warnings += TUNNELS_FETCH_FAILED
+        val outOfScope = tunnels?.outOfScope ?: emptyList()
+        if (outOfScope.isNotEmpty()) warnings += outOfScopeTunnelsWarning(outOfScope)
         return ElevationCorrections(
             bridgeDecks = deckStatus,
             bridgeDecksApplied = decks?.replacements?.size ?: 0,
@@ -103,6 +105,7 @@ internal object ElevationCorrectionReport {
             tunnelsDropped = tunnels?.dropped?.size ?: 0,
             warnings = warnings,
             terrain = terrain,
+            tunnelsOutOfScope = outOfScope.size,
         )
     }
 
@@ -115,6 +118,16 @@ internal object ElevationCorrectionReport {
     fun droppedDecksWarning(dropped: List<List<DeckCandidate>>): String {
         val where = dropped.joinToString(", ") { "km ${km(it.first().startM)}–${km(it.last().endM)}" }
         return "bridge decks: ${dropped.size} detected deck(s) kept the valley floor (fewer than two surface anchors) at $where"
+    }
+
+    /**
+     * The warning for tunnels [TunnelScope.MEASURED_TERRAIN] left as read: a probable tunnel the
+     * route still climbs over, located like the dropped decks.
+     */
+    fun outOfScopeTunnelsWarning(spans: List<TunnelSpan>): String {
+        val where = spans.joinToString(", ") { "km ${km(it.startM)}–${km(it.endM)}" }
+        return "tunnels: ${spans.size} tunnel-shaped bump(s) left as read at $where — the terrain there is not a " +
+            "measured LiDAR model; tunnelScope everywhere flattens them"
     }
 
     /** [m] metres as kilometres with one decimal (no `String.format` in common code). */

@@ -5,6 +5,7 @@ import io.github.glandais.api.engineVersion
 import io.github.glandais.api.http.OutputFormat
 import io.github.glandais.elevation.ElevationSource
 import io.github.glandais.engine.RoadCondition
+import io.github.glandais.engine.TunnelScope
 import io.github.glandais.engine.gpx.GpxPowerSource
 import io.github.glandais.engine.path.ElevationCorrectionStatus
 import io.github.glandais.engine.path.ElevationGainPreset
@@ -51,6 +52,7 @@ data class CatalogDto(
     val elevationSources: List<String>,
     val cornerKinds: List<String>,
     val elevationCorrectionStatuses: List<String>,
+    val tunnelScopes: List<String>,
     val outputFormats: List<String>,
 ) {
     companion object {
@@ -66,6 +68,7 @@ data class CatalogDto(
                 cornerKinds = CornerKind.entries.map { it.name },
                 // Response-side, like `cornerKinds`: the statuses of `TrackResult.elevationCorrections`.
                 elevationCorrectionStatuses = ElevationCorrectionStatus.ids,
+                tunnelScopes = TunnelScope.ids,
                 outputFormats = OutputFormat.ids,
             )
     }

@@ -97,7 +97,7 @@ class WasiJsonOutputTest {
             )
         assertEquals(
             """{"bridgeDecks":"fetch-failed","bridgeDecksApplied":0,"bridgeDecksDropped":2,"tunnels":"none-found",""" +
-                """"tunnelsApplied":0,"tunnelsDropped":1,"warnings":["bridge decks: \"quoted\""],"terrain":null}""",
+                """"tunnelsApplied":0,"tunnelsDropped":1,"tunnelsOutOfScope":0,"warnings":["bridge decks: \"quoted\""],"terrain":null}""",
             elevationCorrectionsJson(report),
         )
         val withTerrain = report.copy(terrain = TerrainProvenance(98.5, 1.25, 0.0, 0.0, 0.0, 0.5, 2))

@@ -87,6 +87,12 @@ class TerrainOriginTest {
             val tile = flatTerrarium(4, 50.0)
             val other = ElevationProvider(custom) { tile }.setElevationsWithOrigin(listOf(LatLon(45.0, 6.0))).single()
             assertEquals(TerrainOrigin.OTHER, other.origin)
+            // The same tiles, declared as Mapterhorn's (a WASI host): classed by where they lie.
+            val declared = ElevationProvider(custom) { tile }.servingSource(ElevationSource.MAPTERHORN)
+            assertEquals(TerrainOrigin.MAPTERHORN_MEASURED, declared.setElevationsWithOrigin(listOf(LatLon(45.0, 6.0))).single().origin)
+            assertEquals(TerrainOrigin.MAPTERHORN, declared.setElevationsWithOrigin(listOf(LatLon(31.5, -5.9))).single().origin)
+            val ignHost = ElevationProvider(custom) { tile }.servingSource(ElevationSource.IGN_LIDAR_HD)
+            assertEquals(TerrainOrigin.IGN_LIDAR_HD, ignHost.setElevationsWithOrigin(listOf(LatLon(45.0, 6.0))).single().origin)
 
             val empty = RawTile(4, 4, ByteArray(64).also { for (i in 3 until 64 step 4) it[i] = 255.toByte() })
             val none = ElevationProvider(custom) { empty }.setElevationsWithOrigin(listOf(LatLon(45.0, 6.0))).single()

@@ -70,6 +70,12 @@ data class EnhanceOptionsDto(
     )
     val tunnelsEnabled: Boolean? = null,
     @JsonSchema.Description(
+        "Where the tunnel correction may flatten what it detects, one of `GET /api/v1/catalog` `tunnelScopes`: " +
+            "`measured-terrain` (IGN LiDAR HD, and Mapterhorn in France, where its precision was measured) or " +
+            "`everywhere`. A tunnel left out is counted in `elevationCorrections.tunnelsOutOfScope`. $SEE_DEFAULTS",
+    )
+    val tunnelScope: String? = null,
+    @JsonSchema.Description(
         "DEM zoom level, ${ElevationFunctions.MIN_ZOOM_LEVEL}..${ElevationFunctions.MAX_ZOOM_LEVEL}. Absent or null: the DEM source's own default zoom.",
     )
     val demZoom: Int? = null,
@@ -199,6 +205,8 @@ data class ElevationCorrectionsDto(
     val tunnelsApplied: Int,
     @JsonSchema.Description("Tunnels refused because a bridge deck lies between their portals.")
     val tunnelsDropped: Int,
+    @JsonSchema.Description("Tunnels detected but left as read: the terrain around them is not a measured model.")
+    val tunnelsOutOfScope: Int,
     @JsonSchema.Description("One sentence per outcome that is knowingly wrong or depends on the network; usually empty.")
     val warnings: List<String>,
     @JsonSchema.Description("Where the terrain was read from, in km per origin; null without a DEM correction.")

@@ -25,6 +25,11 @@ export type ElevationGainPreset =
     | 'dem'
     | 'gps';
 
+/** The spellings every door parses, derived from the `TunnelScope` catalogue in `commonMain`. */
+export type TunnelScope =
+    | 'measured-terrain'
+    | 'everywhere';
+
 /** The spellings every door parses, derived from the `ElevationSource` catalogue in `commonMain`. */
 export type ElevationSource =
     | 'mapterhorn'
@@ -232,6 +237,14 @@ export interface EnhanceOptionsDto {
      */
     readonly tunnelsEnabled?: boolean | null;
     /**
+     * Where the tunnel correction may flatten what it detects: `"measured-terrain"` (the default —
+     * IGN LiDAR HD, and Mapterhorn in France, where the detector's precision was measured) or
+     * `"everywhere"` (also on unmeasured terrain, where a false tunnel flattens a real climb). A
+     * tunnel left out is counted in `pathElevationCorrections`' `tunnelsOutOfScope` and located in
+     * its warnings.
+     */
+    readonly tunnelScope?: TunnelScope | null;
+    /**
      * Web-Mercator zoom for the DEM lookup, `0..15`, used only when `fixElevation` is on.
      *
      * Not part of `EnhanceOptions` — it configures the provider, not the pipeline — so it is read
@@ -373,6 +386,10 @@ export interface ElevationCorrectionsDto {
     readonly tunnels: ElevationCorrectionStatus;
     readonly tunnelsApplied: number;
     readonly tunnelsDropped: number;
+    /**
+     * Tunnels detected but left as read: the terrain around them is not a measured model.
+     */
+    readonly tunnelsOutOfScope: number;
     readonly warnings: string[];
     /**
      * Where the terrain was read from, in km per origin; `null` without a DEM correction.

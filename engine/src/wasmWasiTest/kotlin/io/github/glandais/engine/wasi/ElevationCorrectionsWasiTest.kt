@@ -1,8 +1,12 @@
 package io.github.glandais.engine.wasi
 
+import io.github.glandais.elevation.ElevationProvider
+import io.github.glandais.elevation.ElevationProviderConfig
 import io.github.glandais.elevation.ElevationSource
 import io.github.glandais.elevation.HostTileSource
+import io.github.glandais.elevation.TileEncoding
 import io.github.glandais.elevation.provider
+import io.github.glandais.engine.path.DeckWorld
 import io.github.glandais.engine.path.ElevationCorrectionStatus
 import io.github.glandais.engine.path.ElevationCorrections
 import io.github.glandais.engine.path.TunnelWorld
@@ -74,6 +78,32 @@ class ElevationCorrectionsWasiTest {
         val ign = ElevationSource.IGN_LIDAR_HD
         assertNotNull(ign.provider().surfaceModel, "precondition: elsewhere IGN at its own zoom carries the MNS")
         val config = ign.config().copy(tileUrlTemplate = HostTileSource.URL_TEMPLATE)
-        assertNull(wasiElevationProvider(config, { error("no tile is read") }).surfaceModel)
+        assertNull(wasiElevationProvider(config, { error("no tile is read") }, ElevationSource.IGN_LIDAR_HD).surfaceModel)
+    }
+
+    /** TunnelWorld's terrain from a template the catalogue does not know, declared as [source]. */
+    private fun hostTerrain(source: ElevationSource?) =
+        ElevationProvider(
+            ElevationProviderConfig(
+                zoomLevel = 15,
+                tileSize = 256,
+                tileUrlTemplate = "test://wms?BBOX={bbox}&a=1",
+                encoding = TileEncoding.BIL32,
+            ),
+        ) { url -> DeckWorld.tile(url, TunnelWorld::mnt) }.servingSource(source)
+
+    @Test
+    fun `tunnelScope reaches the enhancer, and a declared source is measured terrain`() {
+        fun run(
+            options: String,
+            terrain: ElevationProvider,
+        ): ElevationCorrections =
+            assertNotNull(enhanceFromJson(TunnelWorld.path(stepM = 25.0), parseJsonObject("{$options}")) { terrain }.elevationCorrections)
+
+        val unknown = run(base, hostTerrain(null))
+        assertEquals(ElevationCorrectionStatus.NONE_FOUND, unknown.tunnels, "an undeclared host is unmeasured terrain")
+        assertEquals(1, unknown.tunnelsOutOfScope)
+        assertEquals(ElevationCorrectionStatus.APPLIED, run("""$base,"tunnelScope":"everywhere"""", hostTerrain(null)).tunnels)
+        assertEquals(ElevationCorrectionStatus.APPLIED, run(base, hostTerrain(ElevationSource.MAPTERHORN)).tunnels, "Mapterhorn in France")
     }
 }

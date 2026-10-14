@@ -54,6 +54,14 @@ public class ElevationCorrectionJavaTest {
     }
 
     @Test
+    public void theTunnelScopeIsReachableFromJava() {
+        ElevationCorrectionOptions everywhere = EngineModelJvm.elevationCorrectionOptions(true, true, TunnelScope.EVERYWHERE);
+        assertEquals(TunnelScope.EVERYWHERE, everywhere.getTunnelScope());
+        assertEquals(TunnelScope.MEASURED_TERRAIN, EngineModelJvm.elevationCorrectionOptions().getTunnelScope());
+        assertEquals("measured-terrain", TunnelScope.Companion.byId("measured-terrain").getId());
+    }
+
+    @Test
     public void switchedOffTheStepsAreReportedNotRun() throws Exception {
         Path out =
                 ElevationCorrectionJvm.fixAndCorrectAsync(

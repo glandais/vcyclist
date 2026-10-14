@@ -378,6 +378,7 @@ Sans porte CLI, avec la raison :
 | `simplifyEnabled` | `simplifyPath.enabled` | ✅ `--simplify` | ✅ | ✅ | ✅ |
 | `simplifyToleranceM` | `simplifyPath.toleranceM` | ✅ `--simplify-tolerance` | ✅ | ✅ | ✅ |
 | `simplifyZExaggeration` | `simplifyPath.zExaggeration` | ❌ | ✅ | ✅ | ✅ |
+| `tunnelScope` | `elevationCorrections.tunnelScope` | ✅ `--tunnel-scope` | ✅ | ✅ | ✅ |
 | `tunnelsEnabled` | `elevationCorrections.tunnels` | ✅ `--tunnels` | ✅ | ✅ | ✅ |
 | `virtualizeTrack` | `virtualizeTrack` | ✅ `--virtualize` | ✅ | ✅ | ✅ |
 | `wPrimeBalanceCriticalPower` | `wPrimeBalance.criticalPowerW` | ❌ | ✅ | ✅ | ✅ |

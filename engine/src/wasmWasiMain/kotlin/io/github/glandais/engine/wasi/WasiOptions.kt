@@ -6,6 +6,7 @@ import io.github.glandais.engine.ElevationCorrectionOptions
 import io.github.glandais.engine.EnhanceOptions
 import io.github.glandais.engine.RoadCondition
 import io.github.glandais.engine.SimplifyPathOptions
+import io.github.glandais.engine.TunnelScope
 import io.github.glandais.engine.WPrimeBalanceOptions
 import io.github.glandais.engine.applyTo
 import io.github.glandais.engine.climb.ClimbOptions
@@ -68,6 +69,7 @@ private val ENHANCE_KEYS =
         // fail on WASI for it. `tunnelsEnabled` is fully effective: step 3c reads the terrain only.
         "bridgeDecksEnabled",
         "tunnelsEnabled",
+        "tunnelScope",
         "demZoom",
         "demSource",
     )
@@ -129,6 +131,9 @@ internal fun JsonObj?.toEnhanceOptions(): EnhanceOptions {
             ElevationCorrectionOptions(
                 bridgeDecks = bool("bridgeDecksEnabled", defaults.elevationCorrections.bridgeDecks),
                 tunnels = bool("tunnelsEnabled", defaults.elevationCorrections.tunnels),
+                tunnelScope =
+                    string("tunnelScope", "").takeIf { it.isNotEmpty() }?.let { TunnelScope.byId(it) }
+                        ?: defaults.elevationCorrections.tunnelScope,
             ),
     )
 }

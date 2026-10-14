@@ -596,7 +596,8 @@ private fun elevationProviderFor(
     options: EnhanceOptions,
     demZoom: Int? = null,
     demSource: String? = null,
-): ElevationProvider? = if (options.fixElevation) wasiElevationProvider(elevationConfigFor(demZoom, demSource), hostTileFetcher()) else null
+): ElevationProvider? =
+    if (options.fixElevation) wasiElevationProvider(elevationConfigFor(demZoom, demSource), hostTileFetcher(), elevationSource) else null
 
 /**
  * **The one place this door builds an [ElevationProvider]**, and why bridge decks are
@@ -611,7 +612,11 @@ private fun elevationProviderFor(
 internal fun wasiElevationProvider(
     config: ElevationProviderConfig,
     fetcher: suspend (String) -> RawTile,
-): ElevationProvider = ElevationProvider(config, fetcher = fetcher)
+    source: ElevationSource,
+): ElevationProvider =
+    // The host's `host://` template names no source: declare the one it serves, so a Mapterhorn
+    // point in France is measured terrain for the tunnel scope, as it is on every other door.
+    ElevationProvider(config, fetcher = fetcher).servingSource(source)
 
 /**
  * [elevationConfig], with `demZoom` overriding its zoom for one call.
@@ -707,7 +712,7 @@ fun vcSetElevationConfig(jsonLen: Int): Int =
         // `ElevationProvider`'s init block is the one place that validates zoom / cache / size,
         // so build one now: a host must learn about a bad configuration here, not three calls
         // later from inside `vcEnhance`.
-        wasiElevationProvider(config, hostTileFetcher())
+        wasiElevationProvider(config, hostTileFetcher(), source)
         elevationConfig = config
         elevationSource = source
         HostTileSource.tileSize = config.tileSize

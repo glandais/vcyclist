@@ -57,6 +57,8 @@ enum class ElevationCorrectionStatus(
  *   track, and never reword them.
  * @property terrain where the corrected elevations were read from, `null` when they were not
  *   corrected from a DEM
+ * @property tunnelsOutOfScope tunnels detected but left as read because the terrain around them is
+ *   not a measured model (the `measured-terrain` tunnel scope); each is located in [warnings]
  */
 data class ElevationCorrections(
     val bridgeDecks: ElevationCorrectionStatus,
@@ -67,6 +69,7 @@ data class ElevationCorrections(
     val tunnelsDropped: Int,
     val warnings: List<String>,
     val terrain: TerrainProvenance? = null,
+    val tunnelsOutOfScope: Int = 0,
 )
 
 /**

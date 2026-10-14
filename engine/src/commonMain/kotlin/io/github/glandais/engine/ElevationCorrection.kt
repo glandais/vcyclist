@@ -127,6 +127,8 @@ object ElevationCorrection {
                     samples = decks?.terrain?.takeIf { sameGrid },
                     protected = protected,
                     refreshM = Enhancer.PRE_FIX_SPACING_M,
+                    scope = options.tunnelScope,
+                    origins = decks?.terrainOrigins?.takeIf { sameGrid },
                 )
             path = tunnels.path
         }

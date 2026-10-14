@@ -1532,6 +1532,7 @@ components:
       - elevationSources
       - cornerKinds
       - elevationCorrectionStatuses
+      - tunnelScopes
       - outputFormats
       properties:
         powerModels:
@@ -1563,6 +1564,10 @@ components:
           items:
             type: string
         elevationCorrectionStatuses:
+          type: array
+          items:
+            type: string
+        tunnelScopes:
           type: array
           items:
             type: string
@@ -1915,6 +1920,15 @@ components:
             flatten each detected tunnel between its portals. Turn it off on trails
             with steep real knolls, or where only GLO-30 covers the route — its precision
             is unmeasured there. Absent or null: the default published by `GET /api/v1/defaults`.'
+        tunnelScope:
+          type:
+          - string
+          - "null"
+          description: 'Where the tunnel correction may flatten what it detects, one
+            of `GET /api/v1/catalog` `tunnelScopes`: `measured-terrain` (IGN LiDAR
+            HD, and Mapterhorn in France, where its precision was measured) or `everywhere`.
+            A tunnel left out is counted in `elevationCorrections.tunnelsOutOfScope`.
+            Absent or null: the default published by `GET /api/v1/defaults`.'
         demZoom:
           type:
           - integer
@@ -2317,6 +2331,7 @@ components:
       - tunnels
       - tunnelsApplied
       - tunnelsDropped
+      - tunnelsOutOfScope
       - warnings
       properties:
         bridgeDecks:
@@ -2339,6 +2354,10 @@ components:
         tunnelsDropped:
           type: integer
           description: Tunnels refused because a bridge deck lies between their portals.
+        tunnelsOutOfScope:
+          type: integer
+          description: 'Tunnels detected but left as read: the terrain around them
+            is not a measured model.'
         warnings:
           type: array
           description: One sentence per outcome that is knowingly wrong or depends

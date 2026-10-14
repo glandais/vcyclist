@@ -67,10 +67,13 @@ data class WPrimeBalanceOptions(
  *   between its portals, on any DEM. Its precision is unmeasured on tracks with steep real knolls
  *   and in regions only GLO-30 covers, where a false tunnel flattens a real climb: the switch is
  *   for those.
+ * @param tunnelScope where step 3c may flatten what it detects: only on terrain whose precision was
+ *   measured (the default), or everywhere. See [TunnelScope].
  */
 data class ElevationCorrectionOptions(
     val bridgeDecks: Boolean = true,
     val tunnels: Boolean = true,
+    val tunnelScope: TunnelScope = TunnelScope.MEASURED_TERRAIN,
 ) {
     companion object {
         /** Both corrections allowed. */
@@ -132,5 +135,35 @@ data class EnhanceOptions(
     companion object {
         /** All steps enabled with the shipped defaults. */
         val DEFAULT = EnhanceOptions()
+    }
+}
+
+/**
+ * Where step 3c may flatten the tunnels it detects. Its precision was measured on LiDAR-derived
+ * terrain only — IGN LiDAR HD, and Mapterhorn in France (`TerrainOrigin.measured`); elsewhere
+ * Mapterhorn may be GLO-30, where a probe on the Dadès gorge found three tunnels that do not exist,
+ * and a false tunnel flattens a real climb. The wire form is [id], on every door.
+ */
+enum class TunnelScope(
+    val id: String,
+) {
+    /**
+     * Only where every station from 100 m before a portal to 100 m after the other was read from a
+     * measured terrain; a tunnel elsewhere is left as read, counted and located in a warning.
+     */
+    MEASURED_TERRAIN("measured-terrain"),
+
+    /** Wherever one is detected, on any terrain: the behaviour before 6.8. */
+    EVERYWHERE("everywhere"),
+    ;
+
+    companion object {
+        /** Every [id], in declaration order. */
+        val ids: List<String> = entries.map { it.id }
+
+        /** The scope spelled [id]; fails with the list of known ids otherwise. */
+        fun byId(id: String): TunnelScope =
+            entries.firstOrNull { it.id == id }
+                ?: throw IllegalArgumentException("unknown tunnel scope '$id' (expected one of $ids)")
     }
 }

@@ -16,6 +16,7 @@ import io.github.glandais.engine.EngineConstants
 import io.github.glandais.engine.EnhanceOptions
 import io.github.glandais.engine.Enhancer
 import io.github.glandais.engine.SimplifyPathOptions
+import io.github.glandais.engine.TunnelScope
 import io.github.glandais.engine.gpx.GpxParser
 import io.github.glandais.engine.gpx.GpxPowerSource
 import io.github.glandais.engine.gpx.GpxWriter
@@ -168,6 +169,16 @@ class EnhanceCommand : Callable<Int> {
         ],
     )
     var tunnels: Boolean? = null
+
+    @field:CommandLine.Option(
+        names = ["--tunnel-scope"],
+        description = [
+            "Where detected tunnels are flattened: measured-terrain (IGN LiDAR HD, and",
+            "Mapterhorn in France, where the detector was measured) or everywhere",
+            "(also on unmeasured terrain, GLO-30 abroad). (default: measured-terrain)",
+        ],
+    )
+    var tunnelScope: String? = null
 
     /**
      * Builds the provider used when `--fix-elevation` is on. A settable seam so the offline test
@@ -431,6 +442,7 @@ class EnhanceCommand : Callable<Int> {
                 ElevationCorrectionOptions(
                     bridgeDecks = bridgeDecks ?: ElevationCorrectionOptions.DEFAULT.bridgeDecks,
                     tunnels = tunnels ?: ElevationCorrectionOptions.DEFAULT.tunnels,
+                    tunnelScope = tunnelScope?.let { TunnelScope.byId(it) } ?: ElevationCorrectionOptions.DEFAULT.tunnelScope,
                 ),
         )
 
@@ -552,7 +564,8 @@ class EnhanceCommand : Callable<Int> {
             val track = if (enhanced.size == 1) "" else " (track ${i + 1})"
             out.println(
                 "  -> elevation corrections$track: bridge decks ${status(c.bridgeDecks, c.bridgeDecksApplied)}, " +
-                    "tunnels ${status(c.tunnels, c.tunnelsApplied)}",
+                    "tunnels ${status(c.tunnels, c.tunnelsApplied)}" +
+                    if (c.tunnelsOutOfScope > 0) " (${c.tunnelsOutOfScope} out of scope)" else "",
             )
             c.terrain?.let { out.println("  -> terrain$track: ${terrainLine(it)}") }
         }

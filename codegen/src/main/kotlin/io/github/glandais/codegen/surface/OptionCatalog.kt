@@ -375,6 +375,12 @@ object OptionCatalog {
                             cliFlag = "--tunnels",
                         ),
                         Opt(
+                            "tunnelScope",
+                            path = "elevationCorrections.tunnelScope",
+                            doors = ALL_WIRE,
+                            cliFlag = "--tunnel-scope",
+                        ),
+                        Opt(
                             "elevationGainEnabled",
                             path = "elevationGain.enabled",
                             doors = WIRE_NO_CLI,

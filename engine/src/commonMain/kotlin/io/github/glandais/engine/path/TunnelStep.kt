@@ -1,6 +1,8 @@
 package io.github.glandais.engine.path
 
 import io.github.glandais.elevation.ElevationProvider
+import io.github.glandais.elevation.TerrainOrigin
+import io.github.glandais.engine.TunnelScope
 import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.ensureActive
 import kotlin.coroutines.cancellation.CancellationException
@@ -33,6 +35,8 @@ internal class TunnelResult(
     val spans: List<TunnelSpan>,
     val written: List<ClosedFloatingPointRange<Double>> = emptyList(),
     val dropped: List<TunnelSpan> = emptyList(),
+    /** Tunnels detected but left as read: some station around them is not a measured terrain. */
+    val outOfScope: List<TunnelSpan> = emptyList(),
 )
 
 /**
@@ -64,6 +68,9 @@ internal class TunnelResult(
  * tunnel is written.
  */
 internal object TunnelStep {
+    /** How far beyond each portal the terrain must be measured for [TunnelScope.MEASURED_TERRAIN]. */
+    const val SCOPE_MARGIN_M: Double = 100.0
+
     /**
      * @param samples the terrain at the stations of [path], when step 3b already read it
      * @param protected distance ranges the step must not write (decks of step 3b)
@@ -78,32 +85,36 @@ internal object TunnelStep {
         samples: DoubleArray? = null,
         protected: List<ClosedFloatingPointRange<Double>> = emptyList(),
         refreshM: Double,
+        scope: TunnelScope = TunnelScope.MEASURED_TERRAIN,
+        origins: List<TerrainOrigin>? = null,
     ): TunnelResult {
         if (path.size < 2) return TunnelResult(path, TunnelStatus.NO_TUNNEL, emptyList())
         val stations = alongTrackStations(path, options.stepM)
-        val mnt =
-            if (samples != null) {
-                require(samples.size == stations.size) {
-                    "terrain samples: ${samples.size} for ${stations.size} stations at ${options.stepM} m"
-                }
-                samples
-            } else {
-                try {
-                    terrain
-                        .setElevations(stations.asReversed())
-                        .map { it.elevation }
-                        .asReversed()
-                        .toDoubleArray()
-                } catch (e: CancellationException) {
-                    throw e
-                } catch (e: Exception) {
-                    // ElevationCalculator wraps a cancellation in an IllegalStateException too (see
-                    // BridgeDeckStep): ask the job itself before reporting a failed fetch.
-                    currentCoroutineContext().ensureActive()
-                    return TunnelResult(path, TunnelStatus.FETCH_FAILED, emptyList())
-                }
+        val mnt: DoubleArray
+        val read: List<TerrainOrigin>
+        if (samples != null) {
+            require(samples.size == stations.size) {
+                "terrain samples: ${samples.size} for ${stations.size} stations at ${options.stepM} m"
             }
-        return flatten(path, mnt, stations.map { it.latitude }, stations.map { it.longitude }, options, protected, refreshM)
+            requireNotNull(origins) { "terrain samples come with their origins" }
+            mnt = samples
+            read = origins
+        } else {
+            try {
+                val sampled = terrain.setElevationsWithOrigin(stations.asReversed()).asReversed()
+                mnt = DoubleArray(sampled.size) { sampled[it].elevation }
+                read = sampled.map { it.origin }
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                // ElevationCalculator wraps a cancellation in an IllegalStateException too (see
+                // BridgeDeckStep): ask the job itself before reporting a failed fetch.
+                currentCoroutineContext().ensureActive()
+                return TunnelResult(path, TunnelStatus.FETCH_FAILED, emptyList())
+            }
+        }
+        val measured = if (scope == TunnelScope.EVERYWHERE) null else BooleanArray(read.size) { read[it].measured }
+        return flatten(path, mnt, stations.map { it.latitude }, stations.map { it.longitude }, options, protected, refreshM, measured)
     }
 
     /** Steps 2–3 on the terrain [mnt] read at the stations ([lat], [lon]) of [path]. Never guarded. */
@@ -115,11 +126,22 @@ internal object TunnelStep {
         options: TunnelDetectorOptions,
         protected: List<ClosedFloatingPointRange<Double>> = emptyList(),
         refreshM: Double,
+        measured: BooleanArray? = null,
     ): TunnelResult {
         val found = TunnelDetector.detect(TunnelProfile(mnt, lat.toDoubleArray(), lon.toDoubleArray()), options)
-        val (spans, dropped) =
+        val (kept, dropped) =
             found.partition { t -> protected.none { r -> r.start > t.startM && r.endInclusive < t.endM } }
-        if (spans.isEmpty()) return TunnelResult(path, TunnelStatus.NO_TUNNEL, emptyList(), dropped = dropped)
+        // The scope: every station from SCOPE_MARGIN_M before a portal to as far after the other
+        // (the reach of the face test) must be a measured terrain, or the tunnel is left as read.
+        val margin = (SCOPE_MARGIN_M / options.stepM).toInt()
+        val (spans, outOfScope) =
+            kept.partition { t ->
+                measured == null ||
+                    ((t.first - margin).coerceAtLeast(0)..(t.last + margin).coerceAtMost(measured.size - 1)).all { measured[it] }
+            }
+        if (spans.isEmpty()) {
+            return TunnelResult(path, TunnelStatus.NO_TUNNEL, emptyList(), dropped = dropped, outOfScope = outOfScope)
+        }
         val written = spans.map { (it.startM - refreshM)..(it.endM + refreshM) }
         return TunnelResult(
             write(path, spans, mnt, options.stepM, protected, refreshM),
@@ -127,6 +149,7 @@ internal object TunnelStep {
             spans,
             written,
             dropped,
+            outOfScope,
         )
     }
 

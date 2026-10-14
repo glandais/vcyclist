@@ -95,7 +95,8 @@ fun enhanceOptions(
 fun elevationCorrectionOptions(
     bridgeDecks: Boolean = ElevationCorrectionOptions.DEFAULT.bridgeDecks,
     tunnels: Boolean = ElevationCorrectionOptions.DEFAULT.tunnels,
-): ElevationCorrectionOptions = ElevationCorrectionOptions(bridgeDecks, tunnels)
+    tunnelScope: TunnelScope = ElevationCorrectionOptions.DEFAULT.tunnelScope,
+): ElevationCorrectionOptions = ElevationCorrectionOptions(bridgeDecks, tunnels, tunnelScope)
 
 /**
  * Factory for [ElevationGainOptions]. `preset` is spelled as its [ElevationGainPreset], not as a

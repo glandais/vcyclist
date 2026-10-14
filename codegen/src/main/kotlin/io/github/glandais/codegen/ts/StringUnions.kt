@@ -39,6 +39,7 @@ object StringUnions {
             Bound("EnhanceOptionsDto.racingLineCorridor", "CorridorMode"),
             Bound("EnhanceOptionsDto.elevationGainPreset", "ElevationGainPreset"),
             Bound("EnhanceOptionsDto.demSource", "ElevationSource"),
+            Bound("EnhanceOptionsDto.tunnelScope", "TunnelScope"),
             Bound("ElevationProviderConfigDto.source", "ElevationSource"),
             Bound("PowerProviderDto.type", "PowerModel"),
             Bound("CornerDto.kind", "CornerKind", EnumCatalog.Style.NAME),

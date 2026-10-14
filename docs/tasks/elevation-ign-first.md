@@ -54,7 +54,8 @@ rapport `Path.elevationCorrections`. Ce qui manque est listé en *Notes / écart
 4. **`tunnelScope`** sur les sept portes (`measured-terrain` par défaut, `everywhere`). Les tunnels
    détectés dont une station de *[portail − 100 m, portail + 100 m]* n'est pas d'origine mesurée
    sont écartés, comptés (`tunnelsOutOfScope`) et localisés par km dans un avertissement. Aucun
-   seuil du détecteur ne change.
+   seuil du détecteur ne change. **Livré**, plus `ElevationProvider.servingSource` : l'hôte WASI
+   déclare la source qu'il sert, sans quoi `measured-terrain` y aurait coupé tous les tunnels.
 5. **Bascule du défaut** (`feat`). `ElevationSource.DEFAULT = IGN_LIDAR_HD` pour CLI, Java, JS,
    démo et HTTP ; `SINGLE_LAYER_DEFAULT = MAPTERHORN` pour WASI. Mesures avant / après (volume,
    temps à froid, D+, durée) dans `docs/guides/elevation.md`. Mesurer avant la sérialisation

@@ -48,6 +48,7 @@ fun ElevationCorrections.toDto(): ElevationCorrectionsDto =
         tunnels = tunnels.id,
         tunnelsApplied = tunnelsApplied,
         tunnelsDropped = tunnelsDropped,
+        tunnelsOutOfScope = tunnelsOutOfScope,
         warnings = warnings,
         terrain =
             terrain?.let {

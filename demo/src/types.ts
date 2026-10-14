@@ -1,5 +1,5 @@
 import type { PointFieldProp } from '@glandais/vcyclist-engine';
-import type { BikeDto, CyclistDto, ElevationSource } from '@glandais/vcyclist-engine';
+import type { BikeDto, CyclistDto, ElevationSource, TunnelScope } from '@glandais/vcyclist-engine';
 
 export interface DemoFieldDefinition {
     prop: PointFieldProp;
@@ -126,6 +126,9 @@ export interface DemoEnhanceOptions {
     elevationCorrections: {
         bridgeDecks: boolean;
         tunnels: boolean;
+        // Where tunnels may be flattened: only on measured terrain (IGN, Mapterhorn in France), or
+        // everywhere. The engine's `TunnelScope` ids.
+        tunnelScope: TunnelScope;
     };
 }
 
@@ -254,7 +257,7 @@ export const DEFAULT_CONFIG: Config = {
         elevationGain: { enabled: true, preset: 'dem' },
         elevationSmoothWindowM: 150,
         // ElevationCorrectionOptions.DEFAULT, not a demo-local guess.
-        elevationCorrections: { bridgeDecks: true, tunnels: true },
+        elevationCorrections: { bridgeDecks: true, tunnels: true, tunnelScope: 'measured-terrain' },
     },
     power: {
         type: PowerSourceType.constant,

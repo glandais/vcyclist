@@ -181,6 +181,7 @@ export function useGPXDemo(config: Ref<Config>): UseGPXDemoReturn {
             elevationSmoothWindowM: e.elevationSmoothWindowM,
             bridgeDecksEnabled: e.elevationCorrections.bridgeDecks,
             tunnelsEnabled: e.elevationCorrections.tunnels,
+            tunnelScope: e.elevationCorrections.tunnelScope,
         };
     };
 
