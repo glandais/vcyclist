@@ -1,3 +1,10 @@
+## [6.5.1](https://github.com/glandais/vcyclist/compare/v6.5.0...v6.5.1) (2026-10-14)
+
+
+### Bug Fixes
+
+* **elevation:** share the tile request pacer per host across the whole process ([a2ab005](https://github.com/glandais/vcyclist/commit/a2ab0056415a558eed1870d0da6f390f90c95bf4))
+
 # [6.5.0](https://github.com/glandais/vcyclist/compare/v6.4.0...v6.5.0) (2026-10-14)
 
 
