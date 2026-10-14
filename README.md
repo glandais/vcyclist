@@ -9,9 +9,9 @@
 [![Maven Central map](https://img.shields.io/maven-central/v/io.github.glandais/vcyclist-map?label=io.github.glandais%3Avcyclist-map)](https://central.sonatype.com/artifact/io.github.glandais/vcyclist-map)
 
 Kotlin Multiplatform physics-based cycling simulator: it turns a static GPS trace into a
-virtualized ride with realistic speeds, times and power estimates. Elevation data comes from
-Terrarium-encoded DEM tiles — mapterhorn by default — fetched and decoded by the `:elevation`
-module.
+virtualized ride with realistic speeds, times and power estimates. Elevation data comes from DEM
+tiles — IGN LiDAR HD in France by default, Mapterhorn elsewhere and as its fallback — fetched and
+decoded by the `:elevation` module.
 
 ```
                         ┌──────────────┐

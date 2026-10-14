@@ -11,6 +11,8 @@ import type { DemSource } from '~/types';
 const providers = new Map<DemSource, ElevationProvider>();
 
 // Shared by the map and the profile, so a point and a path never read two different DEMs.
+// Mapterhorn, not ElevationSource.DEFAULT: the explorer reads whole map areas, often abroad, and
+// IGN's z15 tiles cost ~30 times Mapterhorn's bytes. IGN stays one click away.
 const source = ref<DemSource>('mapterhorn');
 
 export function useElevationProvider() {

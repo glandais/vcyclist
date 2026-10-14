@@ -234,7 +234,7 @@ export const DEFAULT_CONFIG: Config = {
     enhance: {
         fixElevation: true,
         // ElevationSource.DEFAULT, not a demo-local guess.
-        demSource: 'mapterhorn',
+        demSource: 'ign-lidar-hd',
         computeMaxSpeeds: true,
         virtualizeTrack: true,
         computeOnePointPerSecond: true,

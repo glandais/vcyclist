@@ -44,7 +44,7 @@ class ElevationJsApiKeyCheckTest {
 
     @Test
     fun `null config remains the way to ask for every default`() {
-        assertTrue(newElevationProvider(null).config.zoomLevel == ElevationProviderConfig().zoomLevel)
+        assertTrue(newElevationProvider(null).config == ElevationSource.DEFAULT.config())
     }
 
     @Test

@@ -117,7 +117,8 @@ class ElevationSourceTest {
     @Test
     fun `Mapterhorn's config is the library default, so naming it changes nothing`() {
         assertEquals(ElevationProviderConfig(), ElevationSource.MAPTERHORN.config())
-        assertEquals(ElevationSource.MAPTERHORN, ElevationSource.DEFAULT)
+        assertEquals(ElevationSource.IGN_LIDAR_HD, ElevationSource.DEFAULT)
+        assertEquals(ElevationSource.MAPTERHORN, ElevationSource.SINGLE_LAYER_DEFAULT)
     }
 
     @Test

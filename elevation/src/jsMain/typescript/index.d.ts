@@ -79,7 +79,7 @@ export interface ElevationProviderConfigDto {
     readonly tileUrlTemplate?: string | null;
     readonly tileSize?: number | null;
     /**
-     * An `ElevationSource` id, `"mapterhorn"` (the default) or `"ign-lidar-hd"`: the base the
+     * An `ElevationSource` id, `"ign-lidar-hd"` (the default) or `"mapterhorn"`: the base the
      * other fields override, its default zoom and its fallback included.
      */
     readonly source?: ElevationSource | null;

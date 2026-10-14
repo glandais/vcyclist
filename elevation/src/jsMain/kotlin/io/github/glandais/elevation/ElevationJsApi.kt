@@ -60,7 +60,7 @@ external interface ElevationProviderConfigDto {
     val tileSize: Int?
 
     /**
-     * An [ElevationSource] id, `"mapterhorn"` (the default) or `"ign-lidar-hd"`: the base the
+     * An [ElevationSource] id, `"ign-lidar-hd"` (the default) or `"mapterhorn"`: the base the
      * other fields override, its default zoom and its fallback included.
      */
     val source: String?

@@ -13,7 +13,7 @@ rapport `Path.elevationCorrections`. Ce qui manque est listé en *Notes / écart
 
 ## Depends on
 
-- [`docs/archive/tasks/elevation-bridge-decks.md`](../archive/tasks/elevation-bridge-decks.md)
+- [`docs/archive/tasks/elevation-bridge-decks.md`](elevation-bridge-decks.md)
   (E1–E7) : le banc, le réglage des tunnels pour la précision (E4) et la sonde du Dadès.
 - 6.5.0 (`ElevationCorrection.fixAndCorrect`, `TileStore`) et 6.5.1 (budget de requêtes par hôte
   pour tout le processus : un prérequis, sans lui MNT + MNS montaient à 40 req/s).
@@ -59,7 +59,12 @@ rapport `Path.elevationCorrections`. Ce qui manque est listé en *Notes / écart
 5. **Bascule du défaut** (`feat`). `ElevationSource.DEFAULT = IGN_LIDAR_HD` pour CLI, Java, JS,
    démo et HTTP ; `SINGLE_LAYER_DEFAULT = MAPTERHORN` pour WASI. Mesures avant / après (volume,
    temps à froid, D+, durée) dans `docs/guides/elevation.md`. Mesurer avant la sérialisation
-   `Dem.lock` de l'API HTTP sur une sortie froide.
+   `Dem.lock` de l'API HTTP sur une sortie froide. **Livré** en 6.9. Mesures CLI, `sample.gpx`,
+   cache vide : IGN 264 tuiles, 66 Mo, 19 s ; Mapterhorn 16 tuiles, 2,3 Mo, 3 s ; à chaud ~2,5 s
+   pour les deux. D+ +1,2 %, durée +0,1 %, 9 tabliers. Stelvio : aucune requête IGN. L'API HTTP
+   sérialise les sorties d'une même source (`Dem.lock`) : une sortie IGN froide retient la
+   suivante ~20 s par 130 km ; relâcher ce verrou est un sujet séparé, non traité. L'explorateur
+   d'altitude de la démo garde Mapterhorn.
 
 ## Outputs
 

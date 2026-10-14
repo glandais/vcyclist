@@ -26,7 +26,7 @@ vcyclist enhance route.gpx --gpx out.gpx --csv out.csv --start-time 2026-08-01T0
 | `--no-extensions` | write a bare GPX: no `<extensions>`, so no power, heart rate, cadence or temperature |
 | `--gpx-power-source <input\|computed\|computed-or-input>` | which power the written GPX carries (default `input`) |
 | `--[no-]fix-elevation` | DEM elevation correction (off by default; downloads the missing tiles) |
-| `--dem-source <mapterhorn\|ign-lidar-hd>` | DEM `--fix-elevation` reads (default `mapterhorn`; see below) |
+| `--dem-source <mapterhorn\|ign-lidar-hd>` | DEM `--fix-elevation` reads (default `ign-lidar-hd`; see below) |
 | `--[no-]bridge-decks` | ride bridge decks from IGN's surface model (on; effective only with `--fix-elevation --dem-source ign-lidar-hd` at zoom 15) |
 | `--[no-]tunnels` | flatten detected tunnels between their portals, on any DEM (on; needs `--fix-elevation`) |
 | `--tunnel-scope <measured-terrain\|everywhere>` | where tunnels may be flattened: only on measured terrain — IGN LiDAR HD, Mapterhorn in France — (default), or everywhere |
@@ -42,17 +42,22 @@ vcyclist enhance route.gpx --gpx out.gpx --csv out.csv --start-time 2026-08-01T0
 timeline starts at zero, so the absolute start has to be supplied. The same applies to
 `--start-time` for GPX, where it is optional.
 
-`--fix-elevation` replaces the recorded elevations with values read from Terrarium DEM tiles.
-Tiles land under `--cache` (`{host}/{z}/{x}/{y}.webp`, same layout as the map tile cache) and
-never expire, so only the first run over an area touches the network. If a tile cannot be
-fetched, the file **fails** — exit code 70, with the cause on stderr — rather than writing
-plausible-looking output whose elevations were never corrected (task g34).
+`--fix-elevation` replaces the recorded elevations with values read from DEM tiles. Tiles land
+under `--cache` and never expire, so only the first run over an area touches the network. If a
+tile cannot be fetched and no other source can stand in for it, the file **fails** — exit code
+70, with the cause on stderr — rather than writing plausible-looking output whose elevations were
+never corrected (task g34).
 
-`--dem-source ign-lidar-hd` reads IGN's LiDAR HD terrain model instead: France only, ~3.4 m per
-pixel, falling back to Mapterhorn wherever IGN has no data (abroad, at sea). Its WMS tiles land
+The default source, `ign-lidar-hd` (since 6.9), reads IGN's LiDAR HD terrain model: France only,
+~3.4 m per pixel, falling back to Mapterhorn wherever IGN has no data (abroad, at sea) or a tile
+cannot be read (a warning then says how many km), and sending no IGN request outside France.
+`--dem-source mapterhorn` reads Mapterhorn's worldwide Terrarium tiles only
+(`{host}/{z}/{x}/{y}.webp`, same layout as the map tile cache): ~30 times fewer bytes on a cold
+cache, no bridge deck. Its WMS tiles land
 under `--cache` as `data.geopf.fr/wms-r/wms/{sha256 of the query}.bil` — the tile is in the query
-string, so the path alone would not tell two apart. A cold 130 km ride is ~130 tiles and ~33 MB,
-paced under IGN's rate limit; the second run is offline. At its default zoom (15) it also reads
+string, so the path alone would not tell two apart. A cold 130 km ride (`sample.gpx`) is 264 tiles and 66 MB
+with the surface model, 19 s paced under IGN's rate limit, against 16 tiles, 2.3 MB and 3 s on
+Mapterhorn; the second run is offline and as fast as Mapterhorn's. At its default zoom (15) it also reads
 IGN's surface model, one more tile per terrain tile, and rides each bridge deck it detects instead
 of the valley under it (`--no-bridge-decks` or `--dem-zoom 14` turns that off). What it is worth,
 and the bridges a terrain model does not have:

@@ -258,7 +258,7 @@ Reported D+ (`dem` preset) against the LiDAR truth of the bench routes, at the s
 | `test4` Vercors, IGN | 2 460 m (1.02) | 2 543 m (1.05) | 2 546 m |
 | `test4` Vercors, Mapterhorn | 2 425 m (1.00) | 2 476 m (1.03) | 2 479 m |
 
-On Mapterhorn, the default source, the trade is mixed. It has no decks, so the change also exposes
+On Mapterhorn, the default source when this was measured, the trade is mixed. It has no decks, so the change also exposes
 the canyons under the Nantes bridges that simplification used to hide: `test2` goes from 0.90 to
 1.46 of the truth, `test4` from 1.00 to 1.03. `test1` and `test3` improve (0.17 → 0.71, 0.40 →
 1.34). Over the four routes the absolute error goes 0.83 / 0.10 / 0.60 / 0.00 → 0.29 / 0.46 / 0.34
@@ -444,8 +444,20 @@ enhance options, `source` on the elevation package's `newElevationProvider` and 
 
 | id | Model | Coverage | Default sampling | Tile |
 |---|---|---|---|---|
-| `mapterhorn` (default) | fused global DEM, Terrarium WebP | worldwide | z12 × 512 px, ~13.5 m at 45°N | ~65 kB |
-| `ign-lidar-hd` | IGN LiDAR HD **terrain** model (MNT), 1 m grid, ~10 cm vertical | metropolitan France, Corsica | z15 × 256 px, ~3.4 m at 45°N | 256 kB |
+| `ign-lidar-hd` (default since 6.9; not WASI) | IGN LiDAR HD **terrain** model (MNT), 1 m grid, ~10 cm vertical, Mapterhorn behind it | metropolitan France, Corsica | z15 × 256 px, ~3.4 m at 45°N | 256 kB |
+| `mapterhorn` (WASI's default) | fused global DEM, Terrarium WebP | worldwide | z12 × 512 px, ~13.5 m at 45°N | ~65 kB |
+
+**Why IGN became the default (6.9, `elevation-ign-first`).** Once it sent no request outside France,
+read Mapterhorn when a tile failed, reported where every kilometre came from, and flattened tunnels
+only on measured terrain, the remaining cost was the download. Measured with the CLI on `sample.gpx`
+(130 km, cold cache): IGN 264 tiles (terrain and surface model), 66 MB, 19 s; Mapterhorn 16 tiles,
+2.3 MB, 3 s. Warm, both take ~2.5 s. Reported climbing 4 652 m against 4 599 m (+1.2 %), ride time
++0.1 %, nine bridge decks ridden; the Stelvio fixture (Italy) asked IGN for nothing. WASI keeps
+Mapterhorn (`ElevationSource.SINGLE_LAYER_DEFAULT`): its host serves one layer and cannot fall back,
+so IGN there would read 0 m abroad and ride no deck. The demo's elevation explorer keeps Mapterhorn
+too: it reads whole map areas. On the HTTP door one provider per source is used by one request at a
+time (`ElevationGateway`), so a cold IGN ride (~20 s per 130 km) holds back the next IGN request
+for as long; warm, as before.
 
 The IGN source is the same service `leaflet-relief` renders: the Géoplateforme raster WMS
 (`data.geopf.fr/wms-r/wms`, layer `IGNF_LIDAR-HD_MNT_ELEVATION.ELEVATIONGRIDCOVERAGE.WGS84G`),

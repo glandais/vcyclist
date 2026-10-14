@@ -659,7 +659,7 @@ private var elevationConfig: ElevationProviderConfig =
     ElevationProviderConfig(tileUrlTemplate = HostTileSource.URL_TEMPLATE)
 
 /** The DEM the host serves, as last declared through [vcSetElevationConfig]'s `source`. */
-private var elevationSource: ElevationSource = ElevationSource.DEFAULT
+private var elevationSource: ElevationSource = ElevationSource.SINGLE_LAYER_DEFAULT
 
 /**
  * Configure DEM tiles:
@@ -690,7 +690,10 @@ fun vcSetElevationConfig(jsonLen: Int): Int =
     guarded {
         val json = readOptions(jsonLen)
         json?.requireOnly(setOf("source", "zoomLevel", "tileSize", "cacheSize", "tileFormat"))
-        val source = ElevationSource.byId(json?.string("source", ElevationSource.DEFAULT.id) ?: ElevationSource.DEFAULT.id)
+        val source =
+            ElevationSource.byId(
+                json?.string("source", ElevationSource.SINGLE_LAYER_DEFAULT.id) ?: ElevationSource.SINGLE_LAYER_DEFAULT.id,
+            )
         val defaults = source.config()
         val defaultFormat = if (defaults.encoding == TileEncoding.BIL32) "bil32" else "rgba"
         val format =

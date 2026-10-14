@@ -9,8 +9,8 @@ profiling along a path, distance-based smoothing, and Douglas-Peucker 3D simplif
 fallback chained behind it:
 
 ```kotlin
-val world = ElevationSource.MAPTERHORN.provider()          // the default, worldwide
-val france = ElevationSource.IGN_LIDAR_HD.provider()       // IGN LiDAR HD, Mapterhorn abroad
+val france = ElevationSource.IGN_LIDAR_HD.provider()       // the default: IGN LiDAR HD, Mapterhorn abroad
+val world = ElevationSource.MAPTERHORN.provider()          // worldwide, ~30 times fewer bytes
 val ele = france.getElevation(45.77248, 2.96406)           // Puy de Dôme, 1462.6 m
 ```
 

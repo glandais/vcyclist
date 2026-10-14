@@ -1025,7 +1025,7 @@ paths:
       - name: source
         in: query
         description: DEM source, one of `GET /api/v1/catalog` `elevationSources`.
-          Default `mapterhorn`.
+          Default `ign-lidar-hd`.
         schema:
           type: string
           enum:

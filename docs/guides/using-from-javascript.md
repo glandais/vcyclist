@@ -112,8 +112,9 @@ With elevation correction (Node.js / Bun, or a browser that can reach the tile h
 const out = await enhance(path, { fixElevation: true });  // fetches DEM tiles, decodes WebP
 ```
 
-`{ fixElevation: true }` auto-instantiates a default `ElevationProvider` (mapterhorn Terrarium
-tiles) and runs the full pipeline: densify → fix elevation → smooth → max speeds → virtualize →
+`{ fixElevation: true }` auto-instantiates a default `ElevationProvider` (`ign-lidar-hd`: IGN LiDAR
+HD in France, Mapterhorn elsewhere; `demSource: 'mapterhorn'` for the lighter worldwide tiles) and
+runs the full pipeline: densify → fix elevation → smooth → max speeds → virtualize →
 resample → elevation gain → simplify (the simplified path keeps the D+ measured on the
 full-resolution trace).
 

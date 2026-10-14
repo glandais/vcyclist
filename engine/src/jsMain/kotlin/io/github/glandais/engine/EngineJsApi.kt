@@ -220,8 +220,9 @@ external interface EnhanceOptionsDto {
     val demZoom: Int?
 
     /**
-     * The DEM [fixElevation] reads, by `ElevationSource` id: `"mapterhorn"` (the default) or
-     * `"ign-lidar-hd"` (France only, falling back to Mapterhorn where IGN has no data). Read
+     * The DEM [fixElevation] reads, by `ElevationSource` id: `"ign-lidar-hd"` (the default: IGN in
+     * France, Mapterhorn wherever IGN has no data or cannot be read) or `"mapterhorn"` (worldwide,
+     * ~30 times fewer bytes on a cold cache, no bridge deck). Read
      * where the provider is built, like [demZoom]; [demZoom] then defaults to the source's own.
      */
     val demSource: String?

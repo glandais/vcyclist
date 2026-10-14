@@ -81,8 +81,21 @@ enum class ElevationSource(
     fun config(): ElevationProviderConfig = config(null)
 
     companion object {
-        /** The source a door uses when the caller names none. */
-        val DEFAULT: ElevationSource = MAPTERHORN
+        /**
+         * The source a door uses when the caller names none: IGN LiDAR HD, with Mapterhorn behind it
+         * wherever IGN has no data or cannot be read, and no IGN request outside France (6.9).
+         * Measured on `sample.gpx` (130 km, cold cache): 264 tiles and 66 MB in 19 s, against 16
+         * tiles and 2.3 MB in 3 s for Mapterhorn; warm, both take the same time. Reported climbing
+         * +1.2 %, ride time +0.1 %, nine bridge decks ridden. See `docs/guides/elevation.md`.
+         */
+        val DEFAULT: ElevationSource = IGN_LIDAR_HD
+
+        /**
+         * The default of a door whose host serves **one** tile layer and cannot fall back — WASI's
+         * `fetch_tile` names no source and no layer. IGN there would read 0 m abroad and ride no
+         * bridge deck, so that door keeps the worldwide source.
+         */
+        val SINGLE_LAYER_DEFAULT: ElevationSource = MAPTERHORN
 
         /** Every wire id, in declaration order — for help texts and error messages. */
         val ids: List<String> get() = entries.map { it.id }

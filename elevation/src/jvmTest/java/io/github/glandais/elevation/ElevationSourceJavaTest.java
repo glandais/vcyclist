@@ -18,7 +18,8 @@ public class ElevationSourceJavaTest {
     @Test
     public void aSourceIsNamedByEnumOrByWireId() {
         assertEquals(ElevationSource.IGN_LIDAR_HD, ElevationSource.Companion.byId("ign-lidar-hd"));
-        assertEquals(ElevationSource.MAPTERHORN, ElevationSource.Companion.getDEFAULT());
+        assertEquals(ElevationSource.IGN_LIDAR_HD, ElevationSource.Companion.getDEFAULT());
+        assertEquals(ElevationSource.MAPTERHORN, ElevationSource.Companion.getSINGLE_LAYER_DEFAULT());
     }
 
     @Test
