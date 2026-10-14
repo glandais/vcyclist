@@ -46,6 +46,7 @@ Module-level guides live next to their module: [`cli/README.md`](../cli/README.m
 | Document | Goal |
 |---|---|
 | [`tasks/surface-alignment.md`](tasks/surface-alignment.md) | Make façade alignment build-enforced instead of review-enforced, and close the 23 confirmed gaps between the six doors. **S0–S9 and S11 delivered; S10 (code generation) deliberately not started — the reasoning is in the step.** |
+| [`tasks/elevation-ign-first.md`](tasks/elevation-ign-first.md) | IGN LiDAR HD as the default DEM, Mapterhorn as fallback (no-data **and** errors), bridges and tunnels only where the data read allows, terrain provenance in the report. Five steps; step 1 (no IGN request outside its coverage) in progress. |
 
 Completed specs move to `archive/tasks/`.
 
