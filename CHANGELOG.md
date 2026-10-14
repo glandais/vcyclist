@@ -1,3 +1,10 @@
+# [6.6.0](https://github.com/glandais/vcyclist/compare/v6.5.2...v6.6.0) (2026-10-14)
+
+
+### Features
+
+* **elevation:** read a tile IGN cannot serve from the fallback instead of failing the ride ([0f9df9a](https://github.com/glandais/vcyclist/commit/0f9df9a94cac27e9ccf99d91e065700a022a86f4))
+
 ## [6.5.2](https://github.com/glandais/vcyclist/compare/v6.5.1...v6.5.2) (2026-10-14)
 
 
