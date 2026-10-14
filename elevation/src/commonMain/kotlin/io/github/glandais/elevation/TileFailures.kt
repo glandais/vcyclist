@@ -55,7 +55,7 @@ internal class UnreadableTiles(
 
     private val mutex = Mutex()
     private val entries = HashMap<TileCoordinates, Entry>()
-    private val empty by lazy { Tile(noDataTile(tileSize)) }
+    private val empty by lazy { Tile(noDataTile(tileSize)).also { it.unreadable = true } }
 
     /** The no-data tile standing for [tc] while it is remembered as unreadable, recorded; else `null`. */
     suspend fun cached(tc: TileCoordinates): Tile? {

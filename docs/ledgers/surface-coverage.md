@@ -117,7 +117,7 @@ Légende : ✅ atteignable · ⚠️ partiel (la note dit en quoi) · ❌ absent
 | Source du MNT, IGN LiDAR HD (`ElevationSource` : `--dem-source`, `demSource`, `source`) | ✅ | ✅ | ✅ | ⚠️ [^demsource] | ✅ [^demsource] | ✅ [^demsource] | ✅ |
 | R31 tabliers de pont (`bridgeDecksEnabled`, `--bridge-decks`) | ✅ | ✅ | ✅ | ❌ [^decks] | ✅ | ✅ | ✅ |
 | R32 tunnels (`tunnelsEnabled`, `--tunnels`) | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
-| Rapport des corrections d'altitude (`elevationCorrections` : statut, comptes, avertissements) | ✅ | ✅ stderr + ligne d'état | ✅ `pathElevationCorrections` | ✅ `vcPathElevationCorrectionsJson` | ✅ `getElevationCorrections()` | ✅ | ⚠️ [^corr] |
+| Rapport des corrections d'altitude (`elevationCorrections` : statut, comptes, avertissements, provenance du terrain `terrain`) | ✅ | ✅ stderr + ligne d'état | ✅ `pathElevationCorrections` | ✅ `vcPathElevationCorrectionsJson` | ✅ `getElevationCorrections()` | ✅ | ⚠️ [^corr] |
 
 [^prec]: **Refermé en S8, avec un changement de comportement du CLI.** Les trois portes résolvaient
     le préréglage elles-mêmes et ne s'accordaient pas : l'explicite gagnait au CLI, le préréglage

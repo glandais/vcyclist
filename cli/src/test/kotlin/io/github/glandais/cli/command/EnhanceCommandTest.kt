@@ -870,6 +870,7 @@ class EnhanceCommandTest {
         val result = runCommand(command, input.path, "--gpx", File(work, "deck.gpx").path, "--fix-elevation")
         assertEquals(0, result.code, result.err)
         assertContains(result.out, "elevation corrections: bridge decks applied (1), tunnels none-found")
+        assertContains(result.out, "terrain: ign-lidar-hd ")
 
         val plain = run("enhance", input.path, "--gpx", File(work, "plain.gpx").path)
         assertEquals(0, plain.code, plain.err)

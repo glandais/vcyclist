@@ -46,7 +46,11 @@ rapport `Path.elevationCorrections`. Ce qui manque est listé en *Notes / écart
 3. **Provenance** (`feat(engine)`). `TerrainOrigin` (`ign-lidar-hd`, `mapterhorn-measured` —
    Mapterhorn dans l'emprise France —, `mapterhorn`, `none`) par station ; un objet
    `terrain` additif dans `ElevationCorrections` (km par origine, km relus après erreur, tuiles IGN
-   en échec), qui chiffre aussi l'avertissement de l'étape 2. Garde des tabliers : pas de MNS au-dessus d'un terrain qui ne vient pas de l'IGN.
+   en échec), qui chiffre aussi l'avertissement de l'étape 2. Garde des tabliers : pas de MNS
+   au-dessus d'un terrain qui ne vient pas de l'IGN. **Livré** : cinquième origine `other` (un
+   modèle que le catalogue ne connaît pas : hôte WASI, configuration à la main), exposée sur les
+   sept portes (JS `terrain`, WASI `terrain`, HTTP `TerrainProvenance`, ligne `terrain:` de la CLI,
+   ligne d'état de la démo).
 4. **`tunnelScope`** sur les sept portes (`measured-terrain` par défaut, `everywhere`). Les tunnels
    détectés dont une station de *[portail − 100 m, portail + 100 m]* n'est pas d'origine mesurée
    sont écartés, comptés (`tunnelsOutOfScope`) et localisés par km dans un avertissement. Aucun

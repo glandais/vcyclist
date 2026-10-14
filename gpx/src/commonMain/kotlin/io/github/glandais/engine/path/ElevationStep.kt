@@ -4,6 +4,7 @@ import io.github.glandais.elevation.ElevationProvider
 import io.github.glandais.elevation.ElevationSmoother
 import io.github.glandais.elevation.LatLon
 import io.github.glandais.elevation.MathConstants
+import io.github.glandais.elevation.TerrainSample
 
 /**
  * Two helpers that bridge the `:elevation` module to the engine's [Path] :
@@ -40,6 +41,31 @@ object ElevationStep {
         }
         out.computeDerivedData()
         return out
+    }
+
+    /**
+     * [fixElevation], with the [TerrainSample] of every point: where its elevation came from. The
+     * elevations written are the ones [fixElevation] writes.
+     */
+    suspend fun fixElevationWithOrigins(
+        source: Path,
+        provider: ElevationProvider,
+    ): Pair<Path, List<TerrainSample>> {
+        if (source.size == 0) return Path(0) to emptyList()
+        val coords =
+            List(source.size) {
+                LatLon(
+                    latitude = source.latitude(it) * MathConstants.RAD_TO_DEG,
+                    longitude = source.longitude(it) * MathConstants.RAD_TO_DEG,
+                )
+            }
+        val samples = provider.setElevationsWithOrigin(coords)
+        val out = copyAllSlots(source)
+        for (i in 0 until out.size) {
+            out.setElevation(i, samples[i].elevation)
+        }
+        out.computeDerivedData()
+        return out to samples
     }
 
     /**

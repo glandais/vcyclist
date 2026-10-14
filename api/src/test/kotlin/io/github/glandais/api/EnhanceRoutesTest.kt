@@ -214,6 +214,7 @@ class EnhanceRoutesTest {
             assertEquals("not-run", corrections.tunnels)
             assertEquals(emptyList(), corrections.warnings)
             assertEquals(emptyList(), result.warnings)
+            assertEquals(null, corrections.terrain, "no DEM read, no provenance")
         }
 
     /** IGN's terrain served flat, its surface model (the MNS layer) unreachable. */
@@ -243,6 +244,9 @@ class EnhanceRoutesTest {
             assertEquals("fetch-failed", corrections.bridgeDecks)
             assertEquals(1, corrections.warnings.size)
             assertTrue(fetches.get() > 0, "the surface model was never asked")
+            val terrain = assertNotNull(corrections.terrain)
+            val total = terrain.ignLidarHdKm + terrain.mapterhornMeasuredKm + terrain.mapterhornKm + terrain.otherKm + terrain.noDataKm
+            assertTrue(total > 0.0, "every kilometre read is accounted for: $terrain")
             val relayed = result.warnings.filter { "bridge decks" in it }
             assertEquals(1, relayed.size, result.warnings.toString())
             assertTrue(relayed.single().startsWith("track 1"), relayed.single())

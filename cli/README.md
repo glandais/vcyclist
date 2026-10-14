@@ -67,7 +67,11 @@ With `--fix-elevation`, each track prints what the two corrections did on stdout
 
 ```
   -> elevation corrections: bridge decks applied (3), tunnels none-found
+  -> terrain: ign-lidar-hd 98.2 km, mapterhorn-measured 1.3 km
 ```
+
+The `terrain` line gives the length read from each model: `ign-lidar-hd`, `mapterhorn-measured`
+(Mapterhorn in France, LiDAR-derived), `mapterhorn` (elsewhere, unmeasured), `other`, `none`.
 
 A status is one of `not-run`, `unavailable` (decks without a surface model), `no-coverage`,
 `none-found`, `applied` or `fetch-failed`. A correction that is knowingly wrong or depends on the

@@ -20,6 +20,9 @@ class Tile(
 ) {
     constructor(raw: RawTile) : this(raw.width, raw.height, raw.rgba)
 
+    /** This tile stands for one that could not be fetched (see [UnreadableTiles]): all no data. */
+    internal var unreadable: Boolean = false
+
     private val cache: DoubleArray = DoubleArray(width * height) { Double.NaN }
 
     internal var decodeCount: Int = 0

@@ -2,6 +2,7 @@ package io.github.glandais.engine.path
 
 import io.github.glandais.elevation.ElevationProvider
 import io.github.glandais.elevation.LatLon
+import io.github.glandais.elevation.TerrainOrigin
 import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.ensureActive
 import kotlin.coroutines.cancellation.CancellationException
@@ -143,13 +144,13 @@ internal object BridgeDeckStep {
         val stations = alongTrackStations(path, options.stepM)
         val samples =
             try {
-                val mnt =
-                    terrain
-                        .setElevations(stations.asReversed())
-                        .map { it.elevation }
-                        .asReversed()
-                        .toDoubleArray()
-                mnt to surface.setElevations(stations).map { it.elevation }.toDoubleArray()
+                val read = terrain.setElevationsWithOrigin(stations.asReversed()).asReversed()
+                val mnt = DoubleArray(read.size) { read[it].elevation }
+                val mns = surface.setElevations(stations).map { it.elevation }.toDoubleArray()
+                // An IGN surface over any other terrain (Mapterhorn at a coverage edge or after a
+                // failed tile) is a mix of models the detector was never measured on: no deck there.
+                for (k in mns.indices) if (read[k].origin != TerrainOrigin.IGN_LIDAR_HD) mns[k] = Double.NaN
+                mnt to mns
             } catch (e: CancellationException) {
                 throw e
             } catch (e: Exception) {

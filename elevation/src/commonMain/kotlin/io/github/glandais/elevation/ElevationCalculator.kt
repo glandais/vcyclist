@@ -52,24 +52,41 @@ class ElevationCalculator(
         zoomLevel: Int,
         interpolation: Boolean = true,
     ): Double {
-        val own =
-            try {
-                if (interpolation) {
-                    getInterpolatedElevation(coords, zoomLevel)
-                } else {
-                    val pixel = ElevationFunctions.toPixel(coords, zoomLevel, tileSize)
-                    elevationFromPixel(pixel)
-                }
-            } catch (t: Throwable) {
-                throw IllegalStateException("Failed to get elevation: ${t.message}", t)
-            }
+        val own = readOwn(coords, zoomLevel, interpolation, null)
         if (!own.isNaN()) return own
         return fallback?.invoke(coords, interpolation) ?: 0.0
+    }
+
+    /**
+     * This calculator's own tiles only — `NaN` on no data, never the fallback. [touched], when given,
+     * is set when one of the tiles read stands for a tile that could not be fetched.
+     */
+    internal suspend fun readOwn(
+        coords: Coordinates,
+        zoomLevel: Int,
+        interpolation: Boolean,
+        touched: UnreadableFlag?,
+    ): Double =
+        try {
+            if (interpolation) {
+                getInterpolatedElevation(coords, zoomLevel, touched)
+            } else {
+                val pixel = ElevationFunctions.toPixel(coords, zoomLevel, tileSize)
+                elevationFromPixel(pixel, touched)
+            }
+        } catch (t: Throwable) {
+            throw IllegalStateException("Failed to get elevation: ${t.message}", t)
+        }
+
+    /** Set when a read met a tile answered as no data because it could not be fetched. */
+    internal class UnreadableFlag {
+        var met: Boolean = false
     }
 
     private suspend fun getInterpolatedElevation(
         coords: Coordinates,
         zoomLevel: Int,
+        touched: UnreadableFlag?,
     ): Double {
         val pf = ElevationFunctions.toPixelFloat(coords, zoomLevel, tileSize)
         // Sample i sits at i + ½ (see the class KDoc): interpolate between centres.
@@ -82,15 +99,22 @@ class ElevationCalculator(
         val dx = fx - x0i
         val dy = fy - y0i
 
-        val p00 = elevationFromPixel(ElevationFunctions.normalizePixel(Pixel(pf.tile, x0i, y0i), tileSize))
-        val p10 = elevationFromPixel(ElevationFunctions.normalizePixel(Pixel(pf.tile, x1i, y0i), tileSize))
-        val p01 = elevationFromPixel(ElevationFunctions.normalizePixel(Pixel(pf.tile, x0i, y1i), tileSize))
-        val p11 = elevationFromPixel(ElevationFunctions.normalizePixel(Pixel(pf.tile, x1i, y1i), tileSize))
+        val p00 = elevationFromPixel(ElevationFunctions.normalizePixel(Pixel(pf.tile, x0i, y0i), tileSize), touched)
+        val p10 = elevationFromPixel(ElevationFunctions.normalizePixel(Pixel(pf.tile, x1i, y0i), tileSize), touched)
+        val p01 = elevationFromPixel(ElevationFunctions.normalizePixel(Pixel(pf.tile, x0i, y1i), tileSize), touched)
+        val p11 = elevationFromPixel(ElevationFunctions.normalizePixel(Pixel(pf.tile, x1i, y1i), tileSize), touched)
 
         val top = p00 * (1.0 - dx) + p10 * dx
         val bottom = p01 * (1.0 - dx) + p11 * dx
         return top * (1.0 - dy) + bottom * dy
     }
 
-    private suspend fun elevationFromPixel(pixel: Pixel): Double = tileManager.getTile(pixel.tile).getElevation(pixel)
+    private suspend fun elevationFromPixel(
+        pixel: Pixel,
+        touched: UnreadableFlag?,
+    ): Double {
+        val tile = tileManager.getTile(pixel.tile)
+        if (touched != null && tile.unreadable) touched.met = true
+        return tile.getElevation(pixel)
+    }
 }

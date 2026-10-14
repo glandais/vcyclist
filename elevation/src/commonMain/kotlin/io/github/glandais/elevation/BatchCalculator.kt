@@ -27,7 +27,23 @@ class BatchCalculator(
         maxParallelTiles: Int = 10,
     ): List<CoordinatesElevation> {
         if (coordinates.isEmpty()) return emptyList()
-        val results = arrayOfNulls<CoordinatesElevation>(coordinates.size)
+        return mapByTile(coordinates, zoomLevel, maxParallelTiles) { coord ->
+            LatLonElevation(coord.latitude, coord.longitude, calculator.getElevation(coord, zoomLevel, interpolation))
+        }
+    }
+
+    /**
+     * [read] for every coordinate, in parallel across tiles and in order within one, so the cache
+     * is hit instead of refetched. Returns the results in input order.
+     */
+    internal suspend fun <T : Any> mapByTile(
+        coordinates: List<Coordinates>,
+        zoomLevel: Int,
+        maxParallelTiles: Int = 10,
+        read: suspend (Coordinates) -> T,
+    ): List<T> {
+        if (coordinates.isEmpty()) return emptyList()
+        val results = arrayOfNulls<Any>(coordinates.size)
 
         val byTile: MutableMap<String, MutableList<Int>> = LinkedHashMap()
         for ((i, p) in coordinates.withIndex()) {
@@ -37,15 +53,11 @@ class BatchCalculator(
         }
 
         Flux.forEachParallel(byTile.entries, maxParallelTiles) { (_, indices) ->
-            for (i in indices) {
-                val coord = coordinates[i]
-                val ele = calculator.getElevation(coord, zoomLevel, interpolation)
-                results[i] = LatLonElevation(coord.latitude, coord.longitude, ele)
-            }
+            for (i in indices) results[i] = read(coordinates[i])
         }
 
         @Suppress("UNCHECKED_CAST")
-        return (results.toList() as List<CoordinatesElevation>)
+        return (results.toList() as List<T>)
     }
 
     /**

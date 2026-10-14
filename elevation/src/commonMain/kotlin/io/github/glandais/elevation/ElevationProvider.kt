@@ -129,6 +129,31 @@ class ElevationProvider private constructor(
         interpolation: Boolean = true,
     ): List<CoordinatesElevation> = batchCalculator.setElevations(coordinates, config.zoomLevel, interpolation)
 
+    /**
+     * Like [setElevations], with where each value came from: this provider's own tiles, or which of
+     * its fallbacks, or none (0 m, or `NaN` on a raw layer). See [TerrainOrigin] for what can be
+     * told about a Mapterhorn point. The values are the ones [setElevations] returns.
+     */
+    suspend fun setElevationsWithOrigin(
+        coordinates: List<Coordinates>,
+        interpolation: Boolean = true,
+    ): List<TerrainSample> = batchCalculator.mapByTile(coordinates, config.zoomLevel) { sample(it, interpolation) }
+
+    /** One point through the chain: this provider's tiles, then the fallback's, recursively. */
+    private suspend fun sample(
+        coords: Coordinates,
+        interpolation: Boolean,
+    ): TerrainSample {
+        val flag = ElevationCalculator.UnreadableFlag()
+        val own = calculator.readOwn(coords, config.zoomLevel, interpolation, flag)
+        if (!own.isNaN()) {
+            return TerrainSample(coords.latitude, coords.longitude, own, TerrainOrigin.of(config, coords.latitude, coords.longitude), false)
+        }
+        val next = fallback?.sample(coords, interpolation)
+        if (next != null) return if (flag.met) next.copy(afterError = true) else next
+        return TerrainSample(coords.latitude, coords.longitude, if (keepNoData) Double.NaN else 0.0, TerrainOrigin.NONE, flag.met)
+    }
+
     suspend fun getElevationsAlong(
         path: List<Coordinates>,
         step: Double = ElevationDefaults.STEP_M,

@@ -201,6 +201,31 @@ data class ElevationCorrectionsDto(
     val tunnelsDropped: Int,
     @JsonSchema.Description("One sentence per outcome that is knowingly wrong or depends on the network; usually empty.")
     val warnings: List<String>,
+    @JsonSchema.Description("Where the terrain was read from, in km per origin; null without a DEM correction.")
+    val terrain: TerrainProvenanceDto?,
+)
+
+/**
+ * The route's length read from each terrain model — the keys of the JS `TerrainProvenanceDto` and
+ * of WASI's `terrain` object.
+ */
+@Serializable
+@SerialName("TerrainProvenance")
+data class TerrainProvenanceDto(
+    @JsonSchema.Description("Kilometres read from IGN LiDAR HD.")
+    val ignLidarHdKm: Double,
+    @JsonSchema.Description("Kilometres read from Mapterhorn in France, where it is LiDAR-derived and measured.")
+    val mapterhornMeasuredKm: Double,
+    @JsonSchema.Description("Kilometres read from Mapterhorn elsewhere: a national model or GLO-30, unmeasured.")
+    val mapterhornKm: Double,
+    @JsonSchema.Description("Kilometres read from a tile source the catalogue does not know.")
+    val otherKm: Double,
+    @JsonSchema.Description("Kilometres where no source had data, read as 0 m.")
+    val noDataKm: Double,
+    @JsonSchema.Description("Of the above, kilometres read from a fallback because a tile could not be fetched.")
+    val fallbackAfterErrorKm: Double,
+    @JsonSchema.Description("Distinct tiles that could not be fetched during the run.")
+    val failedTiles: Int,
 )
 
 /**

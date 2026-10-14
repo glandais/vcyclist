@@ -419,8 +419,14 @@ Up to five optional sub-objects; each is the matching JS DTO, field for field.
 
   ```json
   {"bridgeDecks":"unavailable","bridgeDecksApplied":0,"bridgeDecksDropped":0,
-   "tunnels":"applied","tunnelsApplied":2,"tunnelsDropped":0,"warnings":[]}
+   "tunnels":"applied","tunnelsApplied":2,"tunnelsDropped":0,"warnings":[],
+   "terrain":{"ignLidarHdKm":0.0,"mapterhornMeasuredKm":0.0,"mapterhornKm":0.0,"otherKm":41.7,
+              "noDataKm":0.0,"fallbackAfterErrorKm":0.0,"failedTiles":0}}
   ```
+
+  `terrain` is `null` without `fixElevation`. On this door the host's tiles are one layer whose
+  template the catalogue does not know, so they are counted as `otherKm` (or `noDataKm` where the
+  host had none): the provenance of a WASI read is the host's to know.
 
   Statuses are `not-run`, `unavailable`, `no-coverage`, `none-found`, `applied` and `fetch-failed`.
   `warnings` holds one English sentence per outcome that is knowingly wrong or depends on the

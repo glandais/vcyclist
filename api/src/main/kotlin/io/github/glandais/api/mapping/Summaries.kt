@@ -4,6 +4,7 @@ import io.github.glandais.api.dto.BoundsDto
 import io.github.glandais.api.dto.ElevationCorrectionsDto
 import io.github.glandais.api.dto.PathSummaryDto
 import io.github.glandais.api.dto.PointDto
+import io.github.glandais.api.dto.TerrainProvenanceDto
 import io.github.glandais.elevation.MathConstants
 import io.github.glandais.engine.path.ElevationCorrections
 import io.github.glandais.engine.path.Path
@@ -48,6 +49,18 @@ fun ElevationCorrections.toDto(): ElevationCorrectionsDto =
         tunnelsApplied = tunnelsApplied,
         tunnelsDropped = tunnelsDropped,
         warnings = warnings,
+        terrain =
+            terrain?.let {
+                TerrainProvenanceDto(
+                    ignLidarHdKm = it.ignLidarHdKm,
+                    mapterhornMeasuredKm = it.mapterhornMeasuredKm,
+                    mapterhornKm = it.mapterhornKm,
+                    otherKm = it.otherKm,
+                    noDataKm = it.noDataKm,
+                    fallbackAfterErrorKm = it.fallbackAfterErrorKm,
+                    failedTiles = it.failedTiles,
+                )
+            },
     )
 
 /** Every point, in the shape of the JS / WASI `PointDto`. */

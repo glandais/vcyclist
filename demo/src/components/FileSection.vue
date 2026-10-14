@@ -13,6 +13,7 @@ import {
     pathSize,
     pathTotalDistance,
     type Path,
+    type TerrainProvenanceDto,
 } from '@glandais/vcyclist-engine';
 
 const props = defineProps<{
@@ -106,13 +107,31 @@ const elevationCorrections = computed(() => {
     if (!report || (report.bridgeDecks === 'not-run' && report.tunnels === 'not-run')) {
         return null;
     }
+    const terrain = report.terrain ? terrainLabel(report.terrain) : '';
     return {
         line:
             `Bridge decks: ${statusLabel(report.bridgeDecks, report.bridgeDecksApplied)}` +
-            ` · Tunnels: ${statusLabel(report.tunnels, report.tunnelsApplied)}`,
+            ` · Tunnels: ${statusLabel(report.tunnels, report.tunnelsApplied)}` +
+            (terrain ? ` · Terrain: ${terrain}` : ''),
         warnings: report.warnings,
     };
 });
+
+/** `IGN LiDAR HD 98.2 km, Mapterhorn (France) 1.3 km`: each source read, longest first. */
+function terrainLabel(t: TerrainProvenanceDto): string {
+    const parts: Array<[string, number]> = [
+        ['IGN LiDAR HD', t.ignLidarHdKm],
+        ['Mapterhorn (France)', t.mapterhornMeasuredKm],
+        ['Mapterhorn (abroad, unmeasured)', t.mapterhornKm],
+        ['other source', t.otherKm],
+        ['no data', t.noDataKm],
+    ];
+    return parts
+        .filter(([, km]) => km >= 0.05)
+        .sort((a, b) => b[1] - a[1])
+        .map(([name, km]) => `${name} ${km.toFixed(1)} km`)
+        .join(', ');
+}
 
 /**
  * What the corrections are worth on this ride: the reported climbing and the ride time with and

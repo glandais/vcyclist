@@ -374,6 +374,25 @@ export interface ElevationCorrectionsDto {
     readonly tunnelsApplied: number;
     readonly tunnelsDropped: number;
     readonly warnings: string[];
+    /**
+     * Where the terrain was read from, in km per origin; `null` without a DEM correction.
+     */
+    readonly terrain?: TerrainProvenanceDto | null;
+}
+
+/**
+ * JS view of `TerrainProvenance`: the route's length read from each terrain model, in km. The
+ * origins are `ign-lidar-hd`, `mapterhorn-measured` (Mapterhorn in France, LiDAR-derived),
+ * `mapterhorn` (elsewhere, unmeasured), `other` and `none`.
+ */
+export interface TerrainProvenanceDto {
+    readonly ignLidarHdKm: number;
+    readonly mapterhornMeasuredKm: number;
+    readonly mapterhornKm: number;
+    readonly otherKm: number;
+    readonly noDataKm: number;
+    readonly fallbackAfterErrorKm: number;
+    readonly failedTiles: number;
 }
 
 /**

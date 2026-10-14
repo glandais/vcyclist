@@ -6,6 +6,7 @@ import io.github.glandais.engine.gpx.GpxWaypoint
 import io.github.glandais.engine.path.ElevationCorrections
 import io.github.glandais.engine.path.Path
 import io.github.glandais.engine.path.PointField
+import io.github.glandais.engine.path.TerrainProvenance
 import io.github.glandais.engine.trajectory.CornerSpan
 import io.github.glandais.engine.trajectory.RacingLineReport
 
@@ -161,6 +162,19 @@ internal fun elevationCorrectionsJson(c: ElevationCorrections): String =
         "tunnelsApplied" to c.tunnelsApplied.toString(),
         "tunnelsDropped" to c.tunnelsDropped.toString(),
         "warnings" to jsonArray(c.warnings.map(::jsonString)),
+        "terrain" to (c.terrain?.let(::terrainProvenanceJson) ?: "null"),
+    )
+
+/** Mirror of `TerrainProvenanceDto`: kilometres per terrain origin. */
+internal fun terrainProvenanceJson(t: TerrainProvenance): String =
+    jsonObject(
+        "ignLidarHdKm" to jsonNumber(t.ignLidarHdKm),
+        "mapterhornMeasuredKm" to jsonNumber(t.mapterhornMeasuredKm),
+        "mapterhornKm" to jsonNumber(t.mapterhornKm),
+        "otherKm" to jsonNumber(t.otherKm),
+        "noDataKm" to jsonNumber(t.noDataKm),
+        "fallbackAfterErrorKm" to jsonNumber(t.fallbackAfterErrorKm),
+        "failedTiles" to t.failedTiles.toString(),
     )
 
 /** `[…]` of numbers, non-finite slots becoming `null` — see [racingLineReportJson]. */

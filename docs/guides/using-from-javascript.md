@@ -161,8 +161,13 @@ import { pathElevationCorrections } from '@glandais/vcyclist-engine';
 
 const report = pathElevationCorrections(out);
 // { bridgeDecks: 'applied', bridgeDecksApplied: 2, bridgeDecksDropped: 0,
-//   tunnels: 'none-found', tunnelsApplied: 0, tunnelsDropped: 0, warnings: [] }
+//   tunnels: 'none-found', tunnelsApplied: 0, tunnelsDropped: 0, warnings: [],
+//   terrain: { ignLidarHdKm: 41.3, mapterhornMeasuredKm: 0.4, mapterhornKm: 0, otherKm: 0,
+//              noDataKm: 0, fallbackAfterErrorKm: 0, failedTiles: 0 } }
 ```
+
+`terrain` (`null` without `fixElevation`) is the route's length read from each terrain model; see
+`docs/guides/elevation.md`, *Where the terrain came from*.
 
 Each status is `'not-run'` (option off, or no `fixElevation`), `'unavailable'` (decks only: the
 source has no surface model), `'no-coverage'`, `'none-found'`, `'applied'` or `'fetch-failed'` —

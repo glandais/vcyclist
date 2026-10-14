@@ -134,8 +134,13 @@ track says what they did:
 ```json
 "elevationCorrections": {"bridgeDecks": "fetch-failed", "bridgeDecksApplied": 0, "bridgeDecksDropped": 0,
                          "tunnels": "none-found", "tunnelsApplied": 0, "tunnelsDropped": 0,
-                         "warnings": ["bridge decks: a terrain- or surface-model tile could not be read; …"]}
+                         "warnings": ["bridge decks: a terrain- or surface-model tile could not be read; …"],
+                         "terrain": {"ignLidarHdKm": 41.3, "mapterhornMeasuredKm": 0.4, "mapterhornKm": 0.0,
+                                     "otherKm": 0.0, "noDataKm": 0.0, "fallbackAfterErrorKm": 0.0, "failedTiles": 0}}
 ```
+
+`terrain` says where the elevations were read from, in km per origin (`null` without
+`fixElevation`); see `docs/guides/elevation.md`, *Where the terrain came from*.
 
 The statuses are listed by `GET /catalog` (`elevationCorrectionStatuses`). Each warning is also
 appended to the response's `warnings`, prefixed `track <n> (<name>): `. A failed surface-model read

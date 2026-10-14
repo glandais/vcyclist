@@ -6,6 +6,7 @@ import io.github.glandais.engine.path.ElevationCorrectionStatus
 import io.github.glandais.engine.path.ElevationCorrections
 import io.github.glandais.engine.path.Path
 import io.github.glandais.engine.path.PointField
+import io.github.glandais.engine.path.TerrainProvenance
 import io.github.glandais.engine.trajectory.RacingLine
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -96,8 +97,14 @@ class WasiJsonOutputTest {
             )
         assertEquals(
             """{"bridgeDecks":"fetch-failed","bridgeDecksApplied":0,"bridgeDecksDropped":2,"tunnels":"none-found",""" +
-                """"tunnelsApplied":0,"tunnelsDropped":1,"warnings":["bridge decks: \"quoted\""]}""",
+                """"tunnelsApplied":0,"tunnelsDropped":1,"warnings":["bridge decks: \"quoted\""],"terrain":null}""",
             elevationCorrectionsJson(report),
+        )
+        val withTerrain = report.copy(terrain = TerrainProvenance(98.5, 1.25, 0.0, 0.0, 0.0, 0.5, 2))
+        assertTrue(
+            """"terrain":{"ignLidarHdKm":98.5,"mapterhornMeasuredKm":1.25,"mapterhornKm":0.0,"otherKm":0.0,""" +
+                """"noDataKm":0.0,"fallbackAfterErrorKm":0.5,"failedTiles":2}}""" in elevationCorrectionsJson(withTerrain),
+            elevationCorrectionsJson(withTerrain),
         )
     }
 

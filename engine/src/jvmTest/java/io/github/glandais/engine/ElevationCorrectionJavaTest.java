@@ -10,6 +10,7 @@ import io.github.glandais.engine.path.ElevationGainJvm;
 import io.github.glandais.engine.path.ElevationStepJvm;
 import io.github.glandais.engine.path.Path;
 import io.github.glandais.engine.path.PathSimplifierJvm;
+import io.github.glandais.engine.path.TerrainProvenance;
 import org.junit.Test;
 
 /**
@@ -34,6 +35,9 @@ public class ElevationCorrectionJavaTest {
         assertEquals(ElevationCorrectionStatus.APPLIED, report.getTunnels());
         assertEquals("no surface model on this provider", ElevationCorrectionStatus.UNAVAILABLE, report.getBridgeDecks());
         assertTrue(maxGap(out) <= Enhancer.REFINE_MAX_DISTANCE_M + 1e-6);
+        TerrainProvenance terrain = report.getTerrain();
+        assertTrue("read from IGN: " + terrain, terrain.getIgnLidarHdKm() > 1.0);
+        assertEquals(0, terrain.getFailedTiles());
         assertNull("the input is never stamped", input.getElevationCorrections());
     }
 

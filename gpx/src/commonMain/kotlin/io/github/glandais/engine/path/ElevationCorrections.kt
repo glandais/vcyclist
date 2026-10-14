@@ -55,6 +55,8 @@ enum class ElevationCorrectionStatus(
  * @property warnings one human-readable sentence per outcome that is knowingly wrong or depends on
  *   the network; empty in the normal case. The doors relay these strings, prefixed with the file or
  *   track, and never reword them.
+ * @property terrain where the corrected elevations were read from, `null` when they were not
+ *   corrected from a DEM
  */
 data class ElevationCorrections(
     val bridgeDecks: ElevationCorrectionStatus,
@@ -64,4 +66,30 @@ data class ElevationCorrections(
     val tunnelsApplied: Int,
     val tunnelsDropped: Int,
     val warnings: List<String>,
+    val terrain: TerrainProvenance? = null,
+)
+
+/**
+ * The length of the route read from each terrain model, in kilometres — see
+ * `io.github.glandais.elevation.TerrainOrigin`. Measured on the DEM read's own 30 m grid, each point
+ * standing for half of each segment around it, so the figures add up to the route's length and do
+ * not move with later resampling.
+ *
+ * @property ignLidarHdKm read from IGN LiDAR HD
+ * @property mapterhornMeasuredKm read from Mapterhorn in France, where it is LiDAR-derived and measured
+ * @property mapterhornKm read from Mapterhorn elsewhere: a national model or GLO-30, unmeasured
+ * @property otherKm read from a tile source the catalogue does not know (a WASI host, a custom one)
+ * @property noDataKm no source had data: read as 0 m
+ * @property fallbackAfterErrorKm the part of the above read from a fallback because a tile could not
+ *   be fetched, not because it had no data
+ * @property failedTiles distinct tiles that could not be fetched during the run
+ */
+data class TerrainProvenance(
+    val ignLidarHdKm: Double,
+    val mapterhornMeasuredKm: Double,
+    val mapterhornKm: Double,
+    val otherKm: Double,
+    val noDataKm: Double,
+    val fallbackAfterErrorKm: Double,
+    val failedTiles: Int,
 )

@@ -8,6 +8,7 @@ import io.github.glandais.cli.mixin.FilesMixin
 import io.github.glandais.cli.mixin.WindMixin
 import io.github.glandais.elevation.ElevationProvider
 import io.github.glandais.elevation.ElevationSource
+import io.github.glandais.elevation.TerrainOrigin
 import io.github.glandais.engine.Course
 import io.github.glandais.engine.CoursePhysics
 import io.github.glandais.engine.ElevationCorrectionOptions
@@ -27,6 +28,7 @@ import io.github.glandais.engine.path.ElevationGainOptions
 import io.github.glandais.engine.path.ElevationGainPreset
 import io.github.glandais.engine.path.ElevationStep
 import io.github.glandais.engine.path.Path
+import io.github.glandais.engine.path.TerrainProvenance
 import io.github.glandais.engine.physics.AeroProviderConstant
 import io.github.glandais.engine.physics.PowerProviderFromData
 import io.github.glandais.engine.physics.RhoProviderEstimate
@@ -41,6 +43,7 @@ import java.io.File
 import java.util.concurrent.Callable
 import kotlin.math.PI
 import kotlin.math.abs
+import kotlin.math.roundToLong
 import kotlin.time.Instant
 
 /**
@@ -551,8 +554,21 @@ class EnhanceCommand : Callable<Int> {
                 "  -> elevation corrections$track: bridge decks ${status(c.bridgeDecks, c.bridgeDecksApplied)}, " +
                     "tunnels ${status(c.tunnels, c.tunnelsApplied)}",
             )
+            c.terrain?.let { out.println("  -> terrain$track: ${terrainLine(it)}") }
         }
     }
+
+    /** `ign-lidar-hd 98.2 km, mapterhorn-measured 1.3 km` — the origins read, by their wire id. */
+    private fun terrainLine(t: TerrainProvenance): String =
+        listOf(
+            TerrainOrigin.IGN_LIDAR_HD to t.ignLidarHdKm,
+            TerrainOrigin.MAPTERHORN_MEASURED to t.mapterhornMeasuredKm,
+            TerrainOrigin.MAPTERHORN to t.mapterhornKm,
+            TerrainOrigin.OTHER to t.otherKm,
+            TerrainOrigin.NONE to t.noDataKm,
+        ).filter { it.second >= 0.05 }
+            .joinToString(", ") { (o, km) -> "${o.id} ${(km * 10).roundToLong() / 10.0} km" }
+            .ifEmpty { "nothing read" }
 
     private fun status(
         s: ElevationCorrectionStatus,

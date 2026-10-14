@@ -621,6 +621,30 @@ km on the 1–2 m path, to 0.1 km); `unavailable` and `not-run` are the normal c
 on most sources and raise none. The wording lives in `ElevationCorrectionReport` alone; the CLI
 prints each warning to stderr even with `--quiet` and exits 0.
 
+#### Where the terrain came from
+
+`ElevationCorrections.terrain` (`TerrainProvenance`, `null` without a DEM correction) splits the
+route's length by the model its elevations were read from — `io.github.glandais.elevation.TerrainOrigin`,
+which `ElevationProvider.setElevationsWithOrigin` returns per point:
+
+| Origin | Km field | Means |
+|---|---|---|
+| `ign-lidar-hd` | `ignLidarHdKm` | IGN's terrain model |
+| `mapterhorn-measured` | `mapterhornMeasuredKm` | Mapterhorn inside `IgnLidarHdCoverage` (France, Corsica): LiDAR-derived, measured by the bench |
+| `mapterhorn` | `mapterhornKm` | Mapterhorn elsewhere: a national model or GLO-30, unmeasured. Mapterhorn publishes no footprint per source, so the library cannot tell which |
+| `other` | `otherKm` | a template the catalogue does not know: a WASI host's tiles, a hand-built configuration |
+| `none` | `noDataKm` | no source had data: 0 m |
+
+`fallbackAfterErrorKm` is the part read from a fallback because a tile could not be fetched (the
+`terrain:` warning quotes it), `failedTiles` the distinct tiles concerned. The kilometres are
+measured on step 2's 30 m grid, each point standing for half of each segment around it, so they add
+up to the route and do not move with later resampling. A per-point provenance field (`PointField`)
+would be a wire-format change and is deliberately not part of it.
+
+The same reads guard the bridge decks: a station whose terrain did not come from IGN has its
+surface sample dropped before detection, so an IGN surface is never compared with a Mapterhorn
+floor — at a coverage edge, in a survey gap, after a failed tile. The bench, all IGN, is unchanged.
+
 The other doors read the same report through one accessor each: `path.getElevationCorrections()`
 from Java, `pathElevationCorrections(path)` from JavaScript (a plain object, statuses typed as a
 closed union in `index.d.ts`), `vcPathElevationCorrectionsJson(handle)` on WASI (the same JSON, or

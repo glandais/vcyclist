@@ -30,6 +30,7 @@ import io.github.glandais.engine.path.ElevationGainOptions
 import io.github.glandais.engine.path.ElevationGainPreset
 import io.github.glandais.engine.path.Path
 import io.github.glandais.engine.path.PointField
+import io.github.glandais.engine.path.TerrainProvenance
 import io.github.glandais.engine.path.dominantHeadwindAzimuthDeg
 import io.github.glandais.engine.physics.AeroProviderConstant
 import io.github.glandais.engine.physics.CyclistPowerProvider
@@ -534,6 +535,24 @@ external interface ElevationCorrectionsDto {
     val tunnelsApplied: Int
     val tunnelsDropped: Int
     val warnings: Array<String>
+
+    /** Where the terrain was read from, in km per origin; `null` without a DEM correction. */
+    val terrain: TerrainProvenanceDto?
+}
+
+/**
+ * JS view of [TerrainProvenance]: the route's length read from each terrain model, in km. The
+ * origins are `ign-lidar-hd`, `mapterhorn-measured` (Mapterhorn in France, LiDAR-derived),
+ * `mapterhorn` (elsewhere, unmeasured), `other` and `none`.
+ */
+external interface TerrainProvenanceDto {
+    val ignLidarHdKm: Double
+    val mapterhornMeasuredKm: Double
+    val mapterhornKm: Double
+    val otherKm: Double
+    val noDataKm: Double
+    val fallbackAfterErrorKm: Double
+    val failedTiles: Int
 }
 
 internal fun elevationCorrectionsObj(c: ElevationCorrections): ElevationCorrectionsDto {
@@ -545,7 +564,20 @@ internal fun elevationCorrectionsObj(c: ElevationCorrections): ElevationCorrecti
     o.tunnelsApplied = c.tunnelsApplied
     o.tunnelsDropped = c.tunnelsDropped
     o.warnings = c.warnings.toTypedArray()
+    o.terrain = c.terrain?.let(::terrainProvenanceObj)
     return o.unsafeCast<ElevationCorrectionsDto>()
+}
+
+internal fun terrainProvenanceObj(t: TerrainProvenance): TerrainProvenanceDto {
+    val o = js("({})")
+    o.ignLidarHdKm = t.ignLidarHdKm
+    o.mapterhornMeasuredKm = t.mapterhornMeasuredKm
+    o.mapterhornKm = t.mapterhornKm
+    o.otherKm = t.otherKm
+    o.noDataKm = t.noDataKm
+    o.fallbackAfterErrorKm = t.fallbackAfterErrorKm
+    o.failedTiles = t.failedTiles
+    return o.unsafeCast<TerrainProvenanceDto>()
 }
 
 @JsExport

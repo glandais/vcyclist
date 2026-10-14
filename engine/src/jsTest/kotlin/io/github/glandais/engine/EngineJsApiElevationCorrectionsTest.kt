@@ -74,6 +74,9 @@ class EngineJsApiElevationCorrectionsTest {
             assertEquals("unavailable", report.bridgeDecks, "DeckWorld's terrain carries no surface model")
             assertTrue(js("Array.isArray")(report.warnings).unsafeCast<Boolean>(), "warnings is a real JS array")
             assertEquals(0, report.warnings.size)
+            val terrain = assertNotNull(report.terrain, "a DEM correction says where it read")
+            assertTrue(terrain.ignLidarHdKm > 1.0, "${terrain.ignLidarHdKm}")
+            assertEquals(0, terrain.failedTiles)
         }
 
     @Test

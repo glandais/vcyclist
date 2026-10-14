@@ -1,6 +1,7 @@
 package io.github.glandais.engine
 
 import io.github.glandais.elevation.ElevationProvider
+import io.github.glandais.elevation.TerrainSample
 import io.github.glandais.elevation.TileFailureLog
 import io.github.glandais.engine.path.BridgeDeckResult
 import io.github.glandais.engine.path.BridgeDeckStatus
@@ -80,10 +81,14 @@ object ElevationCorrection {
         // Step 1 : densify before fixElevation so DEM lookups have ~30 m granularity.
         var path = PointPerDistance.compute(source, minDistanceM = -1.0, maxDistanceM = Enhancer.PRE_FIX_SPACING_M)
 
-        // Step 2 : fix elevation.
+        // Step 2 : fix elevation, noting where each point was read from.
+        var samples: List<TerrainSample>? = null
         if (provider != null) {
-            path = ElevationStep.fixElevation(path, provider)
+            val (fixed, read) = ElevationStep.fixElevationWithOrigins(path, provider)
+            path = fixed
+            samples = read
         }
+        val readPath = path
 
         // Step 3 : refine before the corrections write their profiles, and before downstream physics.
         path = PointPerDistance.compute(path, minDistanceM = minSpacingM, maxDistanceM = maxSpacingM)
@@ -128,8 +133,8 @@ object ElevationCorrection {
         // A step that wrote nothing hands back its input instance: copy before stamping, so the
         // caller's path is never the one stamped (step 1 always copies, but say it here too).
         if (path === source) path = path.copy()
-        path.elevationCorrections =
-            ElevationCorrectionReport.of(decks, decksAllowed && surface == null, tunnels, failures.failedTiles.size)
+        val terrain = samples?.let { ElevationCorrectionReport.provenance(readPath, it, failures.failedTiles.size) }
+        path.elevationCorrections = ElevationCorrectionReport.of(decks, decksAllowed && surface == null, tunnels, terrain)
         return path
     }
 }

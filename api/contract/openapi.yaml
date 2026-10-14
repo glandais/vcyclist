@@ -2267,6 +2267,46 @@ components:
             OSM inference. Absent or null: the GPX''s widths.'
         output:
           $ref: "#/components/schemas/Output"
+    TerrainProvenance:
+      type:
+      - object
+      - "null"
+      title: TerrainProvenance
+      description: Where the terrain was read from, in km per origin; null without
+        a DEM correction.
+      required:
+      - ignLidarHdKm
+      - mapterhornMeasuredKm
+      - mapterhornKm
+      - otherKm
+      - noDataKm
+      - fallbackAfterErrorKm
+      - failedTiles
+      properties:
+        ignLidarHdKm:
+          type: number
+          description: Kilometres read from IGN LiDAR HD.
+        mapterhornMeasuredKm:
+          type: number
+          description: Kilometres read from Mapterhorn in France, where it is LiDAR-derived
+            and measured.
+        mapterhornKm:
+          type: number
+          description: 'Kilometres read from Mapterhorn elsewhere: a national model
+            or GLO-30, unmeasured.'
+        otherKm:
+          type: number
+          description: Kilometres read from a tile source the catalogue does not know.
+        noDataKm:
+          type: number
+          description: Kilometres where no source had data, read as 0 m.
+        fallbackAfterErrorKm:
+          type: number
+          description: Of the above, kilometres read from a fallback because a tile
+            could not be fetched.
+        failedTiles:
+          type: integer
+          description: Distinct tiles that could not be fetched during the run.
     ElevationCorrections:
       type: object
       title: ElevationCorrections
@@ -2305,6 +2345,8 @@ components:
             on the network; usually empty.
           items:
             type: string
+        terrain:
+          $ref: "#/components/schemas/TerrainProvenance"
     TrackResult:
       type: object
       title: TrackResult

@@ -1,5 +1,7 @@
 package io.github.glandais.engine.path
 
+import io.github.glandais.elevation.TerrainOrigin
+import io.github.glandais.elevation.TerrainSample
 import io.github.glandais.elevation.TileFailureLog
 import kotlin.math.roundToLong
 
@@ -29,26 +31,60 @@ internal object ElevationCorrectionReport {
      * Terrain tiles read from the fallback after an error ([TileFailureLog]): the ride is complete,
      * but on a mix of sources, and no bridge deck was detected on it.
      */
-    fun terrainFallbackWarning(failedTiles: Int): String =
-        "terrain: $failedTiles tile(s) of the elevation source could not be read; the points on them were read " +
-            "from its fallback instead and no bridge deck was detected, and the same input may give a different " +
+    fun terrainFallbackWarning(
+        failedTiles: Int,
+        fallbackKm: Double,
+    ): String =
+        "terrain: $failedTiles tile(s) of the elevation source could not be read; ${km(fallbackKm * 1000.0)} km were " +
+            "read from its fallback instead and no bridge deck was detected, and the same input may give a different " +
             "profile once they are reachable"
+
+    /**
+     * Where the DEM read of [path] came from, [samples] being its points' (the 30 m grid of step 2):
+     * each point stands for half of each segment around it, so the kilometres add up to the route.
+     */
+    fun provenance(
+        path: Path,
+        samples: List<TerrainSample>,
+        failedTiles: Int,
+    ): TerrainProvenance {
+        val m = DoubleArray(TerrainOrigin.entries.size)
+        var afterError = 0.0
+        for (i in samples.indices) {
+            val before = if (i > 0) path.distance(i) - path.distance(i - 1) else 0.0
+            val after = if (i < samples.size - 1) path.distance(i + 1) - path.distance(i) else 0.0
+            val share = (before + after) / 2.0
+            m[samples[i].origin.ordinal] += share
+            if (samples[i].afterError) afterError += share
+        }
+        return TerrainProvenance(
+            ignLidarHdKm = m[TerrainOrigin.IGN_LIDAR_HD.ordinal] / 1000.0,
+            mapterhornMeasuredKm = m[TerrainOrigin.MAPTERHORN_MEASURED.ordinal] / 1000.0,
+            mapterhornKm = m[TerrainOrigin.MAPTERHORN.ordinal] / 1000.0,
+            otherKm = m[TerrainOrigin.OTHER.ordinal] / 1000.0,
+            noDataKm = m[TerrainOrigin.NONE.ordinal] / 1000.0,
+            fallbackAfterErrorKm = afterError / 1000.0,
+            failedTiles = failedTiles,
+        )
+    }
 
     /**
      * @param decks step 3b's result, `null` when it did not run
      * @param decksUnavailable step 3b was allowed (DEM correction on, option on) but the provider
      *   carries no surface model; only read when [decks] is `null`
      * @param tunnels step 3c's result, `null` when it did not run
-     * @param terrainTilesFailed terrain tiles read from the provider's fallback after an error
+     * @param terrain where step 2 read the terrain, `null` when there was no DEM correction
      */
     fun of(
         decks: BridgeDeckResult?,
         decksUnavailable: Boolean,
         tunnels: TunnelResult?,
-        terrainTilesFailed: Int = 0,
+        terrain: TerrainProvenance? = null,
     ): ElevationCorrections {
         val warnings = ArrayList<String>()
-        if (terrainTilesFailed > 0) warnings += terrainFallbackWarning(terrainTilesFailed)
+        if (terrain != null && terrain.failedTiles > 0) {
+            warnings += terrainFallbackWarning(terrain.failedTiles, terrain.fallbackAfterErrorKm)
+        }
         val deckStatus =
             when {
                 decks == null -> if (decksUnavailable) ElevationCorrectionStatus.UNAVAILABLE else ElevationCorrectionStatus.NOT_RUN
@@ -66,6 +102,7 @@ internal object ElevationCorrectionReport {
             tunnelsApplied = tunnels?.spans?.size ?: 0,
             tunnelsDropped = tunnels?.dropped?.size ?: 0,
             warnings = warnings,
+            terrain = terrain,
         )
     }
 
