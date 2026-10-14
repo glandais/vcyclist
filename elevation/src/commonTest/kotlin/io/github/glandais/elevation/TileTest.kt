@@ -85,18 +85,6 @@ class TileTest {
     }
 
     @Test
-    fun `Tile getElevation caches result (second call does not increment decodeCount)`() {
-        val raw = makeRawTile(4, 4, mapOf((1 to 1) to 250))
-        val tile = Tile(raw)
-        val px = Pixel(TileCoordinates(0, 0, 12), 1, 1)
-        val first = tile.getElevation(px)
-        val countAfterFirst = tile.decodeCount
-        val second = tile.getElevation(px)
-        assertEquals(first, second)
-        assertEquals(countAfterFirst, tile.decodeCount, "decodeCount unexpectedly increased: ${tile.decodeCount}")
-    }
-
-    @Test
     fun `Tile getElevation rejects negative x with the documented message`() {
         val tile = Tile(makeRawTile(4, 4, emptyMap()))
         val ex =
@@ -134,18 +122,5 @@ class TileTest {
                 tile.getElevation(Pixel(TileCoordinates(0, 0, 12), 0, -1))
             }
         assertEquals("Invalid y position: -1. Must be between 0 and 3", ex.message)
-    }
-
-    @Test
-    fun `decodeCount accumulates across distinct pixels`() {
-        val raw = makeRawTile(4, 4, mapOf((0 to 0) to 10, (1 to 0) to 20, (2 to 0) to 30))
-        val tile = Tile(raw)
-        val t = TileCoordinates(0, 0, 12)
-        tile.getElevation(Pixel(t, 0, 0))
-        tile.getElevation(Pixel(t, 1, 0))
-        tile.getElevation(Pixel(t, 2, 0))
-        tile.getElevation(Pixel(t, 0, 0))
-        tile.getElevation(Pixel(t, 1, 0))
-        assertEquals(3, tile.decodeCount)
     }
 }

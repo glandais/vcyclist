@@ -3,6 +3,7 @@ package io.github.glandais.api.service
 import io.github.glandais.api.http.ApiProblem
 import io.github.glandais.api.http.ProblemKind
 import io.github.glandais.api.mapping.EnhanceSettings
+import io.github.glandais.elevation.ElevationProvider
 import io.github.glandais.engine.Course
 import io.github.glandais.engine.CoursePhysics
 import io.github.glandais.engine.Enhancer
@@ -23,13 +24,12 @@ import io.github.glandais.engine.physics.RhoProviderEstimate
  * - the DEM is touched only when `fixElevation` is on, through [dem] — [demFor] gives it, `null`
  *   when the settings need none.
  *
- * Call it under the compute gate, holding `dem.lock` (`ComputeGate.run(dem?.lock)`): it is
- * CPU-bound, and the engine does not separate its DEM step, so the lock covers the whole pipeline.
+ * Call it under the compute gate (`ComputeGate.run`): it is CPU-bound.
  */
 suspend fun enhancePath(
     path: Path,
     settings: EnhanceSettings,
-    dem: Dem?,
+    dem: ElevationProvider?,
 ): Path {
     settings.roadWidthOverrideM?.let { width ->
         for (i in 0 until path.size) path.setRoadWidth(i, width)
@@ -43,12 +43,12 @@ suspend fun enhancePath(
             cyclistPowerProvider = settings.power.toProvider(),
         )
     require(!settings.options.fixElevation || dem != null) { "fixElevation needs a DEM: use demFor(settings)" }
-    return Enhancer.enhanceCourse(course, settings.options, if (settings.options.fixElevation) dem?.provider else null)
+    return Enhancer.enhanceCourse(course, settings.options, if (settings.options.fixElevation) dem else null)
 }
 
 /** The DEM [settings] read, or `null` when `fixElevation` is off. */
-fun ElevationGateway.demFor(settings: EnhanceSettings): Dem? =
-    if (settings.options.fixElevation) dem(settings.demSource, settings.demZoom) else null
+fun ElevationGateway.demFor(settings: EnhanceSettings): ElevationProvider? =
+    if (settings.options.fixElevation) provider(settings.demSource, settings.demZoom) else null
 
 /**
  * 413 `too-many-points` when [paths] would densify past [maxSimulatedPoints]. The engine

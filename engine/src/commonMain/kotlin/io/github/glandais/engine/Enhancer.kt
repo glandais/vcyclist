@@ -104,9 +104,9 @@ object Enhancer {
      * in the same order.
      *
      * Each path goes through [enhanceCourseDefault] **independently and sequentially**. The
-     * sequential part is deliberate : [ElevationProvider] carries a shared tile cache whose
-     * thread-safety has not been audited, and the JS target is single-threaded anyway,
-     * so there is nothing to gain and a data race to lose.
+     * provider may be shared between concurrent calls (its tile cache guards itself, see the HTTP
+     * door's `ElevationGateway`); sequential is simply the order the results come back in, and the
+     * JS target is single-threaded anyway.
      */
     suspend fun enhanceCourses(
         paths: List<Path>,

@@ -121,8 +121,8 @@ fun Route.mapRoutes() {
         val plan = upload.request.toTerrainMapPlan(services.config.maxMapPixels)
         val input = upload.parse(services.computeGate, services.config)
         checkTerrainFrame(plan, input.paths, services.config)
-        val dem = services.deps.elevation.dem(plan.source, plan.zoom)
-        val map = services.computeGate.run(dem.lock) { renderTerrainMap(services.config, dem, input.paths, plan) }
+        val dem = services.deps.elevation.provider(plan.source, plan.zoom)
+        val map = services.computeGate.run { renderTerrainMap(services.config, dem, input.paths, plan) }
         call.respondMap(map, "terrain.png")
     }.describe {
         operationId = "renderTerrainMap"

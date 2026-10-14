@@ -5,9 +5,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.TimeoutCancellationException
 import kotlinx.coroutines.async
-import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.Semaphore
-import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.sync.withPermit
 import kotlinx.coroutines.withTimeout
 import java.util.concurrent.atomic.AtomicLong
@@ -49,25 +47,12 @@ class ComputeGate(
     /**
      * Runs [block] under the gate and returns its result, or rethrows its failure.
      *
-     * [lock], when given, is taken **before** the permit and held until [block] ends: a request
-     * waiting for a shared resource (a DEM provider) waits without a permit, so it cannot starve
-     * requests that do not need that resource. Its wait counts in [timeoutMs] like a permit's.
-     *
      * @throws ApiProblem `timeout` when [timeoutMs] elapses first
      */
-    suspend fun <T> run(
-        lock: Mutex? = null,
-        block: suspend () -> T,
-    ): T {
+    suspend fun <T> run(block: suspend () -> T): T {
         admittedCount.incrementAndGet()
         val work =
-            scope.async {
-                if (lock == null) {
-                    semaphore.withPermit { block() }
-                } else {
-                    lock.withLock { semaphore.withPermit { block() } }
-                }
-            }
+            scope.async { semaphore.withPermit { block() } }
         try {
             return withTimeout(timeoutMs) { work.await() }
         } catch (e: TimeoutCancellationException) {

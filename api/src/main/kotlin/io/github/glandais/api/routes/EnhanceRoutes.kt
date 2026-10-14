@@ -85,7 +85,7 @@ fun Route.enhanceRoutes() {
         val dem = services.deps.elevation.demFor(settings)
         if (plan !is OutputPlan.Summary) {
             val body =
-                services.computeGate.run(dem?.lock) {
+                services.computeGate.run {
                     val enhanced = input.paths.map { enhancePath(it, settings, dem) }
                     export(plan, enhanced, inputNames = null, document = input.document)
                 }
@@ -93,7 +93,7 @@ fun Route.enhanceRoutes() {
             return@post
         }
         val tracks =
-            services.computeGate.run(dem?.lock) {
+            services.computeGate.run {
                 input.paths.mapIndexed { i, path ->
                     val enhanced = enhancePath(path, settings, dem)
                     TrackResultDto(

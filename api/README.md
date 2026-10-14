@@ -199,10 +199,11 @@ Every response echoes `X-Request-Id` (or generates one), which the logs carry.
   simulating as `points + length/30 m + length/2 m` (`Enhancer.densifiedPointBound`, which reads the
   pipeline's own spacings) against `MAX_SIMULATED_POINTS` — about 1 000 km by default.
   `/elevation/along` bounds its densified polyline the same way against `MAX_ELEVATION_POINTS`.
-- The DEM provider of each `(source, zoom)` is shared and serialised behind a lock (its cache was
-  never audited for concurrency): two requests on the same DEM run one after the other. The lock is
-  taken **before** a compute permit, so requests queued behind the DEM hold no permit and do not
-  starve requests that never touch it.
+- The DEM provider of each `(source, zoom)` is shared **concurrently**, with no lock: its tile cache
+  guards itself and downloads a tile once however many requests want it, and the per-host pacer
+  keeps the tile server's rate whatever the concurrency. A cold IGN ride (~20 s of fetching per
+  130 km) no longer holds the next request on the same source; only `COMPUTE_CONCURRENCY` bounds
+  how many run at once.
 - A map is rendered in memory, up to `4 · MAX_MAP_PIXELS²` bytes per concurrent render.
 
 ## Defaults

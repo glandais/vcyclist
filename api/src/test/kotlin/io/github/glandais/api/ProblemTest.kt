@@ -21,11 +21,7 @@ import io.ktor.server.routing.post
 import io.ktor.server.routing.routing
 import io.ktor.utils.io.ByteWriteChannel
 import io.ktor.utils.io.writeFully
-import kotlinx.coroutines.async
-import kotlinx.coroutines.delay
 import kotlinx.coroutines.runBlocking
-import kotlinx.coroutines.sync.Mutex
-import kotlinx.coroutines.withTimeout
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 import kotlin.test.Test
@@ -201,21 +197,6 @@ class ProblemTest {
         val elapsedMs = (System.nanoTime() - started) / 1_000_000
         assertTrue(elapsedMs < 900, "the timeout waited for the work: $elapsedMs ms")
         assertEquals(42, runBlocking { ComputeGate(concurrency = 1, timeoutMs = 1_000).run { 42 } })
-    }
-
-    @Test
-    fun `a request waiting for a lock holds no compute permit`() {
-        val gate = ComputeGate(concurrency = 1, timeoutMs = 5_000)
-        val lock = Mutex()
-        runBlocking {
-            lock.lock()
-            // Queued behind the lock (a DEM in use): it must not take the only permit while waiting.
-            val waiting = async { gate.run(lock) { "dem" } }
-            delay(100)
-            assertEquals("free", withTimeout(2_000) { gate.run { "free" } }, "a lock waiter starved the gate")
-            lock.unlock()
-            assertEquals("dem", waiting.await())
-        }
     }
 
     private companion object {

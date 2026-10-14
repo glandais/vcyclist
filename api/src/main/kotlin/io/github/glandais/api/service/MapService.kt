@@ -7,6 +7,7 @@ import io.github.glandais.api.mapping.MapFraming
 import io.github.glandais.api.mapping.TerrainMapPlan
 import io.github.glandais.api.mapping.TileMapPlan
 import io.github.glandais.api.mapping.invalidOption
+import io.github.glandais.elevation.ElevationProvider
 import io.github.glandais.engine.path.Path
 import io.github.glandais.map.MapImage
 import io.github.glandais.map.MissingTilePolicy
@@ -134,21 +135,19 @@ suspend fun renderTileMap(
 }
 
 /**
- * Renders [plan]'s terrain from [dem]'s provider. Call it under `ComputeGate.run(dem.lock)`: the
- * provider's lock is held for the whole render, as for every DEM use; `SrtmMapProducer` bridges to the provider with its own
- * `runBlocking`, which never goes back through the gateway, so the lock is not re-entered. That
- * `runBlocking` parks its thread while the tiles are fetched on `Dispatchers.IO`, which is why the
+ * Renders [plan]'s terrain from [dem]. Call it under `ComputeGate.run`. `SrtmMapProducer` bridges
+ * to the provider with its own `runBlocking`, which parks its thread while the tiles are fetched on `Dispatchers.IO`, which is why the
  * render itself runs there and not on the gate's `Dispatchers.Default`.
  */
 suspend fun renderTerrainMap(
     config: ApiConfig,
-    dem: Dem,
+    dem: ElevationProvider,
     paths: List<Path>,
     plan: TerrainMapPlan,
 ): RenderedMap =
     withContext(Dispatchers.IO) {
         renderToBytes(config) { file ->
-            SrtmMapProducer(dem.provider).createSrtmMap(file, paths, maxSize = plan.maxSize, margin = plan.margin)
+            SrtmMapProducer(dem).createSrtmMap(file, paths, maxSize = plan.maxSize, margin = plan.margin)
         }
     }
 
