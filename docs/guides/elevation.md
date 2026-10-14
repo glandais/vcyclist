@@ -473,6 +473,19 @@ says nothing about the data: inside it, IGN's own no-data still falls back point
 bundled French track lies inside it; the Finnish and Stelvio fixtures outside
 (`IgnLidarHdCoverageTest` pins 45 French edge places and 11 foreign ones).
 
+**An IGN outage is not a failed ride.** A provider with a fallback reads from it the points of a
+tile it cannot fetch — an HTTP error after the pacer's retries (429 and 503 are retried, up to six
+attempts, after `Retry-After`), a network failure, a body that does not decode — exactly as it
+reads a no-data tile. The dead tile is remembered for a minute, so its other points do not ask the
+server again (`UnreadableTiles`), then asked again. Without a fallback — Mapterhorn alone, a WASI
+host — the error propagates as before, and a cancellation always does. Each run collects the tiles
+it met in a `TileFailureLog` installed in its coroutine context, not on the provider, which a server
+shares between concurrent rides. `ElevationCorrection.run` turns them into one warning — `terrain:
+N tile(s) of the elevation source could not be read; …` — and rides **no bridge deck** on that run:
+a Mapterhorn floor under an IGN surface would be a mix of models the detector was never measured on
+(`bridgeDecks: fetch-failed`). Tunnels still run: Mapterhorn in France is LiDAR-derived, where E4
+measured them.
+
 **Measured** on `demo/public/gpx/sample.gpx` (130 km in Savoie, `--fix-elevation`, defaults
 otherwise), each point against its nearest neighbour in the other run:
 
@@ -602,8 +615,9 @@ memory (352 bytes a point) passes one of those. See
 `bridgeDecksDropped` counts deck regions the detector found but left on the valley floor (fewer
 than two surface anchors); `tunnelsDropped` counts tunnels refused because a deck lies between their
 portals (a bridge's pylons), which is the intended behaviour. A warning is raised only when the
-output is knowingly wrong or depends on the network — a failed read on either step, or a dropped
-deck (located by km on the 1–2 m path, to 0.1 km); `unavailable` and `not-run` are the normal case
+output is knowingly wrong or depends on the network — a failed read on either step, a terrain
+tile read from the fallback after an error (`terrain: …`, see below), or a dropped deck (located by
+km on the 1–2 m path, to 0.1 km); `unavailable` and `not-run` are the normal case
 on most sources and raise none. The wording lives in `ElevationCorrectionReport` alone; the CLI
 prints each warning to stderr even with `--quiet` and exits 0.
 

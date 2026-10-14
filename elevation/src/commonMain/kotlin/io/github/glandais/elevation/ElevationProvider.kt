@@ -11,6 +11,12 @@ package io.github.glandais.elevation
  * Where the tiles have no data, a provider built [withFallback] asks another one; without, the
  * point reads 0 m. See [ElevationCalculator]. The one exception is a raw-layer provider built by
  * [IgnLidarHdLayer.provider], which answers `NaN` there.
+ *
+ * A provider with a fallback also reads from it the points of a tile it **cannot fetch** — an HTTP
+ * error after the pacer's retries, a network failure, a body that does not decode — instead of
+ * failing: such a tile is answered as no data for a minute, then asked again, and recorded in the
+ * caller's [TileFailureLog] when there is one. Without a fallback the error propagates, as it
+ * always did. A cancellation always propagates.
  */
 class ElevationProvider private constructor(
     val config: ElevationProviderConfig,
@@ -61,7 +67,11 @@ class ElevationProvider private constructor(
         }
     }
 
-    private val tileManager = TileManager(config.tileUrlTemplate, config.cacheSize, fetcher)
+    private val tileManager =
+        TileManager(config.tileUrlTemplate, config.cacheSize, fetcher).apply {
+            // With a fallback, a tile that cannot be read is no data, which the fallback reads.
+            if (fallback != null) unreadable = UnreadableTiles(config.tileUrlTemplate, config.tileSize)
+        }
     private val calculator =
         ElevationCalculator(
             tileManager,

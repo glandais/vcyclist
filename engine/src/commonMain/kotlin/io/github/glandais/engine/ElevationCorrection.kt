@@ -1,7 +1,9 @@
 package io.github.glandais.engine
 
 import io.github.glandais.elevation.ElevationProvider
+import io.github.glandais.elevation.TileFailureLog
 import io.github.glandais.engine.path.BridgeDeckResult
+import io.github.glandais.engine.path.BridgeDeckStatus
 import io.github.glandais.engine.path.BridgeDeckStep
 import io.github.glandais.engine.path.DeckDetectorOptions
 import io.github.glandais.engine.path.ElevationCorrectionReport
@@ -12,6 +14,7 @@ import io.github.glandais.engine.path.TunnelDetectorOptions
 import io.github.glandais.engine.path.TunnelResult
 import io.github.glandais.engine.path.TunnelStep
 import io.github.glandais.engine.path.writtenRange
+import kotlinx.coroutines.withContext
 import kotlin.math.abs
 
 /**
@@ -29,8 +32,9 @@ object ElevationCorrection {
      * refines it to between `maxSpacingM / 2` and [maxSpacingM], then rides each bridge deck and
      * flattens each tunnel that [options] allows. The outcome of both is on the returned path's
      * [Path.elevationCorrections]; a tile the two corrections cannot read is reported there, not
-     * thrown. A terrain tile the DEM read itself cannot read throws, as
-     * [ElevationStep.fixElevation] does.
+     * thrown. A terrain tile that cannot be read is read from the provider's fallback when it has one
+     * (`ign-lidar-hd` → Mapterhorn), with a warning in the report and no bridge deck on that run;
+     * without a fallback it throws, as [ElevationStep.fixElevation] does.
      *
      * @param maxSpacingM the widest gap between two points of the returned path. The enhancer's 2 m
      *   by default. The cost is 352 bytes a point, so a server bounding its memory may pass more:
@@ -59,6 +63,20 @@ object ElevationCorrection {
         minSpacingM: Double,
         maxSpacingM: Double,
     ): Path {
+        // Every tile the provider could not read and answered from its fallback, for this run alone:
+        // the provider may be shared with concurrent runs.
+        val failures = TileFailureLog()
+        return withContext(failures) { runLogged(source, provider, options, minSpacingM, maxSpacingM, failures) }
+    }
+
+    private suspend fun runLogged(
+        source: Path,
+        provider: ElevationProvider?,
+        options: ElevationCorrectionOptions,
+        minSpacingM: Double,
+        maxSpacingM: Double,
+        failures: TileFailureLog,
+    ): Path {
         // Step 1 : densify before fixElevation so DEM lookups have ~30 m granularity.
         var path = PointPerDistance.compute(source, minDistanceM = -1.0, maxDistanceM = Enhancer.PRE_FIX_SPACING_M)
 
@@ -79,6 +97,11 @@ object ElevationCorrection {
         var decks: BridgeDeckResult? = null
         if (decksAllowed && provider != null && surface != null) {
             decks = BridgeDeckStep.apply(path, provider, surface)
+            // A terrain tile read from the fallback after an error would put a Mapterhorn floor under
+            // an IGN surface: no deck is detected on a mix of models, the step reports a failed read.
+            if (failures.failedTiles.isNotEmpty() && decks.status != BridgeDeckStatus.FETCH_FAILED) {
+                decks = BridgeDeckResult(path, BridgeDeckStatus.FETCH_FAILED, null, emptyList())
+            }
             path = decks.path
         }
 
@@ -105,7 +128,8 @@ object ElevationCorrection {
         // A step that wrote nothing hands back its input instance: copy before stamping, so the
         // caller's path is never the one stamped (step 1 always copies, but say it here too).
         if (path === source) path = path.copy()
-        path.elevationCorrections = ElevationCorrectionReport.of(decks, decksAllowed && surface == null, tunnels)
+        path.elevationCorrections =
+            ElevationCorrectionReport.of(decks, decksAllowed && surface == null, tunnels, failures.failedTiles.size)
         return path
     }
 }

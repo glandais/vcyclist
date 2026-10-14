@@ -1,5 +1,8 @@
 package io.github.glandais.engine
 
+import io.github.glandais.elevation.ElevationProvider
+import io.github.glandais.elevation.IgnLidarHdLayer
+import io.github.glandais.elevation.TileFetchException
 import io.github.glandais.engine.path.DeckWorld
 import io.github.glandais.engine.path.ElevationCorrectionStatus
 import io.github.glandais.engine.path.ElevationStep
@@ -106,5 +109,28 @@ class ElevationCorrectionTest {
                     ElevationCorrection.fixAndCorrect(sparse(), DeckWorld.terrain(), maxSpacingM = bad)
                 }
             }
+        }
+
+    @Test
+    fun a_dead_terrain_tile_is_read_from_the_fallback_reported_and_rides_no_deck() =
+        runTest {
+            // IGN's terrain is down; the fallback serves the same ground; the surface model works.
+            val terrain =
+                ElevationProvider(IgnLidarHdLayer.MNT.config(15)) { url -> throw TileFetchException(url, 500) }
+                    .withFallback(DeckWorld.terrain())
+                    .withSurfaceModel(DeckWorld.surface())
+            val out = ElevationCorrection.fixAndCorrect(sparse(), terrain)
+            val report = out.elevationCorrections!!
+            assertEquals(DeckWorld.BANK_M, elevationAt(out, 200.0), 0.5, "read from the fallback")
+            assertEquals(ElevationCorrectionStatus.FETCH_FAILED, report.bridgeDecks, "no deck on a mix of models")
+            assertTrue(report.warnings.any { it.startsWith("terrain: ") }, "${report.warnings}")
+            assertTrue(elevationAt(out, deckMid) < DeckWorld.DECK_M - 5.0, "the valley floor stays")
+        }
+
+    @Test
+    fun a_healthy_run_carries_no_terrain_warning() =
+        runTest {
+            val out = ElevationCorrection.fixAndCorrect(sparse(), DeckWorld.terrain().withSurfaceModel(DeckWorld.surface()))
+            assertTrue(out.elevationCorrections!!.warnings.none { it.startsWith("terrain: ") })
         }
 }

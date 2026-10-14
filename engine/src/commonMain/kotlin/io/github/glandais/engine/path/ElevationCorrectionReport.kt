@@ -1,5 +1,6 @@
 package io.github.glandais.engine.path
 
+import io.github.glandais.elevation.TileFailureLog
 import kotlin.math.roundToLong
 
 /**
@@ -25,17 +26,29 @@ internal object ElevationCorrectionReport {
         "tunnels: a terrain tile could not be read; no tunnel on this path was flattened"
 
     /**
+     * Terrain tiles read from the fallback after an error ([TileFailureLog]): the ride is complete,
+     * but on a mix of sources, and no bridge deck was detected on it.
+     */
+    fun terrainFallbackWarning(failedTiles: Int): String =
+        "terrain: $failedTiles tile(s) of the elevation source could not be read; the points on them were read " +
+            "from its fallback instead and no bridge deck was detected, and the same input may give a different " +
+            "profile once they are reachable"
+
+    /**
      * @param decks step 3b's result, `null` when it did not run
      * @param decksUnavailable step 3b was allowed (DEM correction on, option on) but the provider
      *   carries no surface model; only read when [decks] is `null`
      * @param tunnels step 3c's result, `null` when it did not run
+     * @param terrainTilesFailed terrain tiles read from the provider's fallback after an error
      */
     fun of(
         decks: BridgeDeckResult?,
         decksUnavailable: Boolean,
         tunnels: TunnelResult?,
+        terrainTilesFailed: Int = 0,
     ): ElevationCorrections {
         val warnings = ArrayList<String>()
+        if (terrainTilesFailed > 0) warnings += terrainFallbackWarning(terrainTilesFailed)
         val deckStatus =
             when {
                 decks == null -> if (decksUnavailable) ElevationCorrectionStatus.UNAVAILABLE else ElevationCorrectionStatus.NOT_RUN

@@ -181,8 +181,10 @@ p = PathSimplifierJvm.simplify(p, 3.0, 3.0);      // carries the D+ and the repo
 
 The enhancer's own grid is 2 m (the default). 5 m is the detectors' station step and loses nothing
 they found; 10 m keeps every other station, which the 150 m smoothing does not tell apart. A
-terrain tile that cannot be read throws, as `fixElevationBlocking` does; a tile only the decks or
-tunnels needed is reported in the `ElevationCorrections`, not thrown. Pinned by
+terrain tile that cannot be read is read from the provider's fallback when it has one
+(`ign-lidar-hd` falls back to Mapterhorn), with a `terrain:` warning and no bridge deck on that
+run; without a fallback (Mapterhorn alone) it throws, as `fixElevationBlocking` does. A tile only
+the decks or tunnels needed is reported in the `ElevationCorrections`, not thrown. Pinned by
 `ElevationCorrectionJavaTest`.
 
 ## Outputs

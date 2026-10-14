@@ -1,5 +1,9 @@
 package io.github.glandais.elevation
 
+import kotlinx.coroutines.currentCoroutineContext
+import kotlinx.coroutines.ensureActive
+import kotlin.coroutines.cancellation.CancellationException
+
 /**
  * Caches decoded [Tile]s keyed by [TileCoordinates], using [fetcher] to download missing tiles
  * via [urlTemplate].
@@ -15,13 +19,33 @@ class TileManager(
     cacheSize: Int,
     private val fetcher: suspend (String) -> RawTile = ::fetchAndDecodeTile,
 ) {
+    /**
+     * When set, a tile whose fetch fails is a tile of **no data** instead of an exception: the
+     * provider that owns this manager has a fallback, which then reads those points. Recorded in
+     * the caller's [TileFailureLog], and remembered for [UnreadableTiles.retryAfterMs] so that every
+     * point of a dead tile does not ask the server again.
+     */
+    internal var unreadable: UnreadableTiles? = null
+
     private val cache: LruCache<TileCoordinates, Tile> =
         LruCache(
             maxSize = cacheSize,
             loader = { tc -> Tile(fetcher(buildUrl(tc))) },
         )
 
-    suspend fun getTile(tileCoords: TileCoordinates): Tile = cache.get(tileCoords)
+    suspend fun getTile(tileCoords: TileCoordinates): Tile {
+        val unreadable = unreadable ?: return cache.get(tileCoords)
+        unreadable.cached(tileCoords)?.let { return it }
+        return try {
+            cache.get(tileCoords)
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            // A cancelled job can surface as something else (a fetcher wrapping it): ask the job.
+            currentCoroutineContext().ensureActive()
+            unreadable.remember(tileCoords, e)
+        }
+    }
 
     suspend fun clear() = cache.clear()
 

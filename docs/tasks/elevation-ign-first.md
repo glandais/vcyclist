@@ -31,7 +31,7 @@ rapport `Path.elevationCorrections`. Ce qui manque est listé en *Notes / écart
 
 ## Steps
 
-1. **Pas d'appel IGN hors de sa couverture** (`fix(elevation)`). Une emprise grossière et
+1. **Pas d'appel IGN hors de sa couverture** (`fix(elevation)`, **livré** en 6.5.2). Une emprise grossière et
    généreuse (France métropolitaine + Corse, `IgnLidarHdCoverage`) : une tuile IGN qui ne la touche
    pas est une tuile sans donnée, sans requête, pour le MNT comme pour le MNS. Le repli Mapterhorn
    lit ces points comme aujourd'hui. Appliqué par `ElevationSource.provider` et
@@ -40,11 +40,13 @@ rapport `Path.elevationCorrections`. Ce qui manque est listé en *Notes / écart
    tentatives du pacer (HTTP ≠ 2xx, réseau, corps qui ne décode pas) est marquée indisponible pour
    une durée bornée ; ses points sont lus par le repli. Une annulation se propage ; une erreur du
    dernier niveau échoue comme aujourd'hui ; le MNS garde `fetch-failed`. Avertissement unique
-   dans `ElevationCorrectionReport`, avec les km relus chez Mapterhorn.
+   dans `ElevationCorrectionReport` (nombre de tuiles), et pas de tablier sur une sortie dont le
+   terrain mélange les sources. **Livré** : `UnreadableTiles` (une minute), `TileFailureLog` dans le
+   contexte de la coroutine (par sortie, pas par provider). Les km relus attendent l'étape 3.
 3. **Provenance** (`feat(engine)`). `TerrainOrigin` (`ign-lidar-hd`, `mapterhorn-measured` —
    Mapterhorn dans l'emprise France —, `mapterhorn`, `none`) par station ; un objet
    `terrain` additif dans `ElevationCorrections` (km par origine, km relus après erreur, tuiles IGN
-   en échec). Garde des tabliers : pas de MNS au-dessus d'un terrain qui ne vient pas de l'IGN.
+   en échec), qui chiffre aussi l'avertissement de l'étape 2. Garde des tabliers : pas de MNS au-dessus d'un terrain qui ne vient pas de l'IGN.
 4. **`tunnelScope`** sur les sept portes (`measured-terrain` par défaut, `everywhere`). Les tunnels
    détectés dont une station de *[portail − 100 m, portail + 100 m]* n'est pas d'origine mesurée
    sont écartés, comptés (`tunnelsOutOfScope`) et localisés par km dans un avertissement. Aucun
