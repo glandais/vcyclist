@@ -556,8 +556,11 @@ three "tunnels" there. Details in E4 of the task; ledger row **R32**.
 **Rate limit.** The Géoplateforme answers HTTP 429 past 40 requests a second per IP, and
 `BatchCalculator` fetches ten tiles at once — a cold run failed on its 51st tile before pacing
 existed. `ElevationProviderConfig.maxRequestsPerSecond` (20 for IGN) paces the default fetcher and
-the CLI's disk cache, and a 429 or 503 is retried after the server's `Retry-After` (1, 2, 4… s when
-it is not readable, as in a browser). See `pacedTileBytesFetcher`.
+the CLI's disk cache and a `TileStore` provider, and a 429 or 503 is retried after the server's
+`Retry-After` (1, 2, 4… s when it is not readable, as in a browser). The budget is **per host, for
+the whole process**: the terrain and surface models are two layers of one server, and with a budget
+each, two rides sharing a provider — one reading the terrain while the other read the decks — could
+start 40 requests a second together (6.5.1). See `pacedTileBytesFetcher`.
 
 ```bash
 INTEGRATION=1 ./gradlew :elevation:jvmTest --tests '*IgnLidarHdIntegrationTest*' --rerun-tasks

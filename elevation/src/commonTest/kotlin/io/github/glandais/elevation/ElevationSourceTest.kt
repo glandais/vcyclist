@@ -250,10 +250,39 @@ class TileRequestPacingTest {
                     ByteArray(0)
                 }, now = { testScheduler.currentTime })
             kotlinx.coroutines.coroutineScope {
-                repeat(5) { launch { fetch("u$it") } }
+                repeat(5) { launch { fetch("https://h/u$it") } }
             }
             assertEquals(listOf(0L, 250L, 500L, 750L, 1000L), starts.sorted())
         }
+
+    @Test
+    fun `two fetchers on one host share its budget, another host keeps its own`() =
+        runTest {
+            val starts = mutableListOf<Pair<String, Long>>()
+            val clock = { testScheduler.currentTime }
+            val record: suspend (String) -> ByteArray = { url ->
+                starts += hostOf(url) to testScheduler.currentTime
+                ByteArray(0)
+            }
+            // IGN's terrain and surface layers: two tiers, two fetchers, one server.
+            val terrain = pacedTileBytesFetcher(4, record, now = clock)
+            val surface = pacedTileBytesFetcher(4, record, now = clock)
+            val other = pacedTileBytesFetcher(4, record, now = clock)
+            kotlinx.coroutines.coroutineScope {
+                repeat(2) { launch { terrain("https://data.geopf.fr/wms-r/wms?LAYERS=MNT&n=$it") } }
+                repeat(2) { launch { surface("https://data.geopf.fr/wms-r/wms?LAYERS=MNS&n=$it") } }
+                repeat(2) { launch { other("https://tiles.mapterhorn.com/12/1/$it.webp") } }
+            }
+            assertEquals(listOf(0L, 250L, 500L, 750L), starts.filter { it.first == "data.geopf.fr" }.map { it.second }.sorted())
+            assertEquals(listOf(0L, 250L), starts.filter { it.first == "tiles.mapterhorn.com" }.map { it.second }.sorted())
+        }
+
+    @Test
+    fun `the host is the authority of the url`() {
+        assertEquals("data.geopf.fr", hostOf("https://data.geopf.fr/wms-r/wms?SERVICE=WMS"))
+        assertEquals("tiles.mapterhorn.com", hostOf("https://tiles.mapterhorn.com/12/1/2.webp"))
+        assertEquals("localhost:8080", hostOf("http://localhost:8080?x=1"))
+    }
 
     @Test
     fun `a 429 is retried after the server's Retry-After, then succeeds`() =

@@ -33,21 +33,26 @@ class TileFetchException(
  * The wait before a retry is the server's `Retry-After` when known, else 1, 2, 4… seconds. Any
  * other failure propagates at once: a 404 is an answer, not a congestion.
  *
- * One pacing budget per returned function, shared by every coroutine calling it — so build one per
- * provider, not one per request. `maxRequestsPerSecond = 0` means no pacing, retries only.
+ * **One pacing budget per host and rate, for the whole process**, shared by every fetcher built
+ * here with the same clock: the server's limit is per IP, not per layer. IGN's terrain and surface
+ * models are two tiers on the same host, each built with its own fetcher; with a budget each, two
+ * concurrent rides on one shared provider — one reading the terrain, the other the decks — started
+ * up to 40 requests a second, IGN's threshold. Requests to other hosts keep their own budget.
+ * `maxRequestsPerSecond = 0` means no pacing, retries only.
  *
- * @param now monotonic milliseconds, injectable so a test can run on virtual time.
+ * @param now monotonic milliseconds, injectable so a test can run on virtual time. Budgets are
+ *   shared per clock as well: a test's own clock never waits behind the real one's requests.
  */
 fun pacedTileBytesFetcher(
     maxRequestsPerSecond: Int,
     fetch: suspend (String) -> ByteArray = ::fetchTileBytes,
     maxAttempts: Int = 6,
-    now: () -> Long = monotonicMillis(),
+    now: () -> Long = processClock,
 ): suspend (String) -> ByteArray {
     require(maxRequestsPerSecond >= 0) { "maxRequestsPerSecond must be >= 0, was $maxRequestsPerSecond" }
     require(maxAttempts >= 1) { "maxAttempts must be >= 1, was $maxAttempts" }
-    val pacer = if (maxRequestsPerSecond > 0) RequestPacer(maxRequestsPerSecond, now) else null
     return { url ->
+        val pacer = if (maxRequestsPerSecond > 0) HostPacers.of(hostOf(url), maxRequestsPerSecond, now) else null
         var attempt = 1
         var bytes: ByteArray? = null
         while (bytes == null) {
@@ -67,6 +72,34 @@ fun pacedTileBytesFetcher(
 private fun monotonicMillis(): () -> Long {
     val origin = TimeSource.Monotonic.markNow()
     return { origin.elapsedNow().inWholeMilliseconds }
+}
+
+/** The one real clock: every production fetcher shares it, hence shares its hosts' budgets. */
+private val processClock: () -> Long = monotonicMillis()
+
+/** `https://data.geopf.fr/wms-r/wms?…` → `data.geopf.fr`; the whole string when there is no scheme. */
+internal fun hostOf(url: String): String =
+    url
+        .substringAfter("://")
+        .substringBefore('/')
+        .substringBefore('?')
+
+/** The process-wide pacers, one per host, rate and clock. */
+private object HostPacers {
+    private data class Key(
+        val host: String,
+        val perSecond: Int,
+        val clock: () -> Long,
+    )
+
+    private val mutex = Mutex()
+    private val pacers = HashMap<Key, RequestPacer>()
+
+    suspend fun of(
+        host: String,
+        perSecond: Int,
+        clock: () -> Long,
+    ): RequestPacer = mutex.withLock { pacers.getOrPut(Key(host, perSecond, clock)) { RequestPacer(perSecond, clock) } }
 }
 
 /** Hands out start slots [1 / perSecond] apart, in call order. */

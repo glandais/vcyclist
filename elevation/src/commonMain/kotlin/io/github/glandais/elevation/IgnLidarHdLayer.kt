@@ -60,8 +60,8 @@ enum class IgnLidarHdLayer(
             tileUrlTemplate = ignWmsTemplate(wmsLayer, IGN_TILE_SIZE),
             encoding = TileEncoding.BIL32,
             // Half the Géoplateforme's published 40/s: the other half is for whatever else shares
-            // the IP — the demo's own relief layer, a second run. Per provider: callers reading
-            // several layers fetch them one after the other.
+            // the IP — the demo's own relief layer, a second run. One budget per host, process-wide:
+            // the MNT and MNS layers share it (see pacedTileBytesFetcher).
             maxRequestsPerSecond = 20,
             attribution =
                 Attribution(
