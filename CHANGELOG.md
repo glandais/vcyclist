@@ -1,3 +1,10 @@
+# [6.9.0](https://github.com/glandais/vcyclist/compare/v6.8.0...v6.9.0) (2026-10-14)
+
+
+### Features
+
+* **elevation:** make IGN LiDAR HD the default DEM source on every door but WASI ([6705f97](https://github.com/glandais/vcyclist/commit/6705f974392065492274af2ca1e5587be386e31d))
+
 # [6.8.0](https://github.com/glandais/vcyclist/compare/v6.7.0...v6.8.0) (2026-10-14)
 
 
