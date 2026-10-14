@@ -1,3 +1,10 @@
+## [6.5.2](https://github.com/glandais/vcyclist/compare/v6.5.1...v6.5.2) (2026-10-14)
+
+
+### Bug Fixes
+
+* **elevation:** send no IGN request for a tile outside France and Corsica ([ee2b214](https://github.com/glandais/vcyclist/commit/ee2b21413495dee054a1ffb6f701916e08edc8a2))
+
 ## [6.5.1](https://github.com/glandais/vcyclist/compare/v6.5.0...v6.5.1) (2026-10-14)
 
 
