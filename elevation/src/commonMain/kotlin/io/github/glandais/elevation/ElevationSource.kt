@@ -46,7 +46,8 @@ enum class ElevationSource(
      * and R33 (the reported D+ they feed).
      *
      * Falls back to [MAPTERHORN] wherever IGN has no data — abroad, at sea, in a survey gap — so a
-     * ride crossing a border is not flattened to 0 m on the far side.
+     * ride crossing a border is not flattened to 0 m on the far side. Abroad costs no IGN request: a
+     * tile wholly outside a generous outline of France and Corsica is no data without being fetched.
      */
     IGN_LIDAR_HD("ign-lidar-hd"),
     ;
@@ -128,7 +129,9 @@ fun ElevationSource.provider(
     fetcherFor: (ElevationProviderConfig) -> suspend (String) -> RawTile = ::defaultTileFetcher,
 ): ElevationProvider {
     val config = config(zoomLevel)
-    val primary = ElevationProvider(config, fetcherFor(config))
+    // IGN outside its coverage would answer `-9999` for every tile: no request, the fallback reads it.
+    val fetcher = if (this == ElevationSource.IGN_LIDAR_HD) ignCoverageFiltered(config, fetcherFor(config)) else fetcherFor(config)
+    val primary = ElevationProvider(config, fetcher)
     val withFallback = fallback?.let { primary.withFallback(it.provider(null, fetcherFor)) } ?: primary
     // Decks only at the zoom the detector was calibrated at: at z14 it found 13 of 21 bridges and
     // 19 stations off them (`elevation-bridge-decks.md`, E2, variant c).

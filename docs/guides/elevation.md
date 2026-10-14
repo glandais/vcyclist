@@ -464,6 +464,15 @@ detector; no door can name them): there a no-data point reads `NaN`, never 0 m n
 and `withFallback` refuses such a provider.
 Sample those with `setElevations`, since a smoother would spread the `NaN`.
 
+**Abroad costs no IGN request.** Before 6.5.2, a ride in Italy with `ign-lidar-hd` downloaded every
+z15 tile it crossed — 256 kB of `-9999`, and as much again for the surface model — only to read the
+fallback. `IgnLidarHdCoverage` is now a coarse outline of metropolitan France and Corsica, drawn
+5 to 20 km outside the border and the coast: an IGN tile wholly outside it is answered as no data
+without calling the fetcher (nor a caller's disk cache or `TileStore`). It filters requests and
+says nothing about the data: inside it, IGN's own no-data still falls back point by point. Every
+bundled French track lies inside it; the Finnish and Stelvio fixtures outside
+(`IgnLidarHdCoverageTest` pins 45 French edge places and 11 foreign ones).
+
 **Measured** on `demo/public/gpx/sample.gpx` (130 km in Savoie, `--fix-elevation`, defaults
 otherwise), each point against its nearest neighbour in the other run:
 

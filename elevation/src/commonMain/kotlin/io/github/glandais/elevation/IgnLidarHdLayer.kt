@@ -78,6 +78,9 @@ enum class IgnLidarHdLayer(
  * [ElevationProvider.withFallback] refuses the result: no fallback for these layers, a hard
  * contract rather than a convention.
  *
+ * A tile wholly outside [IgnLidarHdCoverage] (metropolitan France and Corsica, drawn generously) is
+ * answered as no data without calling the fetcher: abroad, the WMS has nothing but `-9999` to send.
+ *
  * @param fetcherFor the fetcher, given the layer's configuration — the bench's disk cache, the CLI's
  *   `DiskCachedElevation`. Their cache keys hash the query string, which names the layer, so the
  *   three layers never collide on disk.
@@ -87,7 +90,7 @@ fun IgnLidarHdLayer.provider(
     fetcherFor: (ElevationProviderConfig) -> suspend (String) -> RawTile = ::defaultTileFetcher,
 ): ElevationProvider {
     val config = config(zoomLevel)
-    return ElevationProvider(config, fetcherFor(config), keepNoData = true)
+    return ElevationProvider(config, ignCoverageFiltered(config, fetcherFor(config)), keepNoData = true)
 }
 
 internal const val IGN_TILE_SIZE = 256

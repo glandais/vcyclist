@@ -147,12 +147,14 @@ class DiskCachedElevationTest {
             if ("geopf" in url) bilTile(256, if ("BBOX=4" in url) 1234.5f else -9999f) else goodTileAt(512)
         }
         val provider = diskCachedElevationProvider(cacheDir, ElevationSource.IGN_LIDAR_HD, null, fetch)
-        // 45.5 N lies in a tile whose bbox starts with "4…"; -10 S does not, and falls back.
+        // 45.5 N lies in a tile whose bbox starts with "4…"; 51.0 N (Dunkirk) is a no-data tile inside France,
+        // and falls back; -10 S is outside IGN's coverage, falls back and is never asked of IGN.
         assertEquals(1234.5, runBlocking { provider.getElevation(45.5, 6.0) }, 0.01)
+        assertEquals(ELEVATION_M, runBlocking { provider.getElevation(51.0, 2.5) }, 1.0)
         assertEquals(ELEVATION_M, runBlocking { provider.getElevation(-10.0, 6.0) }, 1.0)
         val files = cachedFiles().map { it.relativeTo(cacheDir).path }
         assertEquals(2, files.count { it.endsWith(".bil") }, files.toString())
-        assertEquals(1, files.count { it.startsWith("tiles.mapterhorn.com/") }, files.toString())
+        assertEquals(2, files.count { it.startsWith("tiles.mapterhorn.com/") }, files.toString())
     }
 
     private fun goodTileAt(size: Int): ByteArray {
