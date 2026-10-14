@@ -1,3 +1,10 @@
+# [6.5.0](https://github.com/glandais/vcyclist/compare/v6.4.0...v6.5.0) (2026-10-14)
+
+
+### Features
+
+* **engine:** expose bridge-deck and tunnel corrections to callers without physics ([5b971d8](https://github.com/glandais/vcyclist/commit/5b971d8a2239f969ec88e213934e48d155911b00))
+
 # [6.4.0](https://github.com/glandais/vcyclist/compare/v6.3.0...v6.4.0) (2026-10-13)
 
 
