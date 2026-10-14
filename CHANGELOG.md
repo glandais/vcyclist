@@ -1,3 +1,10 @@
+## [6.9.1](https://github.com/glandais/vcyclist/compare/v6.9.0...v6.9.1) (2026-10-14)
+
+
+### Bug Fixes
+
+* **api:** share each DEM provider between concurrent requests instead of serialising them ([c4d4338](https://github.com/glandais/vcyclist/commit/c4d43384609c8323bd01fe9a2f1675e157c1442a))
+
 # [6.9.0](https://github.com/glandais/vcyclist/compare/v6.8.0...v6.9.0) (2026-10-14)
 
 
