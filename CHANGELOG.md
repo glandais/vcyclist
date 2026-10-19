@@ -1,3 +1,10 @@
+# [6.10.0](https://github.com/glandais/vcyclist/compare/v6.9.1...v6.10.0) (2026-10-19)
+
+
+### Features
+
+* **gpx:** per-point cumulative ascent and Douglas-Peucker retained indices ([879a089](https://github.com/glandais/vcyclist/commit/879a089c03f69c9a74430b23bedc3dd382e6cdc7))
+
 ## [6.9.1](https://github.com/glandais/vcyclist/compare/v6.9.0...v6.9.1) (2026-10-14)
 
 
