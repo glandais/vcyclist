@@ -13,3 +13,13 @@ fun annotate(
     path: Path,
     options: ElevationGainOptions = ElevationGainOptions.DEFAULT,
 ): ElevationGainResult = ElevationGain.annotate(path, options)
+
+/**
+ * Java-callable form of [ElevationGain.cumulativeGain]: the ascent accumulated up to each point,
+ * ending on the same figure as [annotate] / `ElevationGain.compute`.
+ */
+@JvmOverloads
+fun cumulativeGain(
+    path: Path,
+    options: ElevationGainOptions = ElevationGainOptions.DEFAULT,
+): DoubleArray = ElevationGain.cumulativeGain(path, options)

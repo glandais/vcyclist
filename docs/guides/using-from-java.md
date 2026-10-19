@@ -177,6 +177,10 @@ ElevationCorrections report = p.getElevationCorrections();               // appl
 p = ElevationStepJvm.smoothElevation(p, 150.0);
 ElevationGainJvm.annotate(p);                     // D+ before simplifying: it reads the unsmoothed profile
 p = PathSimplifierJvm.simplify(p, 3.0, 3.0);      // carries the D+ and the report
+
+// Per-point ascent consistent with the D+ above, and the source indices a simplification kept:
+double[] climbed = ElevationGainJvm.cumulativeGain(p);
+PathSimplifier.Simplified s = PathSimplifierJvm.simplifyWithIndices(p, 3.0);  // s.getPath(), s.getIndices()
 ```
 
 The enhancer's own grid is 2 m (the default). 5 m is the detectors' station step and loses nothing

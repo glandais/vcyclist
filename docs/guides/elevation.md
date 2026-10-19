@@ -299,6 +299,21 @@ dead band changes what D+ means rather than making it more accurate (the truth i
 18 to 36 m on `test3`), and 2 m over 60 m, nearly the same truth as `dem`, cuts recorded tracks by
 12–21 % with nothing to check against. The full tables are in the task, *Mesures (E5)*; ledger R33.
 
+## Ascent per point, and the retained indices
+
+`ElevationGain.cumulativeGain(path, options)` returns the ascent accumulated up to each point
+(`DoubleArray`, `c[0] = 0`, non-decreasing, `c[last] == compute(path, options).gainM`). It runs the
+same smoothed profile and the same private accumulator as `compute`, which notes each counted rising
+leg `[a, b]`: inside a leg, `c[i] = c[a] + clamp(max(h[a..i]) - h[a], 0, h[b] - h[a])`, and `c` is
+constant elsewhere. The dead band therefore decides which climbs count exactly as it does for the
+total, and a slice of the route sums to the figure the total would give for it, up to the legs
+that straddle its ends.
+
+`PathSimplifier.simplifyWithIndices(path, toleranceM, zExaggeration)` returns the simplified path
+and the strictly increasing source indices it kept (first and last included), so a per-point series
+such as `cumulativeGain` computed on the full trace can be read at the kept points. `simplify` is
+`simplifyWithIndices(...).path`.
+
 ## What the DEM costs
 
 With `--fix-elevation` on, `strava.gpx` reports **714 m** (z12, `dem` preset, pixel centres) where

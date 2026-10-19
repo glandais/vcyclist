@@ -95,4 +95,22 @@ public class ElevationGainJavaTest {
         ElevationGainJvm.annotate(other, ElevationGainOptions.Companion.getDEFAULT());
         assertEquals(path.getElevationGainFiltered(), other.getElevationGainFiltered(), 1e-9);
     }
+
+    @Test
+    public void theJavaFacadeComputesTheCumulativeGainAndTheRetainedIndices() {
+        Path path = hill();
+        double[] c = ElevationGainJvm.cumulativeGain(path);
+        assertEquals(path.getSize(), c.length);
+        assertEquals(0.0, c[0], 0.0);
+        assertEquals(ElevationGainJvm.annotate(hill()).getGainM(), c[c.length - 1], 1e-9);
+
+        PathSimplifier.Simplified simplified = PathSimplifierJvm.simplifyWithIndices(path, 1.0);
+        int[] indices = simplified.getIndices();
+        assertEquals(simplified.getPath().getSize(), indices.length);
+        assertEquals(0, indices[0]);
+        assertEquals(path.getSize() - 1, indices[indices.length - 1]);
+        assertEquals(
+                PathSimplifierJvm.simplifyWithIndices(path, 1.0, 3.0).getIndices().length,
+                indices.length);
+    }
 }

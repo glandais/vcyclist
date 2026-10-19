@@ -67,16 +67,80 @@ object ElevationGain {
         options: ElevationGainOptions = ElevationGainOptions.DEFAULT,
     ): ElevationGainResult {
         if (path.size < 2) return ElevationGainResult.empty(options)
-        val distanceM = DoubleArray(path.size) { path.distance(it) }
-        val elevationM =
-            DoubleArray(path.size) {
-                // `sourceElevation` is the altitude before the pipeline's 150 m kernel, and NaN on
-                // any path that was never smoothed. Preferring it is what keeps this measurement
-                // independent of a window chosen for the physics.
-                val source = path.sourceElevation(it)
-                if (source.isNaN()) path.elevation(it) else source
+        return compute(distancesOf(path), elevationsOf(path), options)
+    }
+
+    private fun distancesOf(path: Path): DoubleArray = DoubleArray(path.size) { path.distance(it) }
+
+    private fun elevationsOf(path: Path): DoubleArray =
+        DoubleArray(path.size) {
+            // `sourceElevation` is the altitude before the pipeline's 150 m kernel, and NaN on
+            // any path that was never smoothed. Preferring it is what keeps this measurement
+            // independent of a window chosen for the physics.
+            val source = path.sourceElevation(it)
+            if (source.isNaN()) path.elevation(it) else source
+        }
+
+    /**
+     * The ascent accumulated up to each point of [path], consistent with [compute]'s `gainM`.
+     *
+     * Same profile as [compute] (`sourceElevation` when present, else `elevation`, smoothed at
+     * [ElevationGainOptions.smoothWindowM]) and the same accumulator, so the last value equals
+     * `compute(path, options).gainM`. Reads `distance`, `sourceElevation` and `elevation`; writes
+     * nothing.
+     *
+     * The dead band decides *whether* a climb counts only once the profile has reversed, so the
+     * climb is spread back over the points it spans. For a counted rising leg from point `a` to
+     * point `b` (`h` being the smoothed profile), and `a < i <= b`:
+     *
+     * `c[i] = c[a] + clamp(runMax(i) - h[a], 0, h[b] - h[a])`
+     *
+     * where `runMax(i)` is the largest of `h[a]` through `h[i]`, and `c` is constant everywhere else
+     * (descents, dropped bumps). Hence: `c[0] == 0`, `c` is non-decreasing, and the increments of `c` over consecutive counted legs telescope to the
+     * leg rises, whose sum is `gainM`. With `thresholdM <= 0` every positive step of the profile is
+     * a leg, as in [compute].
+     *
+     * Returns a zero array when [path] has fewer than two points.
+     */
+    fun cumulativeGain(
+        path: Path,
+        options: ElevationGainOptions = ElevationGainOptions.DEFAULT,
+    ): DoubleArray {
+        val n = path.size
+        val c = DoubleArray(n)
+        if (n < 2) return c
+        val h = ElevationSmoother.smoothProfile(distancesOf(path), elevationsOf(path), options.smoothWindowM)
+
+        val legs = ArrayList<IntArray>()
+        if (options.thresholdM <= 0.0) {
+            for (i in 1 until h.size) if (h[i] > h[i - 1]) legs += intArrayOf(i - 1, i)
+        } else {
+            accumulate(h, options.thresholdM, legs)
+        }
+
+        var before = 0.0
+        var cursor = 1
+        for (leg in legs) {
+            val a = leg[0]
+            val b = leg[1]
+            while (cursor <= a) {
+                c[cursor] = before
+                cursor++
             }
-        return compute(distanceM, elevationM, options)
+            val rise = h[b] - h[a]
+            var runningMax = h[a]
+            for (i in a + 1..b) {
+                if (h[i] > runningMax) runningMax = h[i]
+                c[i] = before + (runningMax - h[a]).coerceIn(0.0, rise)
+            }
+            before += rise
+            cursor = b + 1
+        }
+        while (cursor < n) {
+            c[cursor] = before
+            cursor++
+        }
+        return c
     }
 
     /**
@@ -182,10 +246,16 @@ object ElevationGain {
      * closure but cut the following excursion short (`[0, -2.9, 0.2, -2.8]` would bank 0.2 m for a
      * 3.1 m swing). Booking the opening move costs at most one sub-threshold leg per profile, in
      * whichever direction the route set off, and leaves every later leg exactly as it was.
+     *
+     * When [risingLegs] is given, each counted rising leg is appended to it as `[a, b]` (profile
+     * indices, `h[b] - h[a]` being what that leg added to the gain), in order and disjoint — the
+     * opening leg and the last, flushed leg included. It is the only difference in behaviour:
+     * [cumulativeGain] shares this one kernel so it can never disagree with [compute].
      */
     private fun accumulate(
         h: DoubleArray,
         threshold: Double,
+        risingLegs: MutableList<IntArray>? = null,
     ): Banked {
         var gain = 0.0
         var loss = 0.0
@@ -198,6 +268,8 @@ object ElevationGain {
         var dir = 0
         var ref = h[0]
         var ext = h[0]
+        var iRef = 0
+        var iExt = 0
 
         for (i in 1 until h.size) {
             val e = h[i]
@@ -221,15 +293,20 @@ object ElevationGain {
                             }
                             dir = 1
                             ref = lo
+                            iRef = iLo
                             ext = if (e > hi) e else hi
+                            iExt = iHi
                         } else {
                             if (hi > h[0]) {
                                 gain += hi - h[0]
                                 legCount++
+                                risingLegs?.add(intArrayOf(0, iHi))
                             }
                             dir = -1
                             ref = hi
+                            iRef = iHi
                             ext = if (e < lo) e else lo
+                            iExt = iLo
                         }
                     }
                 }
@@ -237,11 +314,15 @@ object ElevationGain {
                 dir > 0 -> {
                     if (e > ext) {
                         ext = e
+                        iExt = i
                     } else if (ext - e >= threshold) {
                         gain += ext - ref
                         legCount++
+                        risingLegs?.add(intArrayOf(iRef, iExt))
                         ref = ext
+                        iRef = iExt
                         ext = e
+                        iExt = i
                         dir = -1
                     }
                 }
@@ -249,11 +330,14 @@ object ElevationGain {
                 else -> {
                     if (e < ext) {
                         ext = e
+                        iExt = i
                     } else if (e - ext >= threshold) {
                         loss += ext - ref
                         legCount++
                         ref = ext
+                        iRef = iExt
                         ext = e
+                        iExt = i
                         dir = 1
                     }
                 }
@@ -265,6 +349,7 @@ object ElevationGain {
         if (dir > 0 && ext > ref) {
             gain += ext - ref
             legCount++
+            risingLegs?.add(intArrayOf(iRef, iExt))
         } else if (dir < 0 && ext < ref) {
             loss += ext - ref
             legCount++

@@ -45,8 +45,26 @@ object PathSimplifier {
         path: Path,
         toleranceM: Double,
         zExaggeration: Double = 3.0,
-    ): Path {
-        if (path.size <= 2) return path.copy()
+    ): Path = simplifyWithIndices(path, toleranceM, zExaggeration).path
+
+    /** A simplified path and, for each of its points, the index of the source point it came from. */
+    class Simplified(
+        val path: Path,
+        /** Strictly increasing source indices, one per point of [path]; first and last included. */
+        val indices: IntArray,
+    )
+
+    /**
+     * [simplify], also returning the retained source indices (strictly increasing, the first and
+     * last point of [path] included). [simplify] delegates here, so `path` is identical to it.
+     * For paths of size <= 2 the copy keeps every point: indices are `0 until size`.
+     */
+    fun simplifyWithIndices(
+        path: Path,
+        toleranceM: Double,
+        zExaggeration: Double = 3.0,
+    ): Simplified {
+        if (path.size <= 2) return Simplified(path.copy(), IntArray(path.size) { it })
 
         // Build the coordinate list (degrees, with elevation).
         val coords = ArrayList<CoordinatesElevation>(path.size)
@@ -85,6 +103,6 @@ object PathSimplifier {
         out.elevationGainFiltered = path.elevationGainFiltered
         out.elevationLossFiltered = path.elevationLossFiltered
         out.elevationCorrections = path.elevationCorrections
-        return out
+        return Simplified(out, retainedIndices.toIntArray())
     }
 }

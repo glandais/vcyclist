@@ -15,3 +15,14 @@ fun simplify(
     toleranceM: Double,
     zExaggeration: Double = 3.0,
 ): Path = PathSimplifier.simplify(path, toleranceM, zExaggeration)
+
+/**
+ * Java-callable form of [PathSimplifier.simplifyWithIndices]: the simplified path and the source
+ * indices it kept, without repeating the `3.0` default for `zExaggeration`.
+ */
+@JvmOverloads
+fun simplifyWithIndices(
+    path: Path,
+    toleranceM: Double,
+    zExaggeration: Double = 3.0,
+): PathSimplifier.Simplified = PathSimplifier.simplifyWithIndices(path, toleranceM, zExaggeration)

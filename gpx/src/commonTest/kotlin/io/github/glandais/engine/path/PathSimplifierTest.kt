@@ -323,4 +323,44 @@ class PathSimplifierTest {
     fun simplify_leaves_an_absent_report_absent() {
         assertNull(PathSimplifier.simplify(flatWithHump(), toleranceM = 20.0).elevationCorrections)
     }
+
+    // ---- simplifyWithIndices ----------------------------------------------
+
+    @Test
+    fun simplifyWithIndices_matches_simplify_and_returns_increasing_indices() {
+        val n = 400
+        val src =
+            buildSyntheticPath(
+                DoubleArray(n) { 45.0 + it * 0.0002 + 0.0001 * kotlin.math.sin(it / 7.0) },
+                DoubleArray(n) { 5.0 + it * 0.0003 },
+                DoubleArray(n) { 100.0 + 30 * kotlin.math.sin(it / 20.0) },
+            )
+        for (i in 0 until n) src.setPInputPower(i, i.toDouble())
+        src.computeDerivedData()
+        val plain = PathSimplifier.simplify(src, toleranceM = 3.0)
+        val both = PathSimplifier.simplifyWithIndices(src, toleranceM = 3.0)
+
+        assertEquals(plain.size, both.path.size)
+        assertEquals(plain.size, both.indices.size)
+        for (i in 0 until plain.size) {
+            for (field in PointField.entries) {
+                assertEquals(plain.get(i, field).toRawBits(), both.path.get(i, field).toRawBits(), "$field at $i")
+            }
+        }
+        assertEquals(0, both.indices.first())
+        assertEquals(n - 1, both.indices.last())
+        for (i in 1 until both.indices.size) assertTrue(both.indices[i] > both.indices[i - 1])
+        for (i in both.indices.indices) assertEquals(both.indices[i].toDouble(), both.path.pInputPower(i))
+        assertTrue(both.indices.size < n)
+    }
+
+    @Test
+    fun simplifyWithIndices_small_paths_keep_every_index() {
+        for (size in 0..2) {
+            val src = Path(size)
+            val r = PathSimplifier.simplifyWithIndices(src, toleranceM = 1.0)
+            assertEquals(size, r.path.size)
+            assertEquals((0 until size).toList(), r.indices.toList())
+        }
+    }
 }
