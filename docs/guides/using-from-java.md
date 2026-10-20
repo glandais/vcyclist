@@ -220,6 +220,26 @@ either a `kotlin.time.Instant` or a plain `long` of epoch milliseconds, so Java 
 name a Kotlin type to get one. The output is a Course file — a
 route to follow — which is what a virtualized trace should be, not an Activity.
 
+A Course file can carry **course points** (`course_point` messages: water, food, summit, danger…).
+Pass a list of `FitCoursePointSpec` — distance in meters, type, and a name or `null`:
+
+```java
+import io.github.glandais.fit.FitCoursePointSpec;
+import io.github.glandais.fit.FitCoursePointType;
+
+byte[] fit = PathToFitJvm.toFitBytes(paths, "My route", startEpochMs,
+        List.of(new FitCoursePointSpec(1500.0, FitCoursePointType.WATER, "Fontaine"),
+                new FitCoursePointSpec(4200.0, FitCoursePointType.SUMMIT, null)));
+```
+
+The distance is on the axis of the records' distance: cumulative over all the paths you pass, the
+2D haversine of `Path.distance` — project your points on those same paths. Each point is **snapped
+to the nearest record** and takes its position, distance and timestamp (a tie goes to the earlier
+record); a distance before the start or past the end is clamped to the first record, or to the
+first record of the final distance, rather than rejected, and a non-finite one throws. Filtering off-route points, truncating names
+(FIT displays are short; the library only enforces 254 UTF-8 bytes) and capping the count are up
+to you. Without points the file is byte-identical to the short forms.
+
 Static map rendering lives in `:map` and is JVM-only by construction (it draws on `java.awt`).
 Its factories are in `MapFactoriesJvm`; see [`map/README.md`](../../map/README.md), which also
 covers the tile-source usage-policy obligations — vcyclist ships no default tile source for maps.

@@ -211,4 +211,20 @@ class FitEncoderTest {
     fun `the encoder reproduces its committed reference bytes`() {
         assertContentEquals(FitReferenceBytes.REFERENCE, FitEncoder.encode(FitReferenceCourse.build()))
     }
+
+    @Test
+    fun `the encoder reproduces its committed reference bytes with course points`() {
+        // Pins message order, field set and order, and the local slot of course_point.
+        val bytes = FitEncoder.encode(FitReferenceCourse.buildWithCoursePoints())
+        assertContentEquals(FitReferenceBytes.WITH_COURSE_POINTS, bytes)
+    }
+
+    @Test
+    fun `course points are decoded between the records and STOP_ALL`() {
+        val messages = decode(FitEncoder.encode(FitReferenceCourse.buildWithCoursePoints()))
+        val points = messages.coursePointMesgs
+        assertEquals(2, points.size)
+        assertEquals("Sommet", points[0].name)
+        assertNull(points[1].name)
+    }
 }

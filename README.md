@@ -69,7 +69,7 @@ Four doors reach the same engine, and a capability is available from all of them
 | Climb detection | — | `ClimbDetector.detect` | `detectClimbs` | `vcDetectClimbsJson` |
 | Racing-line report | `--racing-line-report` | `RacingLine.analyze` | `analyzeRacingLine` | `vcAnalyzeRacingLineJson` |
 | Write GPX / CSV / JSON | `--gpx --csv --json` | `GpxWriter`, `CsvWriter`, `JsonWriter` | `writeGpx`, `pathToCsv`, `pathToJson` | `vcWriteGpx`, `vcPathToCsv/Json` |
-| Write FIT course | `--fit` | `Path.toFitBytes` | `pathToFit`, `pathsToFit` | `vcPathToFit`, `vcPathsToFit` |
+| Write FIT course | `--fit` | `Path.toFitBytes` (`…, coursePoints` for `course_point`s) | `pathToFit`, `pathsToFit` | `vcPathToFit`, `vcPathsToFit` |
 | Static map PNG | `export --map` | `MapFactoriesJvm` | — | — |
 
 Static maps are JVM-only by construction — `:map` draws on `java.awt`.

@@ -98,6 +98,7 @@ Légende : ✅ atteignable · ⚠️ partiel (la note dit en quoi) · ❌ absent
 | Rapport de ligne de course (`analyzeRacingLine`) | ✅ | ⚠️ table texte, pas de JSON | ✅ | ✅ | ✅ | ⚠️ 4 champs sur 13 [^conv] | ✅ 13 sur 13 |
 | Export GPX (`writeGpx`, `writeGpxAt`) | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
 | Export FIT (`pathToFit`, `pathsToFit`) | ✅ | ⚠️ pas d'`interPathGap` | ✅ | ✅ | ✅ | ⚠️ mono-trace (`pathsToFit` non câblé) | ✅ [^http] |
+| Points de parcours FIT (`coursePoints`) | ✅ | ❌ | ❌ | ❌ | ✅ | ❌ | ❌ [^cpt] |
 | `--gpx-power-source` (input / computed / computed-or-input) | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
 | `trackName` (mono-trace `writeGpx` / `writeGpxAt`) | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
 | `trackName` + heure de départ absolue (multi-traces) | ✅ | ✅ | ✅ [^multi] | ✅ [^multi] | ✅ | ✅ | ✅ |
@@ -236,6 +237,15 @@ Légende : ✅ atteignable · ⚠️ partiel (la note dit en quoi) · ❌ absent
     comme sur toutes les portes (entrées `CoreOnly` du catalogue). Et l'accès interactif point par
     point d'un `Path` (`EnginePath` côté JS) n'a pas d'équivalent : l'API est sans état, on en sort
     par `?points=true` ou par l'export JSON en colonnes.
+
+[^cpt]: **Écart assumé : un seul consommateur, Pédalons, sur la JVM** (`PathToFitJvm.toFitBytes(paths,
+    name, startEpochMs, points)`). Exposer les points sur les autres portes coûterait sept surfaces :
+    un catalogue filaire des 53 types (`wireName`/`fromWire`, comme `RoadCondition`), une
+    `external interface` JS, un lecteur WASI (`requireOnly` et un test comportemental
+    `wasmWasiTest`, règle w03), un contrôle dans la démo, un DTO et un lecteur HTTP puis
+    `:api:generateOpenApi`, et les options du CLI. Les exports FIT de ces portes sont positionnels,
+    sans objet d'options. Suite naturelle : convertir les `<wpt>` GPX (`<type>`/`<sym>`) en
+    points de parcours dans `export --fit` et `pathsToFit`.
 
 [^bridge]: **Refermé en S5.** `ElevationProvider` a trois membres `suspend` et seuls deux avaient
     des ponts `Blocking`/`Async` ; celui qui manquait était justement le seul à cinq paramètres par

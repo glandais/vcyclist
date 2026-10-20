@@ -24,7 +24,8 @@ package io.github.glandais.fit
  * Regenerate by encoding [FitReferenceCourse] on any target and printing the bytes as
  * lowercase hex. Expect exactly four bytes to move on an `fit-kotlin-sdk` version bump — the
  * little-endian profile version at offsets 2–3 (`21.217.0` → `e152`) and the header CRC at
- * offsets 12–13 that covers it. Any change beyond those four is a real encoder change.
+ * offsets 12–13 that covers it, in **both** [REFERENCE] and [WITH_COURSE_POINTS]. Any change
+ * beyond those four is a real encoder change.
  */
 object FitReferenceBytes {
     /** Output of [FitEncoder], identical on every target. */
@@ -39,6 +40,23 @@ object FitReferenceBytes {
                 "060284070284048015cb44c8ea7b2090608c04000000009a1000002d00048a15" +
                 "cb4483087c204b648c04ee1b00009810ee1b0401049415cb443b137c20c4688c" +
                 "04dc3700009810ee1bff00030004009415cb445025",
+        )
+
+    /** Output of [FitEncoder] for [FitReferenceCourse.buildWithCoursePoints]. */
+    val WITH_COURSE_POINTS: ByteArray =
+        hex(
+            "0e20e152670100002e4649547b7b40000000000600010001028402028403048c" +
+                "05028404048600060f0039303930000046f18015cb444100001f000205140704" +
+                "010001436f6c206465206c61204d6164656c65696e6500024200001300080204" +
+                "86fd04860704860804860904861502841602840d0284028015cb449415cb4420" +
+                "4e0000204e0000dc37000000000100ee1b430000150004000100010100040102" +
+                "fd0486030000008015cb44440000140007fd0486000485010485050486020284" +
+                "060284070284048015cb44c8ea7b2090608c04000000009a1000002d00048a15" +
+                "cb4483087c204b648c04ee1b00009810ee1b0401049415cb443b137c20c4688c" +
+                "04dc3700009810ee1bff00450000200007fe0284010486020485030485040486" +
+                "0501000607070500008a15cb4483087c204b648c04ee1b000001536f6d6d6574" +
+                "00460000200006fe02840104860204850304850404860501000601009415cb44" +
+                "3b137c20c4688c04dc37000003030004009415cb44eb8f",
         )
 
     private fun hex(h: String): ByteArray =

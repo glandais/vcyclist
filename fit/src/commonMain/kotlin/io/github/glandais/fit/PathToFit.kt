@@ -48,6 +48,25 @@ import kotlin.time.Instant
  * the bottom of every chart instead of showing no data. Position, altitude and distance are not
  * optional — a record without them is meaningless — so only `NaN` drops those.
  *
+ * ## Course points
+ *
+ * The overloads taking `coursePoints: List<FitCoursePointSpec>` write `course_point` messages.
+ * A spec's `distanceM` is on the axis of [FitRecord.distanceM]: cumulative over every path, the
+ * 2D haversine of `Path.distance` (plus the total of the paths before). Project the points on the
+ * same paths you pass, not on another geometry.
+ *
+ * Each point is **snapped to the record whose distance is nearest** and takes that record's
+ * position, distance and timestamp. A tie between the record below and the one above goes to the
+ * one below; among records sharing the chosen distance (a stop, a segment junction) the first
+ * wins, so a point exactly on a junction lands on the last record of the previous segment. A
+ * distance outside the course is **clamped** to the first record, or to the first record of the
+ * final distance, rather than rejected; a non-finite distance throws. Points are sorted by
+ * distance (stable), indexed 0..n-1 and written after the last record run, before the final
+ * `STOP_ALL`. Filtering off-route points, truncating names and capping the count are the
+ * caller's policy; the library only enforces FIT's own limits (254 UTF-8 bytes per name, 65 535
+ * points). Without course points the output is byte-identical to the overloads that do not take
+ * them.
+ *
  * @param name value for `CourseMesg.name`.
  * @param startTime absolute instant of the first point. **Mandatory**: FIT has no relative
  *   clock, so somebody has to make this decision — the same one task g05 surfaced for GPX.
@@ -62,14 +81,30 @@ fun Path.toFitCourse(
     name: String,
     startTime: Instant,
     sport: FitSport = FitSport.CYCLING,
-): FitCourse = listOf(this).toFitCourse(name, startTime, sport)
+): FitCourse = toFitCourse(name, startTime, emptyList(), sport)
+
+/** [toFitCourse] with course points, see *Course points* above. */
+fun Path.toFitCourse(
+    name: String,
+    startTime: Instant,
+    coursePoints: List<FitCoursePointSpec>,
+    sport: FitSport = FitSport.CYCLING,
+): FitCourse = listOf(this).toFitCourse(name, startTime, coursePoints, sport)
 
 /** Shortcut: convert and encode in one step. */
 fun Path.toFitBytes(
     name: String,
     startTime: Instant,
     sport: FitSport = FitSport.CYCLING,
-): ByteArray = FitEncoder.encode(toFitCourse(name, startTime, sport))
+): ByteArray = toFitBytes(name, startTime, emptyList(), sport)
+
+/** Shortcut: convert and encode in one step, with course points. */
+fun Path.toFitBytes(
+    name: String,
+    startTime: Instant,
+    coursePoints: List<FitCoursePointSpec>,
+    sport: FitSport = FitSport.CYCLING,
+): ByteArray = FitEncoder.encode(toFitCourse(name, startTime, coursePoints, sport))
 
 /**
  * Convert several [Path]s — typically the tracks of one multi-track GPX — into a **single**
@@ -92,6 +127,15 @@ fun List<Path>.toFitCourse(
     startTime: Instant,
     sport: FitSport = FitSport.CYCLING,
     interPathGap: Duration = Duration.ZERO,
+): FitCourse = toFitCourse(name, startTime, emptyList(), sport, interPathGap)
+
+/** [toFitCourse] over several paths with course points, see *Course points* above. */
+fun List<Path>.toFitCourse(
+    name: String,
+    startTime: Instant,
+    coursePoints: List<FitCoursePointSpec>,
+    sport: FitSport = FitSport.CYCLING,
+    interPathGap: Duration = Duration.ZERO,
 ): FitCourse {
     require(isNotEmpty()) { "Cannot build a FIT course from an empty list of paths" }
     require(all { it.size > 0 }) { "Cannot build a FIT course from an empty Path" }
@@ -105,7 +149,7 @@ fun List<Path>.toFitCourse(
             segmentDistanceStart = segment.records.last().distanceM
             segment
         }
-    return FitCourse(name = name, startTime = startTime, segments = segments, sport = sport)
+    return FitCourse(name, startTime, segments, sport, alignCoursePoints(segments, coursePoints))
 }
 
 /** Shortcut: convert and encode several paths in one step. */
@@ -114,7 +158,85 @@ fun List<Path>.toFitBytes(
     startTime: Instant,
     sport: FitSport = FitSport.CYCLING,
     interPathGap: Duration = Duration.ZERO,
-): ByteArray = FitEncoder.encode(toFitCourse(name, startTime, sport, interPathGap))
+): ByteArray = toFitBytes(name, startTime, emptyList(), sport, interPathGap)
+
+/** Shortcut: convert and encode several paths with course points in one step. */
+fun List<Path>.toFitBytes(
+    name: String,
+    startTime: Instant,
+    coursePoints: List<FitCoursePointSpec>,
+    sport: FitSport = FitSport.CYCLING,
+    interPathGap: Duration = Duration.ZERO,
+): ByteArray = FitEncoder.encode(toFitCourse(name, startTime, coursePoints, sport, interPathGap))
+
+/**
+ * A course point to place on a course: where along it ([distanceM], meters on the axis of
+ * [FitRecord.distanceM] — cumulative over every path, 2D haversine of `Path.distance`), what it is,
+ * and its label. [toFitCourse] snaps it onto the nearest record. Filtering points that are off the
+ * route, truncating labels and capping the count are the caller's policy.
+ *
+ * From Java, call the three-argument constructor, with `null` for no name.
+ */
+data class FitCoursePointSpec(
+    val distanceM: Double,
+    val type: FitCoursePointType,
+    val name: String? = null,
+) {
+    init {
+        require(distanceM.isFinite()) { "Course point distance must be finite, got $distanceM" }
+    }
+}
+
+private fun alignCoursePoints(
+    segments: List<FitSegment>,
+    coursePoints: List<FitCoursePointSpec>,
+): List<FitCoursePoint> {
+    if (coursePoints.isEmpty()) return emptyList()
+    val records = segments.flatMap { it.records }
+    require(records.all { it.distanceM.isFinite() }) {
+        "Cannot place course points on a path whose distance is not finite (NaN position?)"
+    }
+    return coursePoints
+        .sortedBy { it.distanceM }
+        .map { spec ->
+            val r = records[records.alignedIndex(spec.distanceM)]
+            FitCoursePoint(
+                r.timestamp,
+                r.latitudeDeg,
+                r.longitudeDeg,
+                r.distanceM,
+                spec.type,
+                spec.name?.takeIf { it.isNotEmpty() },
+            )
+        }
+}
+
+/** First index i with records[i].distanceM >= d, or size. */
+private fun List<FitRecord>.lowerBound(d: Double): Int {
+    var lo = 0
+    var hi = size
+    while (lo < hi) {
+        val mid = (lo + hi) ushr 1
+        if (this[mid].distanceM < d) lo = mid + 1 else hi = mid
+    }
+    return lo
+}
+
+/**
+ * Index of the record a course point at [target] snaps to: the record whose distance is nearest
+ * to [target]; on a tie between the record below and the record above, the one below; and among
+ * records sharing that distance (a stop, a segment junction), the FIRST one.
+ */
+private fun List<FitRecord>.alignedIndex(target: Double): Int {
+    val k = lowerBound(target)
+    val best =
+        when {
+            k == 0 -> 0
+            k == size -> lastIndex
+            else -> if (this[k].distanceM - target < target - this[k - 1].distanceM) k else k - 1
+        }
+    return lowerBound(this[best].distanceM)
+}
 
 private fun Path.toFitSegment(
     startTime: Instant,

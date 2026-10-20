@@ -154,4 +154,57 @@ public class FitJavaInteropTest {
                 lap.getTotalDistance(),
                 0.5);
     }
+
+    @Test
+    public void coursePointsOverloadMatchesTheShortFormWhenEmpty() {
+        List<Path> paths = List.of(syntheticPath(45.68), syntheticPath(46.0));
+        long startMs = START.toEpochMilliseconds();
+
+        assertArrayEquals(
+                PathToFitJvm.toFitBytes(paths, "multi", startMs),
+                PathToFitJvm.toFitBytes(paths, "multi", startMs, List.of()));
+    }
+
+    @Test
+    public void coursePointsAreWrittenFromJava() {
+        List<Path> paths = List.of(syntheticPath(45.68), syntheticPath(46.0));
+        long startMs = START.toEpochMilliseconds();
+
+        byte[] bytes =
+                PathToFitJvm.toFitBytes(
+                        paths,
+                        "multi",
+                        startMs,
+                        List.of(
+                                new FitCoursePointSpec(15.0, FitCoursePointType.WATER, "Fontaine"),
+                                new FitCoursePointSpec(250.0, FitCoursePointType.CHECKPOINT, null)));
+
+        FitMessages messages = new FitDecoder(bytes).decode(new DecodeOptions()).getMessages();
+        List<com.garmin.fit.CoursePointMesg> points = messages.getCoursePointMesgs();
+        List<RecordMesg> records = messages.getRecordMesgs();
+        assertEquals(2, points.size());
+        assertEquals("WATER", points.get(0).getType().name());
+        assertEquals("Fontaine", points.get(0).getName());
+        assertEquals("CHECKPOINT", points.get(1).getType().name());
+        for (com.garmin.fit.CoursePointMesg point : points) {
+            assertTrue(
+                    records.stream().anyMatch(r -> r.getDistance().equals(point.getDistance())));
+        }
+    }
+
+    @Test
+    public void coursePointsWithSportAndGapCompileAndEncode() {
+        List<Path> paths = List.of(syntheticPath(45.68), syntheticPath(46.0));
+        List<FitCoursePointSpec> specs =
+                List.of(new FitCoursePointSpec(30.0, FitCoursePointType.FOOD, "Boulangerie"));
+
+        byte[] viaInstant =
+                PathToFitJvm.toFitBytes(paths, "multi", START, specs, FitSport.CYCLING, 60_000L);
+        byte[] viaEpoch =
+                PathToFitJvm.toFitBytes(
+                        paths, "multi", START.toEpochMilliseconds(), specs, FitSport.CYCLING, 60_000L);
+        assertTrue(viaInstant.length > 0);
+        assertArrayEquals(viaInstant, viaEpoch);
+        assertEquals(1, PathToFitJvm.toFitCourse(paths, "multi", START, specs).getCoursePoints().size());
+    }
 }

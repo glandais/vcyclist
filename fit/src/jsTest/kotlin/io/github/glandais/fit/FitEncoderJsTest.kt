@@ -113,4 +113,17 @@ class FitEncoderJsTest {
         assertEquals(FitReferenceCourse.NAME, result.messages.courseMesgs[0].name as String)
         assertEquals(3, result.messages.recordMesgs.length as Int)
     }
+
+    @Test
+    fun `the vendor SDK reads course points`() {
+        val result = decode(FitEncoder.encode(FitReferenceCourse.buildWithCoursePoints()))
+        assertEquals(0, result.errors.length as Int, "decoder reported errors")
+        val points = result.messages.coursePointMesgs
+        assertEquals(2, points.length as Int)
+        assertEquals("summit", points[0].type as String)
+        assertEquals("Sommet", points[0].name as String)
+        assertEquals(0, points[0].messageIndex as Int)
+        assertEquals("water", points[1].type as String)
+        assertEquals(1, points[1].messageIndex as Int)
+    }
 }

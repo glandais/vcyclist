@@ -63,4 +63,20 @@ object FitReferenceCourse {
                 ),
         )
     }
+
+    /**
+     * [build] plus two course points: `SUMMIT` "Sommet" on record 1 and an unnamed `WATER` on
+     * record 2 — the second has a different layout (no `name`), so the bytes pin both.
+     */
+    fun buildWithCoursePoints(): FitCourse {
+        val course = build()
+        val (_, r1, r2) = course.records
+        return course.copy(
+            coursePoints =
+                listOf(
+                    FitCoursePoint(r1.timestamp, r1.latitudeDeg, r1.longitudeDeg, r1.distanceM, FitCoursePointType.SUMMIT, "Sommet"),
+                    FitCoursePoint(r2.timestamp, r2.latitudeDeg, r2.longitudeDeg, r2.distanceM, FitCoursePointType.WATER),
+                ),
+        )
+    }
 }

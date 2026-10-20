@@ -92,6 +92,91 @@ fun toFitBytes(
     interPathGapMs: Long = 0L,
 ): ByteArray = paths.toFitBytes(name, startTimeEpochMs.instant(), sport, interPathGapMs.gap())
 
+/**
+ * The same eight with course points (see *Course points* in `PathToFit.kt`): each
+ * [FitCoursePointSpec] is snapped to the nearest record. From Java build one with the
+ * three-argument constructor, `null` for no name:
+ * `toFitBytes(paths, name, startEpochMs, List.of(new FitCoursePointSpec(1500.0, FitCoursePointType.WATER, "Fontaine")))`.
+ * `@JvmOverloads` also gives the `(…, coursePoints)`, `(…, coursePoints, sport)` and, for several
+ * paths, `(…, coursePoints, sport, interPathGapMs)` forms. A literal `null` as fourth argument is
+ * ambiguous between `FitSport` and `List` in Java: pass a typed value.
+ */
+@JvmOverloads
+fun toFitCourse(
+    path: Path,
+    name: String,
+    startTime: Instant,
+    coursePoints: List<FitCoursePointSpec>,
+    sport: FitSport = FitSport.CYCLING,
+): FitCourse = path.toFitCourse(name, startTime, coursePoints, sport)
+
+@JvmOverloads
+fun toFitBytes(
+    path: Path,
+    name: String,
+    startTime: Instant,
+    coursePoints: List<FitCoursePointSpec>,
+    sport: FitSport = FitSport.CYCLING,
+): ByteArray = path.toFitBytes(name, startTime, coursePoints, sport)
+
+@JvmOverloads
+fun toFitCourse(
+    paths: List<Path>,
+    name: String,
+    startTime: Instant,
+    coursePoints: List<FitCoursePointSpec>,
+    sport: FitSport = FitSport.CYCLING,
+    interPathGapMs: Long = 0L,
+): FitCourse = paths.toFitCourse(name, startTime, coursePoints, sport, interPathGapMs.gap())
+
+@JvmOverloads
+fun toFitBytes(
+    paths: List<Path>,
+    name: String,
+    startTime: Instant,
+    coursePoints: List<FitCoursePointSpec>,
+    sport: FitSport = FitSport.CYCLING,
+    interPathGapMs: Long = 0L,
+): ByteArray = paths.toFitBytes(name, startTime, coursePoints, sport, interPathGapMs.gap())
+
+@JvmOverloads
+fun toFitCourse(
+    path: Path,
+    name: String,
+    startTimeEpochMs: Long,
+    coursePoints: List<FitCoursePointSpec>,
+    sport: FitSport = FitSport.CYCLING,
+): FitCourse = path.toFitCourse(name, startTimeEpochMs.instant(), coursePoints, sport)
+
+@JvmOverloads
+fun toFitBytes(
+    path: Path,
+    name: String,
+    startTimeEpochMs: Long,
+    coursePoints: List<FitCoursePointSpec>,
+    sport: FitSport = FitSport.CYCLING,
+): ByteArray = path.toFitBytes(name, startTimeEpochMs.instant(), coursePoints, sport)
+
+@JvmOverloads
+fun toFitCourse(
+    paths: List<Path>,
+    name: String,
+    startTimeEpochMs: Long,
+    coursePoints: List<FitCoursePointSpec>,
+    sport: FitSport = FitSport.CYCLING,
+    interPathGapMs: Long = 0L,
+): FitCourse = paths.toFitCourse(name, startTimeEpochMs.instant(), coursePoints, sport, interPathGapMs.gap())
+
+@JvmOverloads
+fun toFitBytes(
+    paths: List<Path>,
+    name: String,
+    startTimeEpochMs: Long,
+    coursePoints: List<FitCoursePointSpec>,
+    sport: FitSport = FitSport.CYCLING,
+    interPathGapMs: Long = 0L,
+): ByteArray = paths.toFitBytes(name, startTimeEpochMs.instant(), coursePoints, sport, interPathGapMs.gap())
+
 private fun Long.gap(): Duration = milliseconds
 
 private fun Long.instant(): Instant = Instant.fromEpochMilliseconds(this)

@@ -1,11 +1,13 @@
 package io.github.glandais.fit
 
 import com.garmin.fit.CourseMesg
+import com.garmin.fit.CoursePointMesg
 import com.garmin.fit.EventMesg
 import com.garmin.fit.FileIdMesg
 import com.garmin.fit.LapMesg
 import com.garmin.fit.RecordMesg
 import com.garmin.fit.encodeFit
+import com.garmin.fit.types.CoursePoint
 import com.garmin.fit.types.Event
 import com.garmin.fit.types.EventType
 import com.garmin.fit.types.File
@@ -40,6 +42,10 @@ import kotlin.time.Instant
  * Not free in a Course file, and unchanged since g08: [FileIdMesg], then [CourseMesg], then one
  * [LapMesg] per segment, then per segment a `TIMER`/`START` event, its [RecordMesg] stream and
  * a `TIMER`/`STOP` — `STOP_ALL` on the last one, which is what tells a reader the file is over.
+ * The [CoursePointMesg]s of [FitCourse.coursePoints], if any, sit **after the records of the last
+ * segment and before its `STOP_ALL`** (the order of Garmin's Course-file cookbook), `message_index`
+ * 0..n-1 in list order. An empty list adds no write call, so the bytes are those of a course
+ * without course points.
  *
  * ## Local message numbers
  *
@@ -47,6 +53,12 @@ import kotlin.time.Instant
  * identical layout and takes the next free slot otherwise, so writing in the order above still
  * lands on `file_id`=0, `course`=1, `lap`=2, `event`=3, `record`=4 — the allocation the
  * previous implementations spelled out — and a run of records still costs one definition.
+ * `course_point` takes slot 5. Its `name` field is sized to the name's UTF-8 byte count plus the
+ * NUL, so **each distinct name length in bytes is a distinct layout and costs one more
+ * definition** (slots 6 to 15). Past 11 distinct layouts the SDK evicts slots round-robin from 0,
+ * so `STOP_ALL`'s `event` layout may be defined again: still valid, deterministic FIT, since
+ * redefinition is part of the protocol. Padding names to a fixed width was rejected: it costs
+ * bytes on every point and depends on how each decoder trims strings, for a cosmetic gain.
  *
  * ## Units
  *
@@ -72,6 +84,13 @@ object FitEncoder {
                 write(timerEvent(segment.records.first().timestamp, EventType.START))
                 for (record in segment.records) {
                     write(recordMesg(record))
+                }
+                // Course points after the last record run, before STOP_ALL (Garmin Course-file
+                // cookbook order).
+                if (isLast) {
+                    for ((i, point) in course.coursePoints.withIndex()) {
+                        write(coursePointMesg(i, point))
+                    }
                 }
                 // STOP_ALL closes the file; a plain STOP closes one run with more to come.
                 write(timerEvent(segment.records.last().timestamp, if (isLast) EventType.STOP_ALL else EventType.STOP))
@@ -130,6 +149,22 @@ object FitEncoder {
             record.heartRate?.let { heartRate = it.toUByte() }
             record.cadence?.let { cadence = it.toUByte() }
             record.temperatureC?.let { temperature = it.roundToInt().toByte() }
+        }
+
+    private fun coursePointMesg(
+        index: Int,
+        point: FitCoursePoint,
+    ): CoursePointMesg =
+        CoursePointMesg().apply {
+            // Setter order IS the definition's field order (Mesg.fieldMap is insertion-ordered):
+            // keep it fixed.
+            messageIndex = index.toUShort()
+            timestamp = point.timestamp
+            positionLat = FitUnits.degreesToSemicircles(point.latitudeDeg)
+            positionLong = FitUnits.degreesToSemicircles(point.longitudeDeg)
+            distance = point.distanceM
+            type = CoursePoint.fromValue(point.type.value.toUByte())
+            point.name?.takeIf { it.isNotEmpty() }?.let { name = it }
         }
 
     private fun timerEvent(
