@@ -1,3 +1,10 @@
+# [6.11.0](https://github.com/glandais/vcyclist/compare/v6.10.0...v6.11.0) (2026-10-20)
+
+
+### Features
+
+* **fit:** course points on FIT courses, snapped to the nearest record ([80b9865](https://github.com/glandais/vcyclist/commit/80b9865c3d1e7b2daafad4173a5206e3fa9ad2df))
+
 # [6.10.0](https://github.com/glandais/vcyclist/compare/v6.9.1...v6.10.0) (2026-10-19)
 
 
