@@ -33,6 +33,6 @@ class ElevationGateway(
         zoom: Int?,
     ): ElevationProvider {
         val zoomLevel = zoom ?: source.defaultZoomLevel
-        return entries.computeIfAbsent(source to zoomLevel) { source.provider(zoomLevel, fetcherFor) }
+        return entries.computeIfAbsent(source to zoomLevel) { source.provider(zoomLevel, fetcherFor = fetcherFor) }
     }
 }
