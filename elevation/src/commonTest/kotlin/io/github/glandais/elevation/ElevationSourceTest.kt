@@ -171,9 +171,9 @@ class ElevationSourceTest {
     @Test
     fun `withFallback keeps the surface model, withSurfaceModel null detaches it and keeps the fallback`() {
         val fetcher: (ElevationProviderConfig) -> suspend (String) -> RawTile = { config -> { flatTerrarium(config.tileSize, 0) } }
-        val ign = ElevationSource.IGN_LIDAR_HD.provider(null, fetcher)
+        val ign = ElevationSource.IGN_LIDAR_HD.provider(null, fetcherFor = fetcher)
         val surface = ign.surfaceModel
-        val other = ElevationSource.MAPTERHORN.provider(null, fetcher)
+        val other = ElevationSource.MAPTERHORN.provider(null, fetcherFor = fetcher)
         assertSame(surface, ign.withFallback(other).surfaceModel)
         val bare = ign.withSurfaceModel(null)
         assertNull(bare.surfaceModel)
@@ -182,12 +182,29 @@ class ElevationSourceTest {
     }
 
     @Test
+    fun `cacheSize reaches every tier, and null keeps the default`() {
+        val fetcher: (ElevationProviderConfig) -> suspend (String) -> RawTile = { config -> { flatTerrarium(config.tileSize, 0) } }
+        val sized = ElevationSource.IGN_LIDAR_HD.provider(null, cacheSize = 12, fetcherFor = fetcher)
+        assertEquals(12, sized.config.cacheSize)
+        assertEquals(12, sized.fallback?.config?.cacheSize)
+        assertEquals(12, sized.surfaceModel?.config?.cacheSize)
+        val default = ElevationSource.IGN_LIDAR_HD.provider(null, fetcherFor = fetcher)
+        assertEquals(ElevationProviderConfig().cacheSize, default.config.cacheSize)
+        assertEquals(ElevationProviderConfig().cacheSize, default.fallback?.config?.cacheSize)
+        assertEquals(ElevationProviderConfig().cacheSize, default.surfaceModel?.config?.cacheSize)
+    }
+
+    @Test
     fun `a surface model must be a raw layer, and a raw layer carries none`() {
         val fetcher: (ElevationProviderConfig) -> suspend (String) -> RawTile = { config -> { flatTerrarium(config.tileSize, 0) } }
-        val terrain = ElevationSource.MAPTERHORN.provider(null, fetcher)
-        val mns = IgnLidarHdLayer.MNS.provider(null, fetcher)
-        assertFailsWith<IllegalArgumentException> { terrain.withSurfaceModel(ElevationSource.MAPTERHORN.provider(null, fetcher)) }
-        assertFailsWith<IllegalArgumentException> { mns.withSurfaceModel(IgnLidarHdLayer.MNS.provider(null, fetcher)) }
+        val terrain = ElevationSource.MAPTERHORN.provider(null, fetcherFor = fetcher)
+        val mns = IgnLidarHdLayer.MNS.provider(null, fetcherFor = fetcher)
+        assertFailsWith<IllegalArgumentException> {
+            terrain.withSurfaceModel(
+                ElevationSource.MAPTERHORN.provider(null, fetcherFor = fetcher),
+            )
+        }
+        assertFailsWith<IllegalArgumentException> { mns.withSurfaceModel(IgnLidarHdLayer.MNS.provider(null, fetcherFor = fetcher)) }
         assertFailsWith<IllegalArgumentException> { mns.withSurfaceModel(null) }
         assertSame(mns, terrain.withSurfaceModel(mns).surfaceModel)
     }

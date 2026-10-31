@@ -87,9 +87,10 @@ enum class IgnLidarHdLayer(
  */
 fun IgnLidarHdLayer.provider(
     zoomLevel: Int? = null,
+    cacheSize: Int? = null,
     fetcherFor: (ElevationProviderConfig) -> suspend (String) -> RawTile = ::defaultTileFetcher,
 ): ElevationProvider {
-    val config = config(zoomLevel)
+    val config = config(zoomLevel).let { if (cacheSize == null) it else it.copy(cacheSize = cacheSize) }
     return ElevationProvider(config, ignCoverageFiltered(config, fetcherFor(config)), keepNoData = true)
 }
 

@@ -86,6 +86,18 @@ fun newElevationProvider(
     store: TileStore,
 ): ElevationProvider = source.provider(null) { config -> storedTileFetcher(config, store) }
 
+/**
+ * Same, every tier keeping at most [cacheSize] decoded tiles in memory instead of
+ * [ElevationProviderConfig.cacheSize]'s 100 — the knob for a provider that lives as long as the
+ * process: with the default, one long route leaves ~100 MiB per Mapterhorn tier behind (a tile is
+ * 1 MiB decoded). A miss is then a read of [store] and a decode, not a download.
+ */
+fun newElevationProvider(
+    source: ElevationSource,
+    store: TileStore,
+    cacheSize: Int,
+): ElevationProvider = source.provider(null, cacheSize) { config -> storedTileFetcher(config, store) }
+
 /** Same, at [zoomLevel] for the source itself; the fallback keeps its own default zoom. */
 fun newElevationProvider(
     source: ElevationSource,

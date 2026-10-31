@@ -134,22 +134,27 @@ private fun tileNorthLatitude(
  * [ElevationProvider.surfaceModel], fetched through the same [fetcherFor] (so a disk cache covers it
  * too): one more tile per terrain tile, read only by the enhancer's bridge-deck step.
  *
+ * @param cacheSize the decoded tiles each tier keeps in memory, [ElevationProviderConfig.cacheSize]
+ *   when `null`. Applied to every tier — the source, its fallback and the surface model — and
+ *   counted in tiles, not bytes: a Mapterhorn tile is 1 MiB decoded, an IGN one 256 KiB. A
+ *   long-lived provider (a server's) keeps every tier full once a long route has filled it.
  * @param fetcherFor the fetcher of each tier, given its configuration — so a custom transport (the
  *   CLI's disk cache) decodes each source's bytes with that source's [TileEncoding].
  */
 fun ElevationSource.provider(
     zoomLevel: Int? = null,
+    cacheSize: Int? = null,
     fetcherFor: (ElevationProviderConfig) -> suspend (String) -> RawTile = ::defaultTileFetcher,
 ): ElevationProvider {
-    val config = config(zoomLevel)
+    val config = config(zoomLevel).let { if (cacheSize == null) it else it.copy(cacheSize = cacheSize) }
     // IGN outside its coverage would answer `-9999` for every tile: no request, the fallback reads it.
     val fetcher = if (this == ElevationSource.IGN_LIDAR_HD) ignCoverageFiltered(config, fetcherFor(config)) else fetcherFor(config)
     val primary = ElevationProvider(config, fetcher)
-    val withFallback = fallback?.let { primary.withFallback(it.provider(null, fetcherFor)) } ?: primary
+    val withFallback = fallback?.let { primary.withFallback(it.provider(null, cacheSize, fetcherFor)) } ?: primary
     // Decks only at the zoom the detector was calibrated at: at z14 it found 13 of 21 bridges and
     // 19 stations off them (`elevation-bridge-decks.md`, E2, variant c).
     return if (this == ElevationSource.IGN_LIDAR_HD && config.zoomLevel == IgnLidarHdLayer.MNS.defaultZoomLevel) {
-        withFallback.withSurfaceModel(IgnLidarHdLayer.MNS.provider(null, fetcherFor))
+        withFallback.withSurfaceModel(IgnLidarHdLayer.MNS.provider(null, cacheSize, fetcherFor))
     } else {
         withFallback
     }
