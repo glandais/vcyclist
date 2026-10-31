@@ -1,3 +1,15 @@
+# [6.12.0](https://github.com/glandais/vcyclist/compare/v6.11.0...v6.12.0) (2026-10-31)
+
+
+### Bug Fixes
+
+* **api:** name fetcherFor in ElevationGateway's provider() call ([ea47c75](https://github.com/glandais/vcyclist/commit/ea47c7546440c04bb32a0cb4ae7853332eee3750))
+
+
+### Features
+
+* **elevation:** cacheSize on provider() and newElevationProvider, applied to every tier ([156ed2d](https://github.com/glandais/vcyclist/commit/156ed2d000ffbfb9c125458d1c4f0fc18ac952ca))
+
 # [6.11.0](https://github.com/glandais/vcyclist/compare/v6.10.0...v6.11.0) (2026-10-20)
 
 
