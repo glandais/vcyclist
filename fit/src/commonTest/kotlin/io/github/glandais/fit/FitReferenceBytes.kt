@@ -23,7 +23,7 @@ package io.github.glandais.fit
  *
  * Regenerate by encoding [FitReferenceCourse] on any target and printing the bytes as
  * lowercase hex. Expect exactly four bytes to move on an `fit-kotlin-sdk` version bump — the
- * little-endian profile version at offsets 2–3 (`21.217.0` → `e152`) and the header CRC at
+ * little-endian profile version at offsets 2–3 (`21.218.0` → `e252`) and the header CRC at
  * offsets 12–13 that covers it, in **both** [REFERENCE] and [WITH_COURSE_POINTS]. Any change
  * beyond those four is a real encoder change.
  */
@@ -31,7 +31,7 @@ object FitReferenceBytes {
     /** Output of [FitEncoder], identical on every target. */
     val REFERENCE: ByteArray =
         hex(
-            "0e20e152050100002e464954fc8a40000000000600010001028402028403048c" +
+            "0e20e252050100002e4649540c8540000000000600010001028402028403048c" +
                 "05028404048600060f0039303930000046f18015cb444100001f000205140704" +
                 "010001436f6c206465206c61204d6164656c65696e6500024200001300080204" +
                 "86fd04860704860804860904861502841602840d0284028015cb449415cb4420" +
@@ -45,7 +45,7 @@ object FitReferenceBytes {
     /** Output of [FitEncoder] for [FitReferenceCourse.buildWithCoursePoints]. */
     val WITH_COURSE_POINTS: ByteArray =
         hex(
-            "0e20e152670100002e4649547b7b40000000000600010001028402028403048c" +
+            "0e20e252670100002e4649548b7440000000000600010001028402028403048c" +
                 "05028404048600060f0039303930000046f18015cb444100001f000205140704" +
                 "010001436f6c206465206c61204d6164656c65696e6500024200001300080204" +
                 "86fd04860704860804860904861502841602840d0284028015cb449415cb4420" +
