@@ -73,6 +73,45 @@ fun GpxDocument.segmentsAsPaths(kinds: Set<GpxPathKind> = ALL_KINDS): List<Path>
         .filter { it.second.points.isNotEmpty() }
         .map { (trackWidth, segment) -> segment.toPath(trackWidth) }
 
+/*
+ * `orderSegments` variants. Overloads rather than a defaulted parameter on the functions above, so
+ * Kotlin callers compiled against an earlier release keep linking: the parameter is required here,
+ * which also keeps `tracksAsPaths()` unambiguous.
+ */
+
+/**
+ * As [firstTrackAsPath]; when [orderSegments] is `true`, the track's segments are first put back
+ * end to end by [GpxTrack.orderedSegments] with [options].
+ */
+fun GpxDocument.firstTrackAsPath(
+    orderSegments: Boolean,
+    options: SegmentOrderOptions = SegmentOrderOptions.DEFAULT,
+): Path {
+    val track = tracks.firstOrNull() ?: error("GpxDocument has no track")
+    return (if (orderSegments) track.orderedSegments(options) else track).toPath()
+}
+
+/**
+ * As [tracksAsPaths]; when [orderSegments] is `true`, each track's segments are first put back end
+ * to end by [GpxTrack.orderedSegments] with [options]. Off by default: GPX 1.1 says segments are
+ * in order, and a file that respects it must not move.
+ */
+fun GpxDocument.tracksAsPaths(
+    kinds: Set<GpxPathKind> = ALL_KINDS,
+    orderSegments: Boolean,
+    options: SegmentOrderOptions = SegmentOrderOptions.DEFAULT,
+): List<Path> = (if (orderSegments) withOrderedSegments(options) else this).tracksAsPaths(kinds)
+
+/**
+ * As [segmentsAsPaths]; when [orderSegments] is `true`, the paths come out in the order (and
+ * direction) [GpxTrack.orderedSegments] gives each track's segments with [options].
+ */
+fun GpxDocument.segmentsAsPaths(
+    kinds: Set<GpxPathKind> = ALL_KINDS,
+    orderSegments: Boolean,
+    options: SegmentOrderOptions = SegmentOrderOptions.DEFAULT,
+): List<Path> = (if (orderSegments) withOrderedSegments(options) else this).segmentsAsPaths(kinds)
+
 /**
  * Both containers — the default selection of [tracksAsPaths] and [segmentsAsPaths].
  *

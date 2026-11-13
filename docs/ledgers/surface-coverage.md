@@ -104,6 +104,7 @@ Légende : ✅ atteignable · ⚠️ partiel (la note dit en quoi) · ❌ absent
 | `trackName` + heure de départ absolue (multi-traces) | ✅ | ✅ | ✅ [^multi] | ✅ [^multi] | ✅ | ✅ | ✅ |
 | Lecture multi-traces (`parseGpxTracks`) | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ [^pick] | ✅ |
 | `tracksAsPaths(kinds)` (traces / itinéraires) | ✅ | ❌ | ✅ | ✅ | ✅ | ❌ | ✅ |
+| Réordonner les `<trkseg>` d'une trace (`orderedSegments`, `withOrderedSegments`, `orderSegments`, `planSegmentOrder`) | ✅ | ❌ | ❌ | ❌ | ✅ `GpxSegmentOrderJvm` | ❌ | ❌ |
 | Waypoints GPX (`<wpt>`) | ✅ | ✅ | ✅ (`writeGpxTracks`) | ❌ refus documenté | ✅ | ✅ [^wpt] | ✅ |
 | `repairOnFailure` du parseur GPX + `GpxXmlRepair` | ✅ | ❌ | ❌ | ❌ | ✅ | ❌ | ✅ |
 | Détection de cols (`ClimbDetector` / `ClimbOptions`) | ✅ | ❌ aucune option | ✅ 7 sur 7 | ✅ 7 sur 7 | ✅ | ✅ 6 réglages sur 7 [^climbui] | ✅ 7 sur 7 |
