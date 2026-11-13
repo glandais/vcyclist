@@ -1,3 +1,10 @@
+# [6.13.0](https://github.com/glandais/vcyclist/compare/v6.12.0...v6.13.0) (2026-11-13)
+
+
+### Features
+
+* **gpx:** put out-of-order or reversed trkseg back end to end ([37a3088](https://github.com/glandais/vcyclist/commit/37a3088e10eeef9aca73dfafa86178e5ae7c80c2))
+
 # [6.12.0](https://github.com/glandais/vcyclist/compare/v6.11.0...v6.12.0) (2026-10-31)
 
 
