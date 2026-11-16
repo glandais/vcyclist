@@ -1,3 +1,10 @@
+# [6.14.0](https://github.com/glandais/vcyclist/compare/v6.13.0...v6.14.0) (2026-11-16)
+
+
+### Features
+
+* **build:** publish vcyclist-bom, pinning vcyclist and its fit-kotlin-sdk ([89ffa16](https://github.com/glandais/vcyclist/commit/89ffa16b4b6bc4ad075f7e09a05e1b484b577f2f))
+
 # [6.13.0](https://github.com/glandais/vcyclist/compare/v6.12.0...v6.13.0) (2026-11-13)
 
 
