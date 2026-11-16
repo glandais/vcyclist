@@ -51,7 +51,9 @@ kotlin {
             // so the encoder is written once and runs on JVM, JS *and* wasmWasi — which is what
             // let `expect`/`actual` FitEncoder, `com.garmin:fit` and `@garmin/fitsdk` all go away.
             // `implementation`, not `api` : `FitCourse` is the public model, the SDK's message
-            // classes stay an implementation detail of the encoder.
+            // classes stay an implementation detail of the encoder. A consumer that decodes FIT
+            // itself, and so names the SDK too, takes its version from `vcyclist-bom` (see
+            // bom/build.gradle.kts) rather than from an `api` here.
             implementation(libs.fit.kotlin.sdk)
         }
         commonTest.dependencies {

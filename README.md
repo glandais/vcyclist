@@ -110,6 +110,12 @@ dependencies {
 The badges above are the source of truth for the current version. KMP consumers get the
 platform-specific variant automatically; from plain Maven, name the `-jvm` artifact yourself.
 
+To keep several `vcyclist-*` artifacts on one version — or to compile against
+[`fit-kotlin-sdk`](https://github.com/glandais/fit-kotlin-sdk) yourself at exactly the version
+vcyclist encodes with — import `io.github.glandais:vcyclist-bom` (`<type>pom</type>`,
+`<scope>import</scope>`, or Gradle's `platform(…)`) and drop the version from the dependencies it
+manages. See [`docs/guides/publishing.md`](docs/guides/publishing.md).
+
 `vcyclist-gpx` (the `Path` model + GPX I/O) comes in transitively via `vcyclist-engine`, and can be
 depended on alone if you only need parsing and resampling. `vcyclist-fit` and `vcyclist-map` are
 published separately.

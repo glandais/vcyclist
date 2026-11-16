@@ -11,13 +11,14 @@ This document explains how the vcyclist artefacts ship to **Maven Central** and 
 | Maven Central | `:gpx` (jvm, js variants) | `io.github.glandais:vcyclist-gpx:<version>` |
 | Maven Central | `:fit` (jvm, js variants) | `io.github.glandais:vcyclist-fit:<version>` |
 | Maven Central | `:map` (jvm only) | `io.github.glandais:vcyclist-map:<version>` |
+| Maven Central | `:bom` (a POM, no jar) | `io.github.glandais:vcyclist-bom:<version>` |
 | npm | engine — Kotlin/JS | `@glandais/vcyclist-engine` |
 | npm | elevation — Kotlin/JS | `@glandais/vcyclist-elevation` |
 | GitHub Release | `:cli` executable jar | `vcyclist-cli-<version>-all.jar` |
 | GitHub Release | standalone WASI module | `vcyclist-engine.wasm` + `vcyclist-engine.wasm.sha256` |
 | Maven Central | the same module, classified | `io.github.glandais:vcyclist-engine:<version>:wasi@wasm` |
 
-Five Maven Central artefacts plus one classified binary, two npm packages, three release assets.
+Five Maven Central artefacts and their BOM, plus one classified binary, two npm packages, three release assets.
 `:fit` is **not** published to npm — see below.
 
 ### The WASI module
@@ -116,6 +117,63 @@ publicly is the intended consumption path. That held; it is simply no longer nee
 **Not a legal opinion.** Maven Central artefacts cannot be deleted once published. If that
 matters to you, have the terms reviewed before the first release that includes `:fit`.
 
+### `vcyclist-bom` — one version number for vcyclist *and* its FIT SDK
+
+`:bom` is a `java-platform` module: no code, no jar, a POM whose `<dependencyManagement>` pins
+every `vcyclist-*` artefact of the release (root coordinates and each per-target one — plain Maven
+does not read Gradle Module Metadata, so `-jvm` has to be spelled out) and the `fit-kotlin-sdk`
+artefacts at the version of `gradle/libs.versions.toml`.
+
+It exists for the consumer that **decodes** FIT itself. `:fit` declares the SDK as
+`implementation`, so `vcyclist-fit-jvm`'s POM carries it in `runtime` scope: enough to run the
+encoder, not to compile against `com.garmin.fit.*`. Such a consumer had to declare
+`fit-kotlin-sdk-jvm` again with a version written by hand, which drifts from vcyclist's the day a
+dependency bot bumps it alone — and two versions of the same `com.garmin.fit.*` classes do not
+share a classpath, one wins. With the BOM the consumer still *names* the SDK, and no longer
+*versions* it:
+
+```xml
+<dependencyManagement>
+  <dependencies>
+    <dependency>
+      <groupId>io.github.glandais</groupId>
+      <artifactId>vcyclist-bom</artifactId>
+      <version>${vcyclist.version}</version>
+      <type>pom</type>
+      <scope>import</scope>
+    </dependency>
+  </dependencies>
+</dependencyManagement>
+
+<dependencies>
+  <dependency>
+    <groupId>io.github.glandais</groupId>
+    <artifactId>vcyclist-engine-jvm</artifactId>
+  </dependency>
+  <dependency>
+    <groupId>io.github.glandais</groupId>
+    <artifactId>fit-kotlin-sdk-jvm</artifactId>   <!-- only if you call com.garmin.fit.* yourself -->
+  </dependency>
+</dependencies>
+```
+
+From Gradle: `implementation(platform("io.github.glandais:vcyclist-bom:<version>"))`.
+
+The two alternatives were weighed and set aside:
+
+- **`api(libs.fit.kotlin.sdk)` in `:fit`** hands over the right version with a one-word edit, and
+  makes every generated message class of the SDK public API of `vcyclist-fit`. A FIT profile bump
+  that renames a field would then be a breaking change of vcyclist, for an encoder whose whole
+  public model is `FitCourse`. The `implementation` scope stands.
+- **A decoder in `:fit`** (timestamped records and course points out of a FIT file) would let such
+  a consumer drop `com.garmin.fit.*` altogether. It is the cleanest end state and a capability of
+  its own, with the seven surfaces that implies; the BOM does not stand in its way and is still
+  what aligns the SDK version until it exists.
+
+`:bom` lists its modules by hand (`kmpModules`, plus `:map`). **A new published module needs a
+line there and a `:<module>:publishAndReleaseToMavenCentral` in `.releaserc.json`** — read the
+generated POM after `./gradlew :bom:publishToMavenLocal -Pversion=0.0.0-local` to check.
+
 ### `:fit` on npm — decided: not published
 
 `:fit` declares **no `@JsExport` at all**, so `@glandais/vcyclist-fit` would ship a bundle with
@@ -148,7 +206,7 @@ Releases are fully automated via [semantic-release](https://semantic-release.git
    - bumps the version in `gradle.properties` via a `sed -i` in
      `@semantic-release/exec.prepareCmd`,
    - builds the CLI jar (`:cli:executableJar`),
-   - publishes the five modules to Maven Central via `publishAndReleaseToMavenCentral`
+   - publishes the five modules and the BOM to Maven Central via `publishAndReleaseToMavenCentral`
      (vanniktech plugin, stages and immediately releases — no manual approval needed),
    - publishes the two npm packages via `npmPublishJs`,
    - generates/updates `CHANGELOG.md`,
@@ -184,7 +242,8 @@ ls engine/build/dist/js/productionLibrary/
 # adjust the workingDir of the npmPublishJs task.
 
 # 2. Publish to the local Maven repo to inspect the POM and signatures.
-./gradlew :engine:publishToMavenLocal :gpx:publishToMavenLocal :elevation:publishToMavenLocal
+./gradlew :engine:publishToMavenLocal :gpx:publishToMavenLocal :elevation:publishToMavenLocal \
+          :bom:publishToMavenLocal
 find ~/.m2/repository/io/github/glandais -name 'vcyclist-*.pom'
 
 # 3. Dry-run an npm pack (no upload).
