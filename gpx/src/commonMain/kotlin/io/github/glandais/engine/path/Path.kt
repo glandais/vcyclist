@@ -67,6 +67,32 @@ class Path(
         internal set
 
     /**
+     * Sets [elevationGainFiltered] / [elevationLossFiltered] from a figure measured elsewhere, in
+     * place of the enhancer's `elevationGain` stage — for a caller that gets its D+/D- from an
+     * external source (a DEM routing service, say) and wants this path to report that figure.
+     *
+     * Same semantics as a figure [ElevationGain.annotate] wrote: [copy] and [PathSimplifier] carry
+     * it, [resetStats] (so every [computeDerivedData]) clears it back to `NaN`, and
+     * [reportedElevationGain] / [reportedElevationLoss] read it. Call it after the last
+     * [computeDerivedData], or it is lost.
+     *
+     * @param gainM cumulative ascent in metres, finite and `>= 0`.
+     * @param lossM cumulative descent in metres, finite and `<= 0` (the sign convention of
+     *   [elevationLoss]).
+     * @throws IllegalArgumentException if either value is not finite or has the wrong sign; the
+     *   path is then left unchanged.
+     */
+    fun reportElevation(
+        gainM: Double,
+        lossM: Double,
+    ) {
+        require(gainM.isFinite() && gainM >= 0.0) { "gainM must be finite and >= 0, was $gainM" }
+        require(lossM.isFinite() && lossM <= 0.0) { "lossM must be finite and <= 0, was $lossM" }
+        elevationGainFiltered = gainM
+        elevationLossFiltered = lossM
+    }
+
+    /**
      * What the enhancer's elevation corrections (bridge decks, tunnels) did to this path: a status
      * per correction, counts and warnings. `null` when the path never went through the enhancer.
      *

@@ -357,6 +357,41 @@ class ElevationGainTest {
         assertEquals(path.elevationLossFiltered, clone.elevationLossFiltered)
     }
 
+    @Test
+    fun an_external_figure_is_reported_carried_and_invalidated_like_the_stage_output() {
+        val path = hillPath()
+        path.reportElevation(412.0, -398.0)
+        assertEquals(412.0, path.elevationGainFiltered, 1e-12)
+        assertEquals(-398.0, path.elevationLossFiltered, 1e-12)
+        assertEquals(412.0, path.reportedElevationGain, 1e-12)
+        assertEquals(-398.0, path.reportedElevationLoss, 1e-12)
+
+        assertEquals(412.0, path.copy().reportedElevationGain, 1e-12)
+        val simplified = PathSimplifier.simplify(path, 1.0)
+        assertEquals(412.0, simplified.elevationGainFiltered, 1e-12)
+        assertEquals(-398.0, simplified.elevationLossFiltered, 1e-12)
+
+        path.computeDerivedData()
+        assertTrue(path.elevationGainFiltered.isNaN())
+        assertTrue(path.elevationLossFiltered.isNaN())
+    }
+
+    @Test
+    fun an_external_figure_with_the_wrong_sign_or_not_finite_is_rejected() {
+        val path = hillPath()
+        assertFailsWith<IllegalArgumentException> { path.reportElevation(-1.0, -1.0) }
+        assertFailsWith<IllegalArgumentException> { path.reportElevation(1.0, 1.0) }
+        assertFailsWith<IllegalArgumentException> { path.reportElevation(Double.NaN, 0.0) }
+        assertFailsWith<IllegalArgumentException> { path.reportElevation(Double.POSITIVE_INFINITY, 0.0) }
+        assertFailsWith<IllegalArgumentException> { path.reportElevation(0.0, Double.NEGATIVE_INFINITY) }
+        assertTrue(path.elevationGainFiltered.isNaN(), "a rejected call must not half-write")
+        assertTrue(path.elevationLossFiltered.isNaN(), "a rejected call must not half-write")
+
+        path.reportElevation(0.0, 0.0)
+        assertEquals(0.0, path.reportedElevationGain, 1e-12)
+        assertEquals(0.0, path.reportedElevationLoss, 1e-12)
+    }
+
     // ---- 11. The smoothing is the dominant knob -----------------------------
 
     @Test

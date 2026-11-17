@@ -87,6 +87,26 @@ public class ElevationGainJavaTest {
     }
 
     @Test
+    public void anExternalFigureIsReportedUnderAnUnmangledName() {
+        // The internal setters surface in Java as setElevationGainFiltered$io_github_glandais_gpx;
+        // this pins that a caller supplying its own D+/D- never has to reach for that name.
+        Path path = hill();
+        path.reportElevation(412.0, -398.0);
+        assertEquals(412.0, path.getReportedElevationGain(), 1e-9);
+        assertEquals(-398.0, path.getReportedElevationLoss(), 1e-9);
+        assertEquals(
+                412.0,
+                PathSimplifier.INSTANCE.simplify(path, 1.0, 3.0).getElevationGainFiltered(),
+                1e-9);
+        try {
+            path.reportElevation(10.0, 5.0);
+            fail("expected an IllegalArgumentException");
+        } catch (IllegalArgumentException expected) {
+            assertTrue(expected.getMessage(), expected.getMessage().contains("lossM"));
+        }
+    }
+
+    @Test
     public void theJavaFacadeAnnotatesWithTheDefaultPreset() {
         Path path = hill();
         ElevationGainResult result = ElevationGainJvm.annotate(path);

@@ -104,6 +104,11 @@ dead-banded figure when step 6 ran, the raw sum otherwise. `PathToFit` writes th
 `total_ascent` / `total_descent`, and `JsonWriter` emits both pairs (`elevationGain` and
 `elevationGainFiltered`, the latter `null` when the stage did not run).
 
+A caller that measures D+/D- elsewhere (a DEM routing service, say) writes it with
+`Path.reportElevation(gainM, lossM)` instead of running step 6: gain finite and `>= 0`, loss finite
+and `<= 0`, anything else rejected. The figure then behaves exactly like the stage's — carried by
+`copy` and `PathSimplifier`, cleared by the next `computeDerivedData`, read by `reported*`.
+
 ## Cumulative ascent is a measurement, not a property
 
 This is the part that surprises people, and it is not vcyclist's fault. Cumulative ascent behaves
