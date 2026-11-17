@@ -1,3 +1,10 @@
+# [6.15.0](https://github.com/glandais/vcyclist/compare/v6.14.0...v6.15.0) (2026-11-17)
+
+
+### Features
+
+* **gpx:** add Path.reportElevation for a D+/D- measured by an external source ([a713712](https://github.com/glandais/vcyclist/commit/a713712467e1fcbd79a6844e85eb9740c8f5bd2e))
+
 # [6.14.0](https://github.com/glandais/vcyclist/compare/v6.13.0...v6.14.0) (2026-11-16)
 
 
